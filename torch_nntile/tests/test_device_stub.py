@@ -8,6 +8,7 @@ import torch
 
 import torch_nntile
 from torch_nntile import _C, device
+from conftest import nntile_cpu
 
 
 def test_import_registers_device():
@@ -40,6 +41,16 @@ def test_nntile_to_cpu_copy():
     back = nnt.cpu()
     assert back.device.type == "cpu"
     assert torch.allclose(back, cpu)
+
+
+def test_to_copy_same_device_always_copies():
+    cpu = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
+    src = cpu.to("nntile")
+    dst = src.to("nntile", copy=True)
+    assert dst.device.type == "nntile"
+    dst.fill_(0)
+    assert torch.allclose(nntile_cpu(src), cpu)
+    assert torch.equal(nntile_cpu(dst), torch.zeros_like(cpu))
 
 
 def test_tensor_factory_on_device():

@@ -8,6 +8,7 @@
 #pragma once
 
 #include <torch/torch.h>
+#include <torch_nntile/classic_nn.hh>
 
 #include <cstdint>
 #include <string>
@@ -65,7 +66,7 @@ struct BertSelfOutputImpl : torch::nn::Module
 {
     torch::Tensor dense_weight;
     torch::Tensor dense_bias;
-    torch::nn::LayerNorm ln{nullptr};
+    nn_classic::LayerNorm ln{nullptr};
 
     explicit BertSelfOutputImpl(BertConfig const &cfg);
     torch::Tensor forward(
@@ -93,7 +94,7 @@ struct BertLayerImpl : torch::nn::Module
     torch::Tensor inter_bias;
     torch::Tensor out_weight;
     torch::Tensor out_bias;
-    torch::nn::LayerNorm out_ln{nullptr};
+    nn_classic::LayerNorm out_ln{nullptr};
     bool gelu_tanh = false;
 
     explicit BertLayerImpl(BertConfig const &cfg);
@@ -105,14 +106,14 @@ TORCH_MODULE(BertLayer);
 struct BertMlmImpl : torch::nn::Module
 {
     BertConfig config;
-    torch::nn::Embedding word_embeddings{nullptr};
-    torch::nn::Embedding position_embeddings{nullptr};
-    torch::nn::Embedding token_type_embeddings{nullptr};
-    torch::nn::LayerNorm emb_ln{nullptr};
+    nn_classic::Embedding word_embeddings{nullptr};
+    nn_classic::Embedding position_embeddings{nullptr};
+    nn_classic::Embedding token_type_embeddings{nullptr};
+    nn_classic::LayerNorm emb_ln{nullptr};
     torch::nn::ModuleList layers{nullptr};
     torch::Tensor transform_weight;
     torch::Tensor transform_bias;
-    torch::nn::LayerNorm transform_ln{nullptr};
+    nn_classic::LayerNorm transform_ln{nullptr};
     torch::Tensor decoder_weight;
     torch::Tensor decoder_bias;
     bool gelu_tanh = false;

@@ -1,0 +1,436 @@
+# GPT-Neo HF: graph overhead vs width / seqlen
+
+**Notation.** Each label is **implementation(backend)**. The word
+*outside* the brackets is the implementation; the word *inside* is the
+backend.
+
+- **HF** — HuggingFace Transformers implementation (`transformers` 4.52;
+  constraint `transformers<4.53`).
+- **nntile** (as implementation) — `torch_nntile.models`, based on
+  `torch_nntile.nn` operations and backed by hand-written nntile kernels.
+- **cuda** — PyTorch CUDA (`device=cuda`).
+- **nntile** (as backend) — StarPU / nntile (`device=nntile`).
+
+**HF(cuda)** is Transformers on CUDA. **HF(nntile)** is the same
+Transformers graph on `device=nntile`. **nntile(nntile)** is the
+`torch_nntile.models` rewrite on `device=nntile`.
+
+Three setups, same configs / seq_len / 10 steps:
+
+1. **HF(cuda)** — stock HuggingFace `GPTNeoForCausalLM`, `device=cuda`, no
+   `torch_nntile` import.
+2. **HF(nntile)** — same HF model on `device=nntile` (aten /
+   torch-native StarPU codelets; eager attention).
+3. **nntile(nntile)** —
+   `torch_nntile.models.gpt_neo.GPTNeoCausal` (hand-written nntile kernels). HF is used
+   only to init weights.
+
+Three-setup loss and wall: [Three setups](#three-setups). HF(cuda) / HF(nntile)
+10-repeat detail is below that. nntile(nntile) is in
+[nntile(nntile) vs HF(cuda)](#nntilenntile-vs-hfcuda).
+
+Depth is **12 global-attention layers** (XS–L); **XL** uses **6 layers** at similar
+param count. Width and sequence length grow together with **`seq_len = hidden_size / 2`**.
+XS uses the 2 GiB GPT-Neo width (`hidden_size=1536` from
+[`2gb/gpt_neo.json`](../../torch_nntile/examples/2gb/gpt_neo.json)) with **12 layers**
+instead of that file's 20.
+
+> **VRAM warning.** Same as GPT-2: nntile keeps extra graph buffers. Keep HF(cuda)
+> well under the card limit on large configs so `device=nntile` stays on-device (no
+> StarPU CPU↔GPU paging).
+
+Configs: [`torch_nntile/examples/overhead_gpt_neo/`](../../torch_nntile/examples/overhead_gpt_neo/).
+HF(cuda) / HF(nntile): [`train_gpt_neo_hf.py`](../../torch_nntile/examples/train_gpt_neo_hf.py),
+[`run_gpt_neo_overhead_benchmark.py`](../../torch_nntile/tools/run_gpt_neo_overhead_benchmark.py).
+nntile(nntile): [`train_nntile_native_overhead.py`](../../torch_nntile/examples/train_nntile_native_overhead.py),
+[`run_nntile_native_overhead_benchmark.py`](../../torch_nntile/tools/run_nntile_native_overhead_benchmark.py).
+
+## Attention backend
+
+Stock HF GPT-Neo (transformers **4.52**) registers **`eager`** and
+`flash_attention_2` only — **no `sdpa` class**. This study uses
+**`attn_implementation="eager"`** (`GPTNeoSelfAttention`: explicit
+`matmul` / `softmax` / mask), on both HF(cuda) and HF(nntile). HF(cuda) runs with
+`--disable-tf32`. GPT-2 SDPA / MATH pinning does **not** apply here.
+
+## Train wall
+
+Same recipe as
+[`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md): nntile
+`record → compile → wait(prev) → run`, wall from first record through final
+`wait()`; HF(cuda) synced per iter. Prefetch outside the wall. Iter 1 nntile
+`wait=0`; iter 10 `wait` includes the final join.
+
+## Recipe
+
+| | XS | S | M | L | XL |
+|--|--:|--:|--:|--:|--:|
+| Config | `gpt_neo_xs.json` | `gpt_neo_s.json` | `gpt_neo_m.json` | `gpt_neo_l.json` | `gpt_neo_xl.json` |
+| `num_layers` | 12 | 12 | 12 | 12 | **6** |
+| `hidden_size` / `num_heads` | 1536 / 24 | 2048 / 16 | 3072 / 24 | 4096 / 32 | 5760 / 45 |
+| `--seq-len` (`= hidden_size/2`) | **768** | **1024** | **1536** | **2048** | **2880** |
+| Params (FP32) | 344 M (1.28 GiB) | 611 M (2.27 GiB) | 1.37 B (5.10 GiB) | 2.43 B (9.06 GiB) | **2.41 B (8.97 GiB)** |
+
+B=1, 10 steps, seed 42, `--no-shuffle`, eager attention, HF(cuda) `--disable-tf32`,
+`device=nntile` `--ncpu 0 --ncuda 1 --restrict-cuda`. NVIDIA A40, one GPU per job.
+Separate processes (`PYTHONNOUSERSITE=1`; never import `torch_nntile` in the HF(cuda) process).
+
+HF(cuda) / HF(nntile): **10 repeats** (mean ± stdev), including **S HF(nntile) 100-step**.
+nntile(nntile): **10 repeats** (mean ± stdev), `STARPU_LIMIT_CUDA_MEM=46000`.
+
+## Three setups
+
+Same recipe. Walls are **10-repeat** means.
+
+### Loss
+
+| Setup | HF(cuda) | HF(nntile) | nntile(nntile) |
+|-------|-----:|----------------:|----------------:|
+| XS T=768 | 7.919604 | 7.919605 | 7.919589 |
+| S T=1024 | 8.061604 | 8.063025 | 8.055496 |
+| M T=1536 | 8.281400 | 8.283568 | 8.261368 |
+| L T=2048 | 8.430460 | 8.375641 | 8.410055 |
+| XL T=2880 | 8.777171 | 8.764720 | 8.798029 |
+
+HF(cuda) and HF(nntile) already diverge on S–XL (eager). nntile(nntile) is close on
+XS (Δ ~1.5e-5) and still diverges on S–XL. Native SDPA is unscaled to
+match HF GPT-Neo scores; remaining drift is the same eager-vs-kernel
+issue as HF(cuda) / HF(nntile).
+
+### 10-step train wall
+
+**10 repeats** (mean ± stdev), `STARPU_LIMIT_CUDA_MEM=46000`.
+
+| Setup | HF(cuda) | HF(nntile) | nntile(nntile) | HF(nntile) / HF(cuda) | nntile(nntile) / HF(cuda) |
+|-------|-----:|---------:|----------------:|--------------:|-------------:|
+| XS T=768 | 1.608 ± 0.006 s | 1.628 ± 0.118 s | 1.839 ± 0.206 s | **1.01×** | **1.14×** |
+| S T=1024 | 3.117 ± 0.077 s | 3.164 ± 0.167 s | 2.973 ± 0.097 s | **1.01×** | **0.95×** |
+| M T=1536 | 8.552 ± 0.179 s | 8.269 ± 0.167 s | 8.360 ± 0.175 s | **0.97×** | **0.98×** |
+| L T=2048 | 19.159 ± 0.198 s | 18.449 ± 0.147 s | 18.634 ± 0.170 s | **0.96×** | **0.97×** |
+| XL T=2880 | 26.276 ± 0.192 s | 25.535 ± 0.185 s | 25.611 ± 0.163 s | **0.97×** | **0.98×** |
+
+nntile(nntile) tracks HF(cuda) on S–XL (**0.95–0.98×**); XS is host-bound
+(**1.14×**).
+
+### Peak VRAM and bus
+
+Peak VRAM is `nvidia-smi memory.used`. H2D/D2H are StarPU bus stats at
+shutdown. HF(cuda) has no StarPU bus.
+
+| Setup | HF(cuda) VRAM | HF(nntile) VRAM | HF(nntile) H2D | HF(nntile) D2H | nntile(nntile) VRAM | nntile(nntile) H2D | nntile(nntile) D2H |
+|-------|----------:|--------------:|-------------:|-------------:|---------------------:|--------------------:|--------------------:|
+| XS T=768 | 4.1 GiB | 3.8 GiB | 1.29 GB | **0** | 5.0 GiB | 1.37 GB | **0** |
+| S T=1024 | 6.8 GiB | 5.4 GiB | 2.29 GB | **0** | 7.6 GiB | 2.42 GB | **0** |
+| M T=1536 | 15.4 GiB | 13.1 GiB | 5.13 GB | **0** | 17.8 GiB | 5.42 GB | **0** |
+| L T=2048 | 28.2 GiB | 24.6 GiB | 9.11 GB | **0** | 33.0 GiB | 9.61 GB | **0** |
+| XL T=2880 | 33.9 GiB | 31.3 GiB | 9.05 GB | **0** | **37.3 GiB** | 9.56 GB | **0** |
+
+No D2H on any setup.
+
+### nntile(nntile) record breakdown
+
+| Setup | wall | record(nntile) | record(torch) | compile | run | wait | host/wall |
+|-------|-----:|---------------:|--------------:|--------:|----:|-----:|----------:|
+| XS T=768 | 1.839 ± 0.206 s | 0.059 ± 0.006 s | 0.324 ± 0.014 s | 0.125 ± 0.015 s | 0.136 ± 0.016 s | 1.193 ± 0.184 s | **27.9%** |
+| S T=1024 | 2.973 ± 0.097 s | 0.062 ± 0.006 s | 0.378 ± 0.032 s | 0.104 ± 0.006 s | 0.119 ± 0.009 s | 2.308 ± 0.092 s | **18.3%** |
+| M T=1536 | 8.360 ± 0.175 s | 0.093 ± 0.037 s | 0.527 ± 0.018 s | 0.075 ± 0.002 s | 0.101 ± 0.003 s | 7.563 ± 0.187 s | **8.3%** |
+| L T=2048 | 18.634 ± 0.170 s | 0.113 ± 0.003 s | 0.752 ± 0.047 s | 0.072 ± 0.010 s | 0.100 ± 0.007 s | 17.594 ± 0.140 s | **5.0%** |
+| XL T=2880 | 25.611 ± 0.163 s | 0.103 ± 0.007 s | 0.597 ± 0.039 s | 0.036 ± 0.002 s | 0.043 ± 0.004 s | 24.830 ± 0.181 s | **2.9%** |
+
+Isolated `run+wait`: XS 0.146 ± 0.005 s, S 0.280 ± 0.001 s, M 0.803 ± 0.002 s, L 1.821 ± 0.005 s, XL 2.525 ± 0.006 s.
+
+## nntile(nntile) vs HF(cuda)
+
+nntile(nntile) only, overlap, 10 steps, **10 repeats** (mean ± stdev).
+HF(cuda) walls are the published HF(cuda) / HF(nntile) 10-repeat means. Peak VRAM /
+H2D / D2H below are **nntile(nntile)**. HF(cuda) VRAM and HF(nntile)
+bus stats are in [Peak VRAM and bus](#peak-vram-and-bus).
+
+| Setup | HF(cuda) wall | nntile(nntile) wall | nntile(nntile) / HF(cuda) | isolated | peak VRAM | H2D | D2H | host/wall | nntile(nntile) loss |
+|-------|----------:|-------------:|-------------:|---------:|----------:|----:|----:|----------:|-------------:|
+| XS T=768 | 1.608 ± 0.006 s | 1.839 ± 0.206 s | **1.14×** | 0.146 ± 0.005 s | 5.0 GiB | 1.37 GB | **0** | **27.9%** | 7.919589 |
+| S T=1024 | 3.117 ± 0.077 s | 2.973 ± 0.097 s | **0.95×** | 0.280 ± 0.001 s | 7.6 GiB | 2.42 GB | **0** | **18.3%** | 8.055496 |
+| M T=1536 | 8.552 ± 0.179 s | 8.360 ± 0.175 s | **0.98×** | 0.803 ± 0.002 s | 17.8 GiB | 5.42 GB | **0** | **8.3%** | 8.261368 |
+| L T=2048 | 19.159 ± 0.198 s | 18.634 ± 0.170 s | **0.97×** | 1.821 ± 0.005 s | 33.0 GiB | 9.61 GB | **0** | **5.0%** | 8.410055 |
+| XL T=2880 | 26.276 ± 0.192 s | 25.611 ± 0.163 s | **0.98×** | 2.525 ± 0.006 s | **37.3 GiB** | 9.56 GB | **0** | **2.9%** | 8.798029 |
+
+No StarPU reclaim. S–XL loss still drifts across runs (eager vs kernel).
+
+## HF(nntile) vs HF(cuda) (10 repeats)
+
+VRAM for HF(cuda) / HF(nntile) / nntile(nntile) is in
+[Peak VRAM and bus](#peak-vram-and-bus) (`nvidia-smi`).
+
+| Setup | HF(cuda) wall | HF(nntile) wall | HF(nntile) / HF(cuda) | record(nntile) | record(torch) | compile | run | wait | host/wall | HF(cuda) loss | HF(nntile) loss |
+|-------|----------:|------------:|------------:|---------------:|--------------:|--------:|----:|-----:|----------:|----------:|------------:|
+| XS T=768 | 1.608 ± 0.006 s | 1.628 ± 0.118 s | **1.01×** | 0.059 ± 0.002 s | 0.309 ± 0.013 s | 0.116 ± 0.004 s | 0.114 ± 0.003 s | 1.028 ± 0.120 s | **29.8%** | 7.919604 | **7.919605** |
+| S T=1024 | 3.117 ± 0.077 s | 3.164 ± 0.167 s | **1.01×** | 0.065 ± 0.014 s | 0.319 ± 0.029 s | 0.123 ± 0.027 s | 0.126 ± 0.020 s | 2.530 ± 0.164 s | **16.0%** | 8.061604 | **8.063025** |
+| M T=1536 | 8.552 ± 0.179 s | 8.269 ± 0.167 s | **0.97×** | 0.059 ± 0.002 s | 0.301 ± 0.007 s | 0.113 ± 0.004 s | 0.124 ± 0.004 s | 7.671 ± 0.167 s | **5.7%** | 8.281400 | **8.283568** |
+| L T=2048 | 19.159 ± 0.198 s | 18.449 ± 0.147 s | **0.96×** | 0.056 ± 0.003 s | 0.300 ± 0.013 s | 0.107 ± 0.004 s | 0.120 ± 0.007 s | 17.865 ± 0.145 s | **2.5%** | 8.430460 | **8.375641** |
+| XL T=2880 | 26.276 ± 0.192 s | 25.535 ± 0.185 s | **0.97×** | 0.037 ± 0.002 s | 0.192 ± 0.004 s | 0.062 ± 0.004 s | 0.072 ± 0.004 s | 25.169 ± 0.194 s | **1.1%** | 8.777171 | **8.764720** |
+
+Host = `record(nntile)+record(torch)+compile` (~0.29–0.51 s for 10 steps,
+**flat**). Host **share** drops **29.8% → 16.0% → 5.7% → 2.5% → 1.1%**
+as GPU work grows.
+
+- **XS:** loss matches to printed digits (7.919604).
+
+### Loss / correctness
+
+- **S:** HF(cuda) 8.061604 vs HF(nntile) 8.063025 (Δ 0.001421).
+- **M:** HF(cuda) 8.281400 vs HF(nntile) 8.283568 (Δ 0.002168).
+- **L:** HF(cuda) 8.430460 vs HF(nntile) 8.375641 (Δ 0.054819).
+- **XL:** HF(cuda) 8.777171 vs HF(nntile) 8.764720 (Δ 0.012451).
+
+Performance ratios remain informative; investigate eager-attention training parity separately from graph overhead.
+
+Isolated GPU `run+wait` vs HF(cuda) isolated wall:
+XS 0.138 ± 0.001 vs 0.142 ± 0.001 s, S 0.269 ± 0.001 vs 0.284 ± 0.001 s, M 0.784 ± 0.004 vs 0.831 ± 0.002 s, L 1.792 ± 0.004 vs 1.883 ± 0.007 s, XL 2.492 ± 0.003 vs 2.581 ± 0.005 s.
+
+## 100-step S (nntile steady state, mean ± stdev over 10 runs)
+
+Same **S** config (`hidden_size=2048`, `T=1024`, B=1), **100 optimizer steps**, nntile
+overlap only. Complements the 10-step ladder above.
+
+Loss **7.932405**.
+
+| | Total | mean / step |
+|--|--:|--:|
+| record(nntile) | 0.793 ± 0.018 s | 7.9 ms |
+| record(torch) | 4.370 ± 0.050 s | 44 ms |
+| compile | 1.384 ± 0.014 s | 14 ms |
+| run | 1.464 ± 0.035 s | 15 ms |
+| wait | 19.770 ± 0.233 s | 198 ms |
+| **train wall** | **27.794 ± 0.210 s** | 278 ms |
+
+Host (record + compile) is **24%** of the wall (~65 ms/step).
+
+![Host overhead per iteration](gpt_neo_hf_overhead_s_100.svg)
+
+CSV: [`gpt_neo_hf_overhead_s_100.csv`](gpt_neo_hf_overhead_s_100.csv) (median of 10 runs).
+
+## Comparison to GPT-2 (same ladder geometry)
+
+See [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md) for the GPT-2 10× run
+
+| Size | GPT-2 HF(nntile)/HF(cuda) | GPT-Neo HF(nntile)/HF(cuda) |
+|------|------------------:|--------------------:|
+| XS | 0.99× | **1.01×** |
+| S | 0.96× | **1.01×** |
+| M | 0.94× | **0.97×** |
+| L | 0.94× | **0.96×** |
+| XL | 0.96× | **0.97×** |
+
+### 100-step S (nntile)
+
+| | GPT-2 | GPT-Neo | Notes |
+|--|------:|--------:|-------|
+| train wall | 27.5 s | **27.8 s** | same ballpark |
+| final loss | 7.734033 | **7.932405** | Neo drifts vs HF(cuda) on 10-step S |
+| host share | 22% | **24%** | flat host, GPU-bound |
+
+## Per iteration (mean ± stdev over 10 runs)
+
+### XS (`hidden_size=1536`, `T=768`)
+
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
+|-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
+| 1 | 0.328 ± 0.002 | 0.002 ± 0.000 | 0.019 ± 0.001 | 0.005 ± 0.001 | 0.006 ± 0.001 | 0.000 |
+| 2 | 0.142 ± 0.001 | 0.002 ± 0.000 | 0.014 ± 0.000 | 0.005 ± 0.001 | 0.007 ± 0.001 | 0.298 ± 0.118 |
+| 3 | 0.143 ± 0.001 | 0.004 ± 0.001 | 0.020 ± 0.003 | 0.008 ± 0.001 | 0.009 ± 0.001 | 0.101 ± 0.003 |
+| 4 | 0.143 ± 0.001 | 0.005 ± 0.001 | 0.024 ± 0.002 | 0.013 ± 0.001 | 0.012 ± 0.001 | 0.089 ± 0.005 |
+| 5 | 0.142 ± 0.001 | 0.007 ± 0.000 | 0.031 ± 0.002 | 0.013 ± 0.001 | 0.014 ± 0.001 | 0.078 ± 0.004 |
+| 6 | 0.142 ± 0.001 | 0.007 ± 0.001 | 0.035 ± 0.002 | 0.015 ± 0.001 | 0.014 ± 0.002 | 0.072 ± 0.003 |
+| 7 | 0.142 ± 0.001 | 0.008 ± 0.000 | 0.038 ± 0.003 | 0.013 ± 0.001 | 0.013 ± 0.001 | 0.070 ± 0.003 |
+| 8 | 0.142 ± 0.001 | 0.008 ± 0.001 | 0.041 ± 0.004 | 0.014 ± 0.001 | 0.014 ± 0.001 | 0.066 ± 0.004 |
+| 9 | 0.142 ± 0.000 | 0.008 ± 0.001 | 0.044 ± 0.002 | 0.015 ± 0.002 | 0.013 ± 0.001 | 0.062 ± 0.004 |
+| 10 | 0.142 ± 0.000 | 0.007 ± 0.001 | 0.044 ± 0.003 | 0.014 ± 0.001 | 0.013 ± 0.001 | 0.192 ± 0.005 |
+
+### S (`hidden_size=2048`, `T=1024`)
+
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
+|-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
+| 1 | 0.469 ± 0.025 | 0.004 ± 0.001 | 0.019 ± 0.001 | 0.004 ± 0.001 | 0.006 ± 0.001 | 0.000 |
+| 2 | 0.376 ± 0.087 | 0.002 | 0.014 ± 0.001 | 0.005 ± 0.001 | 0.012 ± 0.016 | 0.617 ± 0.165 |
+| 3 | 0.284 ± 0.001 | 0.008 ± 0.015 | 0.036 ± 0.030 | 0.019 ± 0.027 | 0.007 ± 0.002 | 0.233 ± 0.002 |
+| 4 | 0.284 ± 0.001 | 0.004 ± 0.002 | 0.022 ± 0.004 | 0.011 ± 0.003 | 0.012 ± 0.002 | 0.225 ± 0.009 |
+| 5 | 0.284 ± 0.001 | 0.007 ± 0.001 | 0.030 ± 0.004 | 0.012 ± 0.001 | 0.014 ± 0.001 | 0.210 ± 0.007 |
+| 6 | 0.284 ± 0.001 | 0.007 ± 0.001 | 0.033 ± 0.002 | 0.014 ± 0.001 | 0.014 ± 0.001 | 0.204 ± 0.004 |
+| 7 | 0.284 ± 0.001 | 0.008 ± 0.000 | 0.037 ± 0.002 | 0.014 ± 0.001 | 0.015 ± 0.001 | 0.199 ± 0.003 |
+| 8 | 0.284 ± 0.001 | 0.008 ± 0.000 | 0.040 ± 0.001 | 0.014 ± 0.001 | 0.014 ± 0.001 | 0.197 ± 0.002 |
+| 9 | 0.284 ± 0.001 | 0.008 ± 0.000 | 0.043 ± 0.001 | 0.015 ± 0.001 | 0.015 ± 0.002 | 0.194 ± 0.003 |
+| 10 | 0.284 ± 0.001 | 0.008 ± 0.001 | 0.045 ± 0.001 | 0.014 ± 0.001 | 0.016 ± 0.003 | 0.451 ± 0.002 |
+
+### M (`hidden_size=3072`, `T=1536`)
+
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
+|-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
+| 1 | 1.095 ± 0.179 | 0.003 ± 0.001 | 0.019 ± 0.001 | 0.005 ± 0.001 | 0.007 ± 0.001 | 0.000 |
+| 2 | 0.827 ± 0.002 | 0.002 ± 0.000 | 0.014 ± 0.001 | 0.006 ± 0.001 | 0.008 ± 0.001 | 1.124 ± 0.161 |
+| 3 | 0.826 ± 0.003 | 0.004 ± 0.000 | 0.019 ± 0.001 | 0.008 ± 0.001 | 0.009 ± 0.001 | 0.745 ± 0.006 |
+| 4 | 0.830 ± 0.003 | 0.005 ± 0.000 | 0.024 ± 0.001 | 0.012 ± 0.001 | 0.014 ± 0.002 | 0.737 ± 0.003 |
+| 5 | 0.828 ± 0.003 | 0.008 ± 0.001 | 0.031 ± 0.001 | 0.013 ± 0.001 | 0.014 ± 0.001 | 0.722 ± 0.005 |
+| 6 | 0.830 ± 0.002 | 0.007 ± 0.000 | 0.034 ± 0.003 | 0.013 ± 0.001 | 0.015 ± 0.001 | 0.720 ± 0.003 |
+| 7 | 0.829 ± 0.004 | 0.007 ± 0.001 | 0.038 ± 0.003 | 0.013 ± 0.001 | 0.015 ± 0.001 | 0.716 ± 0.003 |
+| 8 | 0.829 ± 0.005 | 0.008 ± 0.000 | 0.039 ± 0.004 | 0.013 ± 0.001 | 0.015 ± 0.001 | 0.714 ± 0.004 |
+| 9 | 0.829 ± 0.004 | 0.007 ± 0.000 | 0.040 ± 0.004 | 0.015 ± 0.001 | 0.014 ± 0.001 | 0.712 ± 0.005 |
+| 10 | 0.830 ± 0.005 | 0.007 ± 0.001 | 0.044 ± 0.001 | 0.014 ± 0.002 | 0.015 ± 0.001 | 1.481 ± 0.008 |
+
+### L (`hidden_size=4096`, `T=2048`)
+
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
+|-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
+| 1 | 2.158 ± 0.186 | 0.002 ± 0.000 | 0.019 ± 0.001 | 0.005 ± 0.001 | 0.007 ± 0.001 | 0.000 |
+| 2 | 1.885 ± 0.005 | 0.002 ± 0.000 | 0.014 ± 0.001 | 0.006 ± 0.001 | 0.008 ± 0.001 | 2.185 ± 0.133 |
+| 3 | 1.888 ± 0.005 | 0.004 ± 0.001 | 0.018 ± 0.002 | 0.007 ± 0.001 | 0.009 ± 0.003 | 1.762 ± 0.006 |
+| 4 | 1.889 ± 0.005 | 0.005 ± 0.001 | 0.024 ± 0.004 | 0.011 ± 0.002 | 0.012 ± 0.002 | 1.754 ± 0.008 |
+| 5 | 1.891 ± 0.005 | 0.007 ± 0.001 | 0.031 ± 0.003 | 0.012 ± 0.001 | 0.013 ± 0.002 | 1.738 ± 0.009 |
+| 6 | 1.888 ± 0.009 | 0.007 ± 0.001 | 0.033 ± 0.001 | 0.013 ± 0.001 | 0.014 ± 0.001 | 1.737 ± 0.009 |
+| 7 | 1.890 ± 0.008 | 0.007 ± 0.000 | 0.036 ± 0.002 | 0.013 ± 0.001 | 0.014 ± 0.002 | 1.731 ± 0.007 |
+| 8 | 1.890 ± 0.010 | 0.007 ± 0.000 | 0.040 ± 0.002 | 0.013 ± 0.001 | 0.014 ± 0.001 | 1.727 ± 0.011 |
+| 9 | 1.891 ± 0.010 | 0.007 ± 0.001 | 0.043 ± 0.001 | 0.014 ± 0.001 | 0.015 ± 0.001 | 1.724 ± 0.011 |
+| 10 | 1.888 ± 0.010 | 0.007 ± 0.001 | 0.043 ± 0.005 | 0.013 ± 0.001 | 0.013 ± 0.001 | 3.506 ± 0.013 |
+
+### XL (`hidden_size=5760`, `T=2880`, 6 layers, `head_dim=128`)
+
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
+|-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
+| 1 | 3.062 ± 0.180 | 0.002 | 0.012 ± 0.001 | 0.003 ± 0.000 | 0.004 ± 0.000 | 0.000 |
+| 2 | 2.583 ± 0.004 | 0.001 | 0.007 ± 0.001 | 0.003 | 0.004 ± 0.001 | 3.076 ± 0.189 |
+| 3 | 2.581 ± 0.011 | 0.002 ± 0.000 | 0.011 ± 0.001 | 0.005 ± 0.001 | 0.006 ± 0.001 | 2.473 ± 0.006 |
+| 4 | 2.579 ± 0.011 | 0.003 ± 0.001 | 0.015 ± 0.001 | 0.006 ± 0.001 | 0.008 ± 0.001 | 2.462 ± 0.013 |
+| 5 | 2.578 ± 0.013 | 0.004 ± 0.001 | 0.019 ± 0.001 | 0.007 ± 0.001 | 0.008 ± 0.001 | 2.449 ± 0.013 |
+| 6 | 2.582 ± 0.012 | 0.005 ± 0.000 | 0.022 ± 0.001 | 0.008 ± 0.000 | 0.009 ± 0.001 | 2.446 ± 0.010 |
+| 7 | 2.579 ± 0.009 | 0.005 | 0.025 ± 0.001 | 0.008 ± 0.000 | 0.009 ± 0.001 | 2.443 ± 0.010 |
+| 8 | 2.575 ± 0.004 | 0.005 ± 0.000 | 0.026 ± 0.001 | 0.008 ± 0.000 | 0.009 ± 0.001 | 2.442 ± 0.004 |
+| 9 | 2.578 ± 0.004 | 0.006 | 0.028 ± 0.000 | 0.008 ± 0.000 | 0.008 ± 0.002 | 2.442 ± 0.004 |
+| 10 | 2.579 ± 0.005 | 0.005 ± 0.001 | 0.027 ± 0.001 | 0.008 ± 0.001 | 0.008 ± 0.001 | 4.936 ± 0.006 |
+
+## Isolated extra step (mean ± stdev over 10 runs)
+
+| Setup | record(nntile) | record(torch) | compile | run | wait | run+wait | HF(cuda) isolated |
+|-------|---------------:|--------------:|--------:|----:|-----:|---------:|--------------:|
+| XS | 0.008 ± 0.000 | 0.044 ± 0.005 | 0.014 ± 0.000 | 0.013 ± 0.000 | 0.125 ± 0.001 | **0.138 ± 0.001** | 0.142 ± 0.001 |
+| S | 0.007 ± 0.002 | 0.044 ± 0.005 | 0.013 ± 0.003 | 0.012 ± 0.002 | 0.256 ± 0.002 | **0.269 ± 0.001** | 0.284 ± 0.001 |
+| M | 0.008 | 0.047 ± 0.001 | 0.014 ± 0.000 | 0.013 | 0.771 ± 0.004 | **0.784 ± 0.004** | 0.831 ± 0.002 |
+| L | 0.007 ± 0.001 | 0.047 ± 0.004 | 0.013 ± 0.003 | 0.012 ± 0.002 | 1.780 ± 0.005 | **1.792 ± 0.004** | 1.883 ± 0.007 |
+| XL | 0.005 | 0.028 ± 0.000 | 0.008 | 0.007 ± 0.001 | 2.485 ± 0.003 | **2.492 ± 0.003** | 2.581 ± 0.005 |
+
+| Setup | Full isolated (record+compile+run+wait) | Hidden host (`run+wait`) | Saved |
+|-------|----------------------------------------:|-------------------------:|------:|
+| XS | 0.204 s | 0.138 s | 0.066 s (**32%**) |
+| S | 0.333 s | 0.269 s | 0.065 s (**19%**) |
+| M | 0.853 s | 0.784 s | 0.069 s (**8%**) |
+| L | 1.859 s | 1.792 s | 0.067 s (**4%**) |
+| XL | 2.533 s | 2.492 s | 0.041 s (**2%**) |
+
+## Sequential prep vs compute (`--wait-after-run`)
+
+| Setup | HF(cuda) wall | sequential wall | prep | compute | compute / HF(cuda) | prep/wall |
+|-------|----------:|----------------:|-----:|--------:|-------------:|----------:|
+| XS T=768 | 1.608 ± 0.006 s | 2.024 ± 0.028 s | 0.504 ± 0.021 s | **1.519 ± 0.024 s** | **0.94×** | 24.9% |
+| S T=1024 | 3.117 ± 0.077 s | 3.514 ± 0.188 s | 0.524 ± 0.015 s | **2.990 ± 0.186 s** | **0.96×** | 14.9% |
+| M T=1536 | 8.552 ± 0.179 s | 8.616 ± 0.099 s | 0.496 ± 0.012 s | **8.118 ± 0.110 s** | **0.95×** | 5.8% |
+| L T=2048 | 19.159 ± 0.198 s | 18.821 ± 0.141 s | 0.494 ± 0.023 s | **18.325 ± 0.139 s** | **0.96×** | 2.6% |
+| XL T=2880 | 26.276 ± 0.192 s | 25.827 ± 0.192 s | 0.311 ± 0.012 s | **25.513 ± 0.197 s** | **0.97×** | 1.2% |
+
+Sequential HF(nntile) loss: XS 7.919605, S 8.063025, M 8.283568, L 8.375641, XL 8.764720.
+
+### Per iteration (prep / compute, mean ± stdev)
+
+#### XS (`T=768`)
+
+| Iter | prep | compute | record(nntile) | record(torch) | compile | run | wait |
+|-----:|-----:|--------:|---------------:|--------------:|--------:|----:|-----:|
+| 1 | 0.026 ± 0.001 | 0.293 ± 0.020 | 0.002 ± 0.000 | 0.019 ± 0.001 | 0.005 ± 0.001 | 0.006 ± 0.001 | 0.287 ± 0.020 |
+| 2 | 0.043 ± 0.020 | 0.135 ± 0.001 | 0.003 ± 0.001 | 0.019 ± 0.013 | 0.020 ± 0.019 | 0.006 ± 0.001 | 0.129 ± 0.001 |
+| 3 | 0.029 ± 0.004 | 0.136 ± 0.001 | 0.004 ± 0.001 | 0.019 ± 0.002 | 0.007 ± 0.002 | 0.007 ± 0.001 | 0.129 ± 0.002 |
+| 4 | 0.040 ± 0.004 | 0.136 ± 0.001 | 0.005 ± 0.001 | 0.025 ± 0.002 | 0.009 ± 0.001 | 0.009 ± 0.001 | 0.127 ± 0.001 |
+| 5 | 0.048 ± 0.004 | 0.137 ± 0.001 | 0.007 ± 0.001 | 0.029 ± 0.002 | 0.012 ± 0.002 | 0.011 ± 0.001 | 0.125 ± 0.001 |
+| 6 | 0.056 ± 0.003 | 0.137 ± 0.001 | 0.008 ± 0.001 | 0.035 ± 0.002 | 0.013 ± 0.001 | 0.012 ± 0.001 | 0.124 ± 0.001 |
+| 7 | 0.063 ± 0.006 | 0.136 ± 0.001 | 0.009 ± 0.002 | 0.040 ± 0.003 | 0.015 ± 0.002 | 0.013 ± 0.002 | 0.123 ± 0.001 |
+| 8 | 0.064 ± 0.003 | 0.136 ± 0.001 | 0.009 ± 0.001 | 0.041 ± 0.002 | 0.014 ± 0.001 | 0.012 ± 0.001 | 0.124 ± 0.001 |
+| 9 | 0.069 ± 0.006 | 0.137 ± 0.001 | 0.009 ± 0.001 | 0.044 ± 0.002 | 0.015 ± 0.002 | 0.013 ± 0.001 | 0.123 ± 0.001 |
+| 10 | 0.066 ± 0.003 | 0.137 ± 0.001 | 0.008 ± 0.001 | 0.044 ± 0.002 | 0.013 ± 0.001 | 0.013 ± 0.001 | 0.124 ± 0.002 |
+
+#### S (`T=1024`)
+
+| Iter | prep | compute | record(nntile) | record(torch) | compile | run | wait |
+|-----:|-----:|--------:|---------------:|--------------:|--------:|----:|-----:|
+| 1 | 0.027 ± 0.001 | 0.589 ± 0.187 | 0.003 ± 0.001 | 0.018 ± 0.001 | 0.005 ± 0.000 | 0.007 ± 0.001 | 0.582 ± 0.187 |
+| 2 | 0.061 ± 0.029 | 0.265 ± 0.001 | 0.004 ± 0.000 | 0.016 ± 0.000 | 0.041 ± 0.030 | 0.006 ± 0.001 | 0.259 ± 0.001 |
+| 3 | 0.031 ± 0.004 | 0.266 ± 0.002 | 0.004 ± 0.001 | 0.019 ± 0.002 | 0.007 ± 0.001 | 0.007 ± 0.001 | 0.260 ± 0.002 |
+| 4 | 0.040 ± 0.006 | 0.267 ± 0.002 | 0.005 ± 0.001 | 0.025 ± 0.003 | 0.010 ± 0.001 | 0.009 ± 0.001 | 0.258 ± 0.002 |
+| 5 | 0.050 ± 0.003 | 0.267 ± 0.001 | 0.007 ± 0.001 | 0.031 ± 0.002 | 0.012 ± 0.001 | 0.012 ± 0.001 | 0.255 ± 0.001 |
+| 6 | 0.055 ± 0.004 | 0.267 ± 0.001 | 0.008 ± 0.001 | 0.034 ± 0.004 | 0.013 ± 0.001 | 0.012 ± 0.001 | 0.255 ± 0.001 |
+| 7 | 0.061 ± 0.002 | 0.267 ± 0.001 | 0.009 ± 0.001 | 0.039 ± 0.001 | 0.014 ± 0.001 | 0.012 ± 0.000 | 0.255 ± 0.001 |
+| 8 | 0.065 ± 0.002 | 0.267 ± 0.001 | 0.009 ± 0.001 | 0.042 ± 0.001 | 0.014 ± 0.000 | 0.012 ± 0.001 | 0.255 ± 0.001 |
+| 9 | 0.066 ± 0.006 | 0.268 ± 0.001 | 0.009 ± 0.001 | 0.043 ± 0.005 | 0.014 ± 0.001 | 0.013 ± 0.001 | 0.254 ± 0.001 |
+| 10 | 0.067 ± 0.002 | 0.267 ± 0.001 | 0.009 ± 0.001 | 0.044 ± 0.002 | 0.014 ± 0.000 | 0.013 ± 0.001 | 0.254 ± 0.001 |
+
+#### M (`T=1536`)
+
+| Iter | prep | compute | record(nntile) | record(torch) | compile | run | wait |
+|-----:|-----:|--------:|---------------:|--------------:|--------:|----:|-----:|
+| 1 | 0.026 ± 0.001 | 1.082 ± 0.104 | 0.002 ± 0.001 | 0.018 ± 0.001 | 0.005 ± 0.001 | 0.007 ± 0.001 | 1.075 ± 0.105 |
+| 2 | 0.028 ± 0.003 | 0.778 ± 0.002 | 0.004 ± 0.001 | 0.017 ± 0.002 | 0.007 ± 0.001 | 0.007 ± 0.001 | 0.772 ± 0.001 |
+| 3 | 0.035 ± 0.002 | 0.781 ± 0.003 | 0.005 ± 0.001 | 0.021 ± 0.001 | 0.009 ± 0.001 | 0.008 ± 0.001 | 0.773 ± 0.003 |
+| 4 | 0.042 ± 0.002 | 0.780 ± 0.002 | 0.006 ± 0.001 | 0.026 ± 0.001 | 0.010 ± 0.001 | 0.010 ± 0.001 | 0.770 ± 0.002 |
+| 5 | 0.049 ± 0.003 | 0.783 ± 0.001 | 0.007 ± 0.001 | 0.030 ± 0.001 | 0.012 ± 0.001 | 0.012 ± 0.001 | 0.772 ± 0.001 |
+| 6 | 0.055 ± 0.002 | 0.782 ± 0.002 | 0.008 ± 0.001 | 0.034 ± 0.001 | 0.013 ± 0.001 | 0.012 ± 0.001 | 0.770 ± 0.002 |
+| 7 | 0.061 ± 0.002 | 0.782 ± 0.002 | 0.008 ± 0.001 | 0.039 ± 0.001 | 0.014 ± 0.000 | 0.013 ± 0.001 | 0.770 ± 0.002 |
+| 8 | 0.064 ± 0.001 | 0.783 ± 0.003 | 0.009 ± 0.001 | 0.042 ± 0.001 | 0.014 | 0.013 ± 0.001 | 0.770 ± 0.003 |
+| 9 | 0.069 ± 0.003 | 0.782 ± 0.003 | 0.009 ± 0.001 | 0.045 ± 0.002 | 0.016 ± 0.001 | 0.013 ± 0.001 | 0.770 ± 0.003 |
+| 10 | 0.067 ± 0.002 | 0.783 ± 0.003 | 0.008 ± 0.000 | 0.045 ± 0.002 | 0.014 | 0.013 ± 0.001 | 0.770 ± 0.003 |
+
+#### L (`T=2048`)
+
+| Iter | prep | compute | record(nntile) | record(torch) | compile | run | wait |
+|-----:|-----:|--------:|---------------:|--------------:|--------:|----:|-----:|
+| 1 | 0.028 ± 0.001 | 2.182 ± 0.132 | 0.003 ± 0.000 | 0.019 ± 0.001 | 0.005 ± 0.001 | 0.007 ± 0.001 | 2.175 ± 0.132 |
+| 2 | 0.027 ± 0.003 | 1.793 ± 0.004 | 0.004 ± 0.001 | 0.016 ± 0.001 | 0.007 ± 0.002 | 0.006 ± 0.001 | 1.787 ± 0.004 |
+| 3 | 0.034 ± 0.003 | 1.796 ± 0.003 | 0.005 ± 0.001 | 0.021 ± 0.002 | 0.008 ± 0.001 | 0.007 ± 0.001 | 1.788 ± 0.003 |
+| 4 | 0.042 ± 0.006 | 1.796 ± 0.004 | 0.006 ± 0.001 | 0.026 ± 0.003 | 0.010 ± 0.002 | 0.009 ± 0.002 | 1.786 ± 0.005 |
+| 5 | 0.049 ± 0.005 | 1.794 ± 0.009 | 0.007 ± 0.001 | 0.030 ± 0.002 | 0.012 ± 0.002 | 0.011 ± 0.002 | 1.783 ± 0.010 |
+| 6 | 0.056 ± 0.004 | 1.793 ± 0.007 | 0.008 ± 0.001 | 0.035 ± 0.002 | 0.013 ± 0.001 | 0.011 ± 0.001 | 1.782 ± 0.007 |
+| 7 | 0.061 ± 0.004 | 1.792 ± 0.008 | 0.008 ± 0.001 | 0.039 ± 0.002 | 0.014 ± 0.002 | 0.013 ± 0.002 | 1.779 ± 0.009 |
+| 8 | 0.063 ± 0.003 | 1.793 ± 0.008 | 0.008 ± 0.001 | 0.041 ± 0.002 | 0.014 ± 0.001 | 0.012 ± 0.001 | 1.781 ± 0.008 |
+| 9 | 0.069 ± 0.005 | 1.795 ± 0.008 | 0.009 ± 0.001 | 0.044 ± 0.005 | 0.016 ± 0.002 | 0.012 ± 0.001 | 1.783 ± 0.008 |
+| 10 | 0.066 ± 0.006 | 1.791 ± 0.006 | 0.007 ± 0.001 | 0.044 ± 0.003 | 0.014 ± 0.002 | 0.013 ± 0.002 | 1.779 ± 0.007 |
+
+Steady compute after iter 1 (mean over repeats): ~0.135 s (XS), ~0.265 s (S), ~0.778 s (M), ~1.793 s (L), ~2.496 s (XL).
+
+## Takeaways
+
+1. **`seq_len = hidden_size / 2`**, 12 global layers, eager HF attention.
+2. **Graph host overhead is flat** (~0.3–0.5 s / 10 steps); share falls as GPU
+   work grows (29.8% → 1.1%).
+3. **With VRAM headroom, HF(nntile) matches or beats HF(cuda) on wall time**
+   (XS 1.01×, S 1.01×, M 0.97×, L 0.96×, XL 0.97×).
+4. **Sequential GPU time** (`run+wait`): **0.94× → 0.96× → 0.95× → 0.96× → 0.97×** HF(cuda).
+5. Timings are **mean ± stdev over 10 runs** on the same GPU.
+6. Check **HF(cuda) vs HF(nntile) loss** above for training parity beyond XS.
+7. **100-step S** wall **27.794 ± 0.210 s** — see section above.
+8. nntile(nntile): **0.95–1.14×** HF(cuda), XL peak
+   **37.3 GiB**, **no D2H**. HF(cuda) / HF(nntile) VRAM is in
+   [Peak VRAM and bus](#peak-vram-and-bus). See
+   [nntile(nntile) vs HF(cuda)](#nntilenntile-vs-hfcuda).
+
+## How to reproduce
+
+```bash
+export TORCH_LIB_DIR="$(python3 -c 'import os, torch; print(os.path.join(os.path.dirname(torch.__file__), "lib"))')"
+export NNTILE_BUILD_DIR=$PWD/build TORCH_NNTILE_BUILD_DIR=$PWD/build
+export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${TORCH_LIB_DIR}:$PWD/build/nntile:$PWD/build/torch_nntile:/opt/starpu/lib"
+export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
+
+python3 torch_nntile/tools/run_gpt_neo_overhead_benchmark.py \
+  --logdir /tmp/gpt_neo_overhead --gpu 0 --repeats 10 --long-steps 100
+
+python3 torch_nntile/tools/run_nntile_native_overhead_benchmark.py \
+  --family gpt_neo --logdir /tmp/gpt_neo_native --gpu 0 --repeats 10
+
+python3 torch_nntile/tools/update_gpt_neo_overhead_doc.py \
+  --summary /tmp/gpt_neo_overhead/results_summary.json \
+  --results /tmp/gpt_neo_overhead/results.json
+```

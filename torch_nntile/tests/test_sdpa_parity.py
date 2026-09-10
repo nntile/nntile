@@ -193,9 +193,10 @@ def test_sdpa_backward_rejects_mismatched_grad_out():
     q = torch.randn(*shape).to("nntile")
     k = torch.randn(*shape).to("nntile")
     v = torch.randn(*shape).to("nntile")
+    attn = torch.randn(2, 1, 4, 4).to("nntile")
     bad_grad = torch.randn(2, 1, 3, 8).to("nntile")
     with pytest.raises(RuntimeError, match="grad_out shape must match"):
-        _C.sdpa_backward(q, k, v, bad_grad, None, 2)
+        _C.sdpa_backward(q, k, v, attn, bad_grad, 2)
 
 
 def test_sdpa_module_forward():

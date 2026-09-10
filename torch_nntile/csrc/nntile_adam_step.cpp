@@ -6,7 +6,7 @@
 
 #include "nntile_adam_step.h"
 
-#include "nntile_executor.h"
+#include "nntile_executor_classic.h"
 #include "nntile_graph_recorder_impl.h"
 #include "nntile_tensor_gc.h"
 
@@ -81,10 +81,11 @@ void adam_step(
     double eps,
     double weight_decay)
 {
+    nntile::GraphFillScope record;
     check_adam_step_tensors(
         param, grad, first_moment, second_moment, "nntile adam_step");
     TORCH_CHECK(num_iter >= 1, "nntile adam_step: num_iter must be >= 1");
-    tensor_adam_step_fp32(
+    classic_tensor_adam_step_fp32(
         num_iter,
         static_cast<float>(beta_1),
         static_cast<float>(beta_2),
@@ -109,10 +110,11 @@ void adamw_step(
     double eps,
     double weight_decay)
 {
+    nntile::GraphFillScope record;
     check_adam_step_tensors(
         param, grad, first_moment, second_moment, "nntile adamw_step");
     TORCH_CHECK(num_iter >= 1, "nntile adamw_step: num_iter must be >= 1");
-    tensor_adamw_step_fp32(
+    classic_tensor_adamw_step_fp32(
         num_iter,
         static_cast<float>(beta_1),
         static_cast<float>(beta_2),

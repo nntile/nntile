@@ -88,6 +88,125 @@ void torch_embedding_out(
     const Tile<fp32_t> &out,
     const TorchTileMeta &out_meta);
 
+void torch_where_out(
+    int starpu_worker_hint,
+    const Tile<bool_t> &condition,
+    const TorchTileMeta &condition_meta,
+    const Tile<fp32_t> &self,
+    const TorchTileMeta &self_meta,
+    const Tile<fp32_t> &other,
+    const TorchTileMeta &other_meta,
+    const Tile<fp32_t> &out,
+    const TorchTileMeta &out_meta);
+
+void torch_where_i64_out(
+    int starpu_worker_hint,
+    const Tile<bool_t> &condition,
+    const TorchTileMeta &condition_meta,
+    const Tile<int64_t> &self,
+    const TorchTileMeta &self_meta,
+    const Tile<int64_t> &other,
+    const TorchTileMeta &other_meta,
+    const Tile<int64_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra);
+
+void torch_arange_out(
+    int starpu_worker_hint,
+    const Tile<int64_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra);
+
+void torch_arange_fp32_out(
+    int starpu_worker_hint,
+    const Tile<fp32_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra);
+
+void torch_fill_bool_out(
+    int starpu_worker_hint,
+    const Tile<bool_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra);
+
+void torch_unary_bool_out(
+    int starpu_worker_hint,
+    starpu::TorchKind kind,
+    const Tile<bool_t> &in,
+    const TorchTileMeta &in_meta,
+    const Tile<bool_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra);
+
+void torch_gt_out(
+    int starpu_worker_hint,
+    const Tile<int64_t> &a,
+    const TorchTileMeta &a_meta,
+    const Tile<int64_t> &b,
+    const TorchTileMeta &b_meta,
+    const Tile<bool_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra);
+
+void torch_eq_fp32_out(
+    int starpu_worker_hint,
+    const Tile<fp32_t> &a,
+    const TorchTileMeta &a_meta,
+    const Tile<fp32_t> &b,
+    const TorchTileMeta &b_meta,
+    const Tile<bool_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra);
+
+void torch_i64_binary_out(
+    int starpu_worker_hint,
+    starpu::TorchKind kind,
+    const Tile<int64_t> &a,
+    const TorchTileMeta &a_meta,
+    const Tile<int64_t> &b,
+    const TorchTileMeta &b_meta,
+    const Tile<int64_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra);
+
+void torch_bool_binary_out(
+    int starpu_worker_hint,
+    starpu::TorchKind kind,
+    const Tile<bool_t> &a,
+    const TorchTileMeta &a_meta,
+    const Tile<bool_t> &b,
+    const TorchTileMeta &b_meta,
+    const Tile<bool_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra);
+
+void torch_fp32_bool_mul_out(
+    int starpu_worker_hint,
+    const Tile<fp32_t> &fp32,
+    const TorchTileMeta &fp32_meta,
+    const Tile<bool_t> &pred,
+    const TorchTileMeta &pred_meta,
+    const Tile<fp32_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra);
+
+void torch_i64_unary_out(
+    int starpu_worker_hint,
+    starpu::TorchKind kind,
+    const Tile<int64_t> &in,
+    const TorchTileMeta &in_meta,
+    const Tile<int64_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra);
+
+void torch_cast_out(
+    int starpu_worker_hint,
+    const starpu::Handle &in,
+    const TorchTileMeta &in_meta,
+    const starpu::Handle &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra);
+
 void torch_cat_out(
     int starpu_worker_hint,
     Index dim,
@@ -95,48 +214,6 @@ void torch_cat_out(
     const std::vector<TorchTileMeta> &input_metas,
     const Tile<fp32_t> &out,
     const TorchTileMeta &out_meta);
-
-void torch_layer_norm_out(
-    int starpu_worker_hint,
-    const Tile<fp32_t> &input,
-    const TorchTileMeta &input_meta,
-    const Tile<fp32_t> *weight,
-    const TorchTileMeta *weight_meta,
-    const Tile<fp32_t> *bias,
-    const TorchTileMeta *bias_meta,
-    const Tile<fp32_t> &out,
-    const TorchTileMeta &out_meta,
-    const Tile<fp32_t> &mean,
-    const TorchTileMeta &mean_meta,
-    const Tile<fp32_t> &rstd,
-    const TorchTileMeta &rstd_meta,
-    Index normalized_ndim,
-    Scalar eps);
-
-void torch_layer_norm_backward_out(
-    int starpu_worker_hint,
-    const Tile<fp32_t> &grad_out,
-    const TorchTileMeta &grad_out_meta,
-    const Tile<fp32_t> &input,
-    const TorchTileMeta &input_meta,
-    const Tile<fp32_t> &mean,
-    const TorchTileMeta &mean_meta,
-    const Tile<fp32_t> &rstd,
-    const TorchTileMeta &rstd_meta,
-    const Tile<fp32_t> *weight,
-    const TorchTileMeta *weight_meta,
-    const Tile<fp32_t> *bias,
-    const TorchTileMeta *bias_meta,
-    const Tile<fp32_t> *grad_input,
-    const TorchTileMeta *grad_input_meta,
-    const Tile<fp32_t> *grad_weight,
-    const TorchTileMeta *grad_weight_meta,
-    const Tile<fp32_t> *grad_bias,
-    const TorchTileMeta *grad_bias_meta,
-    Index normalized_ndim,
-    bool need_grad_input,
-    bool need_grad_weight,
-    bool need_grad_bias);
 
 void torch_embedding_dense_backward_out(
     int starpu_worker_hint,

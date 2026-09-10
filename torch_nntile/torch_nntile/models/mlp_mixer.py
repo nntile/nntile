@@ -21,6 +21,8 @@ import torch.nn as nn
 from torch import Tensor
 
 from torch_nntile.gemm import gemm
+from torch_nntile.nn import LayerNorm
+from torch_nntile.nn.functional import add, gelu
 from torch_nntile.sum_slice import gap
 
 
@@ -65,10 +67,10 @@ class MixerMlp(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         if self.side == "R":
             h = _linear_leading(self.fc1_weight, x)
-            h = torch.nn.functional.gelu(h)
+            h = gelu(h, approximate="none")
             return _linear_leading(self.fc2_weight, h)
         h = _linear_last(x, self.fc1_weight)
-        h = torch.nn.functional.gelu(h)
+        h = gelu(h, approximate="none")
         return _linear_last(h, self.fc2_weight)
 
 
@@ -80,14 +82,14 @@ class MixerBlock(nn.Module):
         eps: float = 1e-5,
     ) -> None:
         super().__init__()
-        self.norm_1 = nn.LayerNorm(patch_dim, eps=eps)
+        self.norm_1 = LayerNorm(patch_dim, eps=eps)
         self.mlp_1 = MixerMlp("R", channel_dim)
-        self.norm_2 = nn.LayerNorm(patch_dim, eps=eps)
+        self.norm_2 = LayerNorm(patch_dim, eps=eps)
         self.mlp_2 = MixerMlp("L", patch_dim)
 
     def forward(self, x: Tensor) -> Tensor:
-        y = self.mlp_1(self.norm_1(x)) + x
-        return self.mlp_2(self.norm_2(y)) + y
+        y = add(self.mlp_1(self.norm_1(x)), x)
+        return add(self.mlp_2(self.norm_2(y)), y)
 
 
 class MlpMixer(nn.Module):

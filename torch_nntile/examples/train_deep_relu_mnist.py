@@ -19,8 +19,9 @@ Optional ``--grad-accum-steps N`` splits the 60 000-image batch into ``N``
 equal microbatches, scales each microbatch loss by ``1/N``, accumulates
 gradients, then takes one SGD step per epoch (same effective update as
 full-batch when ``N`` divides 60 000). Default ``N=1`` is full-batch.
-On nntile, each microbatch compiles/runs before the next so activations
-can reclaim; grads stay live until the step.
+On nntile, each microbatch is recorded and compiled while the previous
+``run()`` is in flight; ``wait()`` then joins that submit before the
+next ``run()``. A final ``wait()`` joins the last submit.
 
 Torch cannot use CUDA and the PrivateUse1 ``nntile`` device in one process
 (PyTorch >= 2.8). This script imports ``torch_nntile`` only for
@@ -90,6 +91,13 @@ from typing import Type
 
 import torch
 import torch.nn as nn
+from nntile_iter_phases import (
+    compile_wait_run_iter,
+    print_nntile_iter_timings,
+    print_nntile_phase_timings,
+    wait_end,
+    wait_then_start_timer,
+)
 from torchvision import datasets
 
 # Filesystem path for loading DeepReLU without importing torch_nntile
@@ -251,11 +259,14 @@ def train_torch_reference(
         raise ValueError("microbatches must be non-empty")
     scale = 1.0 / n_accum
     losses: list[float] = []
+    last_loss: torch.Tensor | None = None
+    t0 = time.perf_counter()
     for epoch in range(epochs):
         for param in model.parameters():
             param.grad = None
-        loss_sum = 0.0
+        n_mb = 0
         for images, labels in microbatches:
+            n_mb += 1
             logits = model(images)
             loss = torch.nn.functional.cross_entropy(logits, labels)
             if n_accum == 1:
@@ -266,16 +277,33 @@ def train_torch_reference(
                         scale, dtype=loss.dtype, device=loss.device
                     )
                 )
-            loss_sum += float(loss.detach().item())
+            step_loss = loss.detach()
+            del loss
+            del logits
+            is_last = (
+                epoch == epochs - 1 and n_mb == n_accum
+            )
+            if is_last:
+                last_loss = step_loss
+            else:
+                del step_loss
         with torch.no_grad():
             for param in model.parameters():
                 if param.grad is not None:
                     param.add_(param.grad, alpha=-learning_rate)
-        if device is not None:
-            synchronize_device(device)
-        value = loss_sum / n_accum
-        losses.append(value)
-        print(f"[torch] epoch {epoch + 1}/{epochs}  loss={value:.6f}")
+    if device is not None:
+        synchronize_device(device)
+    wall_s = time.perf_counter() - t0
+    if last_loss is None:
+        raise RuntimeError("train_torch_reference: no steps ran")
+    value = float(last_loss.item())
+    del last_loss
+    losses.append(value)
+    print(f"[torch] final loss={value:.6f}")
+    print(
+        f"timing torch train wall (loop+sync, loss readout after): "
+        f"{wall_s:.3f}s ({epochs} epochs)"
+    )
     return losses
 
 
@@ -375,16 +403,14 @@ def train_on_nntile(
 ) -> list[float]:
     """Train on preloaded nntile microbatches with gradient accumulation.
 
-    Each microbatch records forward/backward, then ``compile_graph`` /
-    ``run`` so activations can ``INVALIDATE`` before the next microbatch.
-    Gradients stay on ``param.grad`` until the last microbatch's SGD step;
-    ``zero_grad`` runs before that final compile (TensorRef reclaim pattern).
+    Each epoch/microbatch is **recorded** and compiled while the previous
+    ``run()`` is in flight, then ``wait()`` joins that submit and
+    ``run()`` starts the compiled step. A final ``wait()`` joins the last
+    submit. Cumulative record / compile / run / wait times are printed.
 
     Axis-group naming must run before ``set_axis_group_tiling`` on every
     microbatch (tiling is applied at ``compile_graph``; unknown names fail).
-    With multiple prefetched microbatches, name *all* of them before the
-    first tiled compile - that compile also seals the other microbatches'
-    pending ingress scatters.
+    Prefetch seals ingress scatters before the train loop.
     """
     import torch_nntile
     from torch_nntile.training import SGD, cross_entropy
@@ -402,66 +428,103 @@ def train_on_nntile(
         )
         model._nntile_optimizer = optimizer
 
-    # Prefetch records ingress scatters for every microbatch; the first
-    # compile_graph seals them all. Name + tile before that seal.
+    # Prefetch records ingress scatters for every microbatch; seal them
+    # before the train timer so prefetch is outside the wall.
     if axis_group_tiling is not None:
         name_prefetched_mnist_axis_groups(
             model, microbatches, hidden_dim=hidden_dim
         )
+        for name, tile_sizes in axis_group_tiling.items():
+            torch_nntile.set_axis_group_tiling(name, tile_sizes)
+    if torch_nntile.has_pending_graph():
+        torch_nntile.compile_graph()
+        torch_nntile.run()
 
     losses: list[float] = []
+    last_loss: torch.Tensor | None = None
+    record_nntile_s = 0.0
+    record_torch_s = 0.0
+    compile_s = 0.0
+    run_s = 0.0
+    wait_s = 0.0
+    t_train0 = wait_then_start_timer(torch_nntile)
     for epoch in range(epochs):
-        loss_sum = 0.0
         for mb_idx, (images, labels) in enumerate(microbatches):
-            is_last = mb_idx == n_accum - 1
+            is_last_mb = mb_idx == n_accum - 1
+            is_last = epoch == epochs - 1 and is_last_mb
+            nntile_t0 = torch_nntile.record_nntile_seconds()
+            t_record0 = time.perf_counter()
             logits = model(images)
             loss = cross_entropy(logits, labels)
             if n_accum == 1:
                 loss.backward()
             else:
-                # Prefer gradient= over ``loss * scale``: Python floats can
-                # become CPU 0-dim tensors and hit mul.Tensor (both must be
-                # nntile). CE folds a constant scalar grad_output.
                 loss.backward(
                     gradient=torch.tensor(scale, dtype=torch.float32).to(
                         "nntile"
                     )
                 )
 
-            if is_last:
+            if is_last_mb:
                 optimizer.step()
 
-            # Name -> tile -> compile (same order as train_full_batch_step).
-            # New microbatch inputs/logits need names each time; weight/grad
-            # names are reapplied safely. Do this while logits are alive.
             name_mnist_axis_groups(
                 model, images, labels, logits, hidden_dim=hidden_dim
             )
             if axis_group_tiling is not None:
                 for name, tile_sizes in axis_group_tiling.items():
                     torch_nntile.set_axis_group_tiling(name, tile_sizes)
-            if print_axis_groups and epoch == 0 and is_last:
+            if print_axis_groups and epoch == 0 and is_last_mb:
                 torch_nntile.print_axis_groups()
 
-            # Detached scalar for host readout; drop activations before
-            # compile so INVALIDATEs share this sealed phase. Keep grads
-            # until the last microbatch (then zero before compile).
             step_loss = loss.detach()
             del logits
             del loss
-            if is_last:
+            if is_last_mb:
                 optimizer.zero_grad(set_to_none=True)
-
-            torch_nntile.compile_graph()
-            torch_nntile.run()
-            with torch.no_grad():
-                loss_cpu = step_loss.to("cpu")
-            loss_sum += float(loss_cpu.item())
-            del step_loss
-
-        value = loss_sum / n_accum
-        losses.append(value)
-        print(f"[nntile] epoch {epoch + 1}/{epochs}  loss={value:.6f}")
+            record_wall_s = time.perf_counter() - t_record0
+            step_nntile_s = max(
+                0.0, torch_nntile.record_nntile_seconds() - nntile_t0
+            )
+            record_nntile_s += step_nntile_s
+            record_torch_s += max(0.0, record_wall_s - step_nntile_s)
+            dc, dw, dr = compile_wait_run_iter(torch_nntile)
+            compile_s += dc
+            wait_s += dw
+            run_s += dr
+            if is_last:
+                extra_wait = wait_end(torch_nntile)
+                wait_s += extra_wait
+                dw += extra_wait
+                last_loss = step_loss
+            else:
+                del step_loss
+            print_nntile_iter_timings(
+                epoch * n_accum + mb_idx + 1,
+                epochs * n_accum,
+                step_nntile_s,
+                max(0.0, record_wall_s - step_nntile_s),
+                dc,
+                dr,
+                dw,
+            )
+    train_wall_s = time.perf_counter() - t_train0
+    if last_loss is None:
+        raise RuntimeError("train_on_nntile: no steps ran")
+    with torch.no_grad():
+        value = float(last_loss.to("cpu").item())
+    del last_loss
+    losses.append(value)
+    print_nntile_phase_timings(
+        record_nntile_s, record_torch_s, compile_s, run_s, wait_s
+    )
+    print(f"[nntile] final loss={value:.6f}")
+    print(
+        f"timing nntile train wall "
+        f"(loop through final wait, loss readout after): "
+        f"{train_wall_s:.3f}s "
+        f"({epochs} epochs)"
+    )
     return losses
 
 
@@ -714,7 +777,6 @@ def main() -> None:
             # ingress scatters are sealed together).
 
             print("\nTraining on nntile...")
-            t_train0 = time.perf_counter()
             nnt_losses = train_on_nntile(
                 model_nnt,
                 microbatches,
@@ -723,12 +785,6 @@ def main() -> None:
                 hidden_dim=args.hidden_dim,
                 axis_group_tiling=axis_group_tiling or None,
                 print_axis_groups=args.print_axis_groups,
-            )
-            train_wall_s = time.perf_counter() - t_train0
-            print(
-                f"timing nntile train wall: {train_wall_s:.3f}s "
-                f"({args.epochs} epochs, "
-                f"{args.grad_accum_steps} accum steps/epoch)"
             )
 
             nnt_path = output_dir / "deep_relu_mnist_nntile.pt"
@@ -798,19 +854,12 @@ def main() -> None:
         )
 
         print(f"\nTraining on torch ({device})...")
-        t_train0 = time.perf_counter()
         train_torch_reference(
             model,
             microbatches,
             epochs=args.epochs,
             learning_rate=args.lr,
             device=device,
-        )
-        train_wall_s = time.perf_counter() - t_train0
-        print(
-            f"timing torch train wall: {train_wall_s:.3f}s "
-            f"({args.epochs} epochs, "
-            f"{args.grad_accum_steps} accum steps/epoch)"
         )
 
         torch_path = output_dir / f"deep_relu_mnist_torch_{device.type}.pt"

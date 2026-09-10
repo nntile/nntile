@@ -66,6 +66,7 @@ enum class TorchKind : std::int32_t
     NllLossBackward = 35,    // R,R,R,R → W  aten::nll_loss_backward
     Sum = 40,                // R → W    aten::sum.IntList_out
     VectorNorm = 41,         // R → W    aten::linalg_vector_norm.out
+    Mean = 42,               // R → W    aten::mean.out
     Mm = 50,                 // R,R → W  aten::mm.out
     Bmm = 51,                // R,R → W  aten::bmm.out
     Addmm = 52,              // R,R,R→W or RW,R,R  aten::addmm.out
@@ -74,14 +75,14 @@ enum class TorchKind : std::int32_t
     Cat = 60,                // R… → W   aten::cat.out
     NarrowCopy = 61,         // R → W    aten::narrow_copy.out
     Repeat = 62,             // R → W    aten::repeat.out
-    NativeLayerNorm = 70,    // R,(R),(R) → W,W,W  native_layer_norm
-    NativeLayerNormBackward = 71, // R… → W…  native_layer_norm_backward
     Embedding = 80,          // R,R → W  aten::embedding.out
     EmbeddingDenseBackward = 81, // R,R → W  embedding_dense_backward
-    Sdpa = 90,               // R,R,R → W  scaled_dot_product_attention
-    SdpaBackward = 91,       // R… → W,W,W  SDPA backward
+    Sdpa = 90,               // D8 unused fused SDPA; F.sdpa uses MATH
+    SdpaBackward = 91,       // D8 unused fused SDPA backward
     TransposeCopy = 100,     // R → W    aten::transpose_copy.int_out
     Copy = 101,              // R → W    densify / contiguous (copy_)
+    CopyIntoView = 180,      // R → RW   copy_ into packed parent view
+    Triu = 102,              // R → W    aten::triu.out (diagonal iargs[0])
     AvgPool2d = 110,         // R → W    aten::avg_pool2d.out
     AvgPool2dBackward = 111, // R,R → W  aten::avg_pool2d_backward
     AdaptiveAvgPool2d = 112, // R → W    aten::_adaptive_avg_pool2d.out
@@ -96,6 +97,21 @@ enum class TorchKind : std::int32_t
     UpsampleNearest2dBackward = 151, // R → W  upsample_nearest2d_backward
     UpsampleBilinear2d = 152, // R → W   aten::upsample_bilinear2d.out
     UpsampleBilinear2dBackward = 153, // R → W upsample_bilinear2d_backward
+    Where = 160,             // R(bool),R,R → W  aten::where.out
+    Arange = 170,            // → W(i64) aten::arange.out
+    ArangeFp32 = 179,        // → W(fp32) aten::arange.out
+    Gt = 171,                // R(i64),R(i64) → W(bool) aten::gt.out
+    Lt = 172,                // R(i64),R(i64) → W(bool) aten::lt.out
+    Minimum = 173,           // R(i64),R(i64) → W(i64) aten::minimum.out
+    Abs = 174,               // R(i64) → W(i64) aten::abs.out
+    Log = 175,               // R → W    aten::log.out (fp32 unary)
+    Cast = 176,              // R → W    copy_ with dtype change
+    FillI64 = 177,           // → W(i64) aten fill_ (arange codelet)
+    Eq = 178,                // R(fp32),R(fp32) → W(bool) aten::eq.out
+    FillBool = 182,          // → W(bool) aten fill_ (arange codelet)
+    Tril = 183,              // R(bool) → W(bool) aten::tril.out
+    PowScalar = 184,         // R → W    aten::pow.Tensor_Scalar_out
+    Div = 185,               // R,R → W  aten::div.out
 };
 
 inline constexpr Index torch_dispatch_max_ndim = core::torch_native_max_ndim;
@@ -111,16 +127,12 @@ struct TorchDispatchArgs
     Index iargs[16] = {};
     // iargs layout (per kind):
     // Softmax/SoftmaxBackward/LogSoftmax*: dim
-    // Sum/VectorNorm: n_dims, keepdim, dim0..
+    // Sum/Mean/VectorNorm: n_dims, keepdim, dim0..
     // Gelu*: approximate_tanh in iargs[0]
     // NarrowCopy: dim, start, length
     // Repeat: repeat counts in iargs[0..out_ndim-1] (output rank; may
     //   pad leading dims when the input tile is still the 1D parent)
     // Cat: dim, n_tensors
-    // NativeLayerNorm: normalized_ndim, has_weight, has_bias;
-    //   eps in scalars[0]
-    // NativeLayerNormBackward: normalized_ndim, has_weight,
-    //   has_bias, need_gi, need_gw, need_gb
     // NllLoss*: reduction in iargs[0], ignore_index in iargs[1]
     // Add: torch alpha in scalars[0] (out = a + alpha * b)
     // Addmm: beta in scalars[0], alpha in scalars[1];
@@ -129,6 +141,18 @@ struct TorchDispatchArgs
     //   iargs[1]
     // EmbeddingDenseBackward: num_weights in iargs[0]
     // TransposeCopy: dim0, dim1
+    // CopyIntoView: iargs[7]=1 when out aliases in (one STARPU_RW)
+    // Triu: diagonal in iargs[0]
+    // Arange: start/end/step in iargs[0..2] (int64)
+    // ArangeFp32: start/end/step in scalars[0..2]
+    // FillI64: value in iargs[0] (int64); same write-only
+    //   codelet as Arange
+    // FillBool: value in iargs[0] (0/1); same codelet as Arange
+    // Tril: diagonal in iargs[0]; bool unary (MATH SDPA mask)
+    // Gt/Lt: none (broadcast via packed layouts)
+    // Cast: src dtype tag iargs[0], dst tag iargs[1]
+    //   (0=fp32, 1=i64, 2=bool)
+    // Where value dtype: iargs[15] (0=fp32, 1=i64, 2=bool binary, 3=fp32*bool)
     // AvgPool2d: kernel [0..1], stride [2..3], padding [4..5],
     //   ceil_mode [6], count_include_pad [7], has_divisor [8],
     //   divisor [9]
@@ -255,6 +279,133 @@ public:
     );
 };
 
+//! Where: condition bool + self fp32 + other fp32 → out fp32.
+//!
+//! ``other`` may be a scalar tile; aten::where broadcasts. Avoids the
+//! host gather/scatter path that leaked StarPU buffers on GPT-Neo eager
+//! attention (``torch.where(mask, scores, finfo.min)`` every layer).
+class TorchWhere
+{
+public:
+    Codelet codelet;
+    TorchWhere();
+    using args_t = TorchDispatchArgs;
+    static uint32_t footprint(struct starpu_task *task);
+    static void cpu(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cpu_funcs = {cpu};
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cuda_funcs = {cuda};
+#else
+    static constexpr func_array cuda_funcs = {};
+#endif
+    void submit(
+        int starpu_worker_hint,
+        const args_t &meta,
+        Handle condition,
+        Handle self,
+        Handle other,
+        Handle out
+    );
+};
+
+//! Write-only int64 arange (no host copy into nntile).
+class TorchArange
+{
+public:
+    Codelet codelet;
+    TorchArange();
+    using args_t = TorchDispatchArgs;
+    static uint32_t footprint(struct starpu_task *task);
+    static void cpu(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cpu_funcs = {cpu};
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cuda_funcs = {cuda};
+#else
+    static constexpr func_array cuda_funcs = {};
+#endif
+    void submit(
+        int starpu_worker_hint,
+        const args_t &meta,
+        Handle out
+    );
+};
+
+//! int64 elementwise: ``gt``/``lt`` → bool, or add/sub/mul/minimum
+//! → int64 (broadcast layouts packed in ``args``).
+class TorchGt
+{
+public:
+    Codelet codelet;
+    TorchGt();
+    using args_t = TorchDispatchArgs;
+    static uint32_t footprint(struct starpu_task *task);
+    static void cpu(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cpu_funcs = {cpu};
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cuda_funcs = {cuda};
+#else
+    static constexpr func_array cuda_funcs = {};
+#endif
+    void submit(
+        int starpu_worker_hint,
+        const args_t &meta,
+        Handle a,
+        Handle b,
+        Handle out
+    );
+};
+
+//! int64 unary (``abs``). Layouts packed in ``args``.
+class TorchI64Unary
+{
+public:
+    Codelet codelet;
+    TorchI64Unary();
+    using args_t = TorchDispatchArgs;
+    static uint32_t footprint(struct starpu_task *task);
+    static void cpu(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cpu_funcs = {cpu};
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cuda_funcs = {cuda};
+#else
+    static constexpr func_array cuda_funcs = {};
+#endif
+    void submit(
+        int starpu_worker_hint,
+        const args_t &meta,
+        Handle in,
+        Handle out
+    );
+};
+
+//! Same-shape copy with a dtype change (bool/i64/fp32).
+class TorchCast
+{
+public:
+    Codelet codelet;
+    TorchCast();
+    using args_t = TorchDispatchArgs;
+    static uint32_t footprint(struct starpu_task *task);
+    static void cpu(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cpu_funcs = {cpu};
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cuda_funcs = {cuda};
+#else
+    static constexpr func_array cuda_funcs = {};
+#endif
+    void submit(
+        int starpu_worker_hint,
+        const args_t &meta,
+        Handle in,
+        Handle out
+    );
+};
+
 //! Embedding: weight fp32 + indices i64 + out fp32 (mixed handles).
 class TorchEmbedding
 {
@@ -277,72 +428,6 @@ public:
         Handle weight,
         Handle indices,
         Handle out
-    );
-};
-
-//! LayerNorm: input + optional weight/bias → out, mean, rstd.
-class TorchLayerNorm
-{
-public:
-    Codelet codelet;
-    TorchLayerNorm();
-    using args_t = TorchDispatchArgs;
-    static uint32_t footprint(struct starpu_task *task);
-    static void cpu(void *buffers[], void *cl_args) noexcept;
-    static constexpr func_array cpu_funcs = {cpu};
-#ifdef NNTILE_USE_CUDA
-    static void cuda(void *buffers[], void *cl_args) noexcept;
-    static constexpr func_array cuda_funcs = {cuda};
-#else
-    static constexpr func_array cuda_funcs = {};
-#endif
-    void submit(
-        int starpu_worker_hint,
-        const args_t &meta,
-        Handle input,
-        Handle weight,
-        Handle bias,
-        Handle out,
-        Handle mean,
-        Handle rstd,
-        bool has_weight,
-        bool has_bias
-    );
-};
-
-//! LayerNorm backward: inputs R → optional grad outs W.
-class TorchLayerNormBackward
-{
-public:
-    Codelet codelet;
-    TorchLayerNormBackward();
-    using args_t = TorchDispatchArgs;
-    static uint32_t footprint(struct starpu_task *task);
-    static void cpu(void *buffers[], void *cl_args) noexcept;
-    static constexpr func_array cpu_funcs = {cpu};
-#ifdef NNTILE_USE_CUDA
-    static void cuda(void *buffers[], void *cl_args) noexcept;
-    static constexpr func_array cuda_funcs = {cuda};
-#else
-    static constexpr func_array cuda_funcs = {};
-#endif
-    void submit(
-        int starpu_worker_hint,
-        const args_t &meta,
-        Handle grad_out,
-        Handle input,
-        Handle mean,
-        Handle rstd,
-        Handle weight,
-        Handle bias,
-        Handle grad_input,
-        Handle grad_weight,
-        Handle grad_bias,
-        bool has_weight,
-        bool has_bias,
-        bool need_grad_input,
-        bool need_grad_weight,
-        bool need_grad_bias
     );
 };
 
@@ -688,11 +773,14 @@ extern TorchMaxPool2dWithIndicesBackward
     torch_max_pool2d_with_indices_backward;
 extern TorchNativeBatchNorm torch_native_batch_norm;
 extern TorchNativeBatchNormBackward torch_native_batch_norm_backward;
-extern TorchLayerNorm torch_layer_norm;
-extern TorchLayerNormBackward torch_layer_norm_backward;
 extern TorchSdpaBackward torch_sdpa_backward;
 extern TorchNllLossForward torch_nll_loss_forward;
 extern TorchNllLossBackward torch_nll_loss_backward;
 extern TorchCat torch_cat;
+extern TorchWhere torch_where;
+extern TorchArange torch_arange;
+extern TorchGt torch_gt;
+extern TorchI64Unary torch_i64_unary;
+extern TorchCast torch_cast;
 
 } // namespace nntile::starpu

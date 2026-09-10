@@ -9,6 +9,7 @@
 
 #include "nntile_add_fiber.h"
 #include "nntile_gemm.h"
+#include "nntile_nn_classic.h"
 #include "nntile_sdpa.h"
 #include "nntile_model_transpose.h"
 
@@ -157,7 +158,7 @@ torch::Tensor GptNeoMLPImpl::forward(torch::Tensor x)
         x,
         /*axis=*/x.dim() - 1,
         /*batch_ndim=*/0);
-    x = torch::gelu(x, "tanh");
+    x = nn_classic::gelu(x, true);
     x = gemm(
         x,
         fc2_weight,
@@ -180,17 +181,13 @@ GptNeoDecoderImpl::GptNeoDecoderImpl(
 {
     input_norm = register_module(
         "input_norm",
-        torch::nn::LayerNorm(
-            torch::nn::LayerNormOptions({cfg.hidden_size})
-                .eps(cfg.layer_norm_eps)));
+        nn_classic::LayerNorm(cfg.hidden_size, cfg.layer_norm_eps));
     attn = register_module(
         "self_attn",
         GptNeoAttention(cfg, local_attn));
     post_attn_norm = register_module(
         "post_attn_norm",
-        torch::nn::LayerNorm(
-            torch::nn::LayerNormOptions({cfg.hidden_size})
-                .eps(cfg.layer_norm_eps)));
+        nn_classic::LayerNorm(cfg.hidden_size, cfg.layer_norm_eps));
     mlp = register_module("mlp", GptNeoMLP(cfg));
 }
 
@@ -203,9 +200,9 @@ torch::Tensor GptNeoDecoderImpl::forward(
         input_norm->forward(x),
         global_mask,
         local_mask);
-    auto post = x + attn_out;
+    auto post = nn_classic::add(x, attn_out);
     auto mlp_out = mlp->forward(post_attn_norm->forward(post));
-    return post + mlp_out;
+    return nn_classic::add(post, mlp_out);
 }
 
 // -- GptNeoCausalImpl ------------------------------------------------------
@@ -220,10 +217,10 @@ GptNeoCausalImpl::GptNeoCausalImpl(GptNeoConfig cfg) :
     }
     wte = register_module(
         "wte",
-        torch::nn::Embedding(config.vocab_size, config.hidden_size));
+        nn_classic::Embedding(config.vocab_size, config.hidden_size));
     wpe = register_module(
         "wpe",
-        torch::nn::Embedding(
+        nn_classic::Embedding(
             config.max_position_embeddings,
             config.hidden_size));
     torch::nn::ModuleList list;
@@ -235,9 +232,9 @@ GptNeoCausalImpl::GptNeoCausalImpl(GptNeoConfig cfg) :
     blocks = register_module("blocks", list);
     ln_f = register_module(
         "ln_f",
-        torch::nn::LayerNorm(
-            torch::nn::LayerNormOptions({config.hidden_size})
-                .eps(config.layer_norm_eps)));
+        nn_classic::LayerNorm(
+            config.hidden_size,
+            config.layer_norm_eps));
     lm_weight = register_parameter(
         "lm_weight",
         torch::empty({config.vocab_size, config.hidden_size}));
@@ -278,7 +275,9 @@ torch::Tensor GptNeoCausalImpl::forward(torch::Tensor input_ids)
     {
         warm_position_cache(b, s, input_ids.device());
     }
-    auto x = wte->forward(input_ids) + wpe->forward(cached_pos_);
+    auto x = nn_classic::add(
+        wte->forward(input_ids),
+        wpe->forward(cached_pos_));
     for (auto &module : *blocks)
     {
         x = module->as<GptNeoDecoderImpl>()->forward(

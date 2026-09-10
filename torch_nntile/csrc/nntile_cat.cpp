@@ -139,9 +139,6 @@ void check_cat_inputs(
             out->scalar_type() == at::ScalarType::Float,
             "nntile cat.out supports float32 only");
         TORCH_CHECK(
-            out->is_contiguous(),
-            "nntile cat.out requires contiguous output");
-        TORCH_CHECK(
             out->sizes() == c10::IntArrayRef(out_sizes),
             "nntile cat.out: output shape mismatch");
     }
@@ -174,6 +171,7 @@ void run_cat(
 
 at::Tensor cat(const at::ITensorListRef &tensors, int64_t dim)
 {
+    nntile::GraphFillScope record;
     std::vector<at::Tensor> materialized =
         densify_cat_inputs(materialize_cat_inputs(tensors));
     if (materialized.size() == 1)
@@ -194,6 +192,7 @@ at::Tensor &cat_out(
     int64_t dim,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     std::vector<at::Tensor> materialized =
         densify_cat_inputs(materialize_cat_inputs(tensors));
     if (materialized.size() == 1)

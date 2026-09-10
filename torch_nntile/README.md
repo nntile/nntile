@@ -2,6 +2,12 @@
 
 PyTorch **PrivateUse1** device registered as `device="nntile"`.
 
+Stock `torch.nn` / `F.*` on this device run through public high-level ATen
+`*.out` ops inside StarPU codelets (not internal PyTorch kernels). Some of
+those schemas copy into the output buffer; that extra traffic is PyTorch
+API debt and is not something NNTile will work around. See
+[docs/torch_nntile.md](../docs/torch_nntile.md).
+
 ## Prebuilt wheels (0.0.6)
 
 Wheels are built in CI, not published to PyPI. Install from a downloaded
@@ -69,8 +75,12 @@ pip install torch==2.9.1 torchvision==0.24.1
 pip install /path/to/torch_nntile-0.0.6-cp312-cp312-manylinux_2_28_x86_64.whl
 ```
 
-`pip install` of a CUDA wheel pulls the NVIDIA packages on Linux automatically.
-You can also install them manually (or `pip install 'torch_nntile[cuda]'`):
+`pip install` of a CUDA wheel pulls the NVIDIA packages on Linux automatically
+(wheel / pip-torch layout). **Conda or toolkit dev envs** can instead rely on
+``TORCH_LIB_DIR`` plus ``${CONDA_PREFIX}/lib`` on ``LD_LIBRARY_PATH`` — see
+[docs/build/README.md](../docs/build/README.md#cuda-runtime-source--conda).
+You can also install pip nvidia packages manually (or
+``pip install 'torch_nntile[cuda]'``):
 
 ```bash
 pip install nvidia-cublas-cu12 nvidia-cudnn-cu12 nvidia-cusparse-cu12 \
@@ -125,7 +135,7 @@ remains a separate custom API for NNTile-layout SDPA.
 | `F.linear` / `nn.Linear` | `tensor::gemm` (+ `add_fiber_inplace` / `sum_fiber` when bias is set) |
 | `F.relu` / `nn.ReLU` | `tensor::relu` |
 | ReLU backward | `tensor::relu_backward(alpha, x, dy, beta, dx)` (`beta=0` → `STARPU_W`) |
-| `F.layer_norm` / `nn.LayerNorm` | `native_layer_norm` / `native_layer_norm_backward` |
+| `F.layer_norm` / `nn.LayerNorm` | composite / AutogradPrivateUse1 math (`native_batch_norm` + affine); classic `torch_nntile.nn` uses tiled LN |
 | `F.rms_norm` / `nn.RMSNorm` | custom autograd + `rms_norm_forward` / `rms_norm_backward` |
 | `torch.linalg.vector_norm` (ord=2) | forward only via `norm_forward`; errors if `requires_grad` and grad mode is on; use under `torch.no_grad()` |
 | `F.silu` / `nn.SiLU` | `tensor::silu` |
@@ -140,8 +150,8 @@ remains a separate custom API for NNTile-layout SDPA.
 | `linear` backward / `mm` | `tensor::gemm` |
 | `F.embedding` / `nn.Embedding` | `tensor::embedding` |
 | Embedding backward | `tensor::embedding_backward` |
-| `torch_nntile.nn.SDPA` / `sdpa_eager` | Cyclic transpose → `F.scaled_dot_product_attention` → cyclic transpose; ATen overrideable → `sdpa_forward/backward` (`maxsumexp`, `softmax_inplace`, optional `mask_scalar`; backward: `gemm`, `sumprod_slice`, …) |
-| `F.scaled_dot_product_attention` on `device="nntile"` | Same ATen overrideable backend as above (PyTorch/HF layout `[..., seq, head_size]`, e.g. `(batch, n_heads, seq, head_size)`) |
+| `torch_nntile.nn.SDPA` / `sdpa_eager` | Transpose → `F.scaled_dot_product_attention` (MATH composite: `mm` / `softmax`) → transpose. Fused `TorchKind::Sdpa` unused (debt D8). |
+| `F.scaled_dot_product_attention` on `device="nntile"` | `_fused_sdp_choice` → MATH; same composite as CUDA math SDPA |
 | `torch_nntile.nn.weight_layout` | Pure PyTorch permutes for HF ↔ NNTile attention weights (no kernel) |
 | `torch_nntile.training.cross_entropy` | `maxsumexp`, `logsumexp`, `total_sum_accum`, `softmax`, `subtract_indexed_outputs`; backward: chained `scale_slice`, `multiply_slice` |
 | `torch_nntile.training.mse_loss` | `scale * ||x||^2` via `norm` + `multiply`; backward `2*scale*x` |
@@ -155,19 +165,17 @@ Gradients use **PyTorch autograd** (not `NNGraph` autograd).
 (default); `scale_grad_by_freq=False` and `sparse=False` only. Indices must be
 on `device="nntile"` (use `.to("nntile")` explicitly).
 
-**SDPA v1 limits:** `float32` only. Two entry points share one ATen kernel:
+**SDPA (debt D8):** `F.scaled_dot_product_attention` on `device="nntile"`
+always uses PyTorch **MATH** (CompositeImplicit: `mm` / `softmax` / mask
+as TensorGraph nodes). The fused `TorchKind::Sdpa` / overrideable path is
+unused until workspace can be preallocated as graph tensors.
 
-- **`F.scaled_dot_product_attention`** on `device="nntile"`: Q/K/V in PyTorch layout
-  `[..., seq, head_size]` (e.g. `(batch, n_heads, seq, head_size)` or kernel layout
-  `(n_heads, batch, seq, head_size)`); optional `attn_mask` (bool or float additive),
-  `is_causal=True`; fixed scale `1/sqrt(head_size)`. No dropout, GQA, or custom scale.
-  Forward returns a placeholder `logsumexp` (OpenReg API requirement only). Backward
-  ignores that tensor and delegates to `sdpa_backward`, which uses internal
-  `maxsumexp` buffers (not logsumexp) through the existing softmax backward chain.
+- **`F.scaled_dot_product_attention`**: Q/K/V in PyTorch layout
+  `[..., seq, head_size]`; optional `attn_mask`, `is_causal=True`; scale
+  `1/sqrt(head_size)`. No dropout, GQA, or custom scale (same v1 checks).
 - **`torch_nntile.nn.sdpa_eager` / `SDPA`**: projection layout
-  `[batch, seq, head_size, n_heads]`; internally transposes to kernel layout, calls
-  `F.scaled_dot_product_attention`, transposes back. Optional BOOL mask `[q_seq, k_seq]`
-  on `device="nntile"` (dim0 = query, dim1 = key).
+  `[batch, seq, head_size, n_heads]`; transposes, calls
+  `F.scaled_dot_product_attention` (MATH), transposes back.
 
 Ops record into a shared ``TensorGraph``; flush with ``compile_graph()`` /
 ``run()`` (or ``execute()``, which is compile+run and does **not** wait)
@@ -243,7 +251,8 @@ return ``loss.to("cpu").item()``.
 tensor waits for any in-flight ``run()``, compiles and runs any still-pending
 ops, then records and runs `gather(L→S)` into an ephemeral staging node. You do
 not need a prior ``compile_graph()``/``run()`` for correctness, but each
-readout permanently appends gather nodes to the session graph (see debt D1 in
+readout still leaves an ``io_staging_*`` TensorNode in the session graph
+(see debt D1 in
 [torch_nntile_tensor_architecture.md](../docs/dev/torch_nntile_tensor_architecture.md)).
 
 Tests: `pytest -vv torch_nntile/tests/test_graph_execution.py`
@@ -294,6 +303,9 @@ Architecture reference:
   share that step’s compile phase. Details:
   [torch_nntile_tensor_architecture.md](../docs/dev/torch_nntile_tensor_architecture.md)
   (section *STARPU_W-only clears*, debt D7).
+- **Fused SDPA (D8):** production `F.sdpa` uses MATH (recorded `mm` /
+  `softmax`). A fused `TorchKind::Sdpa` codelet remains for a later
+  graph-native fused kernel.
 
 ### Axis-group naming and tiling
 
@@ -320,6 +332,7 @@ kernels or submits are disabled.
 |-----|--------|
 | `STARPU_DISABLE_KERNELS=1` | StarPU still **submits** tasks but skips kernel bodies. Often makes `run` *slower* (queue overhead without useful work). |
 | `TORCH_NNTILE_SKIP_STARPU=1` | torch_nntile dry-run: skip StarPU **task insert** and staging **acquire/memcpy**. Still calls `Runtime::execute_range(..., submit_tasks=false)` so the executed watermark and last-consumer tile reclaim advance — incremental `compile()` stays O(pending). `print_info()` prints a NOTE when this is set. |
+| `TORCH_NNTILE_SKIP_KERNELS=1` | PrivateUse1 intercept still runs (output shapes, TensorRefs, pack layout). TensorGraph **compute** ops are not inserted. Last-drop `UNREGISTER` is still recorded, compiled, and submitted as StarPU unregister tasks. Isolates Torch + intercept without compute kernels. `print_info()` prints a NOTE. **Results are not numerically meaningful.** |
 
 Example (Google five-layer ReLU MNIST, host-only path):
 
@@ -480,12 +493,18 @@ Then install the thin Python extension against that build:
 
 ```bash
 pip install 'torch==2.9.1' 'torchvision==0.24.1'
+export TORCH_LIB_DIR="$(python3 -c 'import os, torch; print(os.path.join(os.path.dirname(torch.__file__), "lib"))')"
 export NNTILE_BUILD_DIR=$PWD/build
 export TORCH_NNTILE_BUILD_DIR=$PWD/build
 export NNTILE_SOURCE_DIR=$PWD
-export LD_LIBRARY_PATH=$PWD/build/nntile:$PWD/build/torch_nntile:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${TORCH_LIB_DIR}:$PWD/build/nntile:$PWD/build/torch_nntile:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 CXX=g++ pip install -e ./torch_nntile --no-build-isolation --force-reinstall
 ```
+
+Conda / toolkit CUDA: ``${CONDA_PREFIX}/lib`` supplies ``libcublas``,
+``libcudnn``, ``libcudart``, etc.; ``TORCH_LIB_DIR`` supplies
+``libtorch_cuda``. No extra ``pip install nvidia-*-cu12`` is required in that
+layout (see [docs/build/README.md](../docs/build/README.md#cuda-runtime-source--conda)).
 
 Prefer an install prefix (matches CI):
 

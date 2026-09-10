@@ -49,3 +49,7 @@ nntile_torch_native_add_test(
     tests_torch_native_tensor_torch_dispatch
     tensor/ops/torch_dispatch.cc
     "torch_native;graph;tensor;smoke")
+nntile_torch_native_add_test(
+    tests_torch_native_tensor_unregister
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tensor/ops/unregister.cc
+    "torch_native;graph;tensor")

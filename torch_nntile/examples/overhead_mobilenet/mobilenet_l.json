@@ -1,0 +1,9 @@
+{
+  "_comment": "Overhead L: C=14400, 4 blocks, 80^2",
+  "in_channels": 3,
+  "num_classes": 10,
+  "height": 80,
+  "width": 80,
+  "base_channels": 14400,
+  "blocks": 4
+}

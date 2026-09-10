@@ -46,9 +46,6 @@ void check_gelu_backward(
     TORCH_CHECK(
         grad_output.sizes() == self.sizes(),
         "nntile gelu_backward: shape mismatch");
-    TORCH_CHECK(
-        grad_output.is_contiguous() && self.is_contiguous(),
-        "nntile gelu_backward requires contiguous tensors");
 }
 
 void run_gelu_backward(
@@ -71,6 +68,7 @@ at::Tensor gelu_backward(
     const at::Tensor &self,
     c10::string_view approximate)
 {
+    nntile::GraphFillScope record;
     check_gelu_backward(grad_output, self, approximate);
     at::Tensor grad_input = at::empty_like(self);
     run_gelu_backward(
@@ -87,6 +85,7 @@ at::Tensor &gelu_backward_out(
     c10::string_view approximate,
     at::Tensor &grad_input)
 {
+    nntile::GraphFillScope record;
     check_gelu_backward(grad_output, self, approximate);
     TORCH_CHECK(
         grad_input.sizes() == self.sizes(),
@@ -94,9 +93,6 @@ at::Tensor &gelu_backward_out(
     TORCH_CHECK(
         is_nntile_device(grad_input.device()),
         "nntile gelu_backward.out: expected nntile output");
-    TORCH_CHECK(
-        grad_input.is_contiguous(),
-        "nntile gelu_backward.out requires contiguous out");
     run_gelu_backward(
         grad_output,
         self,

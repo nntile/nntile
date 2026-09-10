@@ -70,8 +70,16 @@ starpu_data_handle_t data_handle_pop(starpu_data_handle_t handle)
     return handle;
 }
 
-//! Unregister all data handles
-/* This function is called when the NNTile context is shut down. */
+//! True if the handle is still in the shutdown list
+bool data_handle_is_registered(starpu_data_handle_t handle)
+{
+    const std::lock_guard<std::mutex> lock(data_handles_mutex);
+    return data_handles.find(handle) != data_handles.end();
+}
+
+//! Unregister all data handles still registered with StarPU
+/* Graph UNREGISTER pops handles from this list. Context shutdown only
+ * unregisters whatever remains (live weights, not yet collected temps). */
 void data_handle_unregister_all()
 {
     // Check if the StarPU is initialized
@@ -151,6 +159,11 @@ void Handle::unregister_submit()
         // Unregister the data handle in an async manner
         starpu_data_unregister_submit(get());
     }
+}
+
+bool Handle::is_registered() const
+{
+    return get() != nullptr && data_handle_is_registered(get());
 }
 
 //! Invalidate data handle in an async manner

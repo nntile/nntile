@@ -46,7 +46,7 @@ TEST_CASE(
         gt::clear(drop);
     }
     std::size_t n = gt::append_invalidates_for_unmarked_unsealed(graph);
-    REQUIRE(n == 1);
-    REQUIRE(graph.ops().back()->op_name() == "INVALIDATE");
+    REQUIRE(n == 0);
+    REQUIRE(graph.ops().back()->op_name() == "UNREGISTER");
     REQUIRE(graph.ops().back()->inputs()[0] == drop_raw);
 }

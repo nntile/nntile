@@ -46,8 +46,8 @@ torch_nntile owns one session-scoped triple
 - Graph topology keeps **pointers** (`TensorNode*`, `TileNode*`) on ops.
 - `NodeId` is a **monotonic append-only index** (`0 .. next_id_-1`).
 - Side tables are `std::vector` indexed by `NodeId` (amortized O(1) grow).
-- After `gc_unmarked_data_nodes()`, holes are allowed (empty slots). IDs are
-  never rebuilt mid-session (that would be O(session)).
+- After `gc_unmarked_data_nodes()` / `destroy_data_nodes()`, holes are allowed
+  (empty slots). IDs are never rebuilt mid-session (that would be O(session)).
 
 ## Mapping path (must be O(1) per node, O(#tiles) total)
 
@@ -63,7 +63,7 @@ Hot-path bridges **must not** use `std::map` / `std::set` keyed by pointer.
 | Former structure | Replacement |
 |------------------|------------|
 | `TensorNodeToTileMap` (`std::map`) | dense vector by `TensorNode::id()` |
-| `TileGraph::tensors_by_source_` | dense vector by source `id()` |
+| `TileGraph::tensors_` | dense vector by source `id()` (owner; GC hole) |
 | `TensorGraphTiling::layouts_` | dense vector by `id()` |
 | `tensor_layout_fp` (`std::map` + string) | `uint64_t` hash on binding / layout |
 | `collect_phase_tensors` (`std::set`) | generation stamp on `TensorNode` |
@@ -88,7 +88,10 @@ Rules:
    history. When every compiled tile op has finished, also
    `Runtime::drop_fully_executed_history()` + `TileGraph::clear_ops()`
    so `execution_order_` does not retain session history.
-4. Under `TORCH_NNTILE_SKIP_STARPU=1`, still call `execute_range` so the
+4. After that wait + compact, destroy unreachable TensorNode / TileNode IR
+   (`collect_dead_data_nodes` + `destroy_data_nodes`). Do not GC while
+   TileGraph ops remain (overlapping compiled-but-unexecuted phase).
+5. Under `TORCH_NNTILE_SKIP_STARPU=1`, still call `execute_range` so the
    execute watermark advances (otherwise compile becomes O(session)).
 
 ## Runtime
@@ -103,8 +106,8 @@ Rules:
   `vector[max_tile_id]` — tile ids are session-monotonic).
 - After a full `wait()`, torch_nntile may drop `execution_order_` and
   `TileGraph::ops` (`drop_fully_executed_history` + `clear_ops`) so
-  retained tile-op history does not grow with step count. Tile nodes and
-  payloads stay.
+  retained tile-op history does not grow with step count. Unreachable
+  TensorNode / TileNode IR is then destroyed; payloads of live tensors stay.
 
 ## Out of scope (later)
 

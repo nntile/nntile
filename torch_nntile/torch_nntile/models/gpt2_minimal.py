@@ -7,8 +7,8 @@
 """Minimal GPT-2 stack mirroring ``nntile::model::gpt2`` graph modules.
 
 Uses the same NNTile primitives as the C++ model (``gemm``, ``transpose``,
-``add_fiber``, ``sdpa_eager``, ``layer_norm`` via ``nn.LayerNorm``,
-``embedding``, ``gelutanh``, residual ``add``) - not broadcast ``scale_slice``.
+``add_fiber``, ``sdpa_kernel``, classic ``LayerNorm`` / ``Embedding``,
+``gelutanh``, residual ``add``) - not broadcast ``scale_slice``.
 """
 
 from __future__ import annotations
@@ -20,17 +20,13 @@ from transformers import GPT2Config
 
 from torch_nntile.add_fiber import add_fiber
 from torch_nntile.gemm import gemm
+from torch_nntile.nn import Embedding, GELU, LayerNorm
+from torch_nntile.nn.functional import add
+from torch_nntile.nn.sdpa import make_causal_sdpa_mask
 from torch_nntile.nn.sdpa import nntile_model_transpose, sdpa_kernel
 
 
-def make_causal_sdpa_mask(seq_len: int, device: torch.device | None = None) -> Tensor:
-    """BOOL causal mask ``[seq, seq]`` with ``mask[q, k] = (k <= q)``."""
-    q_idx = torch.arange(seq_len, dtype=torch.long, device="cpu")
-    k_idx = torch.arange(seq_len, dtype=torch.long, device="cpu")
-    mask = (k_idx.unsqueeze(0) <= q_idx.unsqueeze(1)).contiguous()
-    if device is not None and device.type != "cpu":
-        mask = mask.to(device)
-    return mask
+from torch_nntile.nn.sdpa import make_causal_sdpa_mask
 
 
 class NntileConv1D(nn.Module):
@@ -153,7 +149,7 @@ class GPT2MLP(nn.Module):
             inner = 4 * config.n_embd
         self.c_fc = NntileConv1D(inner, config.n_embd)
         self.c_proj = NntileConv1D(config.n_embd, inner)
-        self.act = nn.GELU(approximate="tanh")
+        self.act = GELU(approximate="tanh")
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.c_fc(x)
@@ -164,20 +160,20 @@ class GPT2MLP(nn.Module):
 class GPT2Block(nn.Module):
     def __init__(self, config: GPT2Config) -> None:
         super().__init__()
-        self.ln_1 = nn.LayerNorm(config.n_embd, eps=config.layer_norm_epsilon)
+        self.ln_1 = LayerNorm(config.n_embd, eps=config.layer_norm_epsilon)
         self.attn = GPT2Attention(config)
-        self.ln_2 = nn.LayerNorm(config.n_embd, eps=config.layer_norm_epsilon)
+        self.ln_2 = LayerNorm(config.n_embd, eps=config.layer_norm_epsilon)
         self.mlp = GPT2MLP(config)
 
     def forward(self, x: Tensor, causal_mask: Tensor | None) -> Tensor:
         residual = x
         x = self.ln_1(x)
         x = self.attn(x, causal_mask)
-        x = residual + x
+        x = add(residual, x)
         residual = x
         x = self.ln_2(x)
         x = self.mlp(x)
-        return residual + x
+        return add(residual, x)
 
 
 class GPT2Model(nn.Module):
@@ -186,12 +182,12 @@ class GPT2Model(nn.Module):
     def __init__(self, config: GPT2Config) -> None:
         super().__init__()
         self.config = config
-        self.wte = nn.Embedding(config.vocab_size, config.n_embd)
-        self.wpe = nn.Embedding(config.n_positions, config.n_embd)
+        self.wte = Embedding(config.vocab_size, config.n_embd)
+        self.wpe = Embedding(config.n_positions, config.n_embd)
         self.h = nn.ModuleList(
             [GPT2Block(config) for _ in range(config.n_layer)]
         )
-        self.ln_f = nn.LayerNorm(config.n_embd, eps=config.layer_norm_epsilon)
+        self.ln_f = LayerNorm(config.n_embd, eps=config.layer_norm_epsilon)
         # Built once on CPU, moved to the request device, then reused.
         # Keys: position_ids -> (batch, seq); causal_mask -> seq.
         self._position_ids_cache: dict[tuple[int, int], Tensor] = {}
@@ -261,7 +257,7 @@ class GPT2Model(nn.Module):
         if causal_mask is None:
             causal_mask = self._cached_causal_mask(input_ids)
 
-        x = self.wte(input_ids) + self.wpe(position_ids)
+        x = add(self.wte(input_ids), self.wpe(position_ids))
         for block in self.h:
             x = block(x, causal_mask)
         return self.ln_f(x)

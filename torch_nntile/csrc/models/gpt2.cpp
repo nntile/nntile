@@ -16,6 +16,7 @@
 
 #include "nntile_add_fiber.h"
 #include "nntile_gemm.h"
+#include "nntile_nn_classic.h"
 #include "nntile_sdpa.h"
 #include "nntile_model_transpose.h"
 
@@ -144,7 +145,7 @@ torch::Tensor Gpt2MLPImpl::forward(torch::Tensor x)
         x,
         /*axis=*/x.dim() - 1,
         /*batch_ndim=*/0);
-    x = torch::gelu(x, "tanh");
+    x = nn_classic::gelu(x, true);
     x = gemm(
         x,
         fc2_weight,
@@ -163,15 +164,11 @@ Gpt2BlockImpl::Gpt2BlockImpl(Gpt2Config const &cfg)
 {
     ln_1 = register_module(
         "ln_1",
-        torch::nn::LayerNorm(
-            torch::nn::LayerNormOptions({cfg.n_embd})
-                .eps(cfg.layer_norm_epsilon)));
+        nn_classic::LayerNorm(cfg.n_embd, cfg.layer_norm_epsilon));
     attn = register_module("attn", Gpt2Attention(cfg));
     ln_2 = register_module(
         "ln_2",
-        torch::nn::LayerNorm(
-            torch::nn::LayerNormOptions({cfg.n_embd})
-                .eps(cfg.layer_norm_epsilon)));
+        nn_classic::LayerNorm(cfg.n_embd, cfg.layer_norm_epsilon));
     mlp = register_module("mlp", Gpt2MLP(cfg));
 }
 
@@ -182,11 +179,11 @@ torch::Tensor Gpt2BlockImpl::forward(
     auto residual = x;
     x = ln_1->forward(x);
     x = attn->forward(x, causal_mask);
-    x = residual + x;
+    x = nn_classic::add(residual, x);
     residual = x;
     x = ln_2->forward(x);
     x = mlp->forward(x);
-    return residual + x;
+    return nn_classic::add(residual, x);
 }
 
 Gpt2CausalImpl::Gpt2CausalImpl(Gpt2Config cfg) : config(std::move(cfg))
@@ -198,10 +195,10 @@ Gpt2CausalImpl::Gpt2CausalImpl(Gpt2Config cfg) : config(std::move(cfg))
     }
     wte = register_module(
         "wte",
-        torch::nn::Embedding(config.vocab_size, config.n_embd));
+        nn_classic::Embedding(config.vocab_size, config.n_embd));
     wpe = register_module(
         "wpe",
-        torch::nn::Embedding(config.n_positions, config.n_embd));
+        nn_classic::Embedding(config.n_positions, config.n_embd));
     torch::nn::ModuleList list;
     for (int64_t i = 0; i < config.n_layer; ++i)
     {
@@ -210,9 +207,9 @@ Gpt2CausalImpl::Gpt2CausalImpl(Gpt2Config cfg) : config(std::move(cfg))
     blocks = register_module("blocks", list);
     ln_f = register_module(
         "ln_f",
-        torch::nn::LayerNorm(
-            torch::nn::LayerNormOptions({config.n_embd})
-                .eps(config.layer_norm_epsilon)));
+        nn_classic::LayerNorm(
+            config.n_embd,
+            config.layer_norm_epsilon));
     lm_weight = register_parameter(
         "lm_weight",
         torch::empty({config.vocab_size, config.n_embd}));
@@ -250,7 +247,9 @@ torch::Tensor Gpt2CausalImpl::forward(torch::Tensor input_ids)
     {
         warm_sequence_cache(b, s, input_ids.device());
     }
-    auto x = wte->forward(input_ids) + wpe->forward(cached_pos_);
+    auto x = nn_classic::add(
+        wte->forward(input_ids),
+        wpe->forward(cached_pos_));
     for (auto &module : *blocks)
     {
         x = module->as<Gpt2BlockImpl>()->forward(x, cached_mask_);

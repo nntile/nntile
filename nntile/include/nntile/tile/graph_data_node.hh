@@ -85,6 +85,7 @@ class TileGraph::TileNode
     void set_payload(std::shared_ptr<void> payload)
     {
         payload_ = std::move(payload);
+        starpu_registered_ = payload_ != nullptr;
     }
     std::shared_ptr<void> const &payload() const
     {
@@ -93,10 +94,20 @@ class TileGraph::TileNode
     void clear_payload()
     {
         payload_.reset();
+        starpu_registered_ = false;
     }
     bool has_payload() const
     {
         return payload_ != nullptr;
+    }
+    //! False after graph UNREGISTER / payload drop (skip double unregister).
+    bool is_starpu_registered() const
+    {
+        return starpu_registered_;
+    }
+    void note_starpu_unregistered()
+    {
+        starpu_registered_ = false;
     }
 
   private:
@@ -109,6 +120,7 @@ class TileGraph::TileNode
     TileGraph::TensorDescriptor *tensor_desc_ = nullptr;
     std::vector<Index> tile_coord_;
     std::shared_ptr<void> payload_;
+    bool starpu_registered_ = false;
 
     friend class TileGraph;
 };

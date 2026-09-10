@@ -23,6 +23,10 @@ from pathlib import Path
 from typing import Any
 
 import torch
+from nntile_iter_phases import (
+    print_torch_iter_timings,
+    run_nntile_train_iters,
+)
 
 LossFn = Callable[[torch.nn.Module, dict[str, torch.Tensor]], torch.Tensor]
 
@@ -47,6 +51,89 @@ def configure_single_thread_host() -> None:
     except RuntimeError:
         # May already be set after the first parallel op.
         pass
+
+
+def _try_set_fp32_precision(obj: Any, value: str) -> bool:
+    """Set ``obj.fp32_precision`` (PyTorch 2.9+). Skip if missing."""
+    if obj is None:
+        return False
+    try:
+        getattr(obj, "fp32_precision")
+    except AttributeError:
+        return False
+    obj.fp32_precision = value
+    return True
+
+
+def configure_tf32(*, disable_tf32: bool, device: str) -> None:
+    """Force TF32 on or off for cuBLAS and cuDNN.
+
+    PyTorch 2.9 defaults leave GEMM TF32 off (``fp32_precision=none``)
+    while cuDNN conv/RNN TF32 is already on. Omitting ``--disable-tf32``
+    therefore has to *enable* cuBLAS TF32, not leave those defaults.
+    Prefer the 2.9 ``fp32_precision`` API; do not mix it with
+    ``allow_tf32`` / ``set_float32_matmul_precision``. ATen CUDA kernels
+    honor these flags for ``--device nntile`` torch-native codelets too.
+    """
+    del device
+    precision = "ieee" if disable_tf32 else "tf32"
+    allow = not disable_tf32
+    applied: list[str] = []
+    used_new_matmul = False
+    cuda_be = getattr(torch.backends, "cuda", None)
+    matmul = getattr(cuda_be, "matmul", None) if cuda_be is not None else None
+    if _try_set_fp32_precision(matmul, precision):
+        applied.append(f"cuda.matmul.fp32_precision={precision}")
+        used_new_matmul = True
+    elif matmul is not None and hasattr(matmul, "allow_tf32"):
+        matmul.allow_tf32 = allow
+        applied.append(f"cuda.matmul.allow_tf32={allow}")
+    cudnn = getattr(torch.backends, "cudnn", None)
+    if cudnn is not None:
+        conv = getattr(cudnn, "conv", None)
+        rnn = getattr(cudnn, "rnn", None)
+        set_new = False
+        if _try_set_fp32_precision(cudnn, precision):
+            applied.append(f"cudnn.fp32_precision={precision}")
+            set_new = True
+        if _try_set_fp32_precision(conv, precision):
+            applied.append(f"cudnn.conv.fp32_precision={precision}")
+            set_new = True
+        if _try_set_fp32_precision(rnn, precision):
+            applied.append(f"cudnn.rnn.fp32_precision={precision}")
+            set_new = True
+        if not set_new and hasattr(cudnn, "allow_tf32"):
+            cudnn.allow_tf32 = allow
+            applied.append(f"cudnn.allow_tf32={allow}")
+    if (
+        not used_new_matmul
+        and hasattr(torch, "set_float32_matmul_precision")
+    ):
+        level = "highest" if disable_tf32 else "high"
+        torch.set_float32_matmul_precision(level)
+        applied.append(f"float32_matmul_precision={level}")
+    label = "disabled" if disable_tf32 else "enabled"
+    print(f"TF32 {label} (" + ", ".join(applied) + ")")
+
+
+def configure_cudnn(*, disable_cudnn: bool) -> None:
+    """Turn off cuDNN so CUDA eager uses the same ATen kernels as nntile.
+
+    ``nn.BatchNorm2d`` on CUDA otherwise calls cuDNN; the nntile StarPU
+    codelet always uses ``native_batch_norm_out``. Disabling cuDNN also
+    steers convolution off cuDNN on both backends (``select_conv_backend``
+    honors ``torch.backends.cudnn.enabled``).
+    """
+    if not disable_cudnn:
+        return
+    cudnn = getattr(torch.backends, "cudnn", None)
+    if cudnn is None or not hasattr(cudnn, "enabled"):
+        print("cuDNN disable skipped (torch.backends.cudnn missing)")
+        return
+    cudnn.enabled = False
+    print("cuDNN disabled (torch.backends.cudnn.enabled=False)")
+
+
 BatchBuilder = Callable[
     [Any, argparse.Namespace],
     dict[str, torch.Tensor],
@@ -223,14 +310,16 @@ def add_train_compare_subparsers(
     train.add_argument(
         "--ncpu",
         type=int,
-        default=1,
-        help="StarPU CPU workers for --device nntile (default: 1)",
+        default=-1,
+        help="StarPU CPU workers for --device nntile "
+        "(default: -1 = STARPU_NCPU)",
     )
     train.add_argument(
         "--ncuda",
         type=int,
-        default=0,
-        help="StarPU CUDA workers for --device nntile (default: 0)",
+        default=-1,
+        help="StarPU CUDA workers for --device nntile "
+        "(default: -1 = STARPU_NCUDA)",
     )
     train.add_argument(
         "--restrict-cpu",
@@ -245,7 +334,10 @@ def add_train_compare_subparsers(
     train.add_argument(
         "--cpu-fallback",
         action="store_true",
-        help="Allow unregistered aten ops to fall back to CPU",
+        help=(
+            "Opt in to PyTorch CPU fallback for unregistered aten ops "
+            "(implicit nntile<->CPU copies; off by default)"
+        ),
     )
 
     compare = sub.add_parser(
@@ -468,7 +560,7 @@ def run_tiny_hf_train(
 
     import torch_nntile
 
-    ncuda = int(getattr(args, "ncuda", 0))
+    ncuda = int(getattr(args, "ncuda", -1))
     torch_nntile.init_context(
         ncpu=args.ncpu,
         ncuda=ncuda,
@@ -485,6 +577,7 @@ def run_tiny_hf_train(
             model = model.to("nntile")
         torch_nntile.compile_graph()
         torch_nntile.run()
+        torch_nntile.wait()
         for p in model.parameters():
             p.requires_grad_(True)
 
@@ -539,21 +632,49 @@ def _train_loop(
         [p for p in model.parameters() if p.requires_grad],
         lr=lr,
     )
+    opt.zero_grad(set_to_none=True)
+    last_loss: torch.Tensor | None = None
+    if torch_nntile is not None:
+        return run_nntile_train_iters(
+            name=name,
+            model=model,
+            batch=batch,
+            loss_fn=loss_fn,
+            steps=steps,
+            opt=opt,
+            torch_nntile=torch_nntile,
+        )
+
+    device = next(model.parameters()).device
+    if device.type == "cuda":
+        torch.cuda.synchronize()
     t0 = time.perf_counter()
     for step in range(steps):
-        opt.zero_grad(set_to_none=True)
-        if torch_nntile is not None:
-            torch_nntile.compile_graph()
-            torch_nntile.run()
+        t_iter0 = time.perf_counter()
         loss = loss_fn(model, batch)
         loss.backward()
         opt.step()
-        if torch_nntile is not None:
-            loss_val = float(loss.detach().cpu())
+        step_loss = loss.detach()
+        del loss
+        opt.zero_grad(set_to_none=True)
+        if device.type == "cuda":
+            torch.cuda.synchronize()
+        print_torch_iter_timings(
+            step + 1,
+            steps,
+            time.perf_counter() - t_iter0,
+        )
+        if step == steps - 1:
+            last_loss = step_loss
         else:
-            loss_val = float(loss.detach())
-        print(f"[{name}] step {step + 1}/{steps}  loss={loss_val:.6f}")
-    print(f"[{name}] wall={time.perf_counter() - t0:.3f}s  OK")
+            del step_loss
+    wall_s = time.perf_counter() - t0
+    if last_loss is None:
+        raise RuntimeError(f"{name}: no steps ran")
+    loss_val = float(last_loss.item())
+    del last_loss
+    print(f"[{name}] final loss={loss_val:.6f}")
+    print(f"[{name}] wall={wall_s:.3f}s  OK")
     return 0
 
 

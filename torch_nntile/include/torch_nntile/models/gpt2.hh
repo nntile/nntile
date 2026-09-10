@@ -8,6 +8,7 @@
 #pragma once
 
 #include <torch/torch.h>
+#include <torch_nntile/classic_nn.hh>
 
 #include <cstdint>
 
@@ -74,9 +75,9 @@ TORCH_MODULE(Gpt2MLP);
 
 struct Gpt2BlockImpl : torch::nn::Module
 {
-    torch::nn::LayerNorm ln_1{nullptr};
+    nn_classic::LayerNorm ln_1{nullptr};
     Gpt2Attention attn{nullptr};
-    torch::nn::LayerNorm ln_2{nullptr};
+    nn_classic::LayerNorm ln_2{nullptr};
     Gpt2MLP mlp{nullptr};
 
     explicit Gpt2BlockImpl(Gpt2Config const &cfg);
@@ -90,10 +91,10 @@ TORCH_MODULE(Gpt2Block);
 struct Gpt2CausalImpl : torch::nn::Module
 {
     Gpt2Config config;
-    torch::nn::Embedding wte{nullptr};
-    torch::nn::Embedding wpe{nullptr};
+    nn_classic::Embedding wte{nullptr};
+    nn_classic::Embedding wpe{nullptr};
     torch::nn::ModuleList blocks{nullptr};
-    torch::nn::LayerNorm ln_f{nullptr};
+    nn_classic::LayerNorm ln_f{nullptr};
     torch::Tensor lm_weight;
     torch::Tensor cached_pos_;
     torch::Tensor cached_mask_;

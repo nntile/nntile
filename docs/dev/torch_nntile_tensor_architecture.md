@@ -77,8 +77,9 @@ the gather phase). Callers do not need an explicit `compile_graph()`/`run()`
 before `.cpu()` for correctness, but:
 
 - Ordering relative to other pending work follows whatever is still recorded.
-- Each `.cpu()` permanently appends gather/`io_staging_*` nodes to the session
-  graph (see debt D1).
+- Each `.cpu()` still allocates a new `io_staging_*` **TensorNode**. After
+  `wait()`, unreachable TensorNode / TileNode IR is destroyed (holes remain
+  in `data_`; NodeIds are not reused).
 
 Test helper `nntile_cpu()` also flushes pending work before `.cpu()`.
 
@@ -179,9 +180,11 @@ runnable far ahead of the step that needs it. Until that exists:
 
 | # | Topic | Current behavior | Planned follow-up |
 |---|--------|------------------|-------------------|
-| D1 | TensorGraph metadata growth | Each `.cpu()` permanently appends `clear`, `gather`, and a new `io_staging_*` node (op list grows). Phase outputs cleared after `wait()` are reclaimed via `pending_output_reclaim` (O(phase outputs), not a full tile-map scan). Historical TileGraph/TensorGraph nodes still accumulate in memory. | Phase GC / compaction; reuse readout staging per session. |
+| D1 | Data-node IR GC | Compact drops sealed TensorGraph / TileGraph **ops** (`drop_all_ops` / `clear_ops`). After `wait()`, `gc_dead_data_nodes_locked` destroys TensorNode / TileNode IR with no `TensorRef`, no StarPU registration, and no remaining op references. Holes stay in `data_`; NodeIds are not reused. `print_info` `data=` is `live/slots`. | Done. Skip GC while TileGraph ops remain (overlapping compiled-but-unexecuted phase). |
 | D2 | Ingress `S` + StarPU alloc cache | Batched `.to("nntile")` keeps every ephemeral `S` until scatters run. Submitting all scatters before any `S` unregister leaves CUDA replicates of every `S` beside every `L`; unregister parks them in StarPU's allocation cache (`STARPU_USE_ALLOCATION_CACHE`) → settled ≈2×. `starpu_memchunk_tidy` only writebacks dirty chunks — it does **not** flush that cache. | During `run()`, execute each ingress scatter, `wait()`, then destroy that `S` before the next scatter so the next `L` reuses the cached chunk. |
 | D4 | CE `ignore_index` mean | Mean CE uses `1/numel`; PyTorch uses `1/count_non_ignore`. | Graph-native valid-label count (or document as permanent limitation). |
 | D5 | `vector_norm` backward | Forward-only by design. | Add autograd when product needs it. |
 | D6 | libnntile required | `torch_nntile` always links `libnntile`; host-only stub installs are unsupported. | Keep the libnntile path the only storage/executor path; do not reintroduce a stub build. |
 | D7 | `STARPU_W`-only clear vs async steps | Destination `clear` tasks use only `STARPU_W`, so they are ready as soon as submitted and allocate VRAM for every in-flight step at once under async multi-step `run()` (see section above). StarPU’s heuristics do not delay those clears until related `STARPU_RW` work. | Graph-aware scheduler that colocates clears with first real use; and/or stop emitting standalone `STARPU_W` clears (fold into first write / add a tying read). Examples sync per step via loss `.to("cpu")` after `zero_grad`. |
+| D8 | Fused SDPA as TensorGraph op | `F.scaled_dot_product_attention` on nntile always selects PyTorch **MATH** (`_fused_sdp_choice` → `SDPBackend::math`). That composite records `mm` / `bmm` / `softmax` / `tril` / mask `where` as TensorGraph nodes (no ATen temps inside a fused codelet). `TorchKind::Sdpa` / overrideable fused attention still exist but are unused. | Later: fused SDPA that preallocates every buffer (`out`, `logsumexp`, workspace) as TensorNodes / `STARPU_SCRATCH` at record time and writes `*_out`-style into those handles — no caching-allocator temps in the codelet. |
+| D9 | Public ATen `*.out` only | Torch-native StarPU codelets call **only** public high-level `at::*_out` (`ATen/ops/*.h`). No DispatchStubs (AVX2/AVX512), no hidden `raw_*`. Autogen schemas (`convolution_backward.out`, `cudnn_convolution_transpose.out`, …) may `functional` + `copy_` into the StarPU blob. Unused bwd grads need same-dtype throwaways. Extra copies vs a fused kernel are PyTorch’s API shape, not NNTile’s. | **Will not resolve** by linking internal kernels. If PyTorch later ships a public `*.out` that writes in place, use that; never `dlsym` / DispatchStub. User-facing note: [docs/torch_nntile.md](../torch_nntile.md). |

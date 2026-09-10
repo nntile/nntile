@@ -28,14 +28,12 @@ void check_fp32(const at::Tensor &tensor, const char *name)
 {
     TORCH_CHECK(is_nntile_device(tensor.device()), name, ": expected nntile");
     TORCH_CHECK(tensor.scalar_type() == at::ScalarType::Float, name, ": fp32");
-    TORCH_CHECK(tensor.is_contiguous(), name, ": contiguous tensor required");
 }
 
 void check_indices(const at::Tensor &tensor)
 {
     TORCH_CHECK(is_nntile_device(tensor.device()), "max_pool indices nntile");
     TORCH_CHECK(tensor.scalar_type() == at::ScalarType::Long, "i64 indices");
-    TORCH_CHECK(tensor.is_contiguous(), "max_pool indices contiguous");
 }
 
 std::vector<int64_t> meta_max_pool_shape(
@@ -69,6 +67,7 @@ std::tuple<at::Tensor, at::Tensor> max_pool2d_with_indices(
     at::IntArrayRef dilation,
     bool ceil_mode)
 {
+    nntile::GraphFillScope record;
     check_fp32(input, "nntile max_pool2d_with_indices");
     std::vector<int64_t> out_shape = meta_max_pool_shape(
         input,
@@ -107,6 +106,7 @@ std::tuple<at::Tensor &, at::Tensor &> max_pool2d_with_indices_out(
     at::Tensor &out,
     at::Tensor &indices)
 {
+    nntile::GraphFillScope record;
     check_fp32(input, "nntile max_pool2d_with_indices.out");
     check_fp32(out, "nntile max_pool2d_with_indices.out output");
     check_indices(indices);
@@ -132,6 +132,7 @@ at::Tensor max_pool2d_with_indices_backward(
     bool ceil_mode,
     const at::Tensor &indices)
 {
+    nntile::GraphFillScope record;
     check_fp32(grad_output, "nntile max_pool2d_backward grad");
     check_fp32(input, "nntile max_pool2d_backward input");
     check_indices(indices);
@@ -163,6 +164,7 @@ at::Tensor &max_pool2d_with_indices_backward_out(
     const at::Tensor &indices,
     at::Tensor &grad_input)
 {
+    nntile::GraphFillScope record;
     check_fp32(grad_output, "nntile max_pool2d_backward.out grad");
     check_fp32(input, "nntile max_pool2d_backward.out input");
     check_indices(indices);

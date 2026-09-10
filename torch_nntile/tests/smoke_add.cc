@@ -13,6 +13,7 @@
 
 TEST_CASE("libtorch_nntile smoke add on PrivateUse1", "[smoke]")
 {
+    // Omit cpu_fallback: the C++ default must stay false (explicit opt-in).
     torch_nntile::init_context(
         /*ncpu=*/1,
         /*ncuda=*/0,
@@ -20,8 +21,8 @@ TEST_CASE("libtorch_nntile smoke add on PrivateUse1", "[smoke]")
         /*ooc_path=*/"/tmp/nntile_ooc",
         /*ooc_size=*/16ull * 1024ull * 1024ull,
         /*logger=*/0,
-        /*verbose=*/0,
-        /*cpu_fallback=*/false);
+        /*verbose=*/0);
+    REQUIRE_FALSE(torch_nntile::is_cpu_fallback_enabled());
     torch_nntile::restrict_cpu();
 
     c10::Device const dev = torch_nntile::test::nntile_device();

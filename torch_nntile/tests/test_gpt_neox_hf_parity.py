@@ -151,6 +151,7 @@ def _local_sin_cos(local_cfg: GPTNeoXConfig, position_ids):
         position_ids,
         local_cfg.rotary_ndims,
         rope_theta=local_cfg.rotary_emb_base,
+        identity_pad_head_dim=local_cfg.head_dim,
     )
 
 
@@ -295,9 +296,6 @@ def test_gpt_neox_attention_forward_backward_matrix(
     )
     assert_close(y, y_ref.detach(), rtol=RTOL, atol=ATTN_ATOL)
 
-    if use_rope:
-        return
-
     grad = torch.randn_like(y_ref)
     y_ref.backward(grad)
     (gx,) = torch.autograd.grad(y, x_n, contiguous_to_nntile(grad))
@@ -380,11 +378,10 @@ def test_gpt_neox_causal_backward_matches_hf():
     grad = torch.randn(2, 8, hf_cfg.vocab_size)
     hf(ids).logits.backward(grad)
     logits = local(contiguous_to_nntile(ids))
-    # Only lm-head weight: full-graph bwd through partial RoPE ``narrow`` is
-    # not implemented on nntile yet.
     (gw_out,) = torch.autograd.grad(
         logits,
         local.embed_out.weight,
         contiguous_to_nntile(grad),
     )
-    assert_close(gw_out, hf.embed_out.weight.grad, rtol=1e-3, atol=BWD_ATOL)
+    hf_head = getattr(hf, "lm_head", None) or hf.embed_out
+    assert_close(gw_out, hf_head.weight.grad, rtol=1e-3, atol=BWD_ATOL)

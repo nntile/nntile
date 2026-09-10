@@ -45,15 +45,11 @@ void check_gelu_input(
     TORCH_CHECK(
         self.scalar_type() == at::ScalarType::Float,
         "nntile gelu supports float32 only");
-    TORCH_CHECK(self.is_contiguous(), "nntile gelu requires contiguous input");
     if (out.has_value())
     {
         TORCH_CHECK(
             out->sizes() == self.sizes(),
             "nntile gelu.out: output shape mismatch");
-        TORCH_CHECK(
-            out->is_contiguous(),
-            "nntile gelu.out requires contiguous out");
     }
 }
 
@@ -76,6 +72,7 @@ at::Tensor gelu(
     const at::Tensor &self,
     c10::string_view approximate)
 {
+    nntile::GraphFillScope record;
     check_gelu_input(self, approximate);
     at::Tensor out = at::empty_like(self);
     run_gelu(self, out, is_gelu_tanh_approximate(approximate));
@@ -87,6 +84,7 @@ at::Tensor &gelu_out(
     c10::string_view approximate,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     check_gelu_input(self, approximate, out);
     run_gelu(self, out, is_gelu_tanh_approximate(approximate));
     return out;
@@ -94,6 +92,7 @@ at::Tensor &gelu_out(
 
 at::Tensor &gelu_(at::Tensor &self, c10::string_view approximate)
 {
+    nntile::GraphFillScope record;
     check_gelu_input(self, approximate, self);
     run_gelu(self, self, is_gelu_tanh_approximate(approximate));
     return self;

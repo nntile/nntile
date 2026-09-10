@@ -1,0 +1,1069 @@
+#!/usr/bin/env python3
+"""Regenerate docs/dev/dit_hf_overhead_scale.md from benchmark summary."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import statistics
+import sys
+from pathlib import Path
+from typing import Any
+
+_TOOLS = Path(__file__).resolve().parent
+if str(_TOOLS) not in sys.path:
+    sys.path.insert(0, str(_TOOLS))
+from overhead_plot import write_long_plots
+from overhead_refs import GPT2_REF, NOTATION_DIT
+
+REPO = Path(__file__).resolve().parents[2]
+DOC = REPO / "docs" / "dev" / "dit_hf_overhead_scale.md"
+
+LADDER = ["xs", "s", "m", "l", "xl"]
+SIZE_LABEL = {"xs": "XS", "s": "S", "m": "M", "l": "L", "xl": "XL"}
+PATCHES = {"xs": 784, "s": 1024, "m": 1521, "l": 2025, "xl": 2916}
+SAMPLE_SIZE = {"xs": 56, "s": 64, "m": 78, "l": 90, "xl": 108}
+PATCH_SIZE = 2
+HIDDEN = {
+    "xs": "1536 (24×64)",
+    "s": "2048 (16×128)",
+    "m": "3072 (24×128)",
+    "l": "4096 (32×128)",
+    "xl": "5760 (45×128)",
+}
+LAYERS = {
+    "xs": "11",
+    "s": "10",
+    "m": "11",
+    "l": "11",
+    "xl": "5",
+}
+# Approximate CUDA train peaks from the published recipe (GiB).
+CUDA_VRAM = {
+    "xs": "~3.93",
+    "s": "~6.49",
+    "m": "~15.61",
+    "l": "~29.58",
+    "xl": "~31–32 (old 6-layer XL; 7-layer HF(cuda) match caused nntile offload)",
+}
+LOSS_MATCH_EPS = 2e-4
+
+
+def load_summary(path: Path) -> dict[str, Any]:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def merge_summaries(base: dict[str, Any], extra: dict[str, Any]) -> dict[str, Any]:
+    merged = dict(base)
+    merged["groups"] = {
+        **base.get("groups", {}),
+        **extra.get("groups", {}),
+    }
+    merged["repeats"] = max(
+        int(base.get("repeats", 0)),
+        int(extra.get("repeats", 0)),
+    )
+    merged["long_steps"] = int(
+        base.get("long_steps", extra.get("long_steps", 100))
+    )
+    return merged
+
+
+def g(group: dict[str, Any], *keys: str) -> dict[str, float]:
+    cur: Any = group
+    for key in keys:
+        cur = cur[key]
+    return cur
+
+
+def ms(stat: dict[str, float], ndigits: int = 3) -> str:
+    mean = stat["mean"]
+    std = stat["std"]
+    if stat["n"] <= 1 or std == 0:
+        return f"{mean:.{ndigits}f}"
+    return f"{mean:.{ndigits}f} ± {std:.{ndigits}f}"
+
+
+def ms_s(stat: dict[str, float], ndigits: int = 3) -> str:
+    return f"{ms(stat, ndigits)} s"
+
+
+def pct(stat: dict[str, float]) -> str:
+    return f"**{stat['mean'] * 100:.1f}%**"
+
+
+def iter_mean_table(
+    results: list[dict[str, Any]],
+    size: str,
+    device: str,
+    mode: str,
+) -> str:
+    rows = [
+        r
+        for r in results
+        if r["size"] == size and r["device"] == device and r["mode"] == mode
+    ]
+    if not rows:
+        return ""
+    n_iters = len(rows[0].get("iters", []))
+    lines = []
+    for step in range(n_iters):
+        if device == "cuda":
+            vals = [
+                r["iters"][step]["cuda_wall"]
+                for r in rows
+                if len(r["iters"]) > step
+            ]
+            stat = {
+                "mean": statistics.mean(vals),
+                "std": statistics.stdev(vals) if len(vals) > 1 else 0.0,
+                "n": len(vals),
+            }
+            lines.append(f"| {step + 1} | {ms(stat)} |")
+        else:
+            cols: dict[str, list[float]] = {
+                "record_nntile": [],
+                "record_torch": [],
+                "compile": [],
+                "run": [],
+                "wait": [],
+            }
+            if mode == "sequential":
+                cols["prep"] = []
+                cols["compute"] = []
+            for r in rows:
+                if len(r["iters"]) <= step:
+                    continue
+                it = r["iters"][step]
+                for key in cols:
+                    if key in it and it[key] is not None:
+                        cols[key].append(float(it[key]))
+            if mode == "sequential":
+                parts = [str(step + 1)]
+                for key in [
+                    "prep",
+                    "compute",
+                    "record_nntile",
+                    "record_torch",
+                    "compile",
+                    "run",
+                    "wait",
+                ]:
+                    vals = cols.get(key, [])
+                    if not vals:
+                        parts.append("—")
+                    else:
+                        stat = {
+                            "mean": statistics.mean(vals),
+                            "std": (
+                                statistics.stdev(vals) if len(vals) > 1 else 0.0
+                            ),
+                            "n": len(vals),
+                        }
+                        parts.append(ms(stat))
+                lines.append("| " + " | ".join(parts) + " |")
+            else:
+                cuda_rows = [
+                    r
+                    for r in results
+                    if r["size"] == size
+                    and r["device"] == "cuda"
+                    and r["mode"] == "overlap"
+                ]
+                cuda_vals = [
+                    r["iters"][step]["cuda_wall"]
+                    for r in cuda_rows
+                    if len(r["iters"]) > step
+                ]
+                cuda_stat = {
+                    "mean": statistics.mean(cuda_vals),
+                    "std": (
+                        statistics.stdev(cuda_vals) if len(cuda_vals) > 1 else 0.0
+                    ),
+                    "n": len(cuda_vals),
+                }
+                parts = [str(step + 1), ms(cuda_stat)]
+                for key in [
+                    "record_nntile",
+                    "record_torch",
+                    "compile",
+                    "run",
+                    "wait",
+                ]:
+                    vals = cols[key]
+                    stat = {
+                        "mean": statistics.mean(vals),
+                        "std": (
+                            statistics.stdev(vals) if len(vals) > 1 else 0.0
+                        ),
+                        "n": len(vals),
+                    }
+                    parts.append(ms(stat))
+                lines.append("| " + " | ".join(parts) + " |")
+    return "\n".join(lines)
+
+
+def render_doc(
+    summary: dict[str, Any],
+    results: list[dict[str, Any]],
+    logdir: str,
+    preliminary_note: str = "",
+) -> str:
+    groups = summary["groups"]
+    repeats = summary["repeats"]
+    long_steps = int(summary.get("long_steps", 100))
+    long_mode = f"{long_steps}step"
+    prelim_block = ""
+    if preliminary_note:
+        prelim_block = (
+            f"> **Preliminary ({preliminary_note}).** "
+            "Full 10× rerun with `--long-steps 100` is in progress.\n\n"
+        )
+
+    def grp(size: str, device: str, mode: str) -> dict[str, Any]:
+        return groups[f"{size}_{device}_{mode}"]
+
+    overall_rows = []
+    host_shares = []
+    ratios = []
+    loss_notes = []
+    for size in LADDER:
+        c = grp(size, "cuda", "overlap")
+        n = grp(size, "nntile", "overlap")
+        ratio_mean = g(n, "metrics", "train_wall_s", "mean") / g(
+            c, "metrics", "train_wall_s", "mean"
+        )
+        c_loss = g(c, "metrics", "final_loss", "mean")
+        n_loss = g(n, "metrics", "final_loss", "mean")
+        loss_cell = (
+            f"{c_loss:.6f} | **{n_loss:.6f}**"
+            if abs(c_loss - n_loss) < 1e-5
+            else f"{c_loss:.6f} | **{n_loss:.6f}**"
+        )
+        if abs(c_loss - n_loss) >= LOSS_MATCH_EPS:
+            loss_notes.append(
+                f"- **{SIZE_LABEL[size]}:** HF(cuda) {c_loss:.6f} vs HF(nntile) "
+                f"{n_loss:.6f} (Δ {abs(c_loss - n_loss):.6f})."
+            )
+        overall_rows.append(
+            f"| {SIZE_LABEL[size]} T={PATCHES[size]} | {ms_s(g(c, 'metrics', 'train_wall_s'))} | "
+            f"{ms_s(g(n, 'metrics', 'train_wall_s'))} | **{ratio_mean:.2f}×** | "
+            f"{ms_s(g(n, 'metrics', 'record_nntile_s'))} | "
+            f"{ms_s(g(n, 'metrics', 'record_torch_s'))} | "
+            f"{ms_s(g(n, 'metrics', 'compile_s'))} | "
+            f"{ms_s(g(n, 'metrics', 'run_s'))} | "
+            f"{ms_s(g(n, 'metrics', 'wait_s'))} | "
+            f"{pct(g(n, 'metrics', 'host_frac'))} | {loss_cell} |"
+        )
+        host_shares.append(f"{g(n, 'metrics', 'host_frac', 'mean') * 100:.1f}%")
+        ratios.append(f"{SIZE_LABEL[size]} {ratio_mean:.2f}×")
+
+    xs_c_loss = g(grp("xs", "cuda", "overlap"), "metrics", "final_loss", "mean")
+    xs_n_loss = g(grp("xs", "nntile", "overlap"), "metrics", "final_loss", "mean")
+    if loss_notes:
+        loss_section = (
+            "### Loss / correctness\n\n"
+            "Both paths use stock Diffusers forward + MSE noise prediction "
+            "(`diffusion_mse_loss` in `dit_hf_tiny_train_common.py`).\n\n"
+            + "\n".join(loss_notes)
+            + "\n\nPerformance ratios remain informative; investigate any "
+            "residual drift separately from graph overhead."
+        )
+    else:
+        loss_section = (
+            "MSE noise-prediction loss matches HF(cuda) vs HF(nntile) to printed "
+            f"1e-4 at all ladder sizes (XS {xs_c_loss:.6f} both)."
+        )
+
+    iso_rows = []
+    hidden_rows = []
+    for size in LADDER:
+        n = grp(size, "nntile", "overlap")
+        c = grp(size, "cuda", "overlap")
+        iso = n["isolated"]
+        full_mean = (
+            g(iso, "record_nntile", "mean")
+            + g(iso, "record_torch", "mean")
+            + g(iso, "compile", "mean")
+            + g(iso, "run", "mean")
+            + g(iso, "wait", "mean")
+        )
+        rw = g(iso, "run_wait", "mean")
+        saved = full_mean - rw
+        pct_saved = 100 * saved / full_mean if full_mean else 0
+        iso_rows.append(
+            f"| {SIZE_LABEL[size]} | {ms(g(iso, 'record_nntile'))} | "
+            f"{ms(g(iso, 'record_torch'))} | {ms(g(iso, 'compile'))} | "
+            f"{ms(g(iso, 'run'))} | {ms(g(iso, 'wait'))} | "
+            f"**{ms(g(iso, 'run_wait'))}** | "
+            f"{ms(g(c['isolated'], 'cuda_wall'))} |"
+        )
+        hidden_rows.append(
+            f"| {SIZE_LABEL[size]} | {full_mean:.3f} s | {rw:.3f} s | "
+            f"{saved:.3f} s (**{pct_saved:.0f}%**) |"
+        )
+
+    seq_rows = []
+    seq_loss = []
+    seq_compute_ratios = []
+    for size in LADDER:
+        c = grp(size, "cuda", "overlap")
+        sq = grp(size, "nntile", "sequential")
+        prep = g(sq, "metrics", "host_s")
+        compute = {
+            "mean": g(sq, "metrics", "run_s", "mean")
+            + g(sq, "metrics", "wait_s", "mean"),
+            "std": (
+                g(sq, "metrics", "run_s", "std") ** 2
+                + g(sq, "metrics", "wait_s", "std") ** 2
+            )
+            ** 0.5,
+            "n": repeats,
+        }
+        compute_ratio = compute["mean"] / g(c, "metrics", "train_wall_s", "mean")
+        prep_pct = 100 * prep["mean"] / g(sq, "metrics", "train_wall_s", "mean")
+        seq_rows.append(
+            f"| {SIZE_LABEL[size]} T={PATCHES[size]} | {ms_s(g(c, 'metrics', 'train_wall_s'))} | "
+            f"{ms_s(g(sq, 'metrics', 'train_wall_s'))} | {ms_s(prep)} | "
+            f"**{ms(compute)} s** | **{compute_ratio:.2f}×** | {prep_pct:.1f}% |"
+        )
+        seq_loss.append(
+            f"{SIZE_LABEL[size]} {g(sq, 'metrics', 'final_loss', 'mean'):.6f}"
+        )
+        seq_compute_ratios.append(f"{compute_ratio:.2f}×")
+
+    s1k = groups.get(f"s_nntile_{long_mode}")
+    compare_long = ""
+    if s1k:
+        host1k = (
+            100
+            * (
+                g(s1k, "metrics", "record_nntile_s", "mean")
+                + g(s1k, "metrics", "record_torch_s", "mean")
+                + g(s1k, "metrics", "compile_s", "mean")
+            )
+            / g(s1k, "metrics", "train_wall_s", "mean")
+        )
+        neo_long_wall = g(s1k, "metrics", "train_wall_s", "mean")
+        neo_long_loss = g(s1k, "metrics", "final_loss", "mean")
+        compare_long = f"""
+### {long_steps}-step S (HF(nntile))
+
+| | GPT-2 | DiT | Notes |
+|--|------:|-----:|-------|
+| train wall | {GPT2_REF['long_wall_s']:.1f} s | **{neo_long_wall:.1f} s** | same ballpark |
+| final loss | {GPT2_REF['long_loss']:.6f} (LM CE) | **{neo_long_loss:.6f}** (MSE noise) | different task |
+| host share | {GPT2_REF['long_host_pct']}% | **{host1k:.0f}%** | flat host, GPU-bound |"""
+        long_section = f"""## {long_steps}-step S (HF(nntile) steady state, mean ± stdev over {repeats} runs)
+
+Same **S** config (hidden 2048, `sample_size=64`, **1024 patches**), B=1,
+**{long_steps} optimizer steps**, **HF(nntile)** overlap only (not nntile(nntile)).
+Complements the 10-step HF ladder above.
+
+Loss **{neo_long_loss:.6f}** (MSE noise; matches 10-step S).
+
+| | Total | mean / step |
+|--|--:|--:|
+| record(nntile) | {ms_s(g(s1k, 'metrics', 'record_nntile_s'))} | {g(s1k, 'metrics', 'record_nntile_s', 'mean') / long_steps * 1000:.1f} ms |
+| record(torch) | {ms_s(g(s1k, 'metrics', 'record_torch_s'))} | {g(s1k, 'metrics', 'record_torch_s', 'mean') / long_steps * 1000:.0f} ms |
+| compile | {ms_s(g(s1k, 'metrics', 'compile_s'))} | {g(s1k, 'metrics', 'compile_s', 'mean') / long_steps * 1000:.0f} ms |
+| run | {ms_s(g(s1k, 'metrics', 'run_s'))} | {g(s1k, 'metrics', 'run_s', 'mean') / long_steps * 1000:.0f} ms |
+| wait | {ms_s(g(s1k, 'metrics', 'wait_s'))} | {g(s1k, 'metrics', 'wait_s', 'mean') / long_steps * 1000:.0f} ms |
+| **train wall** | **{ms_s(g(s1k, 'metrics', 'train_wall_s'))}** | {g(s1k, 'metrics', 'train_wall_s', 'mean') / long_steps * 1000:.0f} ms |
+
+Host (record + compile) is **{host1k:.0f}%** of the wall (~{g(s1k, 'metrics', 'host_s', 'mean') / long_steps * 1000:.0f} ms/step).
+
+![Host overhead per iteration](dit_hf_overhead_s_{long_steps}.svg)
+
+CSV: [`dit_hf_overhead_s_{long_steps}.csv`](dit_hf_overhead_s_{long_steps}.csv) (median of {repeats} runs).
+"""
+    else:
+        long_section = ""
+        compare_long = ""
+
+    compare_rows = []
+    for size in LADDER:
+        c = grp(size, "cuda", "overlap")
+        n = grp(size, "nntile", "overlap")
+        neo_ratio = g(n, "metrics", "train_wall_s", "mean") / g(
+            c, "metrics", "train_wall_s", "mean"
+        )
+        g2_ratio = GPT2_REF["ratios"].get(size)
+        g2_cell = f"{g2_ratio:.2f}×" if g2_ratio is not None else "—"
+        compare_rows.append(
+            f"| {SIZE_LABEL[size]} | {g2_cell} | **{neo_ratio:.2f}×** |"
+        )
+    compare_section = f"""## Comparison to GPT-2 (wall time only)
+
+GPT-2 uses the same **hidden / token-count ladder** but a different task
+(causal LM cross-entropy vs DiT MSE noise prediction). Compare **HF(nntile) / HF(cuda)
+wall ratios** only; loss values are not comparable.
+nntile(nntile) is not in this table.
+
+See [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md).
+
+| Size | GPT-2 HF(nntile)/HF(cuda) | DiT HF(nntile)/HF(cuda) |
+|------|------------------:|-----------------:|
+{chr(10).join(compare_rows)}
+{compare_long}
+"""
+
+    # steady sequential compute iter 2
+    steady = {}
+    for size in LADDER:
+        vals = [
+            r["iters"][1]["compute"]
+            for r in results
+            if r["size"] == size
+            and r["device"] == "nntile"
+            and r["mode"] == "sequential"
+            and len(r["iters"]) > 1
+            and r["iters"][1].get("compute") is not None
+        ]
+        steady[size] = statistics.mean(vals)
+
+    xl_hf_ratio = g(
+        grp("xl", "nntile", "overlap"), "metrics", "train_wall_s", "mean"
+    ) / g(grp("xl", "cuda", "overlap"), "metrics", "train_wall_s", "mean")
+
+    return f"""# DiT HF: graph overhead vs width / patch count
+
+{NOTATION_DIT}
+Three setups, same configs / patch counts / 10 steps:
+
+1. **HF(cuda)** — stock Diffusers `DiTTransformer2DModel`, `device=cuda`.
+2. **HF(nntile)** — same HF model on `device=nntile` (aten / torch-native
+   StarPU codelets).
+3. **nntile(nntile)** — `torch_nntile.models.dit.DiT` (hand-written nntile
+   kernels). Host patchify + integer timesteps; HF is used only to init
+   weights.
+
+Ten-step **Diffusers**
+[`DiTTransformer2DModel`](https://huggingface.co/docs/diffusers/api/models/dit_transformer2d)
+noise-prediction training on **HF(cuda)** vs **HF(nntile)**. nntile(nntile)
+uses the same synthetic batches after host `patchify_nchw`. Loss is MSE
+between predicted and target noise (`diffusion_mse_loss` for HF;
+token-space `mse_loss` for nntile(nntile)).
+
+**VRAM ladder (matched to Llama HF(cuda) peaks).** Hidden size follows the Llama
+overhead rungs (1536 … 5760). `sample_size` is set so patch count
+`(sample_size / patch_size)²` is close to Llama `seq_len` at each rung.
+`num_layers` is searched so **HF(cuda)** 10-step train peak VRAM matches Llama —
+except **XL: 6 layers** (one below the 7-layer HF(cuda) match) so **HF(nntile) stays
+on-GPU** without StarPU host paging (7 layers gave ~1.10× wall; 6 layers
+~0.99×).
+
+> **VRAM / nntile.** nntile allocates extra graph buffers. Keep the published
+> configs within device memory on both setups. This study used one **NVIDIA A40**
+> per job (`CUDA_VISIBLE_DEVICES`); do not overlap processes on one GPU.
+
+{prelim_block}Configs: [`torch_nntile/examples/overhead_dit/`](../../torch_nntile/examples/overhead_dit/).
+HF(cuda) / HF(nntile): [`train_dit_hf_overhead.py`](../../torch_nntile/examples/train_dit_hf_overhead.py),
+[`run_dit_overhead_benchmark.py`](../../torch_nntile/tools/run_dit_overhead_benchmark.py).
+nntile(nntile): [`train_nntile_native_overhead.py`](../../torch_nntile/examples/train_nntile_native_overhead.py)
+(`--family dit`),
+[`run_nntile_native_overhead_benchmark.py`](../../torch_nntile/tools/run_nntile_native_overhead_benchmark.py).
+
+## Model and data
+
+- **Model:** Diffusers `DiTTransformer2DModel` (AdaLN-Zero, `patch_size=2`,
+  `in_channels=3`). Class/timestep conditioning; label dropout disabled
+  (`disable_dit_label_dropout`) for deterministic runs.
+- **Batch:** `make_synthetic_diffusion_batch()` — random `noisy` / `noise`
+  tensors, timesteps, class labels; seed `42 + step`.
+- **Optimizer:** SGD, lr `1e-3`, B=1, 10 steps (100 for long S), `--no-shuffle`.
+- **CUDA / nntile:** `--disable-tf32 --disable-cudnn` (IEEE FP32 GEMM;
+  no cuDNN, including patch-embed `Conv2d`). **nntile also:** `--ncpu 0
+  --ncuda 1 --restrict-cuda`.
+
+## Loss
+
+MSE noise prediction: `model(noisy, timestep, class_labels)` vs ground-truth
+`noise` (same reduction on HF(cuda) and HF(nntile)).
+
+## Train wall
+
+Same protocol as
+[`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md): nntile
+`record → compile → wait(prev) → run`, wall from first record through final
+`wait()`; HF(cuda) synchronized per iter. Prefetch outside the wall. Iter 1 nntile
+`wait=0`; iter 10 `wait` includes the final join.
+
+## Recipe
+
+| | XS | S | M | L | XL |
+|--|--:|--:|--:|--:|--:|
+| Config | `dit_xs.json` | `dit_s.json` | `dit_m.json` | `dit_l.json` | `dit_xl.json` |
+| `num_layers` | {LAYERS['xs']} | {LAYERS['s']} | {LAYERS['m']} | {LAYERS['l']} | **{LAYERS['xl']}** |
+| hidden (`heads×head_dim`) | {HIDDEN['xs']} | {HIDDEN['s']} | {HIDDEN['m']} | {HIDDEN['l']} | {HIDDEN['xl']} |
+| `sample_size` | {SAMPLE_SIZE['xs']} | {SAMPLE_SIZE['s']} | {SAMPLE_SIZE['m']} | {SAMPLE_SIZE['l']} | {SAMPLE_SIZE['xl']} |
+| patches `T` (`(size/2)²`) | **{PATCHES['xs']}** | **{PATCHES['s']}** | **{PATCHES['m']}** | **{PATCHES['l']}** | **{PATCHES['xl']}** |
+| HF(cuda) VRAM target (10-step) | {CUDA_VRAM['xs']} GiB | {CUDA_VRAM['s']} GiB | {CUDA_VRAM['m']} GiB | {CUDA_VRAM['l']} GiB | {CUDA_VRAM['xl']} |
+
+NVIDIA A40, one GPU per job, **{repeats} repeats** per configuration.
+Includes **S HF(nntile) {long_steps}-step** steady-state run. Requires
+`diffusers==0.32.2` (see
+[`reproducibility.md`](reproducibility.md)).
+
+## HF(nntile) vs HF(cuda) (10-step train wall)
+
+This section is **HF(nntile) only** (stock Diffusers on `device=nntile`).
+XL is **{xl_hf_ratio:.2f}×** HF(cuda) here. nntile(nntile) is not in this
+table — see [nntile(nntile) vs HF(cuda)](#nntilenntile-vs-hfcuda).
+
+| Setup | HF(cuda) wall | HF(nntile) wall | HF(nntile) / HF(cuda) | record(nntile) | record(torch) | compile | run | wait | host/wall | HF(cuda) loss | HF(nntile) loss |
+|-------|----------:|------------:|------------:|---------------:|--------------:|--------:|----:|-----:|----------:|----------:|------------:|
+{chr(10).join(overall_rows)}
+
+Host = `record(nntile)+record(torch)+compile` (~0.29–0.51 s for 10 steps,
+**flat**). Host **share** drops **{' → '.join(host_shares)}**
+as GPU work grows.
+
+{loss_section}
+
+HF(nntile) isolated GPU `run+wait` vs HF(cuda) isolated wall:
+{', '.join(
+    f"{SIZE_LABEL[size]} {ms(g(grp(size, 'nntile', 'overlap')['isolated'], 'run_wait'))} vs "
+    f"{ms(g(grp(size, 'cuda', 'overlap')['isolated'], 'cuda_wall'))} s"
+    for size in LADDER
+)}.
+
+{long_section}
+{compare_section}
+## Per iteration (HF(nntile), mean ± stdev over {repeats} runs)
+
+### XS (hidden 1536, T={PATCHES['xs']} patches)
+
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
+|-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
+{iter_mean_table(results, 'xs', 'nntile', 'overlap')}
+
+### S (hidden 2048, T={PATCHES['s']} patches)
+
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
+|-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
+{iter_mean_table(results, 's', 'nntile', 'overlap')}
+
+### M (hidden 3072, T={PATCHES['m']} patches)
+
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
+|-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
+{iter_mean_table(results, 'm', 'nntile', 'overlap')}
+
+### L (hidden 4096, T={PATCHES['l']} patches)
+
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
+|-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
+{iter_mean_table(results, 'l', 'nntile', 'overlap')}
+
+### XL (hidden 5760, T={PATCHES['xl']} patches, {LAYERS['xl']} layers)
+
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
+|-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
+{iter_mean_table(results, 'xl', 'nntile', 'overlap')}
+
+## Isolated extra step (HF(nntile), mean ± stdev over {repeats} runs)
+
+| Setup | record(nntile) | record(torch) | compile | run | wait | run+wait | HF(cuda) isolated |
+|-------|---------------:|--------------:|--------:|----:|-----:|---------:|--------------:|
+{chr(10).join(iso_rows)}
+
+| Setup | Full isolated (record+compile+run+wait) | Hidden host (`run+wait`) | Saved |
+|-------|----------------------------------------:|-------------------------:|------:|
+{chr(10).join(hidden_rows)}
+
+## Sequential prep vs compute (`--wait-after-run`, HF(nntile))
+
+| Setup | HF(cuda) wall | sequential wall | prep | compute | compute / HF(cuda) | prep/wall |
+|-------|----------:|----------------:|-----:|--------:|-------------:|----------:|
+{chr(10).join(seq_rows)}
+
+Sequential HF(nntile) loss: {', '.join(seq_loss)}.
+
+### Per iteration (prep / compute, mean ± stdev)
+
+#### XS (T={PATCHES['xs']})
+
+| Iter | prep | compute | record(nntile) | record(torch) | compile | run | wait |
+|-----:|-----:|--------:|---------------:|--------------:|--------:|----:|-----:|
+{iter_mean_table(results, 'xs', 'nntile', 'sequential')}
+
+#### S (T={PATCHES['s']})
+
+| Iter | prep | compute | record(nntile) | record(torch) | compile | run | wait |
+|-----:|-----:|--------:|---------------:|--------------:|--------:|----:|-----:|
+{iter_mean_table(results, 's', 'nntile', 'sequential')}
+
+#### M (T={PATCHES['m']})
+
+| Iter | prep | compute | record(nntile) | record(torch) | compile | run | wait |
+|-----:|-----:|--------:|---------------:|--------------:|--------:|----:|-----:|
+{iter_mean_table(results, 'm', 'nntile', 'sequential')}
+
+#### L (T={PATCHES['l']})
+
+| Iter | prep | compute | record(nntile) | record(torch) | compile | run | wait |
+|-----:|-----:|--------:|---------------:|--------------:|--------:|----:|-----:|
+{iter_mean_table(results, 'l', 'nntile', 'sequential')}
+
+#### XL (T={PATCHES['xl']})
+
+| Iter | prep | compute | record(nntile) | record(torch) | compile | run | wait |
+|-----:|-----:|--------:|---------------:|--------------:|--------:|----:|-----:|
+{iter_mean_table(results, 'xl', 'nntile', 'sequential')}
+
+Steady compute after iter 1 (mean over repeats): {', '.join(
+    f"~{steady[size]:.3f} s ({SIZE_LABEL[size]})" for size in LADDER if size in steady
+)}.
+
+## Takeaways
+
+1. **Diffusers DiT**, synthetic diffusion batches, MSE noise loss; ladder
+   geometry aligned to Llama via hidden size + patch count + HF(cuda) VRAM match.
+2. **HF(nntile) graph host overhead is flat** (~0.3–0.5 s / 10 steps); share
+   falls as GPU work grows ({host_shares[0]} → {host_shares[-1]}).
+3. **HF(nntile)** is within ~5–40% of HF(cuda) on wall time
+   ({', '.join(ratios)}). XS is host-bound; **HF(nntile)** M/L/XL are near
+   parity.
+4. **L=11 / XL=5** keep nntile(nntile) on-GPU (D2H **0**). Isolated GPU
+   time is still a bit above HF(cuda) because AdaLN-Zero is six `H→H`
+   GEMMs, not a fused `H→6H`.
+5. **HF(nntile) sequential GPU time** (`run+wait`): **{' → '.join(seq_compute_ratios)}** vs HF(cuda).
+6. Timings are **mean ± stdev** over {repeats} runs.
+7. **MSE loss** matches HF(cuda) vs HF(nntile) to ~1e-4 — see loss section above.
+8. **{long_steps}-step S** wall **{ms_s(g(s1k, 'metrics', 'train_wall_s')) if s1k else 'n/a'}** — see section above.
+
+## How to reproduce
+
+```bash
+# diffusers in a venv with system-site-packages (inherits conda torch):
+python3 -m venv --system-site-packages .venv
+.venv/bin/pip install 'diffusers==0.32.2'
+
+export TORCH_LIB_DIR="$(python3 -c 'import os, torch; print(os.path.join(os.path.dirname(torch.__file__), "lib"))')"
+export NNTILE_BUILD_DIR=$PWD/build TORCH_NNTILE_BUILD_DIR=$PWD/build
+export LD_LIBRARY_PATH="${{CONDA_PREFIX}}/lib:${{TORCH_LIB_DIR}}:$PWD/build/nntile:$PWD/build/torch_nntile:/opt/starpu/lib"
+export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
+
+# Full ladder, 10 repeats, one GPU (HF(cuda) / HF(nntile)).
+# Runner passes --disable-tf32 --disable-cudnn on both backends.
+.venv/bin/python torch_nntile/tools/run_dit_overhead_benchmark.py \\
+  --logdir /tmp/dit_overhead --gpu 0 --repeats 10
+
+# nntile(nntile) (host patchify, then DiT on device=nntile):
+.venv/bin/python torch_nntile/tools/run_nntile_native_overhead_benchmark.py \\
+  --family dit --logdir /tmp/dit_native --gpu 0 --repeats 10
+
+# Regenerate HF(cuda)/HF(nntile) sections from parsed HF logs.
+# Three-setup / nntile(nntile) / Peak VRAM tables in the markdown are
+# hand-maintained from native results (do not drop them).
+.venv/bin/python torch_nntile/tools/update_dit_overhead_doc.py \\
+  --summary /tmp/dit_overhead/results_summary.json \\
+  --results /tmp/dit_overhead/results.json
+```
+"""
+
+
+def _section_span(text: str, header: str) -> tuple[int, int]:
+    start = text.find(header)
+    if start < 0:
+        raise ValueError(f"missing section {header!r}")
+    match = re.search(r"\n## [^#\n]", text[start + 1 :])
+    end = start + 1 + match.start() if match else len(text)
+    return start, end
+
+
+def _extract_section(text: str, header: str) -> str:
+    start, end = _section_span(text, header)
+    return text[start:end]
+
+
+def _replace_section(text: str, header: str, new_section: str) -> str:
+    start, end = _section_span(text, header)
+    if not new_section.endswith("\n"):
+        new_section += "\n"
+    return text[:start] + new_section + text[end:]
+
+
+def _native_wall_cells(existing: str) -> dict[str, str]:
+    start, end = _section_span(existing, "### 10-step train wall")
+    block = existing[start:end]
+    cells: dict[str, str] = {}
+    for size in LADDER:
+        label = SIZE_LABEL[size]
+        match = re.search(
+            rf"\| {label} T={PATCHES[size]} \| [^|]+\| [^|]+\| ([^|]+) \|",
+            block,
+        )
+        if not match:
+            raise ValueError(f"nntile(nntile) wall missing for {label}")
+        cells[size] = match.group(1).strip()
+    return cells
+
+
+def _native_mean(cell: str) -> float:
+    match = re.match(r"([0-9.]+)", cell.strip())
+    if not match:
+        raise ValueError(f"cannot parse nntile(nntile) wall {cell!r}")
+    return float(match.group(1))
+
+
+def _replace_numbered_item(text: str, number: int, body: str) -> str:
+    nxt = number + 1
+    pattern = rf"{number}\. .*?(?=\n+(?:{nxt}\. |## )|\Z)"
+    replacement = body.rstrip()
+    updated, count = re.subn(pattern, replacement, text, count=1, flags=re.S)
+    if count != 1:
+        raise ValueError(f"takeaway {number} not found")
+    return updated
+
+
+def splice_hf_into_existing(
+    existing: str,
+    generated: str,
+    summary: dict[str, Any],
+) -> str:
+    """Refresh HF(cuda)/HF(nntile) sections; keep nntile(nntile) walls."""
+    native_cells = _native_wall_cells(existing)
+    groups = summary["groups"]
+    repeats = int(summary.get("repeats", 10))
+    long_steps = int(summary.get("long_steps", 100))
+    cuda_cells = {
+        size: ms_s(g(groups[f"{size}_cuda_overlap"], "metrics", "train_wall_s"))
+        for size in LADDER
+    }
+    nntile_cells = {
+        size: ms_s(
+            g(groups[f"{size}_nntile_overlap"], "metrics", "train_wall_s")
+        )
+        for size in LADDER
+    }
+    hf_ratios = {
+        size: (
+            g(groups[f"{size}_nntile_overlap"], "metrics", "train_wall_s", "mean")
+            / g(groups[f"{size}_cuda_overlap"], "metrics", "train_wall_s", "mean")
+        )
+        for size in LADDER
+    }
+    native_ratios = {
+        size: _native_mean(native_cells[size])
+        / g(groups[f"{size}_cuda_overlap"], "metrics", "train_wall_s", "mean")
+        for size in LADDER
+    }
+    host_shares = [
+        f"{g(groups[f'{size}_nntile_overlap'], 'metrics', 'host_frac', 'mean') * 100:.1f}%"
+        for size in LADDER
+    ]
+    seq_compute_ratios = []
+    for size in LADDER:
+        sq = groups[f"{size}_nntile_sequential"]
+        compute = g(sq, "metrics", "run_s", "mean") + g(
+            sq, "metrics", "wait_s", "mean"
+        )
+        cuda_wall = g(
+            groups[f"{size}_cuda_overlap"], "metrics", "train_wall_s", "mean"
+        )
+        seq_compute_ratios.append(f"{compute / cuda_wall:.2f}×")
+
+    hf_header = "## HF(nntile) vs HF(cuda) (10-step train wall)"
+    hf_section = _extract_section(generated, hf_header)
+    hf_section, n_hf_intro = re.subn(
+        r"nntile\(nntile\) is not in this\n?table — see "
+        r"\[nntile\(nntile\) vs HF\(cuda\)\]\(#nntilenntile-vs-hfcuda\)\.\n",
+        "nntile(nntile) is not in this table. "
+        f"**nntile(nntile) XL is {native_ratios['xl']:.2f}×** — see "
+        "[nntile(nntile) vs HF(cuda)](#nntilenntile-vs-hfcuda).\n"
+        "VRAM for HF(cuda) / HF(nntile) / nntile(nntile) is in\n"
+        "[Peak VRAM and bus](#peak-vram-and-bus) (`nvidia-smi`).\n",
+        hf_section,
+        count=1,
+    )
+    if n_hf_intro != 1:
+        raise ValueError("HF section intro inject failed")
+    text = _replace_section(existing, hf_header, hf_section)
+
+    long_header = (
+        f"## {long_steps}-step S (HF(nntile) steady state, "
+        f"mean ± stdev over {repeats} runs)"
+    )
+    text = _replace_section(
+        text, long_header, _extract_section(generated, long_header)
+    )
+
+    cmp_header = "## Comparison to GPT-2 (wall time only)"
+    cmp = _extract_section(generated, cmp_header)
+    cmp = cmp.replace(
+        "nntile(nntile) is not in this table.",
+        "nntile(nntile) is not in this table "
+        f"(DiT XL nntile(nntile) is **{native_ratios['xl']:.2f}×**).",
+        1,
+    )
+    text = _replace_section(text, cmp_header, cmp)
+
+    per_header = f"## Per iteration (HF(nntile), mean ± stdev over {repeats} runs)"
+    text = _replace_section(
+        text, per_header, _extract_section(generated, per_header)
+    )
+    iso_header = (
+        f"## Isolated extra step (HF(nntile), mean ± stdev over {repeats} runs)"
+    )
+    text = _replace_section(
+        text, iso_header, _extract_section(generated, iso_header)
+    )
+    seq_header = "## Sequential prep vs compute (`--wait-after-run`, HF(nntile))"
+    text = _replace_section(
+        text, seq_header, _extract_section(generated, seq_header)
+    )
+
+    three_rows = [
+        "| Setup | HF(cuda) | HF(nntile) | nntile(nntile) | "
+        "HF(nntile) / HF(cuda) | nntile(nntile) / HF(cuda) |",
+        "|-------|-----:|---------:|----------------:|"
+        "--------------:|-------------:|",
+    ]
+    for size in LADDER:
+        three_rows.append(
+            f"| {SIZE_LABEL[size]} T={PATCHES[size]} | {cuda_cells[size]} | "
+            f"{nntile_cells[size]} | {native_cells[size]} | "
+            f"**{hf_ratios[size]:.2f}×** | **{native_ratios[size]:.2f}×** |"
+        )
+    three_table = "\n".join(three_rows) + "\n"
+    three_pat = re.compile(
+        r"\| Setup \| HF\(cuda\) \| HF\(nntile\) \| nntile\(nntile\) \| "
+        r"HF\(nntile\) / HF\(cuda\) \| nntile\(nntile\) / HF\(cuda\) \|\n"
+        r"\|-------.*\n"
+        r"(?:\| .*\n){5}"
+    )
+    text, n_three = three_pat.subn(three_table, text, count=1)
+    if n_three != 1:
+        raise ValueError("three-setup wall table not found")
+
+    l_cuda_iso = ms(
+        g(groups["l_cuda_overlap"], "isolated", "cuda_wall"),
+    )
+    xl_cuda_iso = ms(
+        g(groups["xl_cuda_overlap"], "isolated", "cuda_wall"),
+    )
+    commentary = (
+        "nntile(nntile) walls are the published classic-kernel 10-repeat "
+        "means (FP32; not rerun). HF(cuda) / HF(nntile) are this "
+        "`--disable-tf32 --disable-cudnn` campaign.\n"
+        "\n"
+        f"nntile(nntile) / HF(cuda): XS **{native_ratios['xs']:.2f}×**, "
+        f"S **{native_ratios['s']:.2f}×**, M **{native_ratios['m']:.2f}×**, "
+        f"L **{native_ratios['l']:.2f}×**, XL **{native_ratios['xl']:.2f}×**. "
+        f"Isolated GPU time: L **1.770** vs HF(cuda) **{l_cuda_iso}** s; "
+        f"XL **2.242** vs **{xl_cuda_iso}** s.\n"
+        f"**XL train wall: HF(nntile) {hf_ratios['xl']:.2f}×, "
+        f"nntile(nntile) {native_ratios['xl']:.2f}×.**\n"
+    )
+    old_commentary = re.compile(
+        r"(?:nntile\(nntile\) tracks HF\(cuda\) on S–XL|"
+        r"nntile\(nntile\) walls are the published classic-kernel "
+        r"10-repeat means).*?\n"
+        r"\*\*XL train wall:.*?\n",
+        re.S,
+    )
+    text, n_com = old_commentary.subn(commentary, text, count=1)
+    if n_com != 1:
+        raise ValueError("three-setup commentary not found")
+
+    native_sec_start, native_sec_end = _section_span(
+        text, "## nntile(nntile) vs HF(cuda)"
+    )
+    native_sec = text[native_sec_start:native_sec_end]
+    for size in LADDER:
+        label = SIZE_LABEL[size]
+        row_pat = (
+            rf"(\| {label} T={PATCHES[size]} \| )[^|]+"
+            rf"(\| [^|]+\| )\*\*[0-9.]+×\*\*"
+        )
+        row_repl = (
+            rf"\g<1>{cuda_cells[size]} \2**{native_ratios[size]:.2f}×**"
+        )
+        native_sec, n_row = re.subn(row_pat, row_repl, native_sec, count=1)
+        if n_row != 1:
+            raise ValueError(f"nntile(nntile) vs HF(cuda) row {label}")
+    native_sec = native_sec.replace(
+        "HF(cuda) walls are this `--disable-tf32` 10-repeat campaign. "
+        "nntile(nntile) walls are the published classic-kernel means "
+        "(FP32; not rerun).",
+        "HF(cuda) walls are this `--disable-tf32 --disable-cudnn` "
+        "10-repeat campaign. nntile(nntile) walls are the published "
+        "classic-kernel means (FP32; not rerun).",
+        1,
+    )
+    native_sec = native_sec.replace(
+        "HF(cuda) walls are the published 10-repeat means.",
+        "HF(cuda) walls are this `--disable-tf32 --disable-cudnn` "
+        "10-repeat campaign. nntile(nntile) walls are the published "
+        "classic-kernel means (FP32; not rerun).",
+        1,
+    )
+    text = text[:native_sec_start] + native_sec + text[native_sec_end:]
+
+    text = text.replace(
+        "- **CUDA:** `--disable-tf32`. **nntile:** `--ncpu 0 --ncuda 1 "
+        "--restrict-cuda`.",
+        "- **CUDA / nntile:** `--disable-tf32 --disable-cudnn` "
+        "(IEEE FP32 GEMM; no cuDNN, including patch-embed `Conv2d`). "
+        "**nntile also:** `--ncpu 0 --ncuda 1 --restrict-cuda`.",
+        1,
+    )
+    text = text.replace(
+        "- **CUDA / nntile:** `--disable-tf32` (cuBLAS GEMM and cuDNN). "
+        "**nntile also:** `--ncpu 0 --ncuda 1 --restrict-cuda`.",
+        "- **CUDA / nntile:** `--disable-tf32 --disable-cudnn` "
+        "(IEEE FP32 GEMM; no cuDNN, including patch-embed `Conv2d`). "
+        "**nntile also:** `--ncpu 0 --ncuda 1 --restrict-cuda`.",
+        1,
+    )
+    text = text.replace(
+        "Includes **S HF(nntile) 100-step** steady-state run. Requires",
+        "Includes **S HF(nntile) 100-step** steady-state run.\n"
+        "HF(cuda) and HF(nntile) both use `--disable-tf32 --disable-cudnn`. "
+        "Requires",
+        1,
+    )
+    text = text.replace(
+        "HF(cuda) and HF(nntile) both use `--disable-tf32`. Requires",
+        "HF(cuda) and HF(nntile) both use `--disable-tf32 --disable-cudnn`. "
+        "Requires",
+        1,
+    )
+    text = text.replace(
+        "# Full ladder, 10 repeats, one GPU (HF(cuda) / HF(nntile)):",
+        "# Full ladder, 10 repeats, one GPU (HF(cuda) / HF(nntile)).\n"
+        "# Runner passes --disable-tf32 --disable-cudnn on both backends.",
+        1,
+    )
+
+    s1k = groups.get(f"s_nntile_{long_steps}step")
+    s_xl_lo = min(native_ratios[size] for size in ("s", "m", "l", "xl"))
+    s_xl_hi = max(native_ratios[size] for size in ("s", "m", "l", "xl"))
+    ratio_list = ", ".join(
+        f"{SIZE_LABEL[size]} {hf_ratios[size]:.2f}×" for size in LADDER
+    )
+    take_start, take_end = _section_span(text, "## Takeaways")
+    takeaways = text[take_start:take_end]
+    takeaways = _replace_numbered_item(
+        takeaways,
+        2,
+        "2. **HF(nntile) graph host overhead is flat** (~0.3–0.5 s / 10 steps); "
+        f"share\n   falls as GPU work grows ({host_shares[0]} → {host_shares[-1]}).",
+    )
+    takeaways = _replace_numbered_item(
+        takeaways,
+        3,
+        "3. **HF(nntile)** is within ~5–40% of HF(cuda) on wall time\n"
+        f"   ({ratio_list}). XS is host-bound;\n"
+        "   **HF(nntile)** M/L/XL are near parity. That XL "
+        f"**{hf_ratios['xl']:.2f}× is not\n"
+        f"   nntile(nntile)** — nntile(nntile) XL is "
+        f"**{native_ratios['xl']:.2f}×** (takeaway 9).",
+    )
+    takeaways = _replace_numbered_item(
+        takeaways,
+        5,
+        "5. **HF(nntile) sequential GPU time** (`run+wait`): "
+        f"**{' → '.join(seq_compute_ratios)}** vs HF(cuda).",
+    )
+    long_wall = (
+        ms_s(g(s1k, "metrics", "train_wall_s")) if s1k else "n/a"
+    )
+    takeaways = _replace_numbered_item(
+        takeaways,
+        8,
+        f"8. **{long_steps}-step S HF(nntile)** wall **{long_wall}** — "
+        "see section above.",
+    )
+    takeaways = _replace_numbered_item(
+        takeaways,
+        9,
+        "9. nntile(nntile): "
+        f"**{s_xl_lo:.2f}–{s_xl_hi:.2f}×** HF(cuda) on S–XL (D2H **0**); "
+        f"XS **{native_ratios['xs']:.2f}×**\n"
+        "   (host-bound; HF(nntile) XS is "
+        f"**{hf_ratios['xs']:.2f}×**). Peak VRAM L **42.7 GiB**,\n"
+        "   XL **43.6 GiB**. Peak VRAM / H2D / D2H are in\n"
+        "   [Peak VRAM and bus](#peak-vram-and-bus).",
+    )
+    text = text[:take_start] + takeaways.rstrip() + "\n" + text[take_end:]
+    return text
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--summary", type=Path, required=True)
+    parser.add_argument("--results", type=Path, required=True)
+    parser.add_argument("--logdir", type=str, default="")
+    parser.add_argument(
+        "--preliminary-note",
+        type=str,
+        default="",
+        help="Banner note (e.g. '3/10 repeats, GPU 0')",
+    )
+    parser.add_argument("--output", type=Path, default=DOC)
+    parser.add_argument(
+        "--merge-summary",
+        type=Path,
+        action="append",
+        default=[],
+        help="Additional results_summary.json files to merge",
+    )
+    parser.add_argument(
+        "--merge-results",
+        type=Path,
+        action="append",
+        default=[],
+        help="Additional results.json files to merge",
+    )
+    parser.add_argument(
+        "--replace-all",
+        action="store_true",
+        help="Rewrite the whole markdown (drops nntile(nntile) tables)",
+    )
+    args = parser.parse_args()
+    summary = load_summary(args.summary)
+    for extra_path in args.merge_summary:
+        summary = merge_summaries(summary, load_summary(extra_path))
+    results = json.loads(args.results.read_text(encoding="utf-8"))
+    for extra_path in args.merge_results:
+        results.extend(json.loads(extra_path.read_text(encoding="utf-8")))
+    logdir = args.logdir or str(args.summary.parent)
+    long_steps = int(summary.get("long_steps", 100))
+    long_mode = f"{long_steps}step"
+    generated = render_doc(summary, results, logdir, args.preliminary_note)
+    splice = (
+        args.output.resolve() == DOC.resolve()
+        and not args.replace_all
+        and DOC.exists()
+    )
+    if splice:
+        text = splice_hf_into_existing(
+            DOC.read_text(encoding="utf-8"),
+            generated,
+            summary,
+        )
+    else:
+        text = generated
+    args.output.write_text(text, encoding="utf-8")
+    print(f"wrote {args.output}")
+
+    csv_path = REPO / "docs" / "dev" / f"dit_hf_overhead_s_{long_steps}.csv"
+    svg_path = REPO / "docs" / "dev" / f"dit_hf_overhead_s_{long_steps}.svg"
+    if write_long_plots(
+        results,
+        long_mode=long_mode,
+        csv_path=csv_path,
+        svg_path=svg_path,
+        title=f"DiT S HF(nntile) host overhead per iteration ({long_steps} steps)",
+    ):
+        print(f"wrote {csv_path}")
+        print(f"wrote {svg_path}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

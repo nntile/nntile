@@ -54,6 +54,16 @@ class Runtime
 
     void compile();
 
+    //! Seconds spent in DCE / allocate during the last ``compile()``.
+    double last_compile_dce_seconds() const
+    {
+        return last_compile_dce_s_;
+    }
+    double last_compile_alloc_seconds() const
+    {
+        return last_compile_alloc_s_;
+    }
+
     //! Submit ops [op_begin, op_end) asynchronously (no StarPU drain).
     //! Unmarked-temp reclaim is ordinary ``TILE_INVALIDATE`` ops already in
     //! ``execution_order_`` (appended at compile from phase-touched unmarked
@@ -69,12 +79,8 @@ class Runtime
 
     size_t execution_op_count() const { return execution_order_.size(); }
 
-    //! Exclusive end index of the last op in ``[op_begin, op_end)`` that
-    //! lists ``tile`` as an input. Returns ``op_begin`` if none.
-    size_t last_input_consumer_end(
-        TileNode const *tile,
-        size_t op_begin,
-        size_t op_end) const;
+    //! ``op_name()`` of compiled tile op ``i`` (for tests / debug).
+    std::string execution_op_name(size_t i) const;
 
     //! Bind host data to a logical tensor or scatter to its tiles.
     template <typename T>
@@ -157,8 +163,17 @@ class Runtime
     //! Used by ``TileInvalidateOp``; StarPU orders free after last use.
     void invalidate_tile(TileGraph::TileNode *tile);
 
+    //! Async unregister one tile handle (``unregister_submit`` + clear).
+    //! No-op if the tile is already unregistered. StarPU orders the free
+    //! after last use. Context shutdown only walks leftover handles.
+    void unregister_tile(TileGraph::TileNode *tile);
+
     //! Mark logical tensor tiles as host-populated (after acquire write I/O).
     void mark_initialized(TensorGraph::TensorNode const *tensor);
+
+    //! Drop ``init_state_`` / adoption / live-tile entries for a logical
+    //! about to be destroyed. No-op if unknown.
+    void forget_logical(TensorGraph::TensorNode const *tensor);
 
     //! Snapshot initialized tile buffers keyed by logical tensor (incremental reset).
     void export_initialized_tiles(
@@ -226,6 +241,9 @@ class Runtime
     void invalidate_tile_buffer(
         const TileNode *node,
         const std::shared_ptr<void> &tile_ptr);
+    void unregister_tile_buffer(
+        const TileNode *node,
+        const std::shared_ptr<void> &tile_ptr);
     void require_compiled() const;
     bool tensor_requires_init_at_execute(
         TileGraph::TensorDescriptor const &desc) const;
@@ -264,6 +282,8 @@ class Runtime
     //! Ingress may lower marked staging tiles before any new op is appended;
     //! those nodes must still be allocated without scanning full history.
     size_t compiled_tile_node_count_ = 0;
+    double last_compile_dce_s_ = 0.0;
+    double last_compile_alloc_s_ = 0.0;
 };
 
 } // namespace nntile

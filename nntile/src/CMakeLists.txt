@@ -360,6 +360,7 @@ set(GRAPH_TENSOR_LAYER_SRC
     "tensor/ops/adamw_step.cc"
     "tensor/ops/clear.cc"
     "tensor/ops/invalidate.cc"
+    "tensor/ops/unregister.cc"
     "tensor/ops/concat.cc"
     "tensor/ops/contiguous_view.cc"
     "tensor/ops/conv2d_bwd_input_inplace.cc"
@@ -448,6 +449,7 @@ set(GRAPH_TILE_LAYER_SRC
     "tile/ops/add_slice_inplace.cc"
     "tile/ops/clear.cc"
     "tile/ops/invalidate.cc"
+    "tile/ops/unregister.cc"
     "tile/ops/conv2d_bwd_input_inplace.cc"
     "tile/ops/conv2d_bwd_weight_inplace.cc"
     "tile/ops/conv2d_inplace.cc"
@@ -541,72 +543,20 @@ if(NNTILE_USE_FLASH_SDPA)
 endif()
 
 
-# Experimental: strip classic compute ops; keep I/O + torch-native ops.
+# Classic nntile::kernel / StarPU / core / tensor / tile ops are the
+# default lists above. That is the libnntile native-op gate: a classic
+# kernel is in libnntile iff it is listed here. NNTILE_NNTILE_NATIVE_OPS
+# does not strip these lists (it only gates torch_nntile wrappers).
+# NNTILE_TORCH_NATIVE_OPS appends torch-native dispatch below.
 if(NNTILE_TORCH_NATIVE_OPS)
     message(STATUS
-        "NNTILE_TORCH_NATIVE_OPS: compiling I/O + torch-native dispatch")
-    if(NOT HAVE_STARPU_SIMGRID)
-        set(KERNEL_CPU_SRC
-            "kernel/fill/cpu.cc"
-            "kernel/subcopy/cpu.cc"
-        )
-        # I/O codelets still register CUDA functions when NNTILE_USE_CUDA;
-        # keep fill/subcopy CUDA kernels so CUDA wheels import cleanly.
-        set(KERNEL_CUDA_SRC)
-        if(NNTILE_USE_CUDA)
-            set(KERNEL_CUDA_SRC
-                "kernel/fill/cuda.cu"
-                "kernel/subcopy/cuda.cu"
-            )
-        endif()
-    endif()
-    set(STARPU_CODELET_SRC
-        "starpu/clear.cc"
-        "starpu/copy.cc"
-        "starpu/fill.cc"
-        "starpu/subcopy.cc"
-        "starpu/torch_dispatch.cc"
-    )
-    set(CORE_OPERATION_SRC
-        "core/clear.cc"
-        "core/copy.cc"
-        "core/copy_intersection.cc"
-        "core/fill.cc"
+        "NNTILE_TORCH_NATIVE_OPS: add torch-native dispatch")
+    list(APPEND STARPU_CODELET_SRC "starpu/torch_dispatch.cc")
+    list(APPEND CORE_OPERATION_SRC
         "core/torch_meta.cc"
-        "core/torch_dispatch.cc"
-    )
-    set(GRAPH_TENSOR_LAYER_SRC
-        "tensor/axis_descriptor.cc"
-        "tensor/tiling_spec_json.cc"
-        "tensor/tensor_graph_tiling.cc"
-        "tensor/graph_data_node.cc"
-        "tensor/graph_op_node.cc"
-        "tensor/tensor_ref.cc"
-        "tensor/tile_lowering_helpers.cc"
-        "tensor/ops/clear.cc"
-        "tensor/ops/invalidate.cc"
-        "tensor/ops/contiguous_view.cc"
-        "tensor/ops/copy.cc"
-        "tensor/ops/copy_intersection.cc"
-        "tensor/ops/fill.cc"
-        "tensor/ops/gather.cc"
-        "tensor/ops/scatter.cc"
-        "tensor/ops/torch_dispatch.cc"
-        "tensor/ops/gemm_shape.cc"
-    )
-    set(GRAPH_TILE_LAYER_SRC
-        "tile/append_tensor_graph_phase.cc"
-        "tile/lower_staging_tensor.cc"
-        "tile/from_tensor_graph.cc"
-        "tile/graph_data_node.cc"
-        "tile/lower_from_tensor.cc"
-        "tile/ops/clear.cc"
-        "tile/ops/invalidate.cc"
-        "tile/ops/copy.cc"
-        "tile/ops/copy_intersection.cc"
-        "tile/ops/fill.cc"
-        "tile/ops/torch_dispatch.cc"
-    )
+        "core/torch_dispatch.cc")
+    list(APPEND GRAPH_TENSOR_LAYER_SRC "tensor/ops/torch_dispatch.cc")
+    list(APPEND GRAPH_TILE_LAYER_SRC "tile/ops/torch_dispatch.cc")
     set(NNTILE_GRAPH_STACK_SRC
         ${GRAPH_TENSOR_LAYER_SRC}
         ${GRAPH_RUNTIME_SRC}
@@ -669,6 +619,13 @@ if(NNTILE_TORCH_NATIVE_OPS)
                 target_compile_options(${_torch_obj} PRIVATE
                     ${TORCH_CXX_FLAGS})
             endif()
+            # Match libtorch DispatchStub ABI (get_call_ptr extras).
+            target_compile_definitions(
+                ${_torch_obj}
+                PRIVATE
+                HAVE_AVX2_CPU_DEFINITION
+                HAVE_AVX512_CPU_DEFINITION)
+
         endif()
     endforeach()
 endif()

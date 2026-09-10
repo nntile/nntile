@@ -12,25 +12,20 @@ import atexit
 
 import torch
 
-from ._build_info import BUILT_WITH_CUDA, TORCH_NATIVE_OPS
+from ._build_info import BUILT_WITH_CUDA, NNTILE_NATIVE_OPS, TORCH_NATIVE_OPS
 from ._cuda_deps import ensure_linux_cuda_deps
 
 ensure_linux_cuda_deps(required=BUILT_WITH_CUDA)
 
 from . import _C  # noqa: E402, F401 - loads kernels and allocator
 
-# Classic aten/pybind models/loss are not compiled under
-# NNTILE_TORCH_NATIVE_OPS. HF compat shims still apply (cache_position,
-# NewGELU→gelu(tanh), device transfer).
+# Stock torch.nn on device=nntile uses torch-native TORCH_* codelets when
+# TORCH_NATIVE_OPS is on. Classic nntile::kernel ops live under
+# torch_nntile.nn / C++ models when NNTILE_NATIVE_OPS is on.
 from . import compat as _compat  # noqa: E402, F401
+from . import nn as nn  # noqa: E402, F401
 
-if not TORCH_NATIVE_OPS:
-    from . import loss as _loss  # noqa: E402, F401
-    from . import nn as nn  # noqa: E402, F401
-    from . import normalization as _normalization  # noqa: E402, F401
-    from . import norm as _norm  # noqa: E402, F401
-else:
-    nn = None  # type: ignore[assignment]
+from . import kernels as kernels  # noqa: E402, backward-compat alias
 
 _registered = False
 _atexit_shutdown_registered = False
@@ -113,12 +108,16 @@ def init_context(
     logger: int = 0,
     verbose: int = 0,
     *,
-    cpu_fallback: bool = True,
+    cpu_fallback: bool = False,
 ) -> None:
     """Configure StarPU workers before the first libnntile-backed op.
 
     Records ops into a shared TensorGraph; call :func:`compile_graph`
     and :func:`run` to compile and execute the pending graph.
+
+    ``cpu_fallback`` defaults to False: unregistered aten ops raise
+    instead of silently copying nntile tensors to CPU. Move data only
+    with ``.to("nntile")`` / ``.to("cpu")``.
     """
     _C.init_context(
         ncpu,
@@ -239,9 +238,10 @@ def set_axis_group_tiling(name: str, tile_sizes: int | list[int] | tuple[int, ..
     ``tile_sizes`` may be a uniform tile size (``int``) or explicit per-tile
     sizes (``list``/``tuple``) that sum to the axis extent.
 
-    Temporarily raises: PrivateUse1 aten ops on ``device=nntile`` require
-    untiled (single-tile) tensors while torch-native StarPU codelets land.
-    See ``docs/dev/torch_nntile_aten_ops.md``.
+    Temporarily raises if a torch-native (``TORCH_*``) compute op is in
+    the pending graph: stock aten on ``device=nntile`` stays untiled.
+    Classic ``torch_nntile.nn`` graphs may tile. See
+    ``docs/dev/torch_nntile_aten_ops.md``.
     """
     _C.set_axis_group_tiling(name, tile_sizes)
 
@@ -259,6 +259,16 @@ def print_axis_groups() -> None:
     _C.print_axis_groups()
 
 
+def pending_op_names() -> list[str]:
+    """Return op names in the pending TensorGraph phase (classic vs TORCH_*)."""
+    return list(_C.pending_op_names())
+
+
+def format_pending_data_sizes() -> str:
+    """Pending TensorGraph data nbytes grouped by tensor name."""
+    return str(_C.format_pending_data_sizes())
+
+
 def print_info() -> None:
     """Print cumulative ``compile_graph`` / ``run`` / ``wait`` / host-readout timing.
 
@@ -271,12 +281,23 @@ def print_info() -> None:
     sys.stdout.flush()
 
 
+def record_nntile_seconds() -> float:
+    """Cumulative nntile record time in seconds (``record(nntile)``).
+
+    Snapshot around a train-step record window. Remaining record wall is
+    PyTorch overhead (``record(torch)``): Python, autograd, and dispatch
+    into nntile kernels.
+    """
+    return float(_C.record_nntile_seconds())
+
+
 __all__ = [
     "device",
     "_C",
     "built_with_cuda",
     "BUILT_WITH_CUDA",
     "TORCH_NATIVE_OPS",
+    "NNTILE_NATIVE_OPS",
     "init_context",
     "execute",
     "compile_graph",
@@ -295,7 +316,10 @@ __all__ = [
     "set_axis_group_tiling",
     "format_axis_groups",
     "print_axis_groups",
+    "pending_op_names",
+    "format_pending_data_sizes",
     "print_info",
+    "record_nntile_seconds",
+    "nn",
+    "kernels",
 ]
-if not TORCH_NATIVE_OPS:
-    __all__.append("nn")

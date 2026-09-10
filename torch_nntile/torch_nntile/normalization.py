@@ -83,6 +83,4 @@ def patch_rms_norm() -> None:
     F.rms_norm = rms_norm  # type: ignore[assignment]
 
 
-patch_rms_norm()
-
 __all__ = ["rms_norm", "patch_rms_norm"]

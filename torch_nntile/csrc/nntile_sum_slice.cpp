@@ -7,7 +7,8 @@
 
 #include "nntile_sum_slice.h"
 
-#include "nntile_executor.h"
+#include "nntile_executor_classic.h"
+#include "nntile_graph_recorder_impl.h"
 
 #include <ATen/TensorUtils.h>
 
@@ -64,6 +65,7 @@ at::Tensor sum_slice_forward(
     double alpha,
     double beta)
 {
+    nntile::GraphFillScope record;
     check_sum_slice_input(src, axis);
     TORCH_CHECK(
         beta == 0.0,
@@ -71,7 +73,7 @@ at::Tensor sum_slice_forward(
     at::Tensor out = at::empty(
         reduced_sizes(src.sizes(), axis),
         src.options().memory_format(at::MemoryFormat::Contiguous));
-    tensor_sum_slice_fp32(
+    classic_tensor_sum_slice_fp32(
         src,
         out,
         axis,
@@ -82,11 +84,15 @@ at::Tensor sum_slice_forward(
 
 at::Tensor sum_slice_backward(
     const at::Tensor &grad_out,
-    const at::Tensor &src,
+    at::IntArrayRef src_sizes,
     int64_t axis,
     double alpha)
 {
-    check_sum_slice_input(src, axis);
+    nntile::GraphFillScope record;
+    TORCH_CHECK(
+        axis >= 0 &&
+            axis < static_cast<int64_t>(src_sizes.size()),
+        "nntile sum_slice_backward: axis out of range");
     TORCH_CHECK(
         is_nntile_device(grad_out.device()),
         "nntile sum_slice_backward expects nntile grad_out");
@@ -97,15 +103,17 @@ at::Tensor sum_slice_backward(
         grad_out.is_contiguous(),
         "nntile sum_slice_backward requires contiguous grad_out");
     TORCH_CHECK(
-        grad_out.sizes().vec() == reduced_sizes(src.sizes(), axis),
+        grad_out.sizes().vec() == reduced_sizes(src_sizes, axis),
         "nntile sum_slice_backward: grad_out shape mismatch");
 
     // Old GAP backward: add_slice_inplace(alpha, dy, 0, dx, axis).
-    at::Tensor zeros = at::zeros_like(src);
+    at::Tensor zeros = at::zeros(
+        src_sizes,
+        grad_out.options().memory_format(at::MemoryFormat::Contiguous));
     at::Tensor grad_src = at::empty(
-        src.sizes(),
-        src.options().memory_format(at::MemoryFormat::Contiguous));
-    tensor_add_slice_fp32(
+        src_sizes,
+        grad_out.options().memory_format(at::MemoryFormat::Contiguous));
+    classic_tensor_add_slice_fp32(
         static_cast<float>(alpha),
         grad_out,
         /*beta=*/0.0f,

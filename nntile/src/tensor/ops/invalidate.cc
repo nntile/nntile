@@ -15,6 +15,7 @@
 #include "nntile/tensor/ops/invalidate.hh"
 
 #include <stdexcept>
+#include <string>
 #include <unordered_set>
 
 #include "nntile/tensor.hh"
@@ -48,6 +49,7 @@ void TensorInvalidateOp::lower_to_tile(const LoweringContext &ctx) const
 std::size_t append_invalidates_for_unmarked_unsealed(TensorGraph &graph)
 {
     std::unordered_set<TensorGraph::TensorNode *> touched;
+    std::unordered_set<TensorGraph::TensorNode *> already_reclaimed;
     const auto &ops = graph.ops();
     const std::size_t begin = graph.phase_seal_cursor();
     touched.reserve((ops.size() - begin) * 4 + 8);
@@ -72,12 +74,24 @@ std::size_t append_invalidates_for_unmarked_unsealed(TensorGraph &graph)
                 touched.insert(ot);
             }
         }
+        std::string const name = op->op_name();
+        if (name == "UNREGISTER")
+        {
+            for (TensorGraph::TensorNode *in : op->inputs())
+            {
+                if (in != nullptr)
+                {
+                    already_reclaimed.insert(in);
+                }
+            }
+        }
     }
 
     std::size_t n_added = 0;
     for (TensorGraph::TensorNode *t : touched)
     {
-        if (t == nullptr || tensor_ref_is_live(t))
+        if (t == nullptr || tensor_ref_is_live(t)
+            || already_reclaimed.count(t) != 0)
         {
             continue;
         }

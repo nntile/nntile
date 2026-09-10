@@ -40,7 +40,14 @@ struct TileTorchUnaryOp : TileGraph::OpNode
         starpu::TorchDispatchArgs extra_ = {}) :
         kind(kind_), extra(extra_), in(in_), out(out_)
     {
-        inputs_ = {in};
+        if (kind == starpu::TorchKind::CopyIntoView && in != out)
+        {
+            inputs_ = {in, out};
+        }
+        else
+        {
+            inputs_ = {in};
+        }
         outputs_ = {out};
     }
 
@@ -167,6 +174,108 @@ struct TileTorchEmbeddingOp : TileGraph::OpNode
     }
 };
 
+struct TileTorchWhereOp : TileGraph::OpNode
+{
+    starpu::TorchDispatchArgs extra{};
+    TileGraph::TileNode *condition = nullptr;
+    TileGraph::TileNode *self = nullptr;
+    TileGraph::TileNode *other = nullptr;
+    TileGraph::TileNode *out = nullptr;
+
+    TileTorchWhereOp() = default;
+    TileTorchWhereOp(
+        TileGraph::TileNode *condition_,
+        TileGraph::TileNode *self_,
+        TileGraph::TileNode *other_,
+        TileGraph::TileNode *out_,
+        starpu::TorchDispatchArgs extra_ = {}) :
+        extra(extra_),
+        condition(condition_),
+        self(self_),
+        other(other_),
+        out(out_)
+    {
+        inputs_ = {condition, self, other};
+        outputs_ = {out};
+    }
+
+    std::string op_name() const override
+    {
+        return "TILE_TORCH_WHERE";
+    }
+
+    void execute(Runtime &runtime) const override;
+
+    std::shared_ptr<TileGraph::OpNode> clone() const override
+    {
+        return std::make_shared<TileTorchWhereOp>(*this);
+    }
+};
+
+struct TileTorchArangeOp : TileGraph::OpNode
+{
+    starpu::TorchDispatchArgs extra{};
+    TileGraph::TileNode *out = nullptr;
+
+    TileTorchArangeOp() = default;
+    explicit TileTorchArangeOp(
+        TileGraph::TileNode *out_,
+        starpu::TorchDispatchArgs extra_ = {}) :
+        extra(extra_),
+        out(out_)
+    {
+        inputs_ = {};
+        outputs_ = {out};
+    }
+
+    std::string op_name() const override
+    {
+        return "TILE_TORCH_ARANGE";
+    }
+
+    void execute(Runtime &runtime) const override;
+
+    std::shared_ptr<TileGraph::OpNode> clone() const override
+    {
+        return std::make_shared<TileTorchArangeOp>(*this);
+    }
+};
+
+struct TileTorchGtOp : TileGraph::OpNode
+{
+    starpu::TorchDispatchArgs extra{};
+    TileGraph::TileNode *a = nullptr;
+    TileGraph::TileNode *b = nullptr;
+    TileGraph::TileNode *out = nullptr;
+
+    TileTorchGtOp() = default;
+    TileTorchGtOp(
+        TileGraph::TileNode *a_,
+        TileGraph::TileNode *b_,
+        TileGraph::TileNode *out_,
+        starpu::TorchDispatchArgs extra_ = {}) :
+        extra(extra_),
+        a(a_),
+        b(b_),
+        out(out_)
+    {
+        inputs_ = {a, b};
+        outputs_ = {out};
+    }
+
+    std::string op_name() const override
+    {
+        return "TILE_TORCH_GT";
+    }
+
+    void execute(Runtime &runtime) const override;
+
+    std::shared_ptr<TileGraph::OpNode> clone() const override
+    {
+        return std::make_shared<TileTorchGtOp>(*this);
+    }
+};
+
 struct TileTorchCatOp : TileGraph::OpNode
 {
     Index dim = 0;
@@ -224,171 +333,27 @@ void torch_embedding(
     TileGraph::TileNode *out,
     starpu::TorchDispatchArgs extra = {});
 
+void torch_where(
+    TileGraph::TileNode *condition,
+    TileGraph::TileNode *self,
+    TileGraph::TileNode *other,
+    TileGraph::TileNode *out,
+    starpu::TorchDispatchArgs extra = {});
+
+void torch_arange(
+    TileGraph::TileNode *out,
+    starpu::TorchDispatchArgs extra);
+
+void torch_gt(
+    TileGraph::TileNode *a,
+    TileGraph::TileNode *b,
+    TileGraph::TileNode *out,
+    starpu::TorchDispatchArgs extra = {});
+
 void torch_cat(
     Index dim,
     const std::vector<TileGraph::TileNode *> &inputs,
     TileGraph::TileNode *out);
-
-struct TileTorchLayerNormOp : TileGraph::OpNode
-{
-    Scalar eps = 1e-5;
-    Index normalized_ndim = 1;
-    TileGraph::TileNode *input = nullptr;
-    TileGraph::TileNode *weight = nullptr;
-    TileGraph::TileNode *bias = nullptr;
-    TileGraph::TileNode *out = nullptr;
-    TileGraph::TileNode *mean = nullptr;
-    TileGraph::TileNode *rstd = nullptr;
-
-    TileTorchLayerNormOp() = default;
-    TileTorchLayerNormOp(
-        TileGraph::TileNode *input_,
-        TileGraph::TileNode *weight_,
-        TileGraph::TileNode *bias_,
-        TileGraph::TileNode *out_,
-        TileGraph::TileNode *mean_,
-        TileGraph::TileNode *rstd_,
-        Index normalized_ndim_,
-        Scalar eps_) :
-        eps(eps_),
-        normalized_ndim(normalized_ndim_),
-        input(input_),
-        weight(weight_),
-        bias(bias_),
-        out(out_),
-        mean(mean_),
-        rstd(rstd_)
-    {
-        inputs_ = {input};
-        if (weight != nullptr)
-        {
-            inputs_.push_back(weight);
-        }
-        if (bias != nullptr)
-        {
-            inputs_.push_back(bias);
-        }
-        outputs_ = {out, mean, rstd};
-    }
-
-    std::string op_name() const override
-    {
-        return "TILE_TORCH_LAYER_NORM";
-    }
-
-    void execute(Runtime &runtime) const override;
-
-    std::shared_ptr<TileGraph::OpNode> clone() const override
-    {
-        return std::make_shared<TileTorchLayerNormOp>(*this);
-    }
-};
-
-void torch_layer_norm(
-    TileGraph::TileNode *input,
-    TileGraph::TileNode *weight,
-    TileGraph::TileNode *bias,
-    TileGraph::TileNode *out,
-    TileGraph::TileNode *mean,
-    TileGraph::TileNode *rstd,
-    Index normalized_ndim,
-    Scalar eps);
-
-struct TileTorchLayerNormBackwardOp : TileGraph::OpNode
-{
-    Index normalized_ndim = 1;
-    bool need_grad_input = false;
-    bool need_grad_weight = false;
-    bool need_grad_bias = false;
-    TileGraph::TileNode *grad_out = nullptr;
-    TileGraph::TileNode *input = nullptr;
-    TileGraph::TileNode *mean = nullptr;
-    TileGraph::TileNode *rstd = nullptr;
-    TileGraph::TileNode *weight = nullptr;
-    TileGraph::TileNode *bias = nullptr;
-    TileGraph::TileNode *grad_input = nullptr;
-    TileGraph::TileNode *grad_weight = nullptr;
-    TileGraph::TileNode *grad_bias = nullptr;
-
-    TileTorchLayerNormBackwardOp() = default;
-    TileTorchLayerNormBackwardOp(
-        TileGraph::TileNode *grad_out_,
-        TileGraph::TileNode *input_,
-        TileGraph::TileNode *mean_,
-        TileGraph::TileNode *rstd_,
-        TileGraph::TileNode *weight_,
-        TileGraph::TileNode *bias_,
-        TileGraph::TileNode *grad_input_,
-        TileGraph::TileNode *grad_weight_,
-        TileGraph::TileNode *grad_bias_,
-        Index normalized_ndim_,
-        bool need_grad_input_,
-        bool need_grad_weight_,
-        bool need_grad_bias_) :
-        normalized_ndim(normalized_ndim_),
-        need_grad_input(need_grad_input_),
-        need_grad_weight(need_grad_weight_),
-        need_grad_bias(need_grad_bias_),
-        grad_out(grad_out_),
-        input(input_),
-        mean(mean_),
-        rstd(rstd_),
-        weight(weight_),
-        bias(bias_),
-        grad_input(grad_input_),
-        grad_weight(grad_weight_),
-        grad_bias(grad_bias_)
-    {
-        inputs_ = {grad_out, input, mean, rstd};
-        if (weight != nullptr)
-        {
-            inputs_.push_back(weight);
-        }
-        if (bias != nullptr)
-        {
-            inputs_.push_back(bias);
-        }
-        if (need_grad_input && grad_input != nullptr)
-        {
-            outputs_.push_back(grad_input);
-        }
-        if (need_grad_weight && grad_weight != nullptr)
-        {
-            outputs_.push_back(grad_weight);
-        }
-        if (need_grad_bias && grad_bias != nullptr)
-        {
-            outputs_.push_back(grad_bias);
-        }
-    }
-
-    std::string op_name() const override
-    {
-        return "TILE_TORCH_LAYER_NORM_BACKWARD";
-    }
-
-    void execute(Runtime &runtime) const override;
-
-    std::shared_ptr<TileGraph::OpNode> clone() const override
-    {
-        return std::make_shared<TileTorchLayerNormBackwardOp>(*this);
-    }
-};
-
-void torch_layer_norm_backward(
-    TileGraph::TileNode *grad_out,
-    TileGraph::TileNode *input,
-    TileGraph::TileNode *mean,
-    TileGraph::TileNode *rstd,
-    TileGraph::TileNode *weight,
-    TileGraph::TileNode *bias,
-    TileGraph::TileNode *grad_input,
-    TileGraph::TileNode *grad_weight,
-    TileGraph::TileNode *grad_bias,
-    Index normalized_ndim,
-    bool need_grad_input,
-    bool need_grad_weight,
-    bool need_grad_bias);
 
 struct TileTorchEmbeddingDenseBackwardOp : TileGraph::OpNode
 {

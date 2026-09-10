@@ -44,9 +44,6 @@ void check_log_softmax_input(
         self.scalar_type() == at::ScalarType::Float,
         "nntile log_softmax supports float32 only");
     TORCH_CHECK(
-        self.is_contiguous(),
-        "nntile log_softmax requires contiguous input");
-    TORCH_CHECK(
         self.dim() > 0,
         "nntile log_softmax: cannot compute on empty tensor");
     at::maybe_wrap_dim(dim, self.dim());
@@ -55,9 +52,6 @@ void check_log_softmax_input(
         TORCH_CHECK(
             out->sizes() == self.sizes(),
             "nntile log_softmax.out: output shape mismatch");
-        TORCH_CHECK(
-            out->is_contiguous(),
-            "nntile log_softmax.out requires contiguous out");
     }
 }
 
@@ -91,9 +85,6 @@ void check_log_softmax_backward(
         grad_output.sizes() == output.sizes(),
         "nntile log_softmax_backward: shape mismatch");
     TORCH_CHECK(
-        grad_output.is_contiguous() && output.is_contiguous(),
-        "nntile log_softmax_backward requires contiguous tensors");
-    TORCH_CHECK(
         output.dim() > 0,
         "nntile log_softmax_backward: cannot compute on empty tensor");
     at::maybe_wrap_dim(dim, output.dim());
@@ -106,6 +97,7 @@ at::Tensor log_softmax(
     int64_t dim,
     bool half_to_float)
 {
+    nntile::GraphFillScope record;
     check_log_softmax_input(self, dim, half_to_float);
     at::Tensor out = at::empty_like(self);
     run_log_softmax(self, dim, out);
@@ -118,6 +110,7 @@ at::Tensor &log_softmax_out(
     bool half_to_float,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     check_log_softmax_input(self, dim, half_to_float, out);
     run_log_softmax(self, dim, out);
     return out;
@@ -129,6 +122,7 @@ at::Tensor log_softmax_backward_data(
     int64_t dim,
     at::ScalarType input_dtype)
 {
+    nntile::GraphFillScope record;
     check_log_softmax_backward(grad_output, output, dim, input_dtype);
     at::Tensor grad_input = at::empty_like(output);
     const int64_t wrapped_dim = at::maybe_wrap_dim(dim, output.dim());

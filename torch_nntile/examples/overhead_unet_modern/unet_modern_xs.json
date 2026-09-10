@@ -1,0 +1,10 @@
+{
+  "_comment": "Overhead XS: C=256, depth=4, bilinear, 32^2",
+  "in_channels": 1,
+  "num_classes": 3,
+  "height": 32,
+  "width": 32,
+  "base_channels": 256,
+  "depth": 4,
+  "upsample_mode": "bilinear"
+}

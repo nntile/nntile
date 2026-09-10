@@ -1,24 +1,29 @@
 # PrivateUse1 aten ops on `device=nntile`
 
-**Status:** temporary single-tile (untiled) only  
-**Branch:** `graph_api_torch_kernels`  
+**Status:** dual-path — aten untiled; classic `torch_nntile.nn` may tile  
 **Related:** [torch_starpu_kernels.md](torch_starpu_kernels.md),
-[torch_nntile_tensor_architecture.md](torch_nntile_tensor_architecture.md)
+[torch_nntile_tensor_architecture.md](torch_nntile_tensor_architecture.md),
+[torch_nntile_classic_kernels.md](torch_nntile_classic_kernels.md)
+
+**Policy:** [torch_nntile_cuda_parity_policy.md](torch_nntile_cuda_parity_policy.md) —
+stock ``torch.nn`` / ``F.*`` on ``device=nntile`` must match CUDA; classic
+NNTile kernels belong in ``torch_nntile.nn.functional``, not alternate ``aten``
+semantics.
 
 Under `NNTILE_TORCH_NATIVE_OPS`, each listed compute schema records a
 torch-native TensorGraph op that lowers to the **same aten call on
 `device=CPU` with no grad** inside a StarPU codelet (see
 [torch_starpu_kernels.md](torch_starpu_kernels.md)). Classic NNTile
-kernels are not used for compute on this path.
+kernels are not used for **aten** compute on this path.
 
-While torch-native StarPU codelets are introduced for untiled tensors,
-**axis-group tiling is disabled** for the PrivateUse1 path:
+**Axis-group tiling:**
 
-- `torch_nntile.set_axis_group_tiling(...)` raises a C++ `std::runtime_error`.
-- `compile_graph` / `execute` rejects any session whose axis groups are
-  already tiled.
-- Multi-tile Python tests under `torch_nntile/tests/` are skipped; keep
-  **untiled** parity/smoke coverage only.
+- Classic-only pending graphs (`torch_nntile.nn`) may call
+  `set_axis_group_tiling` and compile tiled.
+- If any pending compute op name starts with `TORCH_`, tiling is rejected
+  (stock aten stays untiled).
+- `compile_graph` / `execute` also reject a session that is already tiled
+  **and** contains torch-native compute.
 
 Libnntile C++ TensorGraph tiling tests are unchanged (they do not go through
 PrivateUse1).
@@ -32,7 +37,7 @@ write-up (layers, dump commands, worked examples):
 | CUDA pattern | What nntile should do |
 |--------------|------------------------|
 | Device kernel (`RegisterCUDA` / structured `.out`) | PrivateUse1 device impl; Autograd stays on generic VariableType |
-| `CompositeImplicitAutograd` (`chunk`, `narrow`, `linear`, `matmul`, …) | **Do not** register PrivateUse1 — let the composite lower to primitives (`as_strided`, `addmm`, `mm`, …) |
+| `CompositeImplicitAutograd` (`chunk`, `narrow`, `linear`, `matmul`, `layer_norm`, …) | **Do not** register PrivateUse1 — let the composite lower to primitives (`as_strided`, `addmm`, `mm`, …) |
 | `CompositeExplicitAutograd` shared default (`select.int`, `alias`, …) | Prefer composite unless nntile storage needs a hook (`as_strided` / `alias` for `TensorRef`) |
 | AutogradCUDA = VariableType formula (e.g. `rsqrt` → `result.pow(3)`) | **Do not** register AutogradPrivateUse1; implement the formula’s device ops (`pow`) |
 
@@ -60,6 +65,7 @@ match CPU for the same call (`RsqrtBackward0`, `AddmmBackward0`,
 | `chunk` / `split` / `narrow` / `select.int` | Composite → views | **No** PrivateUse1; keep `as_strided` (+ `alias`) |
 | `as_strided` / `alias` | device / shared composite | PrivateUse1 (keep `TensorRef`) |
 | `contiguous` | CompositeImplicit | PrivateUse1 + AutogradPrivateUse1 densify |
+| `native_layer_norm` | CompositeExplicit + fused bwd | No PrivateUse1 kernel; AutogradPrivateUse1 math (BN + affine) so backward is subops |
 | `rms_norm` | CompositeImplicit (`pow` / `mean` / `rsqrt` / `mul`) | **No** PrivateUse1 / AutogradPrivateUse1; match CUDA |
 
 Intentional deviations (nntile storage / StarPU):
@@ -72,16 +78,21 @@ Intentional deviations (nntile storage / StarPU):
 
 `rms_norm` is not an intentional deviation: CUDA leaves it as
 CompositeImplicitAutograd, so `device=nntile` does the same and relies on
-the primitive ops (`pow` / `mean` / `rsqrt` / `mul`). LayerNorm remains fused
-through `native_layer_norm` because PyTorch has that device primitive and
-single-pass mean+variance matters.
+the primitive ops (`pow` / `mean` / `rsqrt` / `mul`). Stock
+`F.layer_norm` / `nn.LayerNorm` is different: do **not** register
+PrivateUse1 `native_layer_norm`. Inference uses CompositeExplicit
+`math_native_layer_norm` (reshape + `native_batch_norm` + affine).
+AutogradPrivateUse1 runs that same math *with* autograd so backward is
+the BN / affine suboperations (`NativeLayerNormBackward0` has no
+composite in core). Do **not** register `native_layer_norm_backward`.
+Classic `torch_nntile.nn` LayerNorm is separate.
 
 Known gap vs CUDA view backward: ~~nntile→nntile `_copy_from` rebinds
 `TensorRef` (SSA) instead of writing the parent at `storage_offset`.~~
-**Fixed:** partial / strided destinations use host RMW
-(`gather_full_logical_to_cpu` → patch view →
-`overwrite_bound_nntile_logical_from_cpu`). Dense full-cover copies still
-SSA-rebind. Slice / Select / AsStrided / T Backward now match CPU grads.
+**Fixed:** partial / strided fp32 and int64 destinations use
+`TorchKind::CopyIntoView` (RW parent handle, packed view layout). Dense
+full-cover copies still SSA-rebind. Bool still host-RMW. Slice / Select /
+AsStrided / T Backward now match CPU grads.
 
 ## Registered aten schemas
 
@@ -114,11 +125,14 @@ Sources live under `torch_nntile/csrc/`.
 | `set_.source_Storage` |
 | `set_.source_Storage_storage_offset` |
 
-Also: `contiguous` on **AutogradPrivateUse1**, and a boxed **`cpu_fallback`**
-for unregistered ops when `cpu_fallback=True`.
+Also: `contiguous` and `native_layer_norm` on **AutogradPrivateUse1**,
+and a boxed **`cpu_fallback`** for unregistered ops when
+`cpu_fallback=True`.
 
 Not registered (CUDA composite → our primitives): `narrow`, `select.int`,
-`chunk`, `split` / `split_with_sizes`, `linear`, `matmul`.
+`chunk`, `split` / `split_with_sizes`, `linear`, `matmul`, `layer_norm` /
+PrivateUse1 `native_layer_norm` (AutogradPrivateUse1 math only; no
+`native_layer_norm_backward`).
 
 ### Elementwise / reductions / norms
 
@@ -158,8 +172,8 @@ register `linear` / `matmul` (CUDA CompositeImplicit → `addmm` / `mm`).
 
 | File | Schemas |
 |------|---------|
-| `nntile_layer_norm.cpp` | `native_layer_norm`, `native_layer_norm_backward` |
 | `nntile_batch_norm.cpp` | `native_batch_norm`, `native_batch_norm_backward` |
+| `nntile_layer_norm.cpp` | AutogradPrivateUse1 `native_layer_norm` (math via BN + affine) |
 | `nntile_embedding.cpp` | `embedding`, `embedding_dense_backward` |
 | `nntile_cat.cpp` | `cat`, `cat.out` |
 | `nntile_trig.cpp` | `cos`, `sin`, `neg`, `rsqrt`, `exp` (+ `.out`) |
@@ -189,11 +203,17 @@ when torch-native ops are off.
 
 ### SDPA (`nntile_sdpa_aten.cpp`)
 
-| Schema |
-|--------|
-| `_fused_sdp_choice` |
-| `_scaled_dot_product_fused_attention_overrideable` |
-| `_scaled_dot_product_fused_attention_overrideable_backward` |
+`F.scaled_dot_product_attention` is CompositeImplicit on CUDA and nntile.
+Nntile `_fused_sdp_choice` returns **MATH** (debt **D8**): the composite
+lowers to `mm` / `softmax` / mask, recorded as TensorGraph nodes. Do not
+route production `F.sdpa` through `OVERRIDEABLE` / `TorchKind::Sdpa`
+until fused SDPA preallocates workspace as graph tensors.
+
+| Schema | Role |
+|--------|------|
+| `_fused_sdp_choice` | Always `SDPBackend::math` on nntile |
+| `_scaled_dot_product_fused_attention_overrideable` | Unused fused path (D8) |
+| `_scaled_dot_product_fused_attention_overrideable_backward` | Unused fused path (D8) |
 
 ## Skipped tiled tests (temporary)
 

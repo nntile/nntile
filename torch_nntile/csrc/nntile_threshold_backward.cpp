@@ -42,9 +42,6 @@ void check_threshold_backward(
         grad_output.sizes(),
         " self=",
         self.sizes());
-    TORCH_CHECK(
-        grad_output.is_contiguous() && self.is_contiguous(),
-        "nntile threshold_backward requires contiguous tensors");
 }
 
 } // namespace
@@ -54,6 +51,7 @@ at::Tensor threshold_backward(
     const at::Tensor &self,
     const at::Scalar &threshold)
 {
+    nntile::GraphFillScope record;
     const auto t0 = std::chrono::steady_clock::now();
     check_threshold_backward(grad_output, self);
     TORCH_CHECK(

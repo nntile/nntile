@@ -14,6 +14,8 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
+from torch_nntile.nn import Embedding, LayerNorm
+from torch_nntile.nn.functional import add
 from torch_nntile.nn.linear import NntileLinear
 from torch_nntile.models.bert import (
     BertConfig,
@@ -68,17 +70,17 @@ class RobertaEmbeddings(nn.Module):
     def __init__(self, config: RobertaConfig) -> None:
         super().__init__()
         self.pad_token_id = config.pad_token_id
-        self.word_embeddings = nn.Embedding(
+        self.word_embeddings = Embedding(
             config.vocab_size,
             config.hidden_size,
         )
-        self.position_embeddings = nn.Embedding(
+        self.position_embeddings = Embedding(
             config.max_position_embeddings, config.hidden_size
         )
-        self.token_type_embeddings = nn.Embedding(
+        self.token_type_embeddings = Embedding(
             config.type_vocab_size, config.hidden_size
         )
-        self.LayerNorm = nn.LayerNorm(
+        self.LayerNorm = LayerNorm(
             config.hidden_size, eps=config.layer_norm_eps
         )
 
@@ -119,10 +121,12 @@ class RobertaEmbeddings(nn.Module):
             )
             if input_ids.device.type != "cpu":
                 token_type_ids = token_type_ids.to(input_ids.device)
-        x = (
-            self.word_embeddings(input_ids)
-            + self.position_embeddings(position_ids)
-            + self.token_type_embeddings(token_type_ids)
+        x = add(
+            add(
+                self.word_embeddings(input_ids),
+                self.position_embeddings(position_ids),
+            ),
+            self.token_type_embeddings(token_type_ids),
         )
         return self.LayerNorm(x)
 
@@ -155,7 +159,7 @@ class RobertaMlmHead(nn.Module):
     def __init__(self, config: RobertaConfig) -> None:
         super().__init__()
         self.dense = NntileLinear(config.hidden_size, config.hidden_size)
-        self.layer_norm = nn.LayerNorm(
+        self.layer_norm = LayerNorm(
             config.hidden_size, eps=config.layer_norm_eps
         )
         self.decoder = NntileLinear(

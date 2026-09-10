@@ -1,0 +1,20 @@
+{
+  "_comment": "Overhead XL: 3 enc + 3 dec layers, d_model=5760, seq_len=2880 (CUDA VRAM matched to Llama)",
+  "vocab_size": 2048,
+  "d_model": 5760,
+  "d_kv": 128,
+  "d_ff": 23040,
+  "num_layers": 3,
+  "num_decoder_layers": 3,
+  "num_heads": 45,
+  "relative_attention_num_buckets": 32,
+  "relative_attention_max_distance": 2880,
+  "dropout_rate": 0.0,
+  "layer_norm_epsilon": 1e-06,
+  "feed_forward_proj": "relu",
+  "is_encoder_decoder": true,
+  "use_cache": false,
+  "pad_token_id": 0,
+  "eos_token_id": 1,
+  "decoder_start_token_id": 0
+}

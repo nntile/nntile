@@ -15,15 +15,6 @@ import pytest
 import torch
 from conftest import subprocess_environ
 
-pytestmark = pytest.mark.skip(
-    reason=(
-        "Temporarily disabled: device=nntile PrivateUse1 aten ops require "
-        "untiled tensors while torch-native StarPU codelets land "
-        "(docs/dev/torch_nntile_aten_ops.md)."
-    ),
-)
-
-
 def _run_subprocess(script: str) -> None:
     env = subprocess_environ()
     proc = subprocess.run(
@@ -53,7 +44,8 @@ def test_axis_group_tiling_add():
         x = torch.randn(4, 8).to("nntile")
         y = torch.randn(4, 8).to("nntile")
         torch_nntile.set_axis_group_name(x, {0: "batch"})
-        z = x + y
+        from torch_nntile.nn.functional import add
+        z = add(x, y)
         torch_nntile.set_axis_group_tiling("batch", [1, 1, 2])
         torch_nntile.execute()
         assert torch.allclose(z.cpu(), (x.cpu() + y.cpu()))
@@ -74,7 +66,8 @@ def test_axis_group_tiling_invalid_sum_raises():
         x = torch.randn(4, 8).to("nntile")
         y = torch.randn(4, 8).to("nntile")
         torch_nntile.set_axis_group_name(x, {0: "batch"})
-        _ = x + y
+        from torch_nntile.nn.functional import add
+        _ = add(x, y)
         torch_nntile.set_axis_group_tiling("batch", [1, 1, 1])
         with pytest.raises(RuntimeError, match="sum"):
             torch_nntile.execute()
@@ -98,7 +91,7 @@ def test_deep_relu_axis_groups_with_explicit_naming():
         torch_nntile.set_axis_group_name(x, {0: "batch", 1: "features"})
         torch_nntile.set_axis_group_name(logits, {1: "classes"})
         for module in model.modules():
-            if not isinstance(module, torch.nn.Linear):
+            if not isinstance(module, torch_nntile.nn.Linear):
                 continue
             w = module.weight
             names = {}
@@ -134,7 +127,8 @@ def test_print_axis_groups_shows_pending_tiling():
         x = torch.randn(4, 8).to("nntile")
         y = torch.randn(4, 8).to("nntile")
         torch_nntile.set_axis_group_name(x, {0: "batch"})
-        _ = x + y
+        from torch_nntile.nn.functional import add
+        _ = add(x, y)
         torch_nntile.set_axis_group_tiling("batch", [1, 1, 2])
         info = torch_nntile.format_axis_groups()
         assert "pending_tile=1,1,2" in info
@@ -187,9 +181,13 @@ def test_early_host_roundtrip_before_axis_tiling_raises():
         # (untiled) layout before axis tiling is registered.
         _ = x.cpu()
         torch_nntile.set_axis_group_name(x, {0: "batch"})
-        z = x + y
+        from torch_nntile.nn.functional import add
+        z = add(x, y)
         torch_nntile.set_axis_group_tiling("batch", [1, 1, 2])
-        with pytest.raises(RuntimeError, match="layout_fingerprint mismatch"):
+        with pytest.raises(
+            RuntimeError,
+            match="layout_fingerprint mismatch|tile count mismatch",
+        ):
             torch_nntile.execute()
         """
     )
@@ -209,11 +207,35 @@ def test_axis_tiling_without_early_host_roundtrip():
         x = torch.randn(4, 8).to("nntile")
         y = torch.randn(4, 8).to("nntile")
         torch_nntile.set_axis_group_name(x, {0: "batch"})
-        z = x + y
+        from torch_nntile.nn.functional import add
+        z = add(x, y)
         torch_nntile.set_axis_group_tiling("batch", [1, 1, 2])
         torch_nntile.execute()
         assert z.shape == (4, 8)
         out = z.cpu()
         assert out.shape == (4, 8)
+        """
+    )
+
+
+def test_tiled_torch_add_raises():
+    """Stock aten add + tiling is rejected (torch-native stays untiled)."""
+    _run_subprocess(
+        """
+        import pytest
+        import torch
+        import torch_nntile
+
+        torch_nntile.init_context(
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
+        )
+        torch_nntile.restrict_cpu()
+        x = torch.randn(4, 8).to("nntile")
+        y = torch.randn(4, 8).to("nntile")
+        torch_nntile.set_axis_group_name(x, {0: "batch"})
+        _ = x + y
+        torch_nntile.set_axis_group_tiling("batch", [1, 1, 2])
+        with pytest.raises(RuntimeError, match="TORCH_"):
+            torch_nntile.execute()
         """
     )

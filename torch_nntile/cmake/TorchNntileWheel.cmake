@@ -67,10 +67,23 @@ else()
         "-DTORCH_NNTILE_PREFIX=... / -DNNTILE_PREFIX=...")
 endif()
 
+if(NNTILE_TORCH_NATIVE_OPS)
+    set(_wheel_torch_native "1")
+else()
+    set(_wheel_torch_native "0")
+endif()
+if(NNTILE_NNTILE_NATIVE_OPS)
+    set(_wheel_nntile_native "1")
+else()
+    set(_wheel_nntile_native "0")
+endif()
+
 set(_wheel_env
     "TORCH_NNTILE_WHEEL=1"
     "TORCH_NNTILE_WHEEL_VERSION=${TORCH_NNTILE_WHEEL_VERSION}"
     "NNTILE_SOURCE_DIR=${PROJECT_SOURCE_DIR}"
+    "NNTILE_TORCH_NATIVE_OPS=${_wheel_torch_native}"
+    "NNTILE_NNTILE_NATIVE_OPS=${_wheel_nntile_native}"
 )
 if(_wheel_nntile_build_dir)
     list(APPEND _wheel_env "NNTILE_BUILD_DIR=${_wheel_nntile_build_dir}")

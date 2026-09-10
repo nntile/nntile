@@ -43,7 +43,14 @@ public:
         int64_t model_ndim)
     {
         ctx->saved_data["model_ndim"] = model_ndim;
-        ctx->save_for_backward({x});
+        // Y = X.T() => dX = dY.T(); the payload of X is unused. Saving a
+        // non-leaf would pin the pre-transpose activation (Q/K/V in
+        // model layout, SDPA context in kernel layout) until backward.
+        // Keep a leaf only so fused SGD can bind param.grad.
+        if (x.is_leaf() && x.requires_grad())
+        {
+            ctx->save_for_backward({x});
+        }
         return model_transpose_forward(x, model_ndim);
     }
 
@@ -54,10 +61,15 @@ public:
         auto saved = ctx->get_saved_variables();
         int64_t const model_ndim =
             ctx->saved_data["model_ndim"].toInt();
+        at::Tensor saved_x;
+        if (!saved.empty())
+        {
+            saved_x = saved[0];
+        }
         auto grad = model_transpose_backward(
             grad_outputs[0],
             model_ndim,
-            saved[0]);
+            saved_x);
         torch::autograd::variable_list result(2);
         result[0] = grad;
         return result;

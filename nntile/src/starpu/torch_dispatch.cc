@@ -2,7 +2,9 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file src/starpu/torch_dispatch.cc
- * Torch-native family StarPU codelets (CPU/CUDA aten *_out).
+ * Torch-native family StarPU codelets (CPU/CUDA public aten *_out only).
+ * Never call ATen DispatchStubs / hidden raw_* kernels (macOS arm64
+ * cannot link them). Autogen *.out may copy_; that is accepted debt.
  *
  * @version 1.1.0
  */
@@ -14,18 +16,31 @@
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include <ATen/ATen.h>
+#ifdef NNTILE_USE_CUDA
+#include <ATen/Context.h>
+#endif
+#include <ATen/native/ConvUtils.h>
 #include <ATen/core/LegacyTypeDispatch.h>
 #include <ATen/core/grad_mode.h>
 #include <ATen/ops/_adaptive_avg_pool2d.h>
 #include <ATen/ops/_adaptive_avg_pool2d_backward.h>
 #include <ATen/ops/add.h>
+#include <ATen/ops/abs.h>
+#include <ATen/ops/arange.h>
+#include <ATen/ops/eq.h>
+#include <ATen/ops/gt.h>
+#include <ATen/ops/log.h>
+#include <ATen/ops/lt.h>
+#include <ATen/ops/minimum.h>
 #include <ATen/ops/sub.h>
+#include <ATen/ops/triu.h>
 #include <ATen/ops/addmm.h>
 #include <ATen/ops/avg_pool2d.h>
 #include <ATen/ops/avg_pool2d_backward.h>
@@ -33,6 +48,18 @@
 #include <ATen/ops/cat.h>
 #include <ATen/ops/convolution.h>
 #include <ATen/ops/convolution_backward.h>
+#ifdef NNTILE_USE_CUDA
+#include <ATen/ops/cudnn_convolution.h>
+#include <ATen/ops/cudnn_convolution_transpose.h>
+#include <ATen/ops/_conv_depthwise2d.h>
+#endif
+#include <ATen/ops/_slow_conv2d_backward.h>
+#include <ATen/ops/_slow_conv2d_forward.h>
+#include <ATen/ops/mkldnn_convolution.h>
+#include <ATen/ops/slow_conv3d_forward.h>
+#include <ATen/ops/slow_conv_dilated2d.h>
+#include <ATen/ops/slow_conv_transpose2d.h>
+#include <ATen/ops/slow_conv_transpose3d.h>
 #include <ATen/ops/cos.h>
 #include <ATen/ops/_log_softmax.h>
 #include <ATen/ops/_log_softmax_backward_data.h>
@@ -57,10 +84,10 @@
 #include <ATen/ops/mean.h>
 #include <ATen/ops/mm.h>
 #include <ATen/ops/mul.h>
+#include <ATen/ops/pow.h>
+#include <ATen/ops/div.h>
 #include <ATen/ops/native_batch_norm.h>
 #include <ATen/ops/native_batch_norm_backward.h>
-#include <ATen/ops/native_layer_norm.h>
-#include <ATen/ops/native_layer_norm_backward.h>
 #include <ATen/ops/neg.h>
 #include <ATen/ops/nll_loss_backward.h>
 #include <ATen/ops/nll_loss_forward.h>
@@ -80,6 +107,7 @@
 #include <ATen/ops/upsample_bilinear2d_backward.h>
 #include <ATen/ops/upsample_nearest2d.h>
 #include <ATen/ops/upsample_nearest2d_backward.h>
+#include <ATen/ops/where.h>
 #include <ATen/ops/zeros.h>
 
 #include "nntile/starpu/torch_blob.hh"
@@ -147,6 +175,20 @@ at::Tensor in_i64(
         device);
 }
 
+at::Tensor in_bool(
+    bool *ptr,
+    const TorchDispatchArgs &args,
+    Index slot,
+    c10::optional<at::Device> device = c10::nullopt)
+{
+    return blob_bool(
+        ptr,
+        sizes_of(args, slot, false),
+        strides_of(args, slot, false),
+        static_cast<std::int64_t>(args.in_offset[slot]),
+        device);
+}
+
 at::Tensor out_fp32(
     float *ptr,
     const TorchDispatchArgs &args,
@@ -154,6 +196,20 @@ at::Tensor out_fp32(
     c10::optional<at::Device> device = c10::nullopt)
 {
     return blob_fp32(
+        ptr,
+        sizes_of(args, slot, true),
+        strides_of(args, slot, true),
+        static_cast<std::int64_t>(args.out_offset[slot]),
+        device);
+}
+
+at::Tensor out_bool(
+    bool *ptr,
+    const TorchDispatchArgs &args,
+    Index slot,
+    c10::optional<at::Device> device = c10::nullopt)
+{
+    return blob_bool(
         ptr,
         sizes_of(args, slot, true),
         strides_of(args, slot, true),
@@ -173,6 +229,58 @@ at::Tensor out_i64(
         strides_of(args, slot, true),
         static_cast<std::int64_t>(args.out_offset[slot]),
         device);
+}
+
+//! Packed dtype tags for Cast / Where: 0=fp32, 1=i64, 2=bool.
+at::Tensor in_tagged(
+    VariableInterface *iface,
+    const TorchDispatchArgs &args,
+    Index slot,
+    Index tag)
+{
+    switch (tag)
+    {
+    case 0:
+        return in_fp32(iface->get_ptr<float>(), args, slot);
+    case 1:
+        return in_i64(iface->get_ptr<std::int64_t>(), args, slot);
+    case 2:
+        return in_bool(
+            reinterpret_cast<bool *>(iface->get_ptr<bool_t>()),
+            args,
+            slot);
+    default:
+        throw std::runtime_error("torch_cast: bad src dtype tag");
+    }
+}
+
+at::Tensor out_tagged(
+    VariableInterface *iface,
+    const TorchDispatchArgs &args,
+    Index slot,
+    Index tag)
+{
+    switch (tag)
+    {
+    case 0:
+        return out_fp32(iface->get_ptr<float>(), args, slot);
+    case 1:
+        return out_i64(iface->get_ptr<std::int64_t>(), args, slot);
+    case 2:
+        return out_bool(
+            reinterpret_cast<bool *>(iface->get_ptr<bool_t>()),
+            args,
+            slot);
+    default:
+        throw std::runtime_error("torch_cast: bad dst dtype tag");
+    }
+}
+
+//! CopyIntoView may submit a single STARPU_RW buffer when src/dst alias.
+bool copy_into_view_aliases_in(const TorchDispatchArgs *args)
+{
+    return args->kind == TorchKind::CopyIntoView &&
+        args->iargs[7] != 0;
 }
 
 std::vector<std::int64_t> iarg_vec(
@@ -213,6 +321,485 @@ c10::optional<double> optional_scale(
     return static_cast<double>(args.scalars[scalar_slot]);
 }
 
+// Public aten out for CUDA conv bwd (cuDNN / depthwise / transpose).
+// convolution_backward.out is autogen: functional + copy_ into the
+// provided outs. Unused grads need same-dtype throwaways; autogen
+// cannot copy into an undefined tensor.
+void convolution_backward_public_out(
+    at::Tensor &grad_input,
+    at::Tensor &grad_weight,
+    at::Tensor &grad_bias,
+    const at::Tensor &grad_out,
+    const at::Tensor &input,
+    const at::Tensor &weight,
+    bool transposed,
+    at::IntArrayRef stride,
+    at::IntArrayRef padding,
+    at::IntArrayRef dilation,
+    at::IntArrayRef output_padding,
+    std::int64_t groups,
+    at::OptionalIntArrayRef bias_sizes)
+{
+    std::array<bool, 3> const mask = {true, true, true};
+    at::Tensor gi = grad_input.defined()
+        ? grad_input
+        : at::empty_like(input);
+    at::Tensor gw = grad_weight.defined()
+        ? grad_weight
+        : at::empty_like(weight);
+    std::vector<std::int64_t> bias_vec;
+    at::OptionalIntArrayRef bias_ref = bias_sizes;
+    if (!bias_ref.has_value())
+    {
+        bias_vec = {grad_out.size(1)};
+        bias_ref = at::IntArrayRef(bias_vec);
+    }
+    at::Tensor gb = grad_bias.defined()
+        ? grad_bias
+        : at::empty(*bias_ref, weight.options());
+    at::convolution_backward_out(
+        gi,
+        gw,
+        gb,
+        grad_out,
+        input,
+        weight,
+        bias_ref,
+        stride,
+        padding,
+        dilation,
+        transposed,
+        output_padding,
+        groups,
+        mask);
+}
+
+// CUDA _convolution selects a backend then writes through a leaf.
+// Prefer a public leaf *_out into the StarPU blob (skip empty_cuda).
+// If that leaf is not a public operator, use the public autogen
+// *.out (cudnn_convolution_transpose.out / convolution_backward.out).
+void view1d_as_2d_inplace(
+    at::Tensor &input,
+    at::Tensor &weight,
+    at::Tensor *out,
+    at::Tensor *grad_out,
+    std::vector<std::int64_t> &stride,
+    std::vector<std::int64_t> &padding,
+    std::vector<std::int64_t> &dilation,
+    std::vector<std::int64_t> &output_padding)
+{
+    if (weight.ndimension() != 3)
+    {
+        return;
+    }
+    input = input.contiguous().unsqueeze(2);
+    weight = weight.unsqueeze(2);
+    if (out != nullptr)
+    {
+        *out = out->unsqueeze(2);
+    }
+    if (grad_out != nullptr)
+    {
+        *grad_out = grad_out->unsqueeze(2);
+    }
+    if (stride.size() == 1)
+    {
+        stride.insert(stride.begin(), 1);
+        padding.insert(padding.begin(), 0);
+        dilation.insert(dilation.begin(), 1);
+        output_padding.insert(output_padding.begin(), 0);
+    }
+}
+
+at::native::ConvBackend select_conv_backend_train(
+    const at::Tensor &input,
+    const at::Tensor &weight,
+    const std::optional<at::Tensor> &bias_opt,
+    at::IntArrayRef stride,
+    at::IntArrayRef padding,
+    at::IntArrayRef dilation,
+    bool transposed,
+    at::IntArrayRef output_padding,
+    std::int64_t groups,
+    const at::OptionalSymIntArrayRef bias_sizes)
+{
+    // Public select_conv_backend uses GradMode. The codelet runs under
+    // NoGradGuard; force training selection (skip XNNPACK / Winograd).
+    at::Tensor input_sel = input;
+    input_sel.set_requires_grad(true);
+    at::native::ConvBackend backend;
+    {
+        at::AutoGradMode guard(true);
+        backend = at::native::select_conv_backend(
+            input_sel,
+            weight,
+            bias_opt,
+            c10::fromIntArrayRefSlow(stride),
+            c10::fromIntArrayRefSlow(padding),
+            c10::fromIntArrayRefSlow(dilation),
+            transposed,
+            c10::fromIntArrayRefSlow(output_padding),
+            c10::SymInt(groups),
+            bias_sizes);
+    }
+    input_sel.set_requires_grad(false);
+    return backend;
+}
+
+std::vector<std::int64_t> kernel_spatial(const at::Tensor &weight)
+{
+    return std::vector<std::int64_t>(
+        weight.sizes().begin() + 2,
+        weight.sizes().end());
+}
+
+void convolution_into(
+    at::Tensor &out,
+    const at::Tensor &input_r,
+    const at::Tensor &weight_r,
+    const at::Tensor &bias,
+    bool has_bias,
+    bool transposed,
+    at::IntArrayRef stride_r,
+    at::IntArrayRef padding_r,
+    at::IntArrayRef dilation_r,
+    at::IntArrayRef output_padding_r,
+    std::int64_t groups)
+{
+    at::Tensor input = input_r;
+    at::Tensor weight = weight_r;
+    std::vector<std::int64_t> stride = stride_r.vec();
+    std::vector<std::int64_t> padding = padding_r.vec();
+    std::vector<std::int64_t> dilation = dilation_r.vec();
+    std::vector<std::int64_t> output_padding = output_padding_r.vec();
+    view1d_as_2d_inplace(
+        input,
+        weight,
+        &out,
+        nullptr,
+        stride,
+        padding,
+        dilation,
+        output_padding);
+    std::optional<at::Tensor> bias_opt = c10::nullopt;
+    if (has_bias)
+    {
+        bias_opt = bias;
+    }
+    at::native::ConvBackend const backend = select_conv_backend_train(
+        input,
+        weight,
+        bias_opt,
+        stride,
+        padding,
+        dilation,
+        transposed,
+        output_padding,
+        groups,
+        c10::nullopt);
+    at::MemoryFormat const fmt =
+        at::native::_determine_backend_memory_format(
+            input,
+            weight,
+            backend);
+    std::vector<std::int64_t> const ksize = kernel_spatial(weight);
+    switch (backend)
+    {
+#ifdef NNTILE_USE_CUDA
+    case at::native::ConvBackend::Cudnn:
+    {
+        at::Context const &ctx = at::globalContext();
+        at::cudnn_convolution_out(
+            out,
+            input.contiguous(fmt),
+            weight,
+            padding,
+            stride,
+            dilation,
+            groups,
+            ctx.benchmarkCuDNN(),
+            ctx.deterministicCuDNN()
+                || ctx.deterministicAlgorithms(),
+            ctx.allowTF32CuDNN("conv"));
+        if (has_bias)
+        {
+            out.add_(
+                at::native::reshape_bias(input.dim(), bias));
+        }
+        break;
+    }
+    case at::native::ConvBackend::CudaDepthwise2d:
+        at::_conv_depthwise2d_out(
+            out,
+            input.contiguous(),
+            weight,
+            ksize,
+            bias_opt,
+            stride,
+            padding,
+            dilation);
+        break;
+    case at::native::ConvBackend::CudnnTranspose:
+    {
+        at::Context const &ctx = at::globalContext();
+        at::cudnn_convolution_transpose_out(
+            out,
+            input.contiguous(fmt),
+            weight,
+            padding,
+            output_padding,
+            stride,
+            dilation,
+            groups,
+            ctx.benchmarkCuDNN(),
+            ctx.deterministicCuDNN()
+                || ctx.deterministicAlgorithms(),
+            ctx.allowTF32CuDNN("conv"));
+        if (has_bias)
+        {
+            out.add_(
+                at::native::reshape_bias(input.dim(), bias));
+        }
+        break;
+    }
+#endif
+    case at::native::ConvBackend::Slow2d:
+    case at::native::ConvBackend::NnpackSpatial:
+        if (groups != 1)
+        {
+            throw std::runtime_error(
+                "torch conv Slow2d groups>1 has no public *_out");
+        }
+        at::_slow_conv2d_forward_out(
+            out,
+            input.contiguous(fmt),
+            weight.contiguous(fmt),
+            ksize,
+            bias_opt,
+            stride,
+            padding);
+        break;
+    case at::native::ConvBackend::SlowTranspose2d:
+        if (groups != 1)
+        {
+            throw std::runtime_error(
+                "torch conv SlowTranspose2d groups>1 has no public *_out");
+        }
+        at::slow_conv_transpose2d_out(
+            out,
+            input.contiguous(fmt),
+            weight.contiguous(fmt),
+            ksize,
+            bias_opt,
+            stride,
+            padding,
+            output_padding,
+            dilation);
+        break;
+    case at::native::ConvBackend::SlowTranspose3d:
+        if (groups != 1)
+        {
+            throw std::runtime_error(
+                "torch conv SlowTranspose3d groups>1 has no public *_out");
+        }
+        at::slow_conv_transpose3d_out(
+            out,
+            input.contiguous(fmt),
+            weight.contiguous(fmt),
+            ksize,
+            bias_opt,
+            stride,
+            padding,
+            output_padding,
+            dilation);
+        break;
+    case at::native::ConvBackend::Slow3d:
+        at::slow_conv3d_forward_out(
+            out,
+            input,
+            weight,
+            ksize,
+            bias_opt,
+            stride,
+            padding);
+        break;
+    case at::native::ConvBackend::SlowDilated2d:
+        at::slow_conv_dilated2d_out(
+            out,
+            input.contiguous(fmt),
+            weight.contiguous(fmt),
+            ksize,
+            bias_opt,
+            stride,
+            padding,
+            dilation);
+        break;
+    // CPU oneDNN (pip/conda torch). Write dense StarPU storage via *.out.
+    case at::native::ConvBackend::Mkldnn:
+        at::mkldnn_convolution_out(
+            out,
+            input.contiguous(fmt),
+            weight,
+            bias_opt,
+            padding,
+            stride,
+            dilation,
+            groups);
+        break;
+    case at::native::ConvBackend::Empty:
+    case at::native::ConvBackend::MkldnnEmpty:
+        out.zero_();
+        break;
+    default:
+        throw std::runtime_error(
+            std::string("torch conv: unsupported select_conv_backend ")
+            + std::to_string(static_cast<int>(backend)));
+    }
+}
+
+void convolution_backward_into(
+    at::Tensor &grad_input,
+    at::Tensor &grad_weight,
+    at::Tensor &grad_bias,
+    const at::Tensor &grad_out_r,
+    const at::Tensor &input_r,
+    const at::Tensor &weight_r,
+    bool transposed,
+    at::IntArrayRef stride_r,
+    at::IntArrayRef padding_r,
+    at::IntArrayRef dilation_r,
+    at::IntArrayRef output_padding_r,
+    std::int64_t groups,
+    at::OptionalIntArrayRef bias_sizes)
+{
+    at::Tensor input = input_r;
+    at::Tensor weight = weight_r;
+    at::Tensor grad_out = grad_out_r;
+    std::vector<std::int64_t> stride = stride_r.vec();
+    std::vector<std::int64_t> padding = padding_r.vec();
+    std::vector<std::int64_t> dilation = dilation_r.vec();
+    std::vector<std::int64_t> output_padding = output_padding_r.vec();
+    view1d_as_2d_inplace(
+        input,
+        weight,
+        nullptr,
+        &grad_out,
+        stride,
+        padding,
+        dilation,
+        output_padding);
+    if (grad_input.defined() && input_r.ndimension() == 3)
+    {
+        grad_input = grad_input.unsqueeze(2);
+    }
+    if (grad_weight.defined() && weight_r.ndimension() == 3)
+    {
+        grad_weight = grad_weight.unsqueeze(2);
+    }
+    at::OptionalSymIntArrayRef bias_sizes_sym = c10::nullopt;
+    std::vector<c10::SymInt> bias_sym;
+    if (bias_sizes.has_value())
+    {
+        for (std::int64_t const s : *bias_sizes)
+        {
+            bias_sym.emplace_back(s);
+        }
+        bias_sizes_sym = at::OptionalSymIntArrayRef(bias_sym);
+    }
+    at::native::ConvBackend const backend = select_conv_backend_train(
+        input,
+        weight,
+        c10::nullopt,
+        stride,
+        padding,
+        dilation,
+        transposed,
+        output_padding,
+        groups,
+        bias_sizes_sym);
+    at::MemoryFormat const fmt =
+        at::native::_determine_backend_memory_format(
+            input,
+            weight,
+            backend);
+    std::vector<std::int64_t> const ksize = kernel_spatial(weight);
+    switch (backend)
+    {
+#ifdef NNTILE_USE_CUDA
+    case at::native::ConvBackend::Cudnn:
+    case at::native::ConvBackend::CudnnTranspose:
+    case at::native::ConvBackend::CudaDepthwise2d:
+    case at::native::ConvBackend::SlowTranspose2d:
+        convolution_backward_public_out(
+            grad_input,
+            grad_weight,
+            grad_bias,
+            grad_out,
+            grad_weight.defined()
+                ? input.contiguous(fmt)
+                : input,
+            weight,
+            transposed,
+            stride,
+            padding,
+            dilation,
+            output_padding,
+            groups,
+            bias_sizes);
+        break;
+#endif
+    case at::native::ConvBackend::Slow2d:
+    case at::native::ConvBackend::NnpackSpatial:
+        at::_slow_conv2d_backward_out(
+            grad_input,
+            grad_weight,
+            grad_bias,
+            grad_out,
+            input.contiguous(fmt),
+            weight.contiguous(fmt),
+            ksize,
+            stride,
+            padding);
+        break;
+    case at::native::ConvBackend::Mkldnn:
+    case at::native::ConvBackend::SlowDilated2d:
+        convolution_backward_public_out(
+            grad_input,
+            grad_weight,
+            grad_bias,
+            grad_out,
+            input.contiguous(fmt),
+            weight,
+            transposed,
+            stride,
+            padding,
+            dilation,
+            output_padding,
+            groups,
+            bias_sizes);
+        break;
+    case at::native::ConvBackend::Empty:
+    case at::native::ConvBackend::MkldnnEmpty:
+        if (grad_input.defined())
+        {
+            grad_input.zero_();
+        }
+        if (grad_weight.defined())
+        {
+            grad_weight.zero_();
+        }
+        if (grad_bias.defined())
+        {
+            grad_bias.zero_();
+        }
+        break;
+    default:
+        throw std::runtime_error(
+            std::string("torch conv bwd: unsupported select_conv_backend ")
+            + std::to_string(static_cast<int>(backend)));
+    }
+}
+
 void run_unary(
     TorchDispatchArgs *args,
     float *in,
@@ -249,6 +836,15 @@ void run_unary(
         break;
     case TorchKind::Exp:
         at::exp_out(result, self);
+        break;
+    case TorchKind::Log:
+        at::log_out(result, self);
+        break;
+    case TorchKind::Triu:
+        at::triu_out(
+            result,
+            self,
+            static_cast<std::int64_t>(args->iargs[0]));
         break;
     case TorchKind::AvgPool2d:
         at::avg_pool2d_out(
@@ -336,6 +932,26 @@ void run_unary(
         }
         break;
     }
+    case TorchKind::Mean:
+    {
+        std::vector<std::int64_t> dims;
+        const Index nd = args->iargs[0];
+        for (Index i = 0; i < nd; ++i)
+        {
+            dims.push_back(
+                static_cast<std::int64_t>(args->iargs[2 + i]));
+        }
+        const bool keepdim = args->iargs[1] != 0;
+        if (dims.empty())
+        {
+            at::mean_out(result, self);
+        }
+        else
+        {
+            at::mean_out(result, self, dims, keepdim);
+        }
+        break;
+    }
     case TorchKind::VectorNorm:
     {
         const std::int64_t dim = static_cast<std::int64_t>(args->iargs[2]);
@@ -385,8 +1001,11 @@ void run_unary(
         break;
     }
     case TorchKind::Copy:
+    case TorchKind::CopyIntoView:
     {
-        // Densify a (possibly non-contiguous) view into contiguous out.
+        // Copy: densify a view into contiguous out.
+        // CopyIntoView: packed out layout is a view of the parent
+        // StarPU buffer (STARPU_RW); copy_ writes only that region.
         if (self.sizes() != result.sizes())
         {
             auto fmt = [](at::IntArrayRef dims) {
@@ -433,6 +1052,12 @@ void run_unary(
     }
     case TorchKind::MulScalar:
         at::mul_out(
+            result,
+            self,
+            static_cast<double>(args->scalars[0]));
+        break;
+    case TorchKind::PowScalar:
+        at::pow_out(
             result,
             self,
             static_cast<double>(args->scalars[0]));
@@ -505,6 +1130,9 @@ void run_binary(
             ta,
             tb,
             static_cast<double>(args->scalars[0]));
+        break;
+    case TorchKind::Div:
+        at::div_out(result, ta, tb);
         break;
     case TorchKind::Hypot:
         at::hypot_out(result, ta, tb);
@@ -604,7 +1232,10 @@ void run_ternary(
         break;
     case TorchKind::Sdpa:
     {
-        // No public *_out for SDPA; materialize into preallocated out.
+        // Debt D8: fused SDPA codelet. F.sdpa on nntile uses MATH
+        // composite instead (mm / softmax TensorGraph nodes). Keep this
+        // path for a later fused implementation; do not call it from
+        // _fused_sdp_choice.
         const bool is_causal = args->iargs[1] != 0;
         auto attn = at::scaled_dot_product_attention(
             ta,
@@ -677,19 +1308,15 @@ void run_sdpa_efficient_backward(
     at::Tensor &grad_k,
     at::Tensor &grad_v)
 {
-    at::Tensor qc = q.contiguous();
-    at::Tensor kc = k.contiguous();
-    at::Tensor vc = v.contiguous();
-    at::Tensor goc = grad_out.contiguous();
     c10::optional<at::Tensor> bias = c10::nullopt;
     if (attn_mask.has_value())
     {
-        bias = attn_mask->contiguous();
+        bias = *attn_mask;
     }
     auto fwd = at::_scaled_dot_product_efficient_attention(
-        qc,
-        kc,
-        vc,
+        q,
+        k,
+        v,
         bias,
         /*compute_log_sumexp=*/true,
         /*dropout_p=*/0.0,
@@ -698,10 +1325,10 @@ void run_sdpa_efficient_backward(
     at::Tensor bias_tensor =
         bias.has_value() ? *bias : at::Tensor();
     auto bwd = at::_scaled_dot_product_efficient_attention_backward(
-        goc,
-        qc,
-        kc,
-        vc,
+        grad_out,
+        q,
+        k,
+        v,
         bias_tensor,
         std::get<0>(fwd),
         std::get<1>(fwd),
@@ -878,10 +1505,32 @@ void TorchUnary<std::tuple<fp32_t>>::cpu(void *buffers[], void *cl_args)
         auto *args = reinterpret_cast<args_t *>(cl_args);
         auto **ifaces =
             reinterpret_cast<VariableInterface **>(buffers);
-        float *in = ifaces[0]->get_ptr<float>();
-        float *out = ifaces[1]->get_ptr<float>();
         at::AutoDispatchBelowADInplaceOrView guard;
         at::NoGradGuard no_grad;
+        if (args->kind == TorchKind::Tril)
+        {
+            bool_t *in = ifaces[0]->get_ptr<bool_t>();
+            bool_t *out = ifaces[1]->get_ptr<bool_t>();
+            at::Tensor self = in_bool(
+                reinterpret_cast<bool *>(in),
+                *args,
+                0,
+                at::kCPU);
+            at::Tensor result = out_bool(
+                reinterpret_cast<bool *>(out),
+                *args,
+                0,
+                at::kCPU);
+            at::tril_out(
+                result,
+                self,
+                static_cast<std::int64_t>(args->iargs[0]));
+            return;
+        }
+        float *in = ifaces[0]->get_ptr<float>();
+        float *out = copy_into_view_aliases_in(args)
+            ? in
+            : ifaces[1]->get_ptr<float>();
         run_unary(args, in, out, at::kCPU);
     }
     catch (const std::exception &ex)
@@ -908,10 +1557,32 @@ void TorchUnary<std::tuple<fp32_t>>::cuda(void *buffers[], void *cl_args)
         auto *args = reinterpret_cast<args_t *>(cl_args);
         auto **ifaces =
             reinterpret_cast<VariableInterface **>(buffers);
-        float *in = ifaces[0]->get_ptr<float>();
-        float *out = ifaces[1]->get_ptr<float>();
         at::AutoDispatchBelowADInplaceOrView guard;
         at::NoGradGuard no_grad;
+        if (args->kind == TorchKind::Tril)
+        {
+            bool_t *in = ifaces[0]->get_ptr<bool_t>();
+            bool_t *out = ifaces[1]->get_ptr<bool_t>();
+            at::Tensor self = in_bool(
+                reinterpret_cast<bool *>(in),
+                *args,
+                0,
+                cuda_env.device());
+            at::Tensor result = out_bool(
+                reinterpret_cast<bool *>(out),
+                *args,
+                0,
+                cuda_env.device());
+            at::tril_out(
+                result,
+                self,
+                static_cast<std::int64_t>(args->iargs[0]));
+            return;
+        }
+        float *in = ifaces[0]->get_ptr<float>();
+        float *out = copy_into_view_aliases_in(args)
+            ? in
+            : ifaces[1]->get_ptr<float>();
         run_unary(args, in, out, cuda_env.device());
     }
     catch (const std::exception &ex)
@@ -942,17 +1613,53 @@ void TorchUnary<std::tuple<T>>::submit(
 )
 {
     args_t *args = clone_args(meta);
-    int ret = nntile_starpu_task_insert(
-        &codelet,
-        starpu_worker_hint,
-        STARPU_R,
-        in.get(),
-        STARPU_CL_ARGS,
-        args,
-        sizeof(*args),
-        STARPU_W,
-        out.get(),
-        0);
+    int ret = 0;
+    if (args->kind == TorchKind::CopyIntoView)
+    {
+        // Preserve parent values outside the packed view (RW, not W).
+        const bool out_aliases_in = (out.get() == in.get());
+        args->iargs[7] = out_aliases_in ? 1 : 0;
+        if (out_aliases_in)
+        {
+            ret = nntile_starpu_task_insert(
+                &codelet,
+                starpu_worker_hint,
+                STARPU_RW,
+                in.get(),
+                STARPU_CL_ARGS,
+                args,
+                sizeof(*args),
+                0);
+        }
+        else
+        {
+            ret = nntile_starpu_task_insert(
+                &codelet,
+                starpu_worker_hint,
+                STARPU_R,
+                in.get(),
+                STARPU_CL_ARGS,
+                args,
+                sizeof(*args),
+                STARPU_RW,
+                out.get(),
+                0);
+        }
+    }
+    else
+    {
+        ret = nntile_starpu_task_insert(
+            &codelet,
+            starpu_worker_hint,
+            STARPU_R,
+            in.get(),
+            STARPU_CL_ARGS,
+            args,
+            sizeof(*args),
+            STARPU_W,
+            out.get(),
+            0);
+    }
     if (ret != 0)
     {
         throw std::runtime_error("torch_unary.submit failed");
@@ -1304,6 +2011,667 @@ void TorchEmbedding::submit(
     }
 }
 
+TorchWhere::TorchWhere():
+    codelet("nntile_torch_where", footprint, cpu_funcs, cuda_funcs)
+{
+}
+
+void TorchWhere::cpu(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        auto *args = reinterpret_cast<args_t *>(cl_args);
+        auto **ifaces =
+            reinterpret_cast<VariableInterface **>(buffers);
+        bool_t *cond_ptr = ifaces[0]->get_ptr<bool_t>();
+        at::Tensor cond = in_bool(
+            reinterpret_cast<bool *>(cond_ptr),
+            *args,
+            0);
+        at::AutoDispatchBelowADInplaceOrView guard;
+        at::NoGradGuard no_grad;
+        if (args->iargs[15] != 0)
+        {
+            std::int64_t *self_ptr =
+                ifaces[1]->get_ptr<std::int64_t>();
+            std::int64_t *other_ptr =
+                ifaces[2]->get_ptr<std::int64_t>();
+            std::int64_t *out_ptr =
+                ifaces[3]->get_ptr<std::int64_t>();
+            at::Tensor self = in_i64(self_ptr, *args, 1);
+            at::Tensor other = in_i64(other_ptr, *args, 2);
+            at::Tensor result = out_i64(out_ptr, *args, 0);
+            at::where_out(result, cond, self, other);
+        }
+        else
+        {
+            float *self_ptr = ifaces[1]->get_ptr<float>();
+            float *other_ptr = ifaces[2]->get_ptr<float>();
+            float *out_ptr = ifaces[3]->get_ptr<float>();
+            at::Tensor self = in_fp32(self_ptr, *args, 1);
+            at::Tensor other = in_fp32(other_ptr, *args, 2);
+            at::Tensor result = out_fp32(out_ptr, *args, 0);
+            at::where_out(result, cond, self, other);
+        }
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_where failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+
+
+#ifdef NNTILE_USE_CUDA
+void TorchWhere::cuda(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        // StarPU stream + cuBLAS; TLS blob device = CUDA.
+        TorchCudaEnv cuda_env;
+        (void)cuda_env;
+        cpu(buffers, cl_args);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_where CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+#endif // NNTILE_USE_CUDA
+
+uint32_t TorchWhere::footprint(struct starpu_task *task)
+{
+    return args_footprint(
+        reinterpret_cast<args_t *>(task->cl_arg));
+}
+
+void TorchWhere::submit(
+    int starpu_worker_hint,
+    const args_t &meta,
+    Handle condition,
+    Handle self,
+    Handle other,
+    Handle out
+)
+{
+    args_t *args = clone_args(meta);
+    int ret = nntile_starpu_task_insert(
+        &codelet,
+        starpu_worker_hint,
+        STARPU_R,
+        condition.get(),
+        STARPU_R,
+        self.get(),
+        STARPU_R,
+        other.get(),
+        STARPU_CL_ARGS,
+        args,
+        sizeof(*args),
+        STARPU_W,
+        out.get(),
+        0);
+    if (ret != 0)
+    {
+        throw std::runtime_error("torch_where.submit failed");
+    }
+}
+
+TorchArange::TorchArange():
+    codelet("nntile_torch_arange", footprint, cpu_funcs, cuda_funcs)
+{
+}
+
+void TorchArange::cpu(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        auto *args = reinterpret_cast<args_t *>(cl_args);
+        auto **ifaces =
+            reinterpret_cast<VariableInterface **>(buffers);
+        at::AutoDispatchBelowADInplaceOrView guard;
+        at::NoGradGuard no_grad;
+        if (args->kind == TorchKind::ArangeFp32)
+        {
+            float *out_ptr = ifaces[0]->get_ptr<float>();
+            at::Tensor result = out_fp32(out_ptr, *args, 0);
+            at::arange_out(
+                result,
+                at::Scalar(
+                    static_cast<double>(args->scalars[0])),
+                at::Scalar(
+                    static_cast<double>(args->scalars[1])),
+                at::Scalar(
+                    static_cast<double>(args->scalars[2])));
+        }
+        else if (args->kind == TorchKind::FillI64)
+        {
+            std::int64_t *out_ptr =
+                ifaces[0]->get_ptr<std::int64_t>();
+            at::Tensor result = out_i64(out_ptr, *args, 0);
+            result.fill_(
+                static_cast<std::int64_t>(args->iargs[0]));
+        }
+        else if (args->kind == TorchKind::FillBool)
+        {
+            bool_t *out_ptr = ifaces[0]->get_ptr<bool_t>();
+            at::Tensor result = out_bool(
+                reinterpret_cast<bool *>(out_ptr),
+                *args,
+                0);
+            result.fill_(args->iargs[0] != 0);
+        }
+        else
+        {
+            std::int64_t *out_ptr =
+                ifaces[0]->get_ptr<std::int64_t>();
+            at::Tensor result = out_i64(out_ptr, *args, 0);
+            at::arange_out(
+                result,
+                at::Scalar(
+                    static_cast<std::int64_t>(args->iargs[0])),
+                at::Scalar(
+                    static_cast<std::int64_t>(args->iargs[1])),
+                at::Scalar(
+                    static_cast<std::int64_t>(args->iargs[2])));
+        }
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_arange failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+
+
+#ifdef NNTILE_USE_CUDA
+void TorchArange::cuda(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        TorchCudaEnv cuda_env;
+        (void)cuda_env;
+        cpu(buffers, cl_args);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_arange CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+#endif // NNTILE_USE_CUDA
+
+uint32_t TorchArange::footprint(struct starpu_task *task)
+{
+    return args_footprint(
+        reinterpret_cast<args_t *>(task->cl_arg));
+}
+
+void TorchArange::submit(
+    int starpu_worker_hint,
+    const args_t &meta,
+    Handle out
+)
+{
+    args_t *args = clone_args(meta);
+    int ret = nntile_starpu_task_insert(
+        &codelet,
+        starpu_worker_hint,
+        STARPU_CL_ARGS,
+        args,
+        sizeof(*args),
+        STARPU_W,
+        out.get(),
+        0);
+    if (ret != 0)
+    {
+        throw std::runtime_error("torch_arange.submit failed");
+    }
+}
+
+TorchGt::TorchGt():
+    codelet("nntile_torch_gt", footprint, cpu_funcs, cuda_funcs)
+{
+}
+
+void TorchGt::cpu(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        auto *args = reinterpret_cast<args_t *>(cl_args);
+        auto **ifaces =
+            reinterpret_cast<VariableInterface **>(buffers);
+        at::AutoDispatchBelowADInplaceOrView guard;
+        at::NoGradGuard no_grad;
+        if (args->kind == TorchKind::Mul && args->iargs[15] == 3)
+        {
+            float *a_ptr = ifaces[0]->get_ptr<float>();
+            bool_t *b_ptr = ifaces[1]->get_ptr<bool_t>();
+            float *out_ptr = ifaces[2]->get_ptr<float>();
+            at::Tensor ta = in_fp32(a_ptr, *args, 0);
+            at::Tensor tb = in_bool(
+                reinterpret_cast<bool *>(b_ptr),
+                *args,
+                1);
+            at::Tensor result = out_fp32(out_ptr, *args, 0);
+            at::mul_out(result, ta, tb);
+            return;
+        }
+        if (args->kind == TorchKind::Mul && args->iargs[15] == 2)
+        {
+            bool_t *a_ptr = ifaces[0]->get_ptr<bool_t>();
+            bool_t *b_ptr = ifaces[1]->get_ptr<bool_t>();
+            bool_t *out_ptr = ifaces[2]->get_ptr<bool_t>();
+            at::Tensor ta = in_bool(
+                reinterpret_cast<bool *>(a_ptr),
+                *args,
+                0);
+            at::Tensor tb = in_bool(
+                reinterpret_cast<bool *>(b_ptr),
+                *args,
+                1);
+            at::Tensor result = out_bool(
+                reinterpret_cast<bool *>(out_ptr),
+                *args,
+                0);
+            at::mul_out(result, ta, tb);
+            return;
+        }
+        if (args->kind == TorchKind::Eq)
+        {
+            float *a_ptr = ifaces[0]->get_ptr<float>();
+            float *b_ptr = ifaces[1]->get_ptr<float>();
+            bool_t *out_ptr = ifaces[2]->get_ptr<bool_t>();
+            at::Tensor ta = in_fp32(a_ptr, *args, 0);
+            at::Tensor tb = in_fp32(b_ptr, *args, 1);
+            at::Tensor result = out_bool(
+                reinterpret_cast<bool *>(out_ptr),
+                *args,
+                0);
+            at::eq_out(result, ta, tb);
+        }
+        else
+        {
+            std::int64_t *a_ptr = ifaces[0]->get_ptr<std::int64_t>();
+            std::int64_t *b_ptr = ifaces[1]->get_ptr<std::int64_t>();
+            at::Tensor ta = in_i64(a_ptr, *args, 0);
+            at::Tensor tb = in_i64(b_ptr, *args, 1);
+            switch (args->kind)
+            {
+        case TorchKind::Lt:
+        {
+            bool_t *out_ptr = ifaces[2]->get_ptr<bool_t>();
+            at::Tensor result = out_bool(
+                reinterpret_cast<bool *>(out_ptr),
+                *args,
+                0);
+            at::lt_out(result, ta, tb);
+            break;
+        }
+        case TorchKind::Sub:
+        {
+            std::int64_t *out_ptr =
+                ifaces[2]->get_ptr<std::int64_t>();
+            at::Tensor result = out_i64(out_ptr, *args, 0);
+            at::sub_out(result, ta, tb, /*alpha=*/1);
+            break;
+        }
+        case TorchKind::Add:
+        {
+            std::int64_t *out_ptr =
+                ifaces[2]->get_ptr<std::int64_t>();
+            at::Tensor result = out_i64(out_ptr, *args, 0);
+            at::add_out(result, ta, tb, /*alpha=*/1);
+            break;
+        }
+        case TorchKind::Mul:
+        {
+            std::int64_t *out_ptr =
+                ifaces[2]->get_ptr<std::int64_t>();
+            at::Tensor result = out_i64(out_ptr, *args, 0);
+            at::mul_out(result, ta, tb);
+            break;
+        }
+        case TorchKind::Minimum:
+        {
+            std::int64_t *out_ptr =
+                ifaces[2]->get_ptr<std::int64_t>();
+            at::Tensor result = out_i64(out_ptr, *args, 0);
+            at::minimum_out(result, ta, tb);
+            break;
+        }
+        default:
+        {
+            bool_t *out_ptr = ifaces[2]->get_ptr<bool_t>();
+            at::Tensor result = out_bool(
+                reinterpret_cast<bool *>(out_ptr),
+                *args,
+                0);
+            at::gt_out(result, ta, tb);
+            break;
+        }
+            }
+        }
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_gt failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+
+
+#ifdef NNTILE_USE_CUDA
+void TorchGt::cuda(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        TorchCudaEnv cuda_env;
+        (void)cuda_env;
+        cpu(buffers, cl_args);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_gt CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+#endif // NNTILE_USE_CUDA
+
+uint32_t TorchGt::footprint(struct starpu_task *task)
+{
+    return args_footprint(
+        reinterpret_cast<args_t *>(task->cl_arg));
+}
+
+void TorchGt::submit(
+    int starpu_worker_hint,
+    const args_t &meta,
+    Handle a,
+    Handle b,
+    Handle out
+)
+{
+    args_t *args = clone_args(meta);
+    int ret = nntile_starpu_task_insert(
+        &codelet,
+        starpu_worker_hint,
+        STARPU_R,
+        a.get(),
+        STARPU_R,
+        b.get(),
+        STARPU_CL_ARGS,
+        args,
+        sizeof(*args),
+        STARPU_W,
+        out.get(),
+        0);
+    if (ret != 0)
+    {
+        throw std::runtime_error("torch_gt.submit failed");
+    }
+}
+
+TorchI64Unary::TorchI64Unary():
+    codelet("nntile_torch_i64_unary", footprint, cpu_funcs, cuda_funcs)
+{
+}
+
+void TorchI64Unary::cpu(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        auto *args = reinterpret_cast<args_t *>(cl_args);
+        auto **ifaces =
+            reinterpret_cast<VariableInterface **>(buffers);
+        std::int64_t *in_ptr = ifaces[0]->get_ptr<std::int64_t>();
+        std::int64_t *out_ptr = copy_into_view_aliases_in(args)
+            ? in_ptr
+            : ifaces[1]->get_ptr<std::int64_t>();
+        at::Tensor self = in_i64(in_ptr, *args, 0);
+        at::Tensor result = out_i64(out_ptr, *args, 0);
+        at::AutoDispatchBelowADInplaceOrView guard;
+        at::NoGradGuard no_grad;
+        switch (args->kind)
+        {
+        case TorchKind::Abs:
+            at::abs_out(result, self);
+            break;
+        case TorchKind::Neg:
+            at::neg_out(result, self);
+            break;
+        case TorchKind::Copy:
+        case TorchKind::CopyIntoView:
+            result.copy_(self);
+            break;
+        default:
+            throw std::runtime_error(
+                "torch_i64_unary: unsupported kind");
+        }
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_i64_unary failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+
+
+#ifdef NNTILE_USE_CUDA
+void TorchI64Unary::cuda(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        TorchCudaEnv cuda_env;
+        (void)cuda_env;
+        cpu(buffers, cl_args);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_i64_unary CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+#endif // NNTILE_USE_CUDA
+
+uint32_t TorchI64Unary::footprint(struct starpu_task *task)
+{
+    return args_footprint(
+        reinterpret_cast<args_t *>(task->cl_arg));
+}
+
+void TorchI64Unary::submit(
+    int starpu_worker_hint,
+    const args_t &meta,
+    Handle in,
+    Handle out
+)
+{
+    args_t *args = clone_args(meta);
+    int ret = 0;
+    if (args->kind == TorchKind::CopyIntoView)
+    {
+        const bool out_aliases_in = (out.get() == in.get());
+        args->iargs[7] = out_aliases_in ? 1 : 0;
+        if (out_aliases_in)
+        {
+            ret = nntile_starpu_task_insert(
+                &codelet,
+                starpu_worker_hint,
+                STARPU_RW,
+                in.get(),
+                STARPU_CL_ARGS,
+                args,
+                sizeof(*args),
+                0);
+        }
+        else
+        {
+            ret = nntile_starpu_task_insert(
+                &codelet,
+                starpu_worker_hint,
+                STARPU_R,
+                in.get(),
+                STARPU_CL_ARGS,
+                args,
+                sizeof(*args),
+                STARPU_RW,
+                out.get(),
+                0);
+        }
+    }
+    else
+    {
+        ret = nntile_starpu_task_insert(
+            &codelet,
+            starpu_worker_hint,
+            STARPU_R,
+            in.get(),
+            STARPU_CL_ARGS,
+            args,
+            sizeof(*args),
+            STARPU_W,
+            out.get(),
+            0);
+    }
+    if (ret != 0)
+    {
+        throw std::runtime_error("torch_i64_unary.submit failed");
+    }
+}
+
+TorchCast::TorchCast():
+    codelet("nntile_torch_cast", footprint, cpu_funcs, cuda_funcs)
+{
+}
+
+void TorchCast::cpu(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        auto *args = reinterpret_cast<args_t *>(cl_args);
+        auto **ifaces =
+            reinterpret_cast<VariableInterface **>(buffers);
+        at::Tensor self = in_tagged(
+            ifaces[0],
+            *args,
+            0,
+            args->iargs[0]);
+        at::Tensor result = out_tagged(
+            ifaces[1],
+            *args,
+            0,
+            args->iargs[1]);
+        at::AutoDispatchBelowADInplaceOrView guard;
+        at::NoGradGuard no_grad;
+        result.copy_(self);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_cast failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+
+
+#ifdef NNTILE_USE_CUDA
+void TorchCast::cuda(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        TorchCudaEnv cuda_env;
+        (void)cuda_env;
+        cpu(buffers, cl_args);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_cast CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+#endif // NNTILE_USE_CUDA
+
+uint32_t TorchCast::footprint(struct starpu_task *task)
+{
+    return args_footprint(
+        reinterpret_cast<args_t *>(task->cl_arg));
+}
+
+void TorchCast::submit(
+    int starpu_worker_hint,
+    const args_t &meta,
+    Handle in,
+    Handle out
+)
+{
+    args_t *args = clone_args(meta);
+    int ret = nntile_starpu_task_insert(
+        &codelet,
+        starpu_worker_hint,
+        STARPU_R,
+        in.get(),
+        STARPU_CL_ARGS,
+        args,
+        sizeof(*args),
+        STARPU_W,
+        out.get(),
+        0);
+    if (ret != 0)
+    {
+        throw std::runtime_error("torch_cast.submit failed");
+    }
+}
+
 TorchCat::TorchCat():
     codelet("nntile_torch_cat", footprint, cpu_funcs, cuda_funcs)
 {
@@ -1574,580 +2942,6 @@ template class TorchUnary<std::tuple<nntile::fp32_t>>;
 template class TorchBinary<std::tuple<nntile::fp32_t>>;
 template class TorchTernary<std::tuple<nntile::fp32_t>>;
 
-TorchLayerNorm::TorchLayerNorm():
-    codelet("nntile_torch_layer_norm", footprint, cpu_funcs, cuda_funcs)
-{
-}
-
-void TorchLayerNorm::cpu(void *buffers[], void *cl_args) noexcept
-{
-#ifndef STARPU_SIMGRID
-    try
-    {
-        auto *args = reinterpret_cast<args_t *>(cl_args);
-        auto **ifaces =
-            reinterpret_cast<VariableInterface **>(buffers);
-        float *in_ptr = ifaces[0]->get_ptr<float>();
-        float *out_ptr = ifaces[1]->get_ptr<float>();
-        float *mean_ptr = ifaces[2]->get_ptr<float>();
-        float *rstd_ptr = ifaces[3]->get_ptr<float>();
-        const bool has_w = args->iargs[1] != 0;
-        const bool has_b = args->iargs[2] != 0;
-        Index buf = 4;
-        at::Tensor weight;
-        at::Tensor bias;
-        if (has_w)
-        {
-            weight = in_fp32(ifaces[buf++]->get_ptr<float>(), *args, 1);
-        }
-        if (has_b)
-        {
-            bias = in_fp32(ifaces[buf++]->get_ptr<float>(), *args, 2);
-        }
-        at::Tensor input = in_fp32(in_ptr, *args, 0);
-        at::Tensor out = out_fp32(out_ptr, *args, 0);
-        at::Tensor mean = out_fp32(mean_ptr, *args, 1);
-        at::Tensor rstd = out_fp32(rstd_ptr, *args, 2);
-        const std::int64_t n = static_cast<std::int64_t>(args->iargs[0]);
-        std::vector<std::int64_t> normalized_shape;
-        for (std::int64_t i = 0; i < n; ++i)
-        {
-            normalized_shape.push_back(
-                input.size(input.dim() - n + i));
-        }
-        at::AutoDispatchBelowADInplaceOrView guard;
-        at::NoGradGuard no_grad;
-        auto ln = at::native_layer_norm(
-            input,
-            normalized_shape,
-            has_w ? c10::optional<at::Tensor>(weight) : c10::nullopt,
-            has_b ? c10::optional<at::Tensor>(bias) : c10::nullopt,
-            static_cast<double>(args->scalars[0]));
-        out.copy_(std::get<0>(ln));
-        // ATen may keep normalized dims as size-1; NNTile stores reduced
-        // mean/rstd without those axes.
-        mean.copy_(std::get<1>(ln).reshape(mean.sizes()));
-        rstd.copy_(std::get<2>(ln).reshape(rstd.sizes()));
-    }
-    catch (const std::exception &ex)
-    {
-        std::fprintf(
-            stderr,
-            "nntile_torch_layer_norm failed: %s\n",
-            ex.what());
-        std::abort();
-    }
-#endif
-}
-
-
-#ifdef NNTILE_USE_CUDA
-void TorchLayerNorm::cuda(void *buffers[], void *cl_args) noexcept
-{
-#ifndef STARPU_SIMGRID
-    try
-    {
-        // StarPU stream + cuBLAS; TLS blob device = CUDA.
-        TorchCudaEnv cuda_env;
-        (void)cuda_env;
-        cpu(buffers, cl_args);
-    }
-    catch (const std::exception &ex)
-    {
-        std::fprintf(
-            stderr,
-            "nntile_torch_layer_norm CUDA failed: %s\n",
-            ex.what());
-        std::abort();
-    }
-#endif
-}
-#endif // NNTILE_USE_CUDA
-
-uint32_t TorchLayerNorm::footprint(struct starpu_task *task)
-{
-    return args_footprint(
-        reinterpret_cast<args_t *>(task->cl_arg));
-}
-
-void TorchLayerNorm::submit(
-    int starpu_worker_hint,
-    const args_t &meta,
-    Handle input,
-    Handle weight,
-    Handle bias,
-    Handle out,
-    Handle mean,
-    Handle rstd,
-    bool has_weight,
-    bool has_bias
-)
-{
-    args_t *args = clone_args(meta);
-    args->iargs[1] = has_weight ? 1 : 0;
-    args->iargs[2] = has_bias ? 1 : 0;
-    int ret = 0;
-    if (has_weight && has_bias)
-    {
-        ret = nntile_starpu_task_insert(
-            &codelet,
-            starpu_worker_hint,
-            STARPU_R,
-            input.get(),
-            STARPU_CL_ARGS,
-            args,
-            sizeof(*args),
-            STARPU_W,
-            out.get(),
-            STARPU_W,
-            mean.get(),
-            STARPU_W,
-            rstd.get(),
-            STARPU_R,
-            weight.get(),
-            STARPU_R,
-            bias.get(),
-            0);
-    }
-    else if (has_weight)
-    {
-        ret = nntile_starpu_task_insert(
-            &codelet,
-            starpu_worker_hint,
-            STARPU_R,
-            input.get(),
-            STARPU_CL_ARGS,
-            args,
-            sizeof(*args),
-            STARPU_W,
-            out.get(),
-            STARPU_W,
-            mean.get(),
-            STARPU_W,
-            rstd.get(),
-            STARPU_R,
-            weight.get(),
-            0);
-    }
-    else
-    {
-        ret = nntile_starpu_task_insert(
-            &codelet,
-            starpu_worker_hint,
-            STARPU_R,
-            input.get(),
-            STARPU_CL_ARGS,
-            args,
-            sizeof(*args),
-            STARPU_W,
-            out.get(),
-            STARPU_W,
-            mean.get(),
-            STARPU_W,
-            rstd.get(),
-            0);
-    }
-    if (ret != 0)
-    {
-        throw std::runtime_error("torch_layer_norm.submit failed");
-    }
-}
-
-TorchLayerNormBackward::TorchLayerNormBackward():
-    codelet(
-        "nntile_torch_layer_norm_backward",
-        footprint,
-        cpu_funcs,
-        cuda_funcs)
-{
-}
-
-void TorchLayerNormBackward::cpu(void *buffers[], void *cl_args) noexcept
-{
-#ifndef STARPU_SIMGRID
-    try
-    {
-        auto *args = reinterpret_cast<args_t *>(cl_args);
-        auto **ifaces =
-            reinterpret_cast<VariableInterface **>(buffers);
-        const bool has_w = args->iargs[1] != 0;
-        const bool has_b = args->iargs[2] != 0;
-        const bool need_gi = args->iargs[3] != 0;
-        const bool need_gw = args->iargs[4] != 0;
-        const bool need_gb = args->iargs[5] != 0;
-        Index buf = 0;
-        float *grad_out_ptr = ifaces[buf++]->get_ptr<float>();
-        float *input_ptr = ifaces[buf++]->get_ptr<float>();
-        float *mean_ptr = ifaces[buf++]->get_ptr<float>();
-        float *rstd_ptr = ifaces[buf++]->get_ptr<float>();
-        float *gi_ptr = need_gi ? ifaces[buf++]->get_ptr<float>()
-            : nullptr;
-        float *gw_ptr = need_gw ? ifaces[buf++]->get_ptr<float>()
-            : nullptr;
-        float *gb_ptr = need_gb ? ifaces[buf++]->get_ptr<float>()
-            : nullptr;
-        at::Tensor weight;
-        at::Tensor bias;
-        if (has_w)
-        {
-            weight = in_fp32(
-                ifaces[buf++]->get_ptr<float>(),
-                *args,
-                4);
-        }
-        if (has_b)
-        {
-            bias = in_fp32(
-                ifaces[buf++]->get_ptr<float>(),
-                *args,
-                5);
-        }
-        at::Tensor grad_out = in_fp32(grad_out_ptr, *args, 0);
-        at::Tensor input = in_fp32(input_ptr, *args, 1);
-        at::Tensor mean = in_fp32(mean_ptr, *args, 2);
-        at::Tensor rstd = in_fp32(rstd_ptr, *args, 3);
-        // ATen may expect keepdim stats; reshape reduced buffers.
-        const std::int64_t n =
-            static_cast<std::int64_t>(args->iargs[0]);
-        std::vector<std::int64_t> normalized_shape;
-        for (std::int64_t i = 0; i < n; ++i)
-        {
-            normalized_shape.push_back(
-                input.size(input.dim() - n + i));
-        }
-        if (mean.dim() + n == input.dim())
-        {
-            std::vector<std::int64_t> stats = mean.sizes().vec();
-            for (std::int64_t i = 0; i < n; ++i)
-            {
-                stats.push_back(1);
-            }
-            mean = mean.reshape(stats);
-            rstd = rstd.reshape(stats);
-        }
-        at::Tensor grad_input;
-        at::Tensor grad_weight;
-        at::Tensor grad_bias;
-        if (need_gi)
-        {
-            grad_input = out_fp32(gi_ptr, *args, 0);
-        }
-        if (need_gw)
-        {
-            grad_weight = out_fp32(gw_ptr, *args, 1);
-        }
-        if (need_gb)
-        {
-            grad_bias = out_fp32(gb_ptr, *args, 2);
-        }
-        std::array<bool, 3> output_mask = {
-            need_gi,
-            need_gw,
-            need_gb};
-        at::AutoDispatchBelowADInplaceOrView guard;
-        at::NoGradGuard no_grad;
-        // ATen empty_like(bias/weight) requires defined affine tensors when
-        // the corresponding output_mask bit is set.
-        const bool use_out = need_gi && need_gw && need_gb && has_w
-            && has_b;
-        if (use_out)
-        {
-            at::native_layer_norm_backward_out(
-                grad_input,
-                grad_weight,
-                grad_bias,
-                grad_out,
-                input,
-                normalized_shape,
-                mean,
-                rstd,
-                weight,
-                bias,
-                output_mask);
-        }
-        else
-        {
-            auto grads = at::native_layer_norm_backward(
-                grad_out,
-                input,
-                normalized_shape,
-                mean,
-                rstd,
-                has_w ? c10::optional<at::Tensor>(weight)
-                    : c10::nullopt,
-                has_b ? c10::optional<at::Tensor>(bias)
-                    : c10::nullopt,
-                output_mask);
-            if (need_gi)
-            {
-                grad_input.copy_(std::get<0>(grads));
-            }
-            if (need_gw)
-            {
-                grad_weight.copy_(std::get<1>(grads));
-            }
-            if (need_gb)
-            {
-                grad_bias.copy_(std::get<2>(grads));
-            }
-        }
-    }
-    catch (const std::exception &ex)
-    {
-        std::fprintf(
-            stderr,
-            "nntile_torch_layer_norm_backward failed: %s\n",
-            ex.what());
-        std::abort();
-    }
-#endif
-}
-
-
-#ifdef NNTILE_USE_CUDA
-void TorchLayerNormBackward::cuda(void *buffers[], void *cl_args) noexcept
-{
-#ifndef STARPU_SIMGRID
-    try
-    {
-        // StarPU stream + cuBLAS; TLS blob device = CUDA.
-        TorchCudaEnv cuda_env;
-        (void)cuda_env;
-        cpu(buffers, cl_args);
-    }
-    catch (const std::exception &ex)
-    {
-        std::fprintf(
-            stderr,
-            "nntile_torch_layer_norm_backward CUDA failed: %s\n",
-            ex.what());
-        std::abort();
-    }
-#endif
-}
-#endif // NNTILE_USE_CUDA
-
-uint32_t TorchLayerNormBackward::footprint(struct starpu_task *task)
-{
-    return args_footprint(
-        reinterpret_cast<args_t *>(task->cl_arg));
-}
-
-void TorchLayerNormBackward::submit(
-    int starpu_worker_hint,
-    const args_t &meta,
-    Handle grad_out,
-    Handle input,
-    Handle mean,
-    Handle rstd,
-    Handle weight,
-    Handle bias,
-    Handle grad_input,
-    Handle grad_weight,
-    Handle grad_bias,
-    bool has_weight,
-    bool has_bias,
-    bool need_grad_input,
-    bool need_grad_weight,
-    bool need_grad_bias
-)
-{
-    args_t *args = clone_args(meta);
-    args->kind = TorchKind::NativeLayerNormBackward;
-    args->iargs[1] = has_weight ? 1 : 0;
-    args->iargs[2] = has_bias ? 1 : 0;
-    args->iargs[3] = need_grad_input ? 1 : 0;
-    args->iargs[4] = need_grad_weight ? 1 : 0;
-    args->iargs[5] = need_grad_bias ? 1 : 0;
-    // Build task with a fixed set of common cases.
-    std::vector<std::pair<starpu_data_access_mode, Handle>> handles;
-    handles.push_back({STARPU_R, grad_out});
-    handles.push_back({STARPU_R, input});
-    handles.push_back({STARPU_R, mean});
-    handles.push_back({STARPU_R, rstd});
-    if (need_grad_input)
-    {
-        handles.push_back({STARPU_W, grad_input});
-    }
-    if (need_grad_weight)
-    {
-        handles.push_back({STARPU_W, grad_weight});
-    }
-    if (need_grad_bias)
-    {
-        handles.push_back({STARPU_W, grad_bias});
-    }
-    if (has_weight)
-    {
-        handles.push_back({STARPU_R, weight});
-    }
-    if (has_bias)
-    {
-        handles.push_back({STARPU_R, bias});
-    }
-    // Use starpu_task_insert via packed helper for up to 9 handles.
-    starpu_data_handle_t h[9];
-    enum starpu_data_access_mode m[9];
-    const Index n = static_cast<Index>(handles.size());
-    if (n > 9)
-    {
-        std::free(args);
-        throw std::runtime_error(
-            "torch_layer_norm_backward.submit: too many handles");
-    }
-    for (Index i = 0; i < n; ++i)
-    {
-        m[static_cast<size_t>(i)] = handles[static_cast<size_t>(i)].first;
-        h[static_cast<size_t>(i)] =
-            handles[static_cast<size_t>(i)].second.get();
-    }
-    int ret = 0;
-    switch (n)
-    {
-    case 4:
-        ret = nntile_starpu_task_insert(
-            &codelet,
-            starpu_worker_hint,
-            m[0],
-            h[0],
-            m[1],
-            h[1],
-            m[2],
-            h[2],
-            m[3],
-            h[3],
-            STARPU_CL_ARGS,
-            args,
-            sizeof(*args),
-            0);
-        break;
-    case 5:
-        ret = nntile_starpu_task_insert(
-            &codelet,
-            starpu_worker_hint,
-            m[0],
-            h[0],
-            m[1],
-            h[1],
-            m[2],
-            h[2],
-            m[3],
-            h[3],
-            m[4],
-            h[4],
-            STARPU_CL_ARGS,
-            args,
-            sizeof(*args),
-            0);
-        break;
-    case 6:
-        ret = nntile_starpu_task_insert(
-            &codelet,
-            starpu_worker_hint,
-            m[0],
-            h[0],
-            m[1],
-            h[1],
-            m[2],
-            h[2],
-            m[3],
-            h[3],
-            m[4],
-            h[4],
-            m[5],
-            h[5],
-            STARPU_CL_ARGS,
-            args,
-            sizeof(*args),
-            0);
-        break;
-    case 7:
-        ret = nntile_starpu_task_insert(
-            &codelet,
-            starpu_worker_hint,
-            m[0],
-            h[0],
-            m[1],
-            h[1],
-            m[2],
-            h[2],
-            m[3],
-            h[3],
-            m[4],
-            h[4],
-            m[5],
-            h[5],
-            m[6],
-            h[6],
-            STARPU_CL_ARGS,
-            args,
-            sizeof(*args),
-            0);
-        break;
-    case 8:
-        ret = nntile_starpu_task_insert(
-            &codelet,
-            starpu_worker_hint,
-            m[0],
-            h[0],
-            m[1],
-            h[1],
-            m[2],
-            h[2],
-            m[3],
-            h[3],
-            m[4],
-            h[4],
-            m[5],
-            h[5],
-            m[6],
-            h[6],
-            m[7],
-            h[7],
-            STARPU_CL_ARGS,
-            args,
-            sizeof(*args),
-            0);
-        break;
-    case 9:
-        ret = nntile_starpu_task_insert(
-            &codelet,
-            starpu_worker_hint,
-            m[0],
-            h[0],
-            m[1],
-            h[1],
-            m[2],
-            h[2],
-            m[3],
-            h[3],
-            m[4],
-            h[4],
-            m[5],
-            h[5],
-            m[6],
-            h[6],
-            m[7],
-            h[7],
-            m[8],
-            h[8],
-            STARPU_CL_ARGS,
-            args,
-            sizeof(*args),
-            0);
-        break;
-    default:
-        std::free(args);
-        throw std::runtime_error(
-            "torch_layer_norm_backward.submit: bad handle count");
-    }
-    if (ret != 0)
-    {
-        throw std::runtime_error(
-            "torch_layer_norm_backward.submit failed");
-    }
-}
-
 TorchEmbeddingDenseBackward::TorchEmbeddingDenseBackward():
     codelet(
         "nntile_torch_embedding_dense_backward",
@@ -2283,17 +3077,18 @@ void TorchConvolution::cpu(void *buffers[], void *cl_args) noexcept
         const Index ndim = args->iargs[0];
         at::AutoDispatchBelowADInplaceOrView guard;
         at::NoGradGuard no_grad;
-        at::Tensor result = at::convolution(
+        convolution_into(
+            out,
             input,
             weight,
-            has_bias ? c10::optional<at::Tensor>(bias) : c10::nullopt,
+            bias,
+            has_bias,
+            args->iargs[2] != 0,
             iarg_vec(*args, 3, ndim),
             iarg_vec(*args, 5, ndim),
             iarg_vec(*args, 7, ndim),
-            args->iargs[2] != 0,
             iarg_vec(*args, 9, ndim),
             static_cast<std::int64_t>(args->iargs[1]));
-        out.copy_(result);
     }
     catch (const std::exception &ex)
     {
@@ -2408,33 +3203,22 @@ void TorchConvolutionBackward::cpu(void *buffers[], void *cl_args) noexcept
             bias_sizes_vec = sizes_of(*args, 2, true);
             bias_sizes = at::IntArrayRef(bias_sizes_vec);
         }
-        std::array<bool, 3> output_mask = {need_gi, need_gw, need_gb};
         at::AutoDispatchBelowADInplaceOrView guard;
         at::NoGradGuard no_grad;
-        auto grads = at::convolution_backward(
+        convolution_backward_into(
+            grad_input,
+            grad_weight,
+            grad_bias,
             grad_out,
             input,
             weight,
-            bias_sizes,
+            args->iargs[2] != 0,
             iarg_vec(*args, 3, ndim),
             iarg_vec(*args, 5, ndim),
             iarg_vec(*args, 7, ndim),
-            args->iargs[2] != 0,
             iarg_vec(*args, 9, ndim),
             static_cast<std::int64_t>(args->iargs[1]),
-            output_mask);
-        if (need_gi)
-        {
-            grad_input.copy_(std::get<0>(grads));
-        }
-        if (need_gw)
-        {
-            grad_weight.copy_(std::get<1>(grads));
-        }
-        if (need_gb)
-        {
-            grad_bias.copy_(std::get<2>(grads));
-        }
+            bias_sizes);
     }
     catch (const std::exception &ex)
     {
@@ -2767,7 +3551,10 @@ void TorchNativeBatchNorm::cpu(void *buffers[], void *cl_args) noexcept
         }
         at::AutoDispatchBelowADInplaceOrView guard;
         at::NoGradGuard no_grad;
-        auto result = at::native_batch_norm(
+        at::native_batch_norm_out(
+            out,
+            save_mean,
+            save_invstd,
             input,
             has_w ? c10::optional<at::Tensor>(weight) : c10::nullopt,
             has_b ? c10::optional<at::Tensor>(bias) : c10::nullopt,
@@ -2776,9 +3563,6 @@ void TorchNativeBatchNorm::cpu(void *buffers[], void *cl_args) noexcept
             training,
             static_cast<double>(args->scalars[0]),
             static_cast<double>(args->scalars[1]));
-        out.copy_(std::get<0>(result));
-        save_mean.copy_(std::get<1>(result).reshape(save_mean.sizes()));
-        save_invstd.copy_(std::get<2>(result).reshape(save_invstd.sizes()));
     }
     catch (const std::exception &ex)
     {
@@ -2948,28 +3732,37 @@ void TorchNativeBatchNormBackward::cpu(
         std::array<bool, 3> output_mask = {need_gi, need_gw, need_gb};
         at::AutoDispatchBelowADInplaceOrView guard;
         at::NoGradGuard no_grad;
-        auto grads = at::native_batch_norm_backward(
+        // Autogen native_batch_norm_backward.out rejects both empty
+        // throwaways and undefined unused outs. Use functional + copy_
+        // into the grads the mask actually requested (D9).
+        auto result = at::native_batch_norm_backward(
             grad_out,
             input,
             has_w ? c10::optional<at::Tensor>(weight) : c10::nullopt,
-            has_rm ? c10::optional<at::Tensor>(running_mean) : c10::nullopt,
-            has_rv ? c10::optional<at::Tensor>(running_var) : c10::nullopt,
+            has_rm
+                ? c10::optional<at::Tensor>(running_mean)
+                : c10::nullopt,
+            has_rv
+                ? c10::optional<at::Tensor>(running_var)
+                : c10::nullopt,
             has_sm ? c10::optional<at::Tensor>(save_mean) : c10::nullopt,
-            has_si ? c10::optional<at::Tensor>(save_invstd) : c10::nullopt,
+            has_si
+                ? c10::optional<at::Tensor>(save_invstd)
+                : c10::nullopt,
             training,
             static_cast<double>(args->scalars[1]),
             output_mask);
         if (need_gi)
         {
-            grad_input.copy_(std::get<0>(grads));
+            grad_input.copy_(std::get<0>(result));
         }
         if (need_gw)
         {
-            grad_weight.copy_(std::get<1>(grads));
+            grad_weight.copy_(std::get<1>(result));
         }
         if (need_gb)
         {
-            grad_bias.copy_(std::get<2>(grads));
+            grad_bias.copy_(std::get<2>(result));
         }
     }
     catch (const std::exception &ex)
@@ -3551,11 +4344,14 @@ TorchMaxPool2dWithIndices torch_max_pool2d_with_indices;
 TorchMaxPool2dWithIndicesBackward torch_max_pool2d_with_indices_backward;
 TorchNativeBatchNorm torch_native_batch_norm;
 TorchNativeBatchNormBackward torch_native_batch_norm_backward;
-TorchLayerNorm torch_layer_norm;
-TorchLayerNormBackward torch_layer_norm_backward;
 TorchSdpaBackward torch_sdpa_backward;
 TorchNllLossForward torch_nll_loss_forward;
 TorchNllLossBackward torch_nll_loss_backward;
 TorchCat torch_cat;
+TorchWhere torch_where;
+TorchArange torch_arange;
+TorchGt torch_gt;
+TorchI64Unary torch_i64_unary;
+TorchCast torch_cast;
 
 } // namespace nntile::starpu

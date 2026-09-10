@@ -35,13 +35,11 @@ void check_relu_input(
     TORCH_CHECK(
         self.scalar_type() == at::ScalarType::Float,
         "nntile relu supports float32 only");
-    TORCH_CHECK(self.is_contiguous(), "nntile relu requires contiguous input");
     if (out.has_value())
     {
         TORCH_CHECK(
             out->sizes() == self.sizes(),
             "nntile relu.out: output shape mismatch");
-        TORCH_CHECK(out->is_contiguous(), "nntile relu.out requires contiguous out");
     }
 }
 
@@ -55,6 +53,7 @@ void run_relu(const at::Tensor &self, at::Tensor &out)
 
 at::Tensor relu(const at::Tensor &self)
 {
+    nntile::GraphFillScope record;
     check_relu_input(self);
     at::Tensor out = at::empty_like(self);
     run_relu(self, out);
@@ -63,6 +62,7 @@ at::Tensor relu(const at::Tensor &self)
 
 at::Tensor &relu_out(const at::Tensor &self, at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     check_relu_input(self, out);
     run_relu(self, out);
     return out;
@@ -70,6 +70,7 @@ at::Tensor &relu_out(const at::Tensor &self, at::Tensor &out)
 
 at::Tensor &relu_(at::Tensor &self)
 {
+    nntile::GraphFillScope record;
     // Functional SSA rebind (same pattern as gelu_ / silu_).
     check_relu_input(self, self);
     run_relu(self, self);

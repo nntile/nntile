@@ -36,15 +36,11 @@ void check_silu_input(
     TORCH_CHECK(
         self.scalar_type() == at::ScalarType::Float,
         "nntile silu supports float32 only");
-    TORCH_CHECK(self.is_contiguous(), "nntile silu requires contiguous input");
     if (out.has_value())
     {
         TORCH_CHECK(
             out->sizes() == self.sizes(),
             "nntile silu.out: output shape mismatch");
-        TORCH_CHECK(
-            out->is_contiguous(),
-            "nntile silu.out requires contiguous out");
     }
 }
 
@@ -62,6 +58,7 @@ void run_silu(const at::Tensor &self, at::Tensor &out)
 
 at::Tensor silu(const at::Tensor &self)
 {
+    nntile::GraphFillScope record;
     check_silu_input(self);
     at::Tensor out = at::empty_like(self);
     run_silu(self, out);
@@ -70,6 +67,7 @@ at::Tensor silu(const at::Tensor &self)
 
 at::Tensor &silu_out(const at::Tensor &self, at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     check_silu_input(self, out);
     run_silu(self, out);
     return out;
@@ -77,6 +75,7 @@ at::Tensor &silu_out(const at::Tensor &self, at::Tensor &out)
 
 at::Tensor &silu_(at::Tensor &self)
 {
+    nntile::GraphFillScope record;
     check_silu_input(self, self);
     run_silu(self, self);
     return self;

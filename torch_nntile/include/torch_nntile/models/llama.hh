@@ -8,6 +8,7 @@
 #pragma once
 
 #include <torch/torch.h>
+#include <torch_nntile/classic_nn.hh>
 
 #include <cstdint>
 
@@ -82,7 +83,7 @@ TORCH_MODULE(LlamaDecoder);
 struct LlamaCausalImpl : torch::nn::Module
 {
     LlamaConfig config;
-    torch::nn::Embedding embed_tokens{nullptr};
+    nn_classic::Embedding embed_tokens{nullptr};
     torch::nn::ModuleList layers{nullptr};
     torch::Tensor lm_weight;
     torch::Tensor weight_rms;

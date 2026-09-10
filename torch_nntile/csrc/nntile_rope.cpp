@@ -6,7 +6,8 @@
 
 #include "nntile_rope.h"
 
-#include "nntile_executor.h"
+#include "nntile_executor_classic.h"
+#include "nntile_graph_recorder_impl.h"
 
 #include <ATen/TensorUtils.h>
 
@@ -68,6 +69,7 @@ at::Tensor rope_forward(
     const at::Tensor &cos,
     const at::Tensor &x)
 {
+    nntile::GraphFillScope record;
     check_rope_tensor(sin, "sin");
     check_rope_tensor(cos, "cos");
     check_rope_tensor(x, "x");
@@ -76,7 +78,7 @@ at::Tensor rope_forward(
     at::Tensor out = at::empty(
         x.sizes(),
         x.options().memory_format(at::MemoryFormat::Contiguous));
-    tensor_rope_fp32(sin, cos, x, out);
+    classic_tensor_rope_fp32(sin, cos, x, out);
     return out;
 }
 
@@ -86,6 +88,7 @@ at::Tensor rope_backward(
     const at::Tensor &grad_out,
     std::array<bool, 1> output_mask)
 {
+    nntile::GraphFillScope record;
     check_rope_tensor(sin, "sin");
     check_rope_tensor(cos, "cos");
     check_rope_tensor(grad_out, "grad_out");
@@ -98,7 +101,7 @@ at::Tensor rope_backward(
             grad_out.sizes(),
             grad_out.options().memory_format(
                 at::MemoryFormat::Contiguous));
-        tensor_rope_backward_fp32(sin, cos, grad_out, grad_x);
+        classic_tensor_rope_backward_fp32(sin, cos, grad_out, grad_x);
     }
     return grad_x;
 }

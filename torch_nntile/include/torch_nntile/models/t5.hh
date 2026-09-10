@@ -8,6 +8,7 @@
 #pragma once
 
 #include <torch/torch.h>
+#include <torch_nntile/classic_nn.hh>
 
 #include <cstdint>
 
@@ -97,7 +98,7 @@ TORCH_MODULE(T5DecoderBlock);
 struct T5ForConditionalGenerationImpl : torch::nn::Module
 {
     T5Config config;
-    torch::nn::Embedding shared{nullptr};
+    nn_classic::Embedding shared{nullptr};
     torch::nn::ModuleList encoder_blocks{nullptr};
     torch::nn::ModuleList decoder_blocks{nullptr};
     torch::Tensor enc_final_w;

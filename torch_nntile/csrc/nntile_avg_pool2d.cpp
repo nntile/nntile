@@ -32,7 +32,6 @@ void check_pool_input(const at::Tensor &input, const char *name)
         input.scalar_type() == at::ScalarType::Float,
         name,
         ": float32 only");
-    TORCH_CHECK(input.is_contiguous(), name, ": contiguous input required");
 }
 
 std::vector<int64_t> meta_avg_pool_shape(
@@ -69,6 +68,7 @@ at::Tensor avg_pool2d(
     bool count_include_pad,
     std::optional<int64_t> divisor_override)
 {
+    nntile::GraphFillScope record;
     check_pool_input(input, "nntile avg_pool2d");
     std::vector<int64_t> out_shape = meta_avg_pool_shape(
         input,
@@ -104,6 +104,7 @@ at::Tensor &avg_pool2d_out(
     std::optional<int64_t> divisor_override,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     check_pool_input(input, "nntile avg_pool2d.out");
     TORCH_CHECK(is_nntile_device(out.device()), "avg_pool2d.out: nntile out");
     TORCH_CHECK(out.scalar_type() == at::ScalarType::Float, "fp32 out only");
@@ -129,6 +130,7 @@ at::Tensor avg_pool2d_backward(
     bool count_include_pad,
     std::optional<int64_t> divisor_override)
 {
+    nntile::GraphFillScope record;
     check_pool_input(input, "nntile avg_pool2d_backward");
     check_pool_input(grad_output, "nntile avg_pool2d_backward grad");
     at::Tensor grad_input = empty_metadata_tensor(
@@ -159,6 +161,7 @@ at::Tensor &avg_pool2d_backward_out(
     std::optional<int64_t> divisor_override,
     at::Tensor &grad_input)
 {
+    nntile::GraphFillScope record;
     check_pool_input(input, "nntile avg_pool2d_backward.out input");
     check_pool_input(grad_output, "nntile avg_pool2d_backward.out grad");
     TORCH_CHECK(

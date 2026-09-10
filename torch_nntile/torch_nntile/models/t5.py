@@ -15,6 +15,8 @@ import torch.nn as nn
 from torch import Tensor
 
 from torch_nntile.gemm import gemm
+from torch_nntile.nn import Embedding, GELU, ReLU
+from torch_nntile.nn.functional import add, mul, mul_scalar
 from torch_nntile.nn.linear import NntileLinear, prepare_sdpa_mask
 from torch_nntile.nn.sdpa import nntile_model_transpose, sdpa_kernel
 from torch_nntile.normalization import rms_norm
@@ -66,6 +68,19 @@ class T5LayerNorm(nn.Module):
         return rms_norm(x, self.normalized_shape, self.weight, self.eps)
 
 
+class T5DenseActDense(nn.Module):
+    """Non-gated FF: ``wo(relu(wi(x)))`` (HF ``feed_forward_proj=relu``)."""
+
+    def __init__(self, config: T5Config) -> None:
+        super().__init__()
+        self.wi = NntileLinear(config.d_model, config.d_ff, bias=False)
+        self.wo = NntileLinear(config.d_ff, config.d_model, bias=False)
+        self.act = ReLU()
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self.wo(self.act(self.wi(x)))
+
+
 class T5DenseGatedActDense(nn.Module):
     """Gated FF: ``wo(act(wi_0(x)) * wi_1(x))`` (GELU tanh / gelu_new)."""
 
@@ -74,10 +89,10 @@ class T5DenseGatedActDense(nn.Module):
         self.wi_0 = NntileLinear(config.d_model, config.d_ff, bias=False)
         self.wi_1 = NntileLinear(config.d_model, config.d_ff, bias=False)
         self.wo = NntileLinear(config.d_ff, config.d_model, bias=False)
-        self.act = nn.GELU(approximate="tanh")
+        self.act = GELU(approximate="tanh")
 
     def forward(self, x: Tensor) -> Tensor:
-        return self.wo(self.act(self.wi_0(x)) * self.wi_1(x))
+        return self.wo(mul(self.act(self.wi_0(x)), self.wi_1(x)))
 
 
 class T5Attention(nn.Module):
@@ -135,9 +150,7 @@ class T5Attention(nn.Module):
         k = self._project(kv_input, self.k_weight)
         v = self._project(kv_input, self.v_weight)
         # HF T5 scores are unscaled; cancel SDPA ``1/sqrt(d)`` via mul.Scalar.
-        q = torch.ops.aten.mul.Scalar(
-            q, float(self.key_value_proj_dim) ** 0.5
-        )
+        q = mul_scalar(q, float(self.key_value_proj_dim) ** 0.5)
         mask = prepare_sdpa_mask(
             attn_mask,
             hidden,
@@ -161,10 +174,13 @@ class T5LayerFF(nn.Module):
         self.layer_norm = T5LayerNorm(
             config.d_model, eps=config.layer_norm_epsilon
         )
-        self.DenseReluDense = T5DenseGatedActDense(config)
+        if config.is_gated_act:
+            self.DenseReluDense = T5DenseGatedActDense(config)
+        else:
+            self.DenseReluDense = T5DenseActDense(config)
 
     def forward(self, x: Tensor) -> Tensor:
-        return x + self.DenseReluDense(self.layer_norm(x))
+        return add(x, self.DenseReluDense(self.layer_norm(x)))
 
 
 class T5EncoderBlock(nn.Module):
@@ -179,7 +195,7 @@ class T5EncoderBlock(nn.Module):
     def forward(
         self, x: Tensor, attn_mask: Tensor | None = None
     ) -> Tensor:
-        x = x + self.self_attn(self.layer_norm(x), attn_mask=attn_mask)
+        x = add(x, self.self_attn(self.layer_norm(x), attn_mask=attn_mask))
         return self.ff(x)
 
 
@@ -200,16 +216,22 @@ class T5DecoderBlock(nn.Module):
         self_attn_mask: Tensor | None = None,
         cross_attn_mask: Tensor | None = None,
     ) -> Tensor:
-        x = x + self.self_attn(
-            self.layer_norm_0(x),
-            attn_mask=self_attn_mask,
-            is_causal=self_attn_mask is None,
+        x = add(
+            x,
+            self.self_attn(
+                self.layer_norm_0(x),
+                attn_mask=self_attn_mask,
+                is_causal=self_attn_mask is None,
+            ),
         )
-        x = x + self.cross_attn(
-            self.layer_norm_1(x),
-            key_value_states=encoder_hidden,
-            attn_mask=cross_attn_mask,
-            is_causal=False,
+        x = add(
+            x,
+            self.cross_attn(
+                self.layer_norm_1(x),
+                key_value_states=encoder_hidden,
+                attn_mask=cross_attn_mask,
+                is_causal=False,
+            ),
         )
         return self.ff(x)
 
@@ -218,7 +240,7 @@ class T5Stack(nn.Module):
     def __init__(
         self,
         config: T5Config,
-        embed_tokens: nn.Embedding,
+        embed_tokens: Embedding,
         *,
         is_decoder: bool,
         num_layers: int,
@@ -265,7 +287,7 @@ class T5Model(nn.Module):
     def __init__(self, config: T5Config) -> None:
         super().__init__()
         self.config = config
-        self.shared = nn.Embedding(config.vocab_size, config.d_model)
+        self.shared = Embedding(config.vocab_size, config.d_model)
         self.encoder = T5Stack(
             config,
             self.shared,

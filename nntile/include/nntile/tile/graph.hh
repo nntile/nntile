@@ -42,6 +42,10 @@ inline std::vector<std::string> TileGraph::data_names() const
     names.reserve(data_.size());
     for (const auto &node : data_)
     {
+        if (!node)
+        {
+            continue;
+        }
         if (!node->name().empty())
         {
             names.push_back(node->name());
@@ -87,29 +91,65 @@ inline void TileGraph::clear_ops()
     next_op_id_ = 0;
 }
 
+inline void TileGraph::erase_source_tensor(
+    TensorGraph::TensorNode const *source)
+{
+    if (source == nullptr)
+    {
+        return;
+    }
+    auto const src_id = static_cast<size_t>(source->id());
+    if (src_id >= tensors_.size() || !tensors_[src_id])
+    {
+        return;
+    }
+    TensorDescriptor *desc = tensors_[src_id].get();
+    for (TileNode *tile : desc->tiles)
+    {
+        if (tile == nullptr)
+        {
+            continue;
+        }
+        auto const id = static_cast<size_t>(tile->id());
+        if (id < data_.size() && data_[id].get() == tile)
+        {
+            data_[id].reset();
+        }
+    }
+    tensors_[src_id].reset();
+}
+
 inline TileGraph::TensorDescriptor *TileGraph::add_tensor_descriptor(
     TensorDescriptor desc)
 {
-    auto ptr = std::make_unique<TensorDescriptor>(std::move(desc));
-    TensorDescriptor *raw = ptr.get();
-    if (raw->source_node != nullptr)
+    if (desc.source_node == nullptr)
     {
-        auto const id =
-            static_cast<size_t>(raw->source_node->id());
-        if (id >= desc_by_source_id_.size())
-        {
-            desc_by_source_id_.resize(id + 1, nullptr);
-        }
-        desc_by_source_id_[id] = raw;
+        throw std::invalid_argument(
+            "TileGraph::add_tensor_descriptor: source_node is required");
     }
-    tensors_.push_back(std::move(ptr));
-    return raw;
+    auto const id = static_cast<size_t>(desc.source_node->id());
+    if (id >= tensors_.size())
+    {
+        tensors_.resize(id + 1);
+    }
+    if (tensors_[id])
+    {
+        throw std::invalid_argument(
+            "TileGraph::add_tensor_descriptor: source already has a "
+            "descriptor");
+    }
+    tensors_[id] = std::make_unique<TensorDescriptor>(std::move(desc));
+    return tensors_[id].get();
 }
 
 inline TileGraph::TileNode *TileGraph::get_tile_node(const std::string &name)
 {
     for (auto &node : data_)
     {
+        if (!node)
+        {
+            continue;
+        }
         if (node->name() == name)
         {
             return node.get();
@@ -123,6 +163,10 @@ inline const TileGraph::TileNode *TileGraph::get_tile_node(
 {
     for (const auto &node : data_)
     {
+        if (!node)
+        {
+            continue;
+        }
         if (node->name() == name)
         {
             return node.get();
@@ -139,11 +183,11 @@ inline TileGraph::TensorDescriptor *TileGraph::get_tensor_descriptor(
         return nullptr;
     }
     auto const id = static_cast<size_t>(source->id());
-    if (id >= desc_by_source_id_.size())
+    if (id >= tensors_.size())
     {
         return nullptr;
     }
-    return desc_by_source_id_[id];
+    return tensors_[id].get();
 }
 
 inline const TileGraph::TensorDescriptor *TileGraph::get_tensor_descriptor(
@@ -154,11 +198,11 @@ inline const TileGraph::TensorDescriptor *TileGraph::get_tensor_descriptor(
         return nullptr;
     }
     auto const id = static_cast<size_t>(source->id());
-    if (id >= desc_by_source_id_.size())
+    if (id >= tensors_.size())
     {
         return nullptr;
     }
-    return desc_by_source_id_[id];
+    return tensors_[id].get();
 }
 
 inline std::string TileGraph::to_string() const
@@ -172,6 +216,10 @@ inline std::string TileGraph::to_string() const
         ss << "Tensors:\n";
         for (const auto &td : tensors_)
         {
+            if (!td)
+            {
+                continue;
+            }
             ss << "  " << td->tensor_name << " shape=[";
             for (size_t i = 0; i < td->tensor_shape.size(); ++i)
             {
@@ -200,6 +248,10 @@ inline std::string TileGraph::to_string() const
     ss << "Tiles:\n";
     for (const auto &t : data_)
     {
+        if (!t)
+        {
+            continue;
+        }
         ss << "  " << t->to_string() << "\n";
     }
 
@@ -239,6 +291,10 @@ inline std::string TileGraph::to_mermaid() const
     for (const auto &node : data_)
     {
         const TileNode *tile = node.get();
+        if (tile == nullptr)
+        {
+            continue;
+        }
         std::string node_id = "D" + std::to_string(tile->id());
         std::string label = tile->name();
         if (label.empty())

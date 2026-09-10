@@ -15,6 +15,7 @@ namespace torch_nntile
 //! Whether linked libnntile was compiled with ``NNTILE_USE_CUDA``.
 bool built_with_cuda();
 
+//! Unregistered aten ops raise; ``cpu_fallback=true`` is explicit opt-in.
 void init_context(
     int ncpu = -1,
     int ncuda = -1,
@@ -23,7 +24,7 @@ void init_context(
     std::size_t ooc_size = 16 * 1024 * 1024,
     int logger = 0,
     int verbose = 0,
-    bool cpu_fallback = true);
+    bool cpu_fallback = false);
 
 bool is_context_initialized();
 

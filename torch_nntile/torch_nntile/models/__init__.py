@@ -6,6 +6,7 @@
 
 from .bert import BertConfig, BertMlm, BertModel
 from .deep_relu import DeepReLU
+from .dit import DiT, DiTConfig
 from .gpt_neo import GPTNeoCausal, GPTNeoConfig, GPTNeoModel
 from .gpt_neox import GPTNeoXCausal, GPTNeoXConfig, GPTNeoXModel
 from .gpt2_minimal import GPT2LMHead, GPT2Model
@@ -19,6 +20,8 @@ __all__ = [
     "BertMlm",
     "BertModel",
     "DeepReLU",
+    "DiT",
+    "DiTConfig",
     "GPT2LMHead",
     "GPT2Model",
     "GPTNeoCausal",

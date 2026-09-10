@@ -58,12 +58,16 @@ cmake --build build --target nntile torch_nntile -j$(nproc)
 
 export NNTILE_BUILD_DIR=$PWD/build TORCH_NNTILE_BUILD_DIR=$PWD/build
 export NNTILE_SOURCE_DIR=$PWD
-export LD_LIBRARY_PATH=$PWD/build/nntile:$PWD/build/torch_nntile:/opt/starpu/lib
+export TORCH_LIB_DIR="$(python3 -c 'import os, torch; print(os.path.join(os.path.dirname(torch.__file__), "lib"))')"
+export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${TORCH_LIB_DIR}:$PWD/build/nntile:$PWD/build/torch_nntile:/opt/starpu/lib"
 CXX=g++ pip install -e ./torch_nntile --no-build-isolation --force-reinstall
 ```
 
 On a **CUDA** host, rebuild with `-DUSE_CUDA=ON` against a matching
-`torch==2.9.1` CUDA wheel, and install `diffusers` / `datasets` the same way.
+`torch==2.9.1` CUDA build. Runtime needs ``TORCH_LIB_DIR`` plus CUDA math
+libs on ``LD_LIBRARY_PATH`` (conda ``${CONDA_PREFIX}/lib`` or pip
+``nvidia-*-cu12`` from torch) — see
+[build/README.md](../build/README.md#cuda-runtime-source--conda).
 
 ## Tiny smokes (all torch-native models)
 
@@ -122,8 +126,15 @@ Results summary: [torch_native_middle_cpu_vs_nntile.md](torch_native_middle_cpu_
 
 ## GPU server checklist (manual)
 
-Goal: see whether `device=nntile` shows overhead vs torch on a GPU host, and
-whether middle-sized work still amortizes that overhead.
+For a **full 15-model CUDA vs nntile table** on ≥2 GiB configs, use
+[cuda_vs_nntile_2gb.md](cuda_vs_nntile_2gb.md) (`bench_cuda_vs_nntile_2gb.py`).
+Do **not** add `--device cuda` to the HF / CNN / DiT commons: CUDA and
+nntile cannot share a process. The CUDA child is
+`train_cuda_only.py` (or `train_gpt2_hf.py --device cuda`).
+
+Goal of the smaller checklist below: see whether `device=nntile` shows
+overhead vs torch on a GPU host, and whether middle-sized work still
+amortizes that overhead.
 
 1. Build with `USE_CUDA=ON` and install the matching CUDA `torch==2.9.1`.
 2. Keep host BLAS single-threaded (`OMP_NUM_THREADS=1`, …) so CPU prep does

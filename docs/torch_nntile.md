@@ -4,6 +4,24 @@ PyTorch **PrivateUse1** backend registered as `device="nntile"`. Builds always
 link **libnntile**; selected ops record into a shared `TensorGraph`, lower to
 `TileGraph`, and run through `Runtime` (StarPU).
 
+Two APIs in one wheel (CMake: `NNTILE_TORCH_NATIVE_OPS` and
+`NNTILE_NNTILE_NATIVE_OPS`, both default ON):
+
+- Stock `torch.nn` / `F.*` on `device=nntile` — torch-native aten codelets,
+  untiled (`NNTILE_TORCH_NATIVE_OPS` appends those sources to libnntile).
+- `torch_nntile.nn` — classic `nntile::kernel` ops; tiling allowed
+  (`NNTILE_NNTILE_NATIVE_OPS` gates torch_nntile wrappers). Classic
+  kernels themselves are libnntile’s default source lists. C++
+  `torch_nntile::models` are the nntile-native implementations (ports of
+  deleted `nntile::model::*`, not Hugging Face `torch.nn` rewrites).
+
+Torch-native StarPU codelets call **only** public high-level ATen ops
+(`at::add_out`, `at::mm_out`, …). They do not call internal
+DispatchStubs or hidden `raw_*` kernels. Some of those public `*.out`
+schemas are autogen (`functional` + `copy_` into the caller buffer), so a
+codelet may copy more than a fused CUDA kernel would. That extra traffic
+is PyTorch’s own API debt; NNTile will not bypass it.
+
 Package README: [`torch_nntile/README.md`](../torch_nntile/README.md).
 
 ## Prebuilt wheels
@@ -53,11 +71,16 @@ matching `torch` and the editable extension:
 
 ```bash
 pip install 'torch==2.9.1'
+export TORCH_LIB_DIR="$(python3 -c 'import os, torch; print(os.path.join(os.path.dirname(torch.__file__), "lib"))')"
 export NNTILE_BUILD_DIR=$PWD/build
 export NNTILE_SOURCE_DIR=$PWD
-export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${TORCH_LIB_DIR}:$PWD/build/nntile:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 CXX=g++ pip install -e ./torch_nntile --no-build-isolation
 ```
+
+CUDA builds: put ``${CONDA_PREFIX}/lib`` (conda) or pip ``nvidia-*-cu12`` libs
+on ``LD_LIBRARY_PATH`` together with ``TORCH_LIB_DIR``; see
+[build/README.md](build/README.md#cuda-runtime-source--conda).
 
 ## TensorGraph execution
 
@@ -99,6 +122,7 @@ host-readout timing (and record-path sub-buckets).
 |-----|---------|
 | `STARPU_DISABLE_KERNELS=1` | StarPU submits tasks but skips kernel bodies. Shows submit overhead; often inflates `run`. |
 | `TORCH_NNTILE_SKIP_STARPU=1` | Dry-run in torch_nntile: no StarPU task insert, no staging acquire/memcpy. Still advances the `Runtime` execute watermark and last-consumer reclaim so incremental compile stays O(pending). Isolates record + compile cost. **Results are not numerically meaningful.** |
+| `TORCH_NNTILE_SKIP_KERNELS=1` | Intercept still runs (shapes, TensorRefs, pack layout). No compute-op insert. Last-drop `UNREGISTER` still compiles/submits StarPU unregister tasks. **Results are not numerically meaningful.** |
 
 ```bash
 STARPU_WORKERS_NOBIND=1 TORCH_NNTILE_SKIP_STARPU=1 \
@@ -116,11 +140,11 @@ Tiling in NNTile is defined on **shared axis groups** (`AxisDescriptor` in C++),
 not on individual `torch.Tensor` storage. The workflow mirrors GPT-2 graph
 training (`name_gpt2_training_axis_groups` + `apply_flat_tiling_spec`):
 
-> **Temporary:** axis-group tiling for PrivateUse1 aten ops is disabled while
-> torch-native StarPU codelets are introduced. `set_axis_group_tiling` raises;
-> use untiled tensors only. See
+> Stock ``torch.nn`` / ``F.*`` on ``device=nntile`` stay torch-native and
+> **untiled**. Classic ``torch_nntile.nn`` graphs may tile. Mixing
+> ``TORCH_*`` compute with tiling raises. See
 > [dev/torch_nntile_aten_ops.md](dev/torch_nntile_aten_ops.md) and
-> [dev/torch_starpu_kernels.md](dev/torch_starpu_kernels.md).
+> [dev/torch_nntile_classic_kernels.md](dev/torch_nntile_classic_kernels.md).
 
 1. **Name** selected dimensions of a tensor (partial naming is OK).
 2. Record forward/backward into the pending graph (ops merge related axes).

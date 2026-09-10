@@ -13,7 +13,9 @@
 
 #include <nntile/core/torch_dispatch.hh>
 #include <nntile/core/torch_meta.hh>
+#include <nntile/dtype.hh>
 #include <nntile/runtime.hh>
+#include <nntile/starpu/handle.hh>
 
 namespace nntile::tile
 {
@@ -92,6 +94,53 @@ void torch_embedding(
     weight->graph()->add_op(op);
 }
 
+void torch_where(
+    TileGraph::TileNode *condition,
+    TileGraph::TileNode *self,
+    TileGraph::TileNode *other,
+    TileGraph::TileNode *out,
+    starpu::TorchDispatchArgs extra)
+{
+    if (condition == nullptr || self == nullptr ||
+        other == nullptr || out == nullptr)
+    {
+        throw std::invalid_argument("tile torch_where: null tile");
+    }
+    auto op = std::make_shared<TileTorchWhereOp>(
+        condition,
+        self,
+        other,
+        out,
+        extra);
+    condition->graph()->add_op(op);
+}
+
+void torch_arange(
+    TileGraph::TileNode *out,
+    starpu::TorchDispatchArgs extra)
+{
+    if (out == nullptr)
+    {
+        throw std::invalid_argument("tile torch_arange: null tile");
+    }
+    auto op = std::make_shared<TileTorchArangeOp>(out, extra);
+    out->graph()->add_op(op);
+}
+
+void torch_gt(
+    TileGraph::TileNode *a,
+    TileGraph::TileNode *b,
+    TileGraph::TileNode *out,
+    starpu::TorchDispatchArgs extra)
+{
+    if (a == nullptr || b == nullptr || out == nullptr)
+    {
+        throw std::invalid_argument("tile torch_gt: null tile");
+    }
+    auto op = std::make_shared<TileTorchGtOp>(a, b, out, extra);
+    a->graph()->add_op(op);
+}
+
 void torch_cat(
     Index dim,
     const std::vector<TileGraph::TileNode *> &inputs,
@@ -107,8 +156,6 @@ void torch_cat(
 
 void TileTorchUnaryOp::execute(Runtime &runtime) const
 {
-    auto &in_t = runtime.get_tile<fp32_t>(in);
-    auto &out_t = runtime.get_tile<fp32_t>(out);
     const core::TorchTileMeta in_meta =
         core::meta_from_args_or_contiguous(
             extra,
@@ -121,6 +168,79 @@ void TileTorchUnaryOp::execute(Runtime &runtime) const
             0,
             true,
             out->shape());
+    if (kind == starpu::TorchKind::Cast)
+    {
+        starpu::Handle in_h;
+        starpu::Handle out_h;
+        switch (in->dtype())
+        {
+        case DataType::FP32:
+            in_h = runtime.get_tile<fp32_t>(in);
+            break;
+        case DataType::INT64:
+            in_h = runtime.get_tile<int64_t>(in);
+            break;
+        case DataType::BOOL:
+            in_h = runtime.get_tile<bool_t>(in);
+            break;
+        default:
+            throw std::runtime_error(
+                "TILE_TORCH_UNARY Cast: bad src dtype");
+        }
+        switch (out->dtype())
+        {
+        case DataType::FP32:
+            out_h = runtime.get_tile<fp32_t>(out);
+            break;
+        case DataType::INT64:
+            out_h = runtime.get_tile<int64_t>(out);
+            break;
+        case DataType::BOOL:
+            out_h = runtime.get_tile<bool_t>(out);
+            break;
+        default:
+            throw std::runtime_error(
+                "TILE_TORCH_UNARY Cast: bad dst dtype");
+        }
+        core::torch_cast_out(
+            runtime.starpu_worker_hint(),
+            in_h,
+            in_meta,
+            out_h,
+            out_meta,
+            extra);
+        return;
+    }
+    if (kind == starpu::TorchKind::Tril)
+    {
+        auto &in_t = runtime.get_tile<bool_t>(in);
+        auto &out_t = runtime.get_tile<bool_t>(out);
+        core::torch_unary_bool_out(
+            runtime.starpu_worker_hint(),
+            kind,
+            in_t,
+            in_meta,
+            out_t,
+            out_meta,
+            extra);
+        return;
+    }
+    if (in->dtype() == DataType::INT64)
+    {
+        auto &in_t = runtime.get_tile<int64_t>(in);
+        auto &out_t = runtime.get_tile<int64_t>(out);
+        core::torch_i64_unary_out(
+            runtime.starpu_worker_hint(),
+            kind,
+            in_t,
+            in_meta,
+            out_t,
+            out_meta,
+            extra);
+        return;
+    }
+    auto &in_t = runtime.get_tile<fp32_t>(in);
+    auto &out_t = runtime.get_tile<fp32_t>(out);
     core::torch_unary_out(
         runtime.starpu_worker_hint(),
         kind,
@@ -133,9 +253,6 @@ void TileTorchUnaryOp::execute(Runtime &runtime) const
 
 void TileTorchBinaryOp::execute(Runtime &runtime) const
 {
-    auto &a_t = runtime.get_tile<fp32_t>(a);
-    auto &b_t = runtime.get_tile<fp32_t>(b);
-    auto &out_t = runtime.get_tile<fp32_t>(out);
     const core::TorchTileMeta a_meta =
         core::meta_from_args_or_contiguous(
             extra,
@@ -154,6 +271,60 @@ void TileTorchBinaryOp::execute(Runtime &runtime) const
             0,
             true,
             out->shape());
+    if (a->dtype() == DataType::INT64)
+    {
+        auto &a_t = runtime.get_tile<int64_t>(a);
+        auto &b_t = runtime.get_tile<int64_t>(b);
+        auto &out_t = runtime.get_tile<int64_t>(out);
+        core::torch_i64_binary_out(
+            runtime.starpu_worker_hint(),
+            kind,
+            a_t,
+            a_meta,
+            b_t,
+            b_meta,
+            out_t,
+            out_meta,
+            extra);
+        return;
+    }
+    if (a->dtype() == DataType::FP32 && b->dtype() == DataType::BOOL &&
+        out->dtype() == DataType::FP32)
+    {
+        auto &a_t = runtime.get_tile<fp32_t>(a);
+        auto &b_t = runtime.get_tile<bool_t>(b);
+        auto &out_t = runtime.get_tile<fp32_t>(out);
+        core::torch_fp32_bool_mul_out(
+            runtime.starpu_worker_hint(),
+            a_t,
+            a_meta,
+            b_t,
+            b_meta,
+            out_t,
+            out_meta,
+            extra);
+        return;
+    }
+    if (a->dtype() == DataType::BOOL)
+    {
+        auto &a_t = runtime.get_tile<bool_t>(a);
+        auto &b_t = runtime.get_tile<bool_t>(b);
+        auto &out_t = runtime.get_tile<bool_t>(out);
+        core::torch_bool_binary_out(
+            runtime.starpu_worker_hint(),
+            kind,
+            a_t,
+            a_meta,
+            b_t,
+            b_meta,
+            out_t,
+            out_meta,
+            extra);
+        return;
+    }
+    auto &a_t = runtime.get_tile<fp32_t>(a);
+    auto &b_t = runtime.get_tile<fp32_t>(b);
+    auto &out_t = runtime.get_tile<fp32_t>(out);
     core::torch_binary_out(
         runtime.starpu_worker_hint(),
         kind,
@@ -235,6 +406,127 @@ void TileTorchEmbeddingOp::execute(Runtime &runtime) const
         out_meta);
 }
 
+void TileTorchWhereOp::execute(Runtime &runtime) const
+{
+    auto &cond_t = runtime.get_tile<bool_t>(condition);
+    const core::TorchTileMeta cond_meta =
+        core::meta_from_args_or_contiguous(
+            extra, 0, false, condition->shape());
+    const core::TorchTileMeta self_meta =
+        core::meta_from_args_or_contiguous(
+            extra, 1, false, self->shape());
+    const core::TorchTileMeta other_meta =
+        core::meta_from_args_or_contiguous(
+            extra, 2, false, other->shape());
+    const core::TorchTileMeta out_meta =
+        core::meta_from_args_or_contiguous(
+            extra, 0, true, out->shape());
+    if (self->dtype() == DataType::INT64)
+    {
+        auto &self_t = runtime.get_tile<int64_t>(self);
+        auto &other_t = runtime.get_tile<int64_t>(other);
+        auto &out_t = runtime.get_tile<int64_t>(out);
+        core::torch_where_i64_out(
+            runtime.starpu_worker_hint(),
+            cond_t,
+            cond_meta,
+            self_t,
+            self_meta,
+            other_t,
+            other_meta,
+            out_t,
+            out_meta,
+            extra);
+        return;
+    }
+    auto &self_t = runtime.get_tile<fp32_t>(self);
+    auto &other_t = runtime.get_tile<fp32_t>(other);
+    auto &out_t = runtime.get_tile<fp32_t>(out);
+    core::torch_where_out(
+        runtime.starpu_worker_hint(),
+        cond_t,
+        cond_meta,
+        self_t,
+        self_meta,
+        other_t,
+        other_meta,
+        out_t,
+        out_meta);
+}
+
+void TileTorchArangeOp::execute(Runtime &runtime) const
+{
+    const core::TorchTileMeta out_meta =
+        core::meta_from_args_or_contiguous(
+            extra, 0, true, out->shape());
+    if (out->dtype() == DataType::FP32)
+    {
+        auto &out_t = runtime.get_tile<fp32_t>(out);
+        core::torch_arange_fp32_out(
+            runtime.starpu_worker_hint(),
+            out_t,
+            out_meta,
+            extra);
+        return;
+    }
+    if (out->dtype() == DataType::BOOL)
+    {
+        auto &out_t = runtime.get_tile<bool_t>(out);
+        core::torch_fill_bool_out(
+            runtime.starpu_worker_hint(),
+            out_t,
+            out_meta,
+            extra);
+        return;
+    }
+    auto &out_t = runtime.get_tile<int64_t>(out);
+    core::torch_arange_out(
+        runtime.starpu_worker_hint(),
+        out_t,
+        out_meta,
+        extra);
+}
+
+void TileTorchGtOp::execute(Runtime &runtime) const
+{
+    const core::TorchTileMeta a_meta =
+        core::meta_from_args_or_contiguous(
+            extra, 0, false, a->shape());
+    const core::TorchTileMeta b_meta =
+        core::meta_from_args_or_contiguous(
+            extra, 1, false, b->shape());
+    const core::TorchTileMeta out_meta =
+        core::meta_from_args_or_contiguous(
+            extra, 0, true, out->shape());
+    auto &out_t = runtime.get_tile<bool_t>(out);
+    if (a->dtype() == DataType::FP32)
+    {
+        auto &a_t = runtime.get_tile<fp32_t>(a);
+        auto &b_t = runtime.get_tile<fp32_t>(b);
+        core::torch_eq_fp32_out(
+            runtime.starpu_worker_hint(),
+            a_t,
+            a_meta,
+            b_t,
+            b_meta,
+            out_t,
+            out_meta,
+            extra);
+        return;
+    }
+    auto &a_t = runtime.get_tile<int64_t>(a);
+    auto &b_t = runtime.get_tile<int64_t>(b);
+    core::torch_gt_out(
+        runtime.starpu_worker_hint(),
+        a_t,
+        a_meta,
+        b_t,
+        b_meta,
+        out_t,
+        out_meta,
+        extra);
+}
+
 void TileTorchCatOp::execute(Runtime &runtime) const
 {
     std::vector<const core::Tile<fp32_t> *> tiles;
@@ -257,184 +549,6 @@ void TileTorchCatOp::execute(Runtime &runtime) const
         metas,
         out_t,
         out_meta);
-}
-
-void torch_layer_norm(
-    TileGraph::TileNode *input,
-    TileGraph::TileNode *weight,
-    TileGraph::TileNode *bias,
-    TileGraph::TileNode *out,
-    TileGraph::TileNode *mean,
-    TileGraph::TileNode *rstd,
-    Index normalized_ndim,
-    Scalar eps)
-{
-    auto op = std::make_shared<TileTorchLayerNormOp>(
-        input,
-        weight,
-        bias,
-        out,
-        mean,
-        rstd,
-        normalized_ndim,
-        eps);
-    input->graph()->add_op(op);
-}
-
-void TileTorchLayerNormOp::execute(Runtime &runtime) const
-{
-    auto &in_t = runtime.get_tile<fp32_t>(input);
-    auto &out_t = runtime.get_tile<fp32_t>(out);
-    auto &mean_t = runtime.get_tile<fp32_t>(mean);
-    auto &rstd_t = runtime.get_tile<fp32_t>(rstd);
-    const core::TorchTileMeta in_meta =
-        core::make_contiguous_torch_meta(input->shape());
-    const core::TorchTileMeta out_meta =
-        core::make_contiguous_torch_meta(out->shape());
-    const core::TorchTileMeta mean_meta =
-        core::make_contiguous_torch_meta(mean->shape());
-    const core::TorchTileMeta rstd_meta =
-        core::make_contiguous_torch_meta(rstd->shape());
-    core::Tile<fp32_t> *w_ptr = nullptr;
-    core::Tile<fp32_t> *b_ptr = nullptr;
-    core::TorchTileMeta w_meta;
-    core::TorchTileMeta b_meta;
-    if (weight != nullptr)
-    {
-        w_ptr = &runtime.get_tile<fp32_t>(weight);
-        w_meta = core::make_contiguous_torch_meta(weight->shape());
-    }
-    if (bias != nullptr)
-    {
-        b_ptr = &runtime.get_tile<fp32_t>(bias);
-        b_meta = core::make_contiguous_torch_meta(bias->shape());
-    }
-    core::torch_layer_norm_out(
-        runtime.starpu_worker_hint(),
-        in_t,
-        in_meta,
-        w_ptr,
-        w_ptr != nullptr ? &w_meta : nullptr,
-        b_ptr,
-        b_ptr != nullptr ? &b_meta : nullptr,
-        out_t,
-        out_meta,
-        mean_t,
-        mean_meta,
-        rstd_t,
-        rstd_meta,
-        normalized_ndim,
-        eps);
-}
-
-void torch_layer_norm_backward(
-    TileGraph::TileNode *grad_out,
-    TileGraph::TileNode *input,
-    TileGraph::TileNode *mean,
-    TileGraph::TileNode *rstd,
-    TileGraph::TileNode *weight,
-    TileGraph::TileNode *bias,
-    TileGraph::TileNode *grad_input,
-    TileGraph::TileNode *grad_weight,
-    TileGraph::TileNode *grad_bias,
-    Index normalized_ndim,
-    bool need_grad_input,
-    bool need_grad_weight,
-    bool need_grad_bias)
-{
-    auto op = std::make_shared<TileTorchLayerNormBackwardOp>(
-        grad_out,
-        input,
-        mean,
-        rstd,
-        weight,
-        bias,
-        grad_input,
-        grad_weight,
-        grad_bias,
-        normalized_ndim,
-        need_grad_input,
-        need_grad_weight,
-        need_grad_bias);
-    grad_out->graph()->add_op(op);
-}
-
-void TileTorchLayerNormBackwardOp::execute(Runtime &runtime) const
-{
-    auto &go_t = runtime.get_tile<fp32_t>(grad_out);
-    auto &in_t = runtime.get_tile<fp32_t>(input);
-    auto &mean_t = runtime.get_tile<fp32_t>(mean);
-    auto &rstd_t = runtime.get_tile<fp32_t>(rstd);
-    const core::TorchTileMeta go_meta =
-        core::make_contiguous_torch_meta(grad_out->shape());
-    const core::TorchTileMeta in_meta =
-        core::make_contiguous_torch_meta(input->shape());
-    const core::TorchTileMeta mean_meta =
-        core::make_contiguous_torch_meta(mean->shape());
-    const core::TorchTileMeta rstd_meta =
-        core::make_contiguous_torch_meta(rstd->shape());
-    core::Tile<fp32_t> *w_ptr = nullptr;
-    core::Tile<fp32_t> *b_ptr = nullptr;
-    core::TorchTileMeta w_meta;
-    core::TorchTileMeta b_meta;
-    if (weight != nullptr)
-    {
-        w_ptr = &runtime.get_tile<fp32_t>(weight);
-        w_meta = core::make_contiguous_torch_meta(weight->shape());
-    }
-    if (bias != nullptr)
-    {
-        b_ptr = &runtime.get_tile<fp32_t>(bias);
-        b_meta = core::make_contiguous_torch_meta(bias->shape());
-    }
-    core::Tile<fp32_t> *gi_ptr = nullptr;
-    core::Tile<fp32_t> *gw_ptr = nullptr;
-    core::Tile<fp32_t> *gb_ptr = nullptr;
-    core::TorchTileMeta gi_meta;
-    core::TorchTileMeta gw_meta;
-    core::TorchTileMeta gb_meta;
-    if (need_grad_input && grad_input != nullptr)
-    {
-        gi_ptr = &runtime.get_tile<fp32_t>(grad_input);
-        gi_meta = core::make_contiguous_torch_meta(
-            grad_input->shape());
-    }
-    if (need_grad_weight && grad_weight != nullptr)
-    {
-        gw_ptr = &runtime.get_tile<fp32_t>(grad_weight);
-        gw_meta = core::make_contiguous_torch_meta(
-            grad_weight->shape());
-    }
-    if (need_grad_bias && grad_bias != nullptr)
-    {
-        gb_ptr = &runtime.get_tile<fp32_t>(grad_bias);
-        gb_meta = core::make_contiguous_torch_meta(
-            grad_bias->shape());
-    }
-    core::torch_layer_norm_backward_out(
-        runtime.starpu_worker_hint(),
-        go_t,
-        go_meta,
-        in_t,
-        in_meta,
-        mean_t,
-        mean_meta,
-        rstd_t,
-        rstd_meta,
-        w_ptr,
-        w_ptr != nullptr ? &w_meta : nullptr,
-        b_ptr,
-        b_ptr != nullptr ? &b_meta : nullptr,
-        gi_ptr,
-        gi_ptr != nullptr ? &gi_meta : nullptr,
-        gw_ptr,
-        gw_ptr != nullptr ? &gw_meta : nullptr,
-        gb_ptr,
-        gb_ptr != nullptr ? &gb_meta : nullptr,
-        normalized_ndim,
-        need_grad_input,
-        need_grad_weight,
-        need_grad_bias);
 }
 
 void torch_embedding_dense_backward(

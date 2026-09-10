@@ -174,6 +174,22 @@ Context::Context(
             std::cout << "Set STARPU_NCUDA to " << ncuda << "\n";
         }
     }
+#else
+    // CPU-only libnntile: StarPU may still be CUDA-enabled (conda).
+    // Never start CUDA workers.
+    if(getenv("STARPU_NCUDA") != nullptr)
+    {
+        unsetenv("STARPU_NCUDA");
+        if(verbose > 0)
+        {
+            std::cout << "Unset STARPU_NCUDA (CPU-only libnntile)\n";
+        }
+    }
+    starpu_config.ncuda = 0;
+    if(verbose > 0)
+    {
+        std::cout << "Set STARPU_NCUDA to 0 (CPU-only libnntile)\n";
+    }
 #endif // NNTILE_USE_CUDA
 
     // Set history-based scheduler to utilize performance models in case
@@ -281,7 +297,9 @@ void Context::shutdown()
         }
     }
 
-    // Unregister all remaining data handles
+    // Unregister only handles still in the registered set. Graph
+    // UNREGISTER already popped collected tiles; leftover are live
+    // weights / not-yet-collected temps.
     starpu::data_handle_unregister_all();
 
 #ifdef NNTILE_USE_CUDA
@@ -335,12 +353,15 @@ void Context::restrict_cpu()
     torch_max_pool2d_with_indices_backward.codelet.restrict_where(STARPU_CPU);
     torch_native_batch_norm.codelet.restrict_where(STARPU_CPU);
     torch_native_batch_norm_backward.codelet.restrict_where(STARPU_CPU);
-    torch_layer_norm.codelet.restrict_where(STARPU_CPU);
-    torch_layer_norm_backward.codelet.restrict_where(STARPU_CPU);
     torch_sdpa_backward.codelet.restrict_where(STARPU_CPU);
     torch_nll_loss_forward.codelet.restrict_where(STARPU_CPU);
     torch_nll_loss_backward.codelet.restrict_where(STARPU_CPU);
     torch_cat.codelet.restrict_where(STARPU_CPU);
+    torch_where.codelet.restrict_where(STARPU_CPU);
+    torch_arange.codelet.restrict_where(STARPU_CPU);
+    torch_gt.codelet.restrict_where(STARPU_CPU);
+    torch_i64_unary.codelet.restrict_where(STARPU_CPU);
+    torch_cast.codelet.restrict_where(STARPU_CPU);
 #else
     accumulate.restrict_where(STARPU_CPU);
     accumulate_hypot.restrict_where(STARPU_CPU);
@@ -428,12 +449,15 @@ void Context::restrict_cuda()
     torch_max_pool2d_with_indices_backward.codelet.restrict_where(STARPU_CUDA);
     torch_native_batch_norm.codelet.restrict_where(STARPU_CUDA);
     torch_native_batch_norm_backward.codelet.restrict_where(STARPU_CUDA);
-    torch_layer_norm.codelet.restrict_where(STARPU_CUDA);
-    torch_layer_norm_backward.codelet.restrict_where(STARPU_CUDA);
     torch_sdpa_backward.codelet.restrict_where(STARPU_CUDA);
     torch_nll_loss_forward.codelet.restrict_where(STARPU_CUDA);
     torch_nll_loss_backward.codelet.restrict_where(STARPU_CUDA);
     torch_cat.codelet.restrict_where(STARPU_CUDA);
+    torch_where.codelet.restrict_where(STARPU_CUDA);
+    torch_arange.codelet.restrict_where(STARPU_CUDA);
+    torch_gt.codelet.restrict_where(STARPU_CUDA);
+    torch_i64_unary.codelet.restrict_where(STARPU_CUDA);
+    torch_cast.codelet.restrict_where(STARPU_CUDA);
 #else
     accumulate.restrict_where(STARPU_CUDA);
     accumulate_hypot.restrict_where(STARPU_CUDA);
@@ -521,12 +545,15 @@ void Context::restore_where()
     torch_max_pool2d_with_indices_backward.codelet.restore_where();
     torch_native_batch_norm.codelet.restore_where();
     torch_native_batch_norm_backward.codelet.restore_where();
-    torch_layer_norm.codelet.restore_where();
-    torch_layer_norm_backward.codelet.restore_where();
     torch_sdpa_backward.codelet.restore_where();
     torch_nll_loss_forward.codelet.restore_where();
     torch_nll_loss_backward.codelet.restore_where();
     torch_cat.codelet.restore_where();
+    torch_where.codelet.restore_where();
+    torch_arange.codelet.restore_where();
+    torch_gt.codelet.restore_where();
+    torch_i64_unary.codelet.restore_where();
+    torch_cast.codelet.restore_where();
 #else
     accumulate.restore_where();
     accumulate_hypot.restore_where();

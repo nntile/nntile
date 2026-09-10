@@ -52,7 +52,8 @@ struct TensorInvalidateOp : TensorGraph::OpNode
 void invalidate(TensorGraph::TensorNode *x);
 
 //! For every tensor touched by unsealed ops that has no live ``TensorRef``,
-//! append ``INVALIDATE``. O(phase). Call before ``seal_phase()``.
+//! append ``INVALIDATE``. Skips tensors that already have ``UNREGISTER``
+//! in the unsealed suffix. O(phase). Call before ``seal_phase()``.
 std::size_t append_invalidates_for_unmarked_unsealed(TensorGraph &graph);
 
 } // namespace nntile::tensor

@@ -6,9 +6,10 @@
 
 #include "nntile_gemm.h"
 
-#include "nntile_executor.h"
+#include "nntile_executor_classic.h"
 #include "nntile_gemm_layout.h"
 #include "nntile_graph_recorder_impl.h"
+#include "nntile_layout_checks.h"
 
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
@@ -50,7 +51,7 @@ at::Tensor make_gemm_output(
 
 void run_gemm(const PreparedGemmOperands &prepared, at::Tensor &out)
 {
-    tensor_gemm_fp32(
+    classic_tensor_gemm_fp32(
         prepared.params,
         prepared.a,
         prepared.a_gemm_shape,
@@ -70,7 +71,10 @@ at::Tensor gemm_forward(
     bool trans_a,
     bool trans_b)
 {
+    nntile::GraphFillScope record;
     check_gemm_tensors(a, b);
+    require_nntile_kernel_dense(a, "gemm a");
+    require_nntile_kernel_dense(b, "gemm b");
     const PreparedGemmOperands prepared =
         prepare_gemm_operands(a, b, ndim, batch_ndim, trans_a, trans_b);
     at::Tensor out = make_gemm_output(prepared.out_shape, a);
@@ -88,6 +92,7 @@ std::tuple<at::Tensor, at::Tensor> gemm_backward(
     bool trans_a,
     bool trans_b)
 {
+    nntile::GraphFillScope record;
     check_gemm_tensors(a, b);
     TORCH_CHECK(
         is_nntile_device(grad_out.device()),
@@ -95,6 +100,9 @@ std::tuple<at::Tensor, at::Tensor> gemm_backward(
     TORCH_CHECK(
         grad_out.scalar_type() == at::ScalarType::Float,
         "nntile gemm_backward supports float32 only");
+    require_nntile_kernel_dense(a, "gemm_backward a");
+    require_nntile_kernel_dense(b, "gemm_backward b");
+    require_nntile_kernel_dense(grad_out, "gemm_backward grad_out");
 
     const PreparedGemmOperands forward =
         prepare_gemm_operands(a, b, ndim, batch_ndim, trans_a, trans_b);
@@ -119,7 +127,7 @@ std::tuple<at::Tensor, at::Tensor> gemm_backward(
         {
             params.trans_a = false;
             params.trans_b = !forward.params.trans_b;
-            tensor_gemm_fp32(
+            classic_tensor_gemm_fp32(
                 params,
                 grad_out_prepared,
                 grad_out_layout.gemm_shape,
@@ -132,7 +140,7 @@ std::tuple<at::Tensor, at::Tensor> gemm_backward(
         {
             params.trans_a = forward.params.trans_b;
             params.trans_b = true;
-            tensor_gemm_fp32(
+            classic_tensor_gemm_fp32(
                 params,
                 forward.b,
                 forward.b_gemm_shape,
@@ -154,7 +162,7 @@ std::tuple<at::Tensor, at::Tensor> gemm_backward(
         {
             params.trans_a = !forward.params.trans_a;
             params.trans_b = false;
-            tensor_gemm_fp32(
+            classic_tensor_gemm_fp32(
                 params,
                 forward.a,
                 forward.a_gemm_shape,
@@ -167,7 +175,7 @@ std::tuple<at::Tensor, at::Tensor> gemm_backward(
         {
             params.trans_a = true;
             params.trans_b = forward.params.trans_a;
-            tensor_gemm_fp32(
+            classic_tensor_gemm_fp32(
                 params,
                 grad_out_prepared,
                 grad_out_layout.gemm_shape,
@@ -183,6 +191,8 @@ std::tuple<at::Tensor, at::Tensor> gemm_backward(
 at::Tensor matmul_nd(const at::Tensor &a, const at::Tensor &b)
 {
     check_gemm_tensors(a, b);
+    require_nntile_kernel_dense(a, "matmul a");
+    require_nntile_kernel_dense(b, "matmul b");
     PreparedGemmOperands prepared;
     if (a.dim() == 2 && b.dim() == 2)
     {
@@ -208,6 +218,9 @@ std::tuple<at::Tensor, at::Tensor> matmul_backward(
     std::array<bool, 2> mask)
 {
     check_gemm_tensors(self, other);
+    require_nntile_kernel_dense(grad, "matmul_backward grad");
+    require_nntile_kernel_dense(self, "matmul_backward self");
+    require_nntile_kernel_dense(other, "matmul_backward other");
     TORCH_CHECK(
         is_nntile_device(grad.device()),
         "nntile matmul_backward expects nntile grad");
@@ -229,7 +242,7 @@ std::tuple<at::Tensor, at::Tensor> matmul_backward(
     return gemm_backward(
         prepared.a,
         prepared.b,
-        grad.is_contiguous() ? grad : grad.contiguous(),
+        grad,
         prepared.params.ndim,
         prepared.params.batch_ndim,
         mask,

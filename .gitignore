@@ -1,5 +1,8 @@
 build/
+build-cuda/
+build-cuda-classic/
 !docs/build
+benchmark_logs/
 .vscode
 __pycache__
 .venv/

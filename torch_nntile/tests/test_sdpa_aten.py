@@ -2,7 +2,7 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/tests/test_sdpa_aten.py
-# F.scaled_dot_product_attention on device=nntile via ATen overrideable.
+# F.scaled_dot_product_attention on device=nntile (MATH composite, debt D8).
 
 from __future__ import annotations
 
@@ -140,7 +140,7 @@ def test_fsdpa_bool_mask_matches_reference():
         q_cpu.to("nntile"),
         k_cpu.to("nntile"),
         v_cpu.to("nntile"),
-        attn_mask=mask,
+        attn_mask=mask.to("nntile"),
     )
     assert torch.allclose(nntile_cpu(out), ref, rtol=1e-4, atol=1e-4)
 
@@ -166,7 +166,7 @@ def test_fsdpa_float_finfo_mask_matches_reference():
         q_cpu.to("nntile"),
         k_cpu.to("nntile"),
         v_cpu.to("nntile"),
-        attn_mask=mask,
+        attn_mask=mask.to("nntile"),
     )
     assert torch.allclose(nntile_cpu(out), ref, rtol=1e-4, atol=1e-4)
 
@@ -190,7 +190,7 @@ def test_fsdpa_broadcast_4d_mask_matches_reference():
         q_cpu.to("nntile"),
         k_cpu.to("nntile"),
         v_cpu.to("nntile"),
-        attn_mask=mask,
+        attn_mask=mask.to("nntile"),
     )
     assert torch.allclose(nntile_cpu(out), ref, rtol=1e-4, atol=1e-4)
 
@@ -204,8 +204,10 @@ def test_fsdpa_rejects_non_broadcastable_batched_mask():
     q = torch.randn(*shape).to("nntile")
     k = torch.randn(*shape).to("nntile")
     v = torch.randn(*shape).to("nntile")
-    with pytest.raises(RuntimeError, match="broadcast"):
-        F.scaled_dot_product_attention(q, k, v, attn_mask=mask)
+    with pytest.raises(RuntimeError, match="match the size of tensor"):
+        F.scaled_dot_product_attention(
+            q, k, v, attn_mask=mask.to("nntile")
+        )
 
 
 def test_fsdpa_rejects_dropout():
@@ -224,6 +226,10 @@ def test_fsdpa_rejects_custom_scale():
         F.scaled_dot_product_attention(q, k, v, scale=0.5)
 
 
+@pytest.mark.skipif(
+    not hasattr(torch_nntile._C, "model_transpose"),
+    reason="sdpa_eager layout transpose is classic _C",
+)
 def test_sdpa_eager_uses_fsdpa_path():
     shape = (2, 8, 16, 4)
     torch.manual_seed(4)

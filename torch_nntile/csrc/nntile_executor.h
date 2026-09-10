@@ -17,6 +17,7 @@
 #include <vector>
 
 #include <nntile/base_types.hh>
+#include <nntile/tensor/graph_fill_timer.hh>
 
 namespace torch_nntile
 {
@@ -53,6 +54,16 @@ void tensor_swap_two_axes_fp32(
 
 //! Densify ``src`` (view OK) into contiguous ``dst`` (same shape).
 void tensor_copy_fp32(const at::Tensor &src, at::Tensor &dst);
+void tensor_copy_i64(const at::Tensor &src, at::Tensor &dst);
+
+//! Write ``src`` into a strided / partial ``dst`` view of a parent
+//! logical (Slice / AsStrided backward). Does not SSA-rebind ``dst``.
+void tensor_copy_into_view_fp32(
+    const at::Tensor &src,
+    at::Tensor &dst);
+void tensor_copy_into_view_i64(
+    const at::Tensor &src,
+    at::Tensor &dst);
 
 void tensor_add_inplace_fp32(
     float alpha,
@@ -68,6 +79,18 @@ void tensor_mul_fp32(
     at::Tensor &out);
 
 void tensor_mul_inplace_fp32(const at::Tensor &other, at::Tensor &self);
+
+void tensor_mul_bool(
+    const at::Tensor &self,
+    const at::Tensor &other,
+    at::Tensor &out);
+
+void tensor_mul_inplace_bool(const at::Tensor &other, at::Tensor &self);
+
+void tensor_mul_fp32_bool(
+    const at::Tensor &fp32,
+    const at::Tensor &pred,
+    at::Tensor &out);
 
 void tensor_hypot_fp32(
     const at::Tensor &self,
@@ -93,6 +116,7 @@ void tensor_sin_fp32(const at::Tensor &input, at::Tensor &out);
 void tensor_neg_fp32(const at::Tensor &input, at::Tensor &out);
 void tensor_rsqrt_fp32(const at::Tensor &input, at::Tensor &out);
 void tensor_exp_fp32(const at::Tensor &input, at::Tensor &out);
+void tensor_log_fp32(const at::Tensor &input, at::Tensor &out);
 
 void tensor_relu_backward_fp32(
     const at::Tensor &x,
@@ -144,6 +168,19 @@ void tensor_gemm_accumulate_fp32(
 void tensor_mm_fp32(
     const at::Tensor &a,
     const at::Tensor &b,
+    at::Tensor &out);
+
+void tensor_bmm_fp32(
+    const at::Tensor &a,
+    const at::Tensor &b,
+    at::Tensor &out);
+
+void tensor_addmm_fp32(
+    const at::Tensor &self,
+    const at::Tensor &mat1,
+    const at::Tensor &mat2,
+    float beta,
+    float alpha,
     at::Tensor &out);
 
 void tensor_linear_backward_input_fp32(
@@ -430,35 +467,6 @@ void tensor_adamw_step_fp32(
     at::Tensor &second_moment,
     at::Tensor &param);
 
-void tensor_layer_norm_forward_fp32(
-    const at::Tensor &input,
-    const at::Tensor *weight,
-    const at::Tensor *bias,
-    bool has_weight,
-    bool has_bias,
-    at::Tensor &output,
-    at::Tensor &mean,
-    at::Tensor &rstd,
-    int64_t norm_axis,
-    float eps);
-
-void tensor_layer_norm_backward_fp32(
-    const at::Tensor &grad_out,
-    const at::Tensor &input,
-    const at::Tensor &mean,
-    const at::Tensor &rstd,
-    const at::Tensor *weight,
-    const at::Tensor *bias,
-    bool has_weight,
-    bool has_bias,
-    at::Tensor *grad_input,
-    at::Tensor *grad_weight,
-    at::Tensor *grad_bias,
-    bool grad_input_needed,
-    bool grad_weight_needed,
-    bool grad_bias_needed,
-    int64_t norm_axis);
-
 void tensor_rms_norm_forward_fp32(
     const at::Tensor &input,
     const at::Tensor *weight,
@@ -522,10 +530,26 @@ void tensor_sum_dimlist_fp32(
     at::OptionalIntArrayRef dim,
     bool keepdim);
 
+void tensor_mean_dimlist_fp32(
+    const at::Tensor &input,
+    at::Tensor &out,
+    at::OptionalIntArrayRef dim,
+    bool keepdim);
+
 void tensor_mul_scalar_fp32(
     const at::Tensor &input,
     at::Tensor &out,
     float scalar);
+
+void tensor_pow_scalar_fp32(
+    const at::Tensor &input,
+    at::Tensor &out,
+    float exponent);
+
+void tensor_div_fp32(
+    const at::Tensor &self,
+    const at::Tensor &other,
+    at::Tensor &out);
 
 void tensor_cat_fp32(
     const std::vector<at::Tensor> &inputs,
@@ -578,5 +602,86 @@ void tensor_sdpa_backward_fp32(
     at::Tensor &grad_v,
     int64_t batch_ndim,
     bool is_causal = false);
+
+void tensor_where_fp32(
+    const at::Tensor &condition,
+    const at::Tensor &self,
+    const at::Tensor &other,
+    at::Tensor &out);
+
+void tensor_triu_fp32(
+    const at::Tensor &input,
+    at::Tensor &out,
+    int64_t diagonal);
+
+void tensor_arange_i64(
+    at::Tensor &out,
+    int64_t start,
+    int64_t end,
+    int64_t step);
+
+void tensor_arange_fp32(
+    at::Tensor &out,
+    float start,
+    float end,
+    float step);
+
+void tensor_gt_i64(
+    const at::Tensor &a,
+    const at::Tensor &b,
+    at::Tensor &out);
+
+void tensor_eq_fp32(
+    const at::Tensor &a,
+    const at::Tensor &b,
+    at::Tensor &out);
+
+void tensor_lt_i64(
+    const at::Tensor &a,
+    const at::Tensor &b,
+    at::Tensor &out);
+
+void tensor_sub_i64(
+    const at::Tensor &a,
+    const at::Tensor &b,
+    at::Tensor &out);
+
+void tensor_add_i64(
+    const at::Tensor &a,
+    const at::Tensor &b,
+    at::Tensor &out);
+
+void tensor_mul_i64(
+    const at::Tensor &a,
+    const at::Tensor &b,
+    at::Tensor &out);
+
+void tensor_minimum_i64(
+    const at::Tensor &a,
+    const at::Tensor &b,
+    at::Tensor &out);
+
+void tensor_abs_i64(const at::Tensor &input, at::Tensor &out);
+
+void tensor_neg_i64(const at::Tensor &input, at::Tensor &out);
+
+void tensor_fill_i64(at::Tensor &self, int64_t value);
+
+void tensor_fill_bool(at::Tensor &self, bool value);
+
+void tensor_tril_bool(
+    const at::Tensor &input,
+    at::Tensor &out,
+    int64_t diagonal);
+
+void tensor_cast(
+    const at::Tensor &input,
+    at::Tensor &out);
+
+void tensor_where_i64(
+    const at::Tensor &condition,
+    const at::Tensor &self,
+    const at::Tensor &other,
+    at::Tensor &out);
 
 } // namespace torch_nntile

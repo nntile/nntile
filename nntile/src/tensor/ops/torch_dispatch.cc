@@ -13,6 +13,7 @@
 #include <utility>
 
 #include <nntile/base_types.hh>
+#include <nntile/dtype.hh>
 #include <nntile/tensor/tile_lowering_helpers.hh>
 #include <nntile/tile/ops/torch_dispatch.hh>
 
@@ -165,6 +166,25 @@ TensorGraph::TensorNode *torch_embedding(
     return out;
 }
 
+TensorGraph::TensorNode *torch_where(
+    TensorGraph::TensorNode *condition,
+    TensorGraph::TensorNode *self,
+    TensorGraph::TensorNode *other,
+    const std::vector<Index> &out_shape,
+    starpu::TorchDispatchArgs extra)
+{
+    TensorGraph::TensorNode *out =
+        self->graph()->emplace_data(out_shape, self->dtype());
+    auto op = std::make_shared<TensorTorchWhereOp>(
+        condition,
+        self,
+        other,
+        out,
+        extra);
+    self->graph()->add_op(op);
+    return out;
+}
+
 TensorGraph::TensorNode *torch_cat(
     Index dim,
     const std::vector<TensorGraph::TensorNode *> &inputs,
@@ -227,6 +247,66 @@ void TensorTorchEmbeddingOp::lower_to_tile(const LoweringContext &ctx) const
     tile::torch_embedding(vw[0], vi[0], vout[0], extra);
 }
 
+void TensorTorchWhereOp::lower_to_tile(const LoweringContext &ctx) const
+{
+    const auto &vc = tile_lower::tiles_of(ctx.tile_map, condition);
+    const auto &vs = tile_lower::tiles_of(ctx.tile_map, self);
+    const auto &vo = tile_lower::tiles_of(ctx.tile_map, other);
+    const auto &vout = tile_lower::tiles_of(ctx.tile_map, out);
+    require_single_tile("TORCH_WHERE", vc);
+    require_single_tile("TORCH_WHERE", vs);
+    require_single_tile("TORCH_WHERE", vo);
+    require_single_tile("TORCH_WHERE", vout);
+    tile::torch_where(vc[0], vs[0], vo[0], vout[0], extra);
+}
+
+void torch_arange(
+    TensorGraph::TensorNode *out,
+    starpu::TorchDispatchArgs extra)
+{
+    if (out == nullptr)
+    {
+        throw std::invalid_argument("torch_arange: null tensor");
+    }
+    auto op = std::make_shared<TensorTorchArangeOp>(out, extra);
+    out->graph()->add_op(op);
+}
+
+void TensorTorchArangeOp::lower_to_tile(const LoweringContext &ctx) const
+{
+    const auto &vout = tile_lower::tiles_of(ctx.tile_map, out);
+    require_single_tile("TORCH_ARANGE", vout);
+    tile::torch_arange(vout[0], extra);
+}
+
+TensorGraph::TensorNode *torch_gt(
+    TensorGraph::TensorNode *a,
+    TensorGraph::TensorNode *b,
+    const std::vector<Index> &out_shape,
+    starpu::TorchDispatchArgs extra)
+{
+    if (a == nullptr || b == nullptr)
+    {
+        throw std::invalid_argument("torch_gt: null tensor");
+    }
+    TensorGraph::TensorNode *out =
+        a->graph()->emplace_data(out_shape, DataType::BOOL);
+    auto op = std::make_shared<TensorTorchGtOp>(a, b, out, extra);
+    a->graph()->add_op(op);
+    return out;
+}
+
+void TensorTorchGtOp::lower_to_tile(const LoweringContext &ctx) const
+{
+    const auto &va = tile_lower::tiles_of(ctx.tile_map, a);
+    const auto &vb = tile_lower::tiles_of(ctx.tile_map, b);
+    const auto &vout = tile_lower::tiles_of(ctx.tile_map, out);
+    require_single_tile("TORCH_GT", va);
+    require_single_tile("TORCH_GT", vb);
+    require_single_tile("TORCH_GT", vout);
+    tile::torch_gt(va[0], vb[0], vout[0], extra);
+}
+
 void TensorTorchCatOp::lower_to_tile(const LoweringContext &ctx) const
 {
     std::vector<TileGraph::TileNode *> tiles;
@@ -240,158 +320,6 @@ void TensorTorchCatOp::lower_to_tile(const LoweringContext &ctx) const
     const auto &vout = tile_lower::tiles_of(ctx.tile_map, out);
     require_single_tile("TORCH_CAT", vout);
     tile::torch_cat(dim, tiles, vout[0]);
-}
-
-void torch_layer_norm(
-    TensorGraph::TensorNode *input,
-    TensorGraph::TensorNode *weight,
-    TensorGraph::TensorNode *bias,
-    TensorGraph::TensorNode *out,
-    TensorGraph::TensorNode *mean,
-    TensorGraph::TensorNode *rstd,
-    Index normalized_ndim,
-    Scalar eps)
-{
-    auto op = std::make_shared<TensorTorchLayerNormOp>(
-        input,
-        weight,
-        bias,
-        out,
-        mean,
-        rstd,
-        normalized_ndim,
-        eps);
-    input->graph()->add_op(op);
-}
-
-void TensorTorchLayerNormOp::lower_to_tile(const LoweringContext &ctx) const
-{
-    const auto &vin = tile_lower::tiles_of(ctx.tile_map, input);
-    const auto &vout = tile_lower::tiles_of(ctx.tile_map, out);
-    const auto &vmean = tile_lower::tiles_of(ctx.tile_map, mean);
-    const auto &vrstd = tile_lower::tiles_of(ctx.tile_map, rstd);
-    require_single_tile("TORCH_LAYER_NORM", vin);
-    require_single_tile("TORCH_LAYER_NORM", vout);
-    require_single_tile("TORCH_LAYER_NORM", vmean);
-    require_single_tile("TORCH_LAYER_NORM", vrstd);
-    TileGraph::TileNode *vw = nullptr;
-    TileGraph::TileNode *vb = nullptr;
-    if (weight != nullptr)
-    {
-        const auto &vt = tile_lower::tiles_of(ctx.tile_map, weight);
-        require_single_tile("TORCH_LAYER_NORM", vt);
-        vw = vt[0];
-    }
-    if (bias != nullptr)
-    {
-        const auto &vt = tile_lower::tiles_of(ctx.tile_map, bias);
-        require_single_tile("TORCH_LAYER_NORM", vt);
-        vb = vt[0];
-    }
-    tile::torch_layer_norm(
-        vin[0],
-        vw,
-        vb,
-        vout[0],
-        vmean[0],
-        vrstd[0],
-        normalized_ndim,
-        eps);
-}
-
-void torch_layer_norm_backward(
-    TensorGraph::TensorNode *grad_out,
-    TensorGraph::TensorNode *input,
-    TensorGraph::TensorNode *mean,
-    TensorGraph::TensorNode *rstd,
-    TensorGraph::TensorNode *weight,
-    TensorGraph::TensorNode *bias,
-    TensorGraph::TensorNode *grad_input,
-    TensorGraph::TensorNode *grad_weight,
-    TensorGraph::TensorNode *grad_bias,
-    Index normalized_ndim,
-    bool need_grad_input,
-    bool need_grad_weight,
-    bool need_grad_bias)
-{
-    auto op = std::make_shared<TensorTorchLayerNormBackwardOp>(
-        grad_out,
-        input,
-        mean,
-        rstd,
-        weight,
-        bias,
-        grad_input,
-        grad_weight,
-        grad_bias,
-        normalized_ndim,
-        need_grad_input,
-        need_grad_weight,
-        need_grad_bias);
-    grad_out->graph()->add_op(op);
-}
-
-void TensorTorchLayerNormBackwardOp::lower_to_tile(
-    const LoweringContext &ctx) const
-{
-    const auto &vgo = tile_lower::tiles_of(ctx.tile_map, grad_out);
-    const auto &vin = tile_lower::tiles_of(ctx.tile_map, input);
-    const auto &vmean = tile_lower::tiles_of(ctx.tile_map, mean);
-    const auto &vrstd = tile_lower::tiles_of(ctx.tile_map, rstd);
-    require_single_tile("TORCH_LAYER_NORM_BWD", vgo);
-    require_single_tile("TORCH_LAYER_NORM_BWD", vin);
-    require_single_tile("TORCH_LAYER_NORM_BWD", vmean);
-    require_single_tile("TORCH_LAYER_NORM_BWD", vrstd);
-    TileGraph::TileNode *vw = nullptr;
-    TileGraph::TileNode *vb = nullptr;
-    TileGraph::TileNode *vgi = nullptr;
-    TileGraph::TileNode *vgw = nullptr;
-    TileGraph::TileNode *vgb = nullptr;
-    if (weight != nullptr)
-    {
-        const auto &vt = tile_lower::tiles_of(ctx.tile_map, weight);
-        require_single_tile("TORCH_LAYER_NORM_BWD", vt);
-        vw = vt[0];
-    }
-    if (bias != nullptr)
-    {
-        const auto &vt = tile_lower::tiles_of(ctx.tile_map, bias);
-        require_single_tile("TORCH_LAYER_NORM_BWD", vt);
-        vb = vt[0];
-    }
-    if (need_grad_input && grad_input != nullptr)
-    {
-        const auto &vt = tile_lower::tiles_of(ctx.tile_map, grad_input);
-        require_single_tile("TORCH_LAYER_NORM_BWD", vt);
-        vgi = vt[0];
-    }
-    if (need_grad_weight && grad_weight != nullptr)
-    {
-        const auto &vt =
-            tile_lower::tiles_of(ctx.tile_map, grad_weight);
-        require_single_tile("TORCH_LAYER_NORM_BWD", vt);
-        vgw = vt[0];
-    }
-    if (need_grad_bias && grad_bias != nullptr)
-    {
-        const auto &vt = tile_lower::tiles_of(ctx.tile_map, grad_bias);
-        require_single_tile("TORCH_LAYER_NORM_BWD", vt);
-        vgb = vt[0];
-    }
-    tile::torch_layer_norm_backward(
-        vgo[0],
-        vin[0],
-        vmean[0],
-        vrstd[0],
-        vw,
-        vb,
-        vgi,
-        vgw,
-        vgb,
-        normalized_ndim,
-        need_grad_input,
-        need_grad_weight,
-        need_grad_bias);
 }
 
 void torch_embedding_dense_backward(

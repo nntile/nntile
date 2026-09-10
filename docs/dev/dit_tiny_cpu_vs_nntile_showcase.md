@@ -6,6 +6,10 @@ through `torch_nntile` PrivateUse1 (`device=nntile`) versus plain PyTorch
 CPU. Goal: show **numerical parity** (matching loss) for AdaLN-Zero DiT
 on a tiny CIFAR-10 batch — not a large-scale throughput benchmark.
 
+For the **CUDA vs nntile overhead ladder** (synthetic batches, VRAM matched
+to Llama, 10× repeats), see
+[`dit_hf_overhead_scale.md`](dit_hf_overhead_scale.md).
+
 Scripts live under [`torch_nntile/examples/`](../../torch_nntile/examples/):
 
 | Script | Role |

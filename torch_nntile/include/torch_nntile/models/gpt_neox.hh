@@ -8,6 +8,7 @@
 #pragma once
 
 #include <torch/torch.h>
+#include <torch_nntile/classic_nn.hh>
 
 #include <cstdint>
 
@@ -70,9 +71,9 @@ TORCH_MODULE(GptNeoXMLP);
 
 struct GptNeoXDecoderImpl : torch::nn::Module
 {
-    torch::nn::LayerNorm input_norm{nullptr};
+    nn_classic::LayerNorm input_norm{nullptr};
     GptNeoXAttention attn{nullptr};
-    torch::nn::LayerNorm post_attn_norm{nullptr};
+    nn_classic::LayerNorm post_attn_norm{nullptr};
     GptNeoXMLP mlp{nullptr};
     bool parallel_residual = true;
 
@@ -89,9 +90,9 @@ TORCH_MODULE(GptNeoXDecoder);
 struct GptNeoXCausalImpl : torch::nn::Module
 {
     GptNeoXConfig config;
-    torch::nn::Embedding embed_in{nullptr};
+    nn_classic::Embedding embed_in{nullptr};
     torch::nn::ModuleList layers{nullptr};
-    torch::nn::LayerNorm final_layer_norm{nullptr};
+    nn_classic::LayerNorm final_layer_norm{nullptr};
     torch::Tensor lm_weight;
     torch::Tensor rope_sin_;
     torch::Tensor rope_cos_;

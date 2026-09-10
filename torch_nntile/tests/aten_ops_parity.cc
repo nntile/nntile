@@ -31,8 +31,8 @@ struct ContextGuard
                 "/tmp/nntile_ooc",
                 16ull * 1024ull * 1024ull,
                 0,
-                0,
-                false);
+                0);
+            REQUIRE_FALSE(torch_nntile::is_cpu_fallback_enabled());
             torch_nntile::restrict_cpu();
         }
     }
@@ -480,6 +480,34 @@ TEST_CASE("aten narrow fwd matches CPU", "[aten][parity]")
     torch_nntile::test::assert_close(y, y_ref);
 }
 
+TEST_CASE("aten narrow fwd+bwd matches CPU", "[aten][parity]")
+{
+    ContextGuard guard;
+    auto x = seeded({2, 8});
+    torch_nntile::test::assert_op_forward_backward(
+        [](std::vector<at::Tensor> const &xs)
+        {
+            return xs[0].narrow(/*dim=*/1, /*start=*/2, /*length=*/4);
+        },
+        {x});
+}
+
+TEST_CASE(
+    "aten last-dim slice+cat fwd+bwd matches CPU",
+    "[aten][parity]")
+{
+    ContextGuard guard;
+    auto x = seeded({2, 4, 8});
+    torch_nntile::test::assert_op_forward_backward(
+        [](std::vector<at::Tensor> const &xs)
+        {
+            at::Tensor rot = xs[0].slice(/*dim=*/-1, 0, 4);
+            at::Tensor pass = xs[0].slice(/*dim=*/-1, 4, 8);
+            return torch::cat({rot, pass}, /*dim=*/-1);
+        },
+        {x});
+}
+
 TEST_CASE("aten vector_norm fwd matches CPU", "[aten][parity]")
 {
     ContextGuard guard;
@@ -489,4 +517,29 @@ TEST_CASE("aten vector_norm fwd matches CPU", "[aten][parity]")
     c10::Device const dev = torch_nntile::test::nntile_device();
     at::Tensor y = torch::linalg_vector_norm(x.to(dev), 2, -1);
     torch_nntile::test::assert_close(y, y_ref);
+}
+
+TEST_CASE("aten arange as first graph op matches CPU", "[aten][parity]")
+{
+    ContextGuard guard;
+    c10::Device const dev = torch_nntile::test::nntile_device();
+    at::Tensor y = torch::arange(
+        /*end=*/8,
+        torch::TensorOptions().dtype(torch::kLong).device(dev));
+    at::Tensor y_ref = torch::arange(
+        /*end=*/8,
+        torch::TensorOptions().dtype(torch::kLong));
+    torch_nntile::test::assert_close(y, y_ref);
+    at::Tensor y2 = torch::arange(
+        /*start=*/0,
+        /*end=*/8,
+        torch::TensorOptions().dtype(torch::kLong).device(dev));
+    torch_nntile::test::assert_close(y2, y_ref);
+    at::Tensor yf = torch::arange(
+        /*end=*/4,
+        torch::TensorOptions().dtype(torch::kFloat32).device(dev));
+    at::Tensor yf_ref = torch::arange(
+        /*end=*/4,
+        torch::TensorOptions().dtype(torch::kFloat32));
+    torch_nntile::test::assert_close(yf, yf_ref);
 }

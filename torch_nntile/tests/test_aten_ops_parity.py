@@ -12,6 +12,8 @@ import torch.nn.functional as F
 from conftest import nntile_cpu
 from parity_helpers import assert_aten_op_forward_backward, assert_close
 
+import torch_nntile
+
 _RTOL = 1e-4
 _ATOL = 1e-4
 _BWD_RTOL = 1e-3
@@ -219,6 +221,13 @@ def test_layer_norm_no_affine_matches_cpu_forward_backward():
     )
 
 
+def test_layer_norm_backward_uses_subops_not_fused():
+    torch.manual_seed(0)
+    x = torch.randn(2, 4, 8, dtype=torch.float32, requires_grad=True)
+    y = F.layer_norm(x.to("nntile"), (8,), eps=1e-5)
+    assert type(y.grad_fn).__name__ != "NativeLayerNormBackward0"
+
+
 @pytest.mark.parametrize(
     "name,make_inputs,op",
     [
@@ -273,6 +282,47 @@ def test_aten_op_matches_cpu_forward_only(name, make_inputs, op):
     assert nntile_cpu(y_nnt).shape == y_ref.shape
 
 
+def test_arange_as_first_graph_op_matches_cpu():
+    """Factory ``aten::arange`` must compile even as the first graph op."""
+    torch_nntile.reset_graph_session()
+    ref = torch.arange(8)
+    got = torch.arange(8, device="nntile")
+    torch.testing.assert_close(nntile_cpu(got), ref)
+    got_start = torch.arange(0, 8, device="nntile")
+    torch.testing.assert_close(nntile_cpu(got_start), torch.arange(0, 8))
+    ref_f = torch.arange(4, dtype=torch.float32)
+    got_f = torch.arange(4, dtype=torch.float32, device="nntile")
+    torch.testing.assert_close(nntile_cpu(got_f), ref_f)
+
+
+def test_strided_view_ops_match_cpu_forward_backward():
+    """Non-contiguous views must match CPU/CUDA (no wrapper densify)."""
+    torch.manual_seed(0)
+    x = torch.randn(4, 8, dtype=torch.float32, requires_grad=True)
+    y = x[:, ::2]
+
+    for op in (torch.relu, F.silu, lambda t: F.gelu(t, approximate="tanh")):
+        assert_aten_op_forward_backward(
+            op,
+            inputs_cpu=[y],
+            rtol=_RTOL,
+            atol=_ATOL,
+            bwd_rtol=_BWD_RTOL,
+            bwd_atol=_BWD_ATOL,
+        )
+
+    a = torch.randn(4, 6, dtype=torch.float32, requires_grad=True)
+    b = torch.randn(4, 6, dtype=torch.float32, requires_grad=True)
+    assert_aten_op_forward_backward(
+        lambda u, v: u * v,
+        inputs_cpu=[a[:, ::2], b[:, ::2]],
+        rtol=_RTOL,
+        atol=_ATOL,
+        bwd_rtol=_BWD_RTOL,
+        bwd_atol=_BWD_ATOL,
+    )
+
+
 def test_sdpa_matches_cpu_forward_backward():
     """ATen SDPA overrideable path (fwd + bwd) vs CPU."""
     torch.manual_seed(0)
@@ -290,3 +340,41 @@ def test_sdpa_matches_cpu_forward_backward():
         bwd_rtol=_BWD_RTOL,
         bwd_atol=_BWD_ATOL,
     )
+
+
+@pytest.mark.skipif(
+    not getattr(torch_nntile, "TORCH_NATIVE_OPS", False),
+    reason="torch-native aten ops not built",
+)
+def test_aten_relu_records_torch_native_graph():
+    from classic_graph import assert_torch_native_graph
+
+    torch_nntile.reset_graph_session()
+    x_n = (
+        torch.randn(4, 8, dtype=torch.float32)
+        .to("nntile")
+        .requires_grad_(True)
+    )
+    y_n = torch.relu(x_n)
+    ones = torch.ones(tuple(y_n.shape), dtype=y_n.dtype)
+    torch.autograd.grad(y_n, x_n, ones.to(y_n.device))
+    assert_torch_native_graph()
+
+
+@pytest.mark.skipif(
+    not getattr(torch_nntile, "TORCH_NATIVE_OPS", False),
+    reason="torch-native aten ops not built",
+)
+def test_stock_linear_records_torch_native_graph():
+    from classic_graph import assert_torch_native_graph
+
+    torch_nntile.reset_graph_session()
+    layer = torch.nn.Linear(8, 5, bias=True).float().to("nntile")
+    x = torch.randn(3, 8, dtype=torch.float32).to("nntile").requires_grad_(
+        True
+    )
+    y = layer(x)
+    ones = torch.ones(tuple(y.shape), dtype=y.dtype)
+    torch.autograd.grad(y, x, ones.to(y.device))
+    assert_torch_native_graph()
+

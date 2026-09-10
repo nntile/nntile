@@ -13,6 +13,7 @@
 
 #include <ATen/Tensor.h>
 #include <ATen/ops/empty.h>
+#include <ATen/ops/zeros.h>
 #include <c10/core/DeviceType.h>
 #include <c10/util/Exception.h>
 #include <stdexcept>
@@ -24,6 +25,7 @@
 #include <nntile/tensor/graph.hh>
 #include <nntile/tensor/ops/clear.hh>
 #include <nntile/tensor/ops/invalidate.hh>
+#include <nntile/tensor/ops/unregister.hh>
 #include <nntile/tensor/ops/gather.hh>
 #include <nntile/tensor/ops/scatter.hh>
 #include <nntile/tensor/ops/contiguous_view.hh>
@@ -50,11 +52,15 @@ std::vector<Index> tile_sizes_for_axis_extent(
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <iomanip>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace torch_nntile
@@ -82,6 +88,29 @@ bool skip_starpu_submit_and_acquire()
     return cached != 0;
 }
 
+} // namespace
+
+bool skip_nntile_kernels()
+{
+    static int const cached = []() -> int
+    {
+        char const *env = std::getenv("TORCH_NNTILE_SKIP_KERNELS");
+        if (env == nullptr || env[0] == '\0' || std::strcmp(env, "0") == 0)
+        {
+            return 0;
+        }
+        std::fprintf(
+            stderr,
+            "torch_nntile: TORCH_NNTILE_SKIP_KERNELS=1 "
+            "(no compute-op insert; UNREGISTER still runs)\n");
+        return 1;
+    }();
+    return cached != 0;
+}
+
+namespace
+{
+
 std::recursive_mutex g_recorder_mutex;
 std::unique_ptr<nntile::TensorGraph> g_graph;
 struct ParamGradEntry
@@ -108,8 +137,6 @@ struct RecorderExecState
     //! Slice scheduled by the latest compile_graph_locked call.
     std::size_t pending_exec_op_begin = 0;
     std::size_t pending_exec_op_end = 0;
-    //! Scatter staging tensors in the pending phase (invalidate after wait).
-    std::vector<nntile::TensorGraph::TensorNode *> pending_scatter_stagings;
 };
 
 std::unique_ptr<RecorderExecState> g_exec;
@@ -125,11 +152,20 @@ struct GraphApiTimingStats
     double compile_tiling_s = 0.0;
     double compile_append_s = 0.0;
     double compile_runtime_s = 0.0;
+    double compile_pre_s = 0.0;
+    double compile_runtime_dce_s = 0.0;
+    double compile_runtime_alloc_s = 0.0;
     std::uint64_t run_calls = 0;
     double run_s = 0.0;
     std::uint64_t run_ops = 0;
     std::uint64_t wait_calls = 0;
     double wait_s = 0.0;
+    double wait_starpu_s = 0.0;
+    double wait_compact_s = 0.0;
+    double wait_gc_collect_s = 0.0;
+    double wait_gc_erase_s = 0.0;
+    double wait_gc_destroy_s = 0.0;
+    std::uint64_t wait_gc_dead = 0;
     std::uint64_t host_readout_calls = 0;
     double host_readout_s = 0.0;
     // Record-path attribution (op capture into TensorGraph).
@@ -179,6 +215,8 @@ void compile_graph_locked();
 void run_graph_locked();
 
 void finish_run_locked();
+
+void gc_dead_data_nodes_locked();
 
 void register_grad_alias_for_host_copy_locked(
     at::Tensor &grad,
@@ -241,10 +279,30 @@ void apply_axis_name_hints_locked(
 [[noreturn]] void throw_tiled_aten_temporarily_disabled()
 {
     throw std::runtime_error(
-        "torch_nntile: axis-group tiling is temporarily disabled for "
-        "device=nntile PrivateUse1 aten ops (single-tile / untiled tensors "
-        "only). See docs/dev/torch_nntile_aten_ops.md and "
-        "docs/dev/torch_starpu_kernels.md.");
+        "torch_nntile: axis-group tiling is not allowed when the pending "
+        "TensorGraph contains torch-native (TORCH_*) compute. Use classic "
+        "torch_nntile.nn ops for tiled graphs, or keep stock aten graphs "
+        "untiled. See docs/dev/torch_nntile_aten_ops.md.");
+}
+
+
+bool graph_has_torch_compute_op_locked()
+{
+    if (g_graph == nullptr)
+    {
+        return false;
+    }
+    const size_t begin = g_graph->phase_seal_cursor();
+    const auto &ops = g_graph->ops();
+    for (size_t i = begin; i < ops.size(); ++i)
+    {
+        const std::string &name = ops[i]->op_name();
+        if (name.rfind("TORCH_", 0) == 0)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 void require_untiled_torch_session_locked()
@@ -253,12 +311,9 @@ void require_untiled_torch_session_locked()
     {
         return;
     }
-    for (nntile::AxisDescriptor *axis : g_graph->axis_groups())
+    if (g_graph->has_tiled_axis_group() && graph_has_torch_compute_op_locked())
     {
-        if (axis != nullptr && axis->is_tiled())
-        {
-            throw_tiled_aten_temporarily_disabled();
-        }
+        throw_tiled_aten_temporarily_disabled();
     }
 }
 
@@ -268,8 +323,23 @@ void apply_pending_axis_tiling_locked()
     {
         return;
     }
-    // Reject before mutating AxisDescriptors.
-    throw_tiled_aten_temporarily_disabled();
+    if (graph_has_torch_compute_op_locked())
+    {
+        throw_tiled_aten_temporarily_disabled();
+    }
+    for (nntile::AxisDescriptor *group : g_graph->axis_groups())
+    {
+        if (group == nullptr || group->name.empty())
+        {
+            continue;
+        }
+        const auto pending = g_axis_tiling_by_name.find(group->name);
+        if (pending == g_axis_tiling_by_name.end())
+        {
+            continue;
+        }
+        nntile::apply_tiling_to_axis(group, pending->second);
+    }
 }
 
 nntile::DataType aten_scalar_to_nntile_dtype(at::ScalarType dtype)
@@ -496,78 +566,6 @@ void release_io_staging_locked(nntile::TensorGraph::TensorNode *staging)
     {
         g_exec->session_tiling->erase(staging);
     }
-}
-
-//! Run pending tile ops, releasing each ingress ``S`` right after its
-//! scatter consumers finish.
-//!
-//! Batched ``.to("nntile")`` creates every ephemeral ``S`` first, then
-//! compile lowers every logical ``L``. Submitting all scatters before any
-//! ``S`` unregister leaves StarPU holding CUDA replicates of every ``S``
-//! beside every ``L``; unregister only parks those buffers in the
-//! allocation cache (``nvidia-smi`` stays ~2x). Drain + destroy each
-//! ``S`` before the next scatter so the next ``L`` reuses the cached
-//! chunk instead of allocating another full working set.
-void run_pending_with_scatter_staging_release_locked(
-    std::size_t op_begin,
-    std::size_t op_end,
-    bool submit_tasks)
-{
-    struct ReleasePoint
-    {
-        std::size_t after_op_end = 0;
-        nntile::TensorGraph::TensorNode *staging = nullptr;
-    };
-    std::vector<ReleasePoint> points;
-    points.reserve(g_exec->pending_scatter_stagings.size());
-    for (nntile::TensorGraph::TensorNode *staging :
-        g_exec->pending_scatter_stagings)
-    {
-        if (staging == nullptr)
-        {
-            continue;
-        }
-        std::size_t after = op_begin;
-        auto const *tiles = g_exec->tile_map.try_get(staging);
-        if (tiles != nullptr && tiles->size() == 1 &&
-            (*tiles)[0] != nullptr)
-        {
-            after = g_exec->runtime->last_input_consumer_end(
-                (*tiles)[0],
-                op_begin,
-                op_end);
-        }
-        points.push_back(ReleasePoint{after, staging});
-    }
-    std::stable_sort(
-        points.begin(),
-        points.end(),
-        [](ReleasePoint const &a, ReleasePoint const &b)
-        {
-            return a.after_op_end < b.after_op_end;
-        });
-
-    std::size_t cursor = op_begin;
-    for (ReleasePoint const &pt : points)
-    {
-        if (pt.after_op_end > cursor)
-        {
-            g_exec->runtime->execute_range(
-                cursor,
-                pt.after_op_end,
-                submit_tasks);
-            cursor = pt.after_op_end;
-        }
-        // Join before destroying S so its CUDA replicate can enter the
-        // allocation cache for the next L allocate.
-        g_exec->runtime->wait();
-        release_io_staging_locked(pt.staging);
-    }
-    if (cursor < op_end)
-    {
-        g_exec->runtime->execute_range(cursor, op_end, submit_tasks);
-    }
-    g_exec->pending_scatter_stagings.clear();
 }
 
 void read_staging_to_host_locked(
@@ -899,40 +897,14 @@ void drain_starpu_after_session_teardown()
     starpu_task_wait_for_all();
 }
 
-void collect_scatter_stagings_from_phase_locked(
-    const nntile::TensorGraph::PhaseSnapshot &phase,
-    std::vector<nntile::TensorGraph::TensorNode *> &out)
-{
-    if (g_graph == nullptr || phase.empty())
-    {
-        return;
-    }
-    const auto &ops = g_graph->ops();
-    for (std::size_t i = phase.op_begin; i < phase.op_end; ++i)
-    {
-        if (i >= ops.size() || ops[i] == nullptr)
-        {
-            continue;
-        }
-        if (ops[i]->op_name() != "SCATTER")
-        {
-            continue;
-        }
-        const auto *scatter =
-            dynamic_cast<const nntile::tensor::TensorScatterOp *>(
-                ops[i].get());
-        if (scatter != nullptr && scatter->src != nullptr)
-        {
-            out.push_back(scatter->src);
-        }
-    }
-}
-
 void compact_tensor_graph_session_locked()
 {
     // Drop sealed TensorGraph ops so the next record/compile is O(phase).
     // Unsealed ops recorded after the last seal (next phase already in
     // flight while a prior run() completes) are preserved.
+    // Dead TensorNode / TileNode IR is GC'd after wait() in
+    // finish_run_locked() (not here: StarPU unregister may still be in
+    // flight at compact_after_submit).
     if (g_graph == nullptr)
     {
         return;
@@ -965,8 +937,8 @@ void prepare_invalidate_selection_locked()
 
 //! Drain the TensorRef-release queue without touching StarPU.
 //!
-//! Reclaim is **only** via ordinary ``tensor::INVALIDATE`` graph ops:
-//! ``TensorRef`` last-drop already records ``tensor::invalidate``, and
+//! Reclaim is **only** via ordinary graph ops: ``TensorRef`` last-drop
+//! records ``tensor::unregister``, and
 //! ``append_invalidates_for_unmarked_unsealed`` covers emplace_data temps.
 //! A side-channel ``invalidate_logical_tiles`` here ran *before* the phase
 //! was submitted, so ``del inputs`` after record (but before compile) could
@@ -980,6 +952,100 @@ void flush_released_logicals_locked()
 void compact_after_submit_locked()
 {
     compact_tensor_graph_session_locked();
+}
+
+void gc_dead_data_nodes_locked()
+{
+    if (g_graph == nullptr)
+    {
+        return;
+    }
+    // Keep TensorNodes still named by remaining TileGraph ops (the next
+    // compiled-but-unexecuted phase). Everything else without a live
+    // TensorRef is dead. Requiring ``num_ops()==0`` skipped GC for the
+    // whole session under wait-before-run (compile N+1 lands before
+    // wait(N) GC).
+    std::unordered_set<nntile::TensorGraph::TensorNode const *> keep;
+    if (g_exec != nullptr && g_exec->tile_graph != nullptr)
+    {
+        for (auto const &op : g_exec->tile_graph->ops())
+        {
+            if (op == nullptr)
+            {
+                continue;
+            }
+            auto note_tile =
+                [&](nntile::TileGraph::TileNode const *tile)
+            {
+                if (tile == nullptr)
+                {
+                    return;
+                }
+                auto const *desc = tile->tensor_descriptor();
+                if (desc != nullptr && desc->source_node != nullptr)
+                {
+                    keep.insert(desc->source_node);
+                }
+            };
+            for (auto const *tile : op->inputs())
+            {
+                note_tile(tile);
+            }
+            for (auto const *tile : op->outputs())
+            {
+                note_tile(tile);
+            }
+        }
+    }
+    SteadyClock::time_point t = SteadyClock::now();
+    std::vector<nntile::TensorGraph::TensorNode *> dead =
+        g_graph->collect_dead_data_nodes();
+    if (!keep.empty())
+    {
+        dead.erase(
+            std::remove_if(
+                dead.begin(),
+                dead.end(),
+                [&](nntile::TensorGraph::TensorNode *node)
+                {
+                    return keep.count(node) != 0;
+                }),
+            dead.end());
+    }
+    g_timing.wait_gc_collect_s += seconds_since(t);
+    if (dead.empty())
+    {
+        return;
+    }
+    if (g_exec == nullptr)
+    {
+        g_graph->destroy_data_nodes(dead);
+        return;
+    }
+    g_timing.wait_gc_dead += static_cast<std::uint64_t>(dead.size());
+    t = SteadyClock::now();
+    for (nntile::TensorGraph::TensorNode *tnode : dead)
+    {
+        g_exec->tile_map.erase(tnode);
+        g_exec->inc_state.tensor_to_tiles.erase(tnode);
+        g_exec->inc_state.tensor_layout_fp.erase(tnode);
+        if (g_exec->session_tiling != nullptr)
+        {
+            g_exec->session_tiling->erase(tnode);
+        }
+        if (g_exec->runtime != nullptr)
+        {
+            g_exec->runtime->forget_logical(tnode);
+        }
+        if (g_exec->tile_graph != nullptr)
+        {
+            g_exec->tile_graph->erase_source_tensor(tnode);
+        }
+    }
+    g_timing.wait_gc_erase_s += seconds_since(t);
+    t = SteadyClock::now();
+    g_graph->destroy_data_nodes(dead);
+    g_timing.wait_gc_destroy_s += seconds_since(t);
 }
 
 void compile_graph_locked()
@@ -1006,15 +1072,15 @@ void compile_graph_locked()
     // Marks must reflect live Python refs before INVALIDATE selection.
     prepare_invalidate_selection_locked();
     // Drain release notes only; do not invalidate_logical_tiles here.
-    // Payload reclaim is append_invalidates + TensorRef-recorded INVALIDATE
-    // ops in this phase (submitted with compute so StarPU orders them).
+    // Payload reclaim is append_invalidates + TensorRef-recorded
+    // UNREGISTER ops in this phase (submitted with compute so StarPU
+    // orders them).
     flush_released_logicals_locked();
     nntile::tensor::append_invalidates_for_unmarked_unsealed(*g_graph);
+    g_timing.compile_pre_s += seconds_since(t0);
 
     SteadyClock::time_point t_part = SteadyClock::now();
     const nntile::TensorGraph::PhaseSnapshot phase = g_graph->seal_phase();
-    std::vector<nntile::TensorGraph::TensorNode *> scatter_stagings;
-    collect_scatter_stagings_from_phase_locked(phase, scatter_stagings);
     g_timing.compile_seal_s += seconds_since(t_part);
 
     // Phase-scoped tiling: full-graph from_tensor_graph rebuilt layouts for
@@ -1061,9 +1127,12 @@ void compile_graph_locked()
     t_part = SteadyClock::now();
     g_exec->runtime->compile();
     g_timing.compile_runtime_s += seconds_since(t_part);
+    g_timing.compile_runtime_dce_s +=
+        g_exec->runtime->last_compile_dce_seconds();
+    g_timing.compile_runtime_alloc_s +=
+        g_exec->runtime->last_compile_alloc_seconds();
     g_exec->pending_exec_op_end =
         g_exec->runtime->execution_op_count();
-    g_exec->pending_scatter_stagings = std::move(scatter_stagings);
 
     std::uint64_t const phase_ops = static_cast<std::uint64_t>(
         g_exec->pending_exec_op_end - g_exec->pending_exec_op_begin);
@@ -1078,7 +1147,7 @@ void run_graph_locked()
     {
         return;
     }
-    // Submit only (except ingress scatters - see below). INVALIDATE ops are
+    // Submit the pending tile-op range. INVALIDATE / UNREGISTER ops are
     // already in the execution stream. Join StarPU via wait() for readout.
     if (g_exec->pending_exec_op_end > g_exec->pending_exec_op_begin)
     {
@@ -1088,22 +1157,10 @@ void run_graph_locked()
         bool const submit = !skip_starpu_submit_and_acquire();
         // Always call execute_range so Runtime::executed_op_end_ advances.
         // SKIP_STARPU only disables OpNode::execute (StarPU task insert).
-        if (!g_exec->pending_scatter_stagings.empty())
-        {
-            // Per-S release so StarPU's allocation cache can reuse each
-            // ephemeral CUDA chunk for the next logical L (avoids ~2x).
-            run_pending_with_scatter_staging_release_locked(
-                g_exec->pending_exec_op_begin,
-                g_exec->pending_exec_op_end,
-                submit);
-        }
-        else
-        {
-            g_exec->runtime->execute_range(
-                g_exec->pending_exec_op_begin,
-                g_exec->pending_exec_op_end,
-                submit);
-        }
+        g_exec->runtime->execute_range(
+            g_exec->pending_exec_op_begin,
+            g_exec->pending_exec_op_end,
+            submit);
         g_timing.run_s += seconds_since(t0);
         ++g_timing.run_calls;
         g_timing.run_ops += phase_ops;
@@ -1129,20 +1186,17 @@ void finish_run_locked()
     }
     SteadyClock::time_point const t0 = SteadyClock::now();
     // Join StarPU for host-visible completion. Session compact already ran
-    // at the end of run(); INVALIDATE ops were submitted with the phase.
+    // at the end of run(); reclaim ops were submitted with the phase.
+    SteadyClock::time_point t_part = SteadyClock::now();
     g_exec->runtime->wait();
-    // Ingress S is normally released during run() (per-scatter). Any
-    // leftover (e.g. empty execute range) is cleaned here.
-    for (nntile::TensorGraph::TensorNode *staging :
-        g_exec->pending_scatter_stagings)
-    {
-        release_io_staging_locked(staging);
-    }
-    g_exec->pending_scatter_stagings.clear();
+    g_timing.wait_starpu_s += seconds_since(t_part);
+    t_part = SteadyClock::now();
     compact_tensor_graph_session_locked();
-    // Drain release notes; INVALIDATE ops were already submitted with the
+    // Drain release notes; reclaim ops were already submitted with the
     // phase (or recorded into the next unsealed phase on TensorRef drop).
     flush_released_logicals_locked();
+    g_timing.wait_compact_s += seconds_since(t_part);
+    gc_dead_data_nodes_locked();
     g_run_cleanup_pending = false;
     g_timing.wait_s += seconds_since(t0);
     ++g_timing.wait_calls;
@@ -1349,6 +1403,14 @@ void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst)
             "torch_nntile: copy nntile tensor to CPU requires a bound "
             "logical graph node (use .to('nntile') first)");
     }
+    if (skip_nntile_kernels())
+    {
+        if (dst.defined() && dst.nbytes() > 0)
+        {
+            std::memset(dst.data_ptr(), 0, dst.nbytes());
+        }
+        return;
+    }
     nntile::TensorGraph::TensorNode *logical = binding.get();
     const nntile::DataType dtype = logical->dtype();
     const std::size_t count =
@@ -1406,6 +1468,12 @@ at::Tensor gather_nntile_view_to_cpu(const at::Tensor &src)
     TORCH_CHECK(
         binding,
         "gather_nntile_view_to_cpu: unbound tensor");
+    if (skip_nntile_kernels())
+    {
+        return at::zeros(
+            src.sizes(),
+            src.options().device(at::kCPU));
+    }
     nntile::TensorGraph::TensorNode *logical = binding.get();
     const bool dense_cover =
         src.is_contiguous() &&
@@ -1448,6 +1516,12 @@ at::Tensor gather_full_logical_to_cpu(const at::Tensor &src)
     TORCH_CHECK(
         binding,
         "gather_full_logical_to_cpu: unbound tensor");
+    if (skip_nntile_kernels())
+    {
+        return at::zeros(
+            src.sizes(),
+            src.options().device(at::kCPU));
+    }
     nntile::TensorGraph::TensorNode *logical = binding.get();
     std::vector<int64_t> full_sizes(
         logical->shape().begin(),
@@ -1514,6 +1588,11 @@ void init_nntile_input_from_cpu(
 
     attach_tensor_ref(nntile_dst, std::move(logical_ref));
 
+    if (skip_nntile_kernels())
+    {
+        return;
+    }
+
     auto *staging = new_ephemeral_staging_node_locked(logical, "ingress");
     if (staging == nullptr)
     {
@@ -1530,6 +1609,9 @@ void init_nntile_input_from_cpu(
         static_cast<std::size_t>(cpu_src.numel()));
 
     nntile::tensor::scatter(staging, logical);
+    // StarPU orders unregister after scatter. Peak ~2x during batched
+    // .to("nntile") is accepted (same as model.cuda() while CPU lives).
+    nntile::tensor::unregister(staging);
 }
 
 void overwrite_bound_nntile_logical_from_cpu(
@@ -1566,6 +1648,11 @@ void overwrite_bound_nntile_logical_from_cpu(
         nntile::dtype_size(dtype),
         "overwrite_bound_nntile_logical_from_cpu");
 
+    if (skip_nntile_kernels())
+    {
+        return;
+    }
+
     // Sync prior async work so scatter appends to a clean phase (same
     // pattern as copy_nntile_tensor_to_cpu).
     if (g_run_cleanup_pending)
@@ -1594,6 +1681,7 @@ void overwrite_bound_nntile_logical_from_cpu(
         dtype,
         static_cast<std::size_t>(cpu_src.numel()));
     nntile::tensor::scatter(staging, logical);
+    nntile::tensor::unregister(staging);
 }
 
 nntile::TensorGraph::TensorNode *get_or_create_data_node(
@@ -1602,6 +1690,7 @@ nntile::TensorGraph::TensorNode *get_or_create_data_node(
     nntile::DataType dtype,
     bool mark_as_input)
 {
+    nntile::GraphFillScope fill;
     const SteadyClock::time_point t0 = SteadyClock::now();
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     if (g_graph == nullptr)
@@ -1634,6 +1723,7 @@ void register_data_node(
     const at::Tensor &tensor,
     nntile::TensorGraph::TensorNode *node)
 {
+    nntile::GraphFillScope fill;
     const SteadyClock::time_point t0 = SteadyClock::now();
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     TORCH_CHECK(node != nullptr, "register_data_node: null node");
@@ -1829,9 +1919,30 @@ void set_axis_group_tiling(
     const std::string &name,
     const std::vector<std::int64_t> &tile_sizes)
 {
-    (void)name;
-    (void)tile_sizes;
-    throw_tiled_aten_temporarily_disabled();
+    if (name.empty())
+    {
+        throw std::runtime_error(
+            "torch_nntile set_axis_group_tiling: name must be non-empty");
+    }
+    if (tile_sizes.empty())
+    {
+        throw std::runtime_error(
+            "torch_nntile set_axis_group_tiling: tile_sizes must be non-empty");
+    }
+    std::vector<nntile::Index> sizes;
+    sizes.reserve(tile_sizes.size());
+    for (std::int64_t value : tile_sizes)
+    {
+        if (value <= 0)
+        {
+            throw std::runtime_error(
+                "torch_nntile set_axis_group_tiling: tile size must be "
+                "positive");
+        }
+        sizes.push_back(static_cast<nntile::Index>(value));
+    }
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    g_axis_tiling_by_name[name] = std::move(sizes);
 }
 
 std::string format_pending_tile_sizes(
@@ -1875,7 +1986,8 @@ std::string format_axis_groups_locked()
     }
 
     std::ostringstream ss;
-    ss << "Pending TensorGraph: data=" << g_graph->num_data()
+    ss << "Pending TensorGraph: data=" << g_graph->num_live_data()
+       << "/" << g_graph->num_data()
        << ", ops=" << g_graph->num_ops() << ", axis_groups=" << groups.size()
        << ", tiled=" << tiled << '/' << groups.size() << '\n';
     if (groups.empty())
@@ -1932,6 +2044,123 @@ void print_axis_groups()
     }
 }
 
+std::vector<std::string> pending_op_names()
+{
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    std::vector<std::string> names;
+    if (g_graph == nullptr)
+    {
+        return names;
+    }
+    const size_t begin = g_graph->phase_seal_cursor();
+    const auto &ops = g_graph->ops();
+    names.reserve(ops.size() - begin);
+    for (size_t i = begin; i < ops.size(); ++i)
+    {
+        names.push_back(ops[i]->op_name());
+    }
+    return names;
+}
+
+std::string format_pending_data_sizes()
+{
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    if (g_graph == nullptr)
+    {
+        return "Pending TensorGraph data: (no graph)\n";
+    }
+
+    struct Agg
+    {
+        std::uint64_t nbytes = 0;
+        std::size_t count = 0;
+    };
+    std::map<std::string, Agg> by_key;
+    std::uint64_t total = 0;
+    std::size_t n_live = 0;
+    for (auto const &up : g_graph->tensor_nodes())
+    {
+        if (!up)
+        {
+            continue;
+        }
+        ++n_live;
+        nntile::TensorGraph::TensorNode const *node = up.get();
+        std::uint64_t nelem = 1;
+        for (nntile::Index d : node->shape())
+        {
+            nelem *= static_cast<std::uint64_t>(d);
+        }
+        std::uint64_t const nbytes =
+            nelem * nntile::dtype_size(node->dtype());
+        total += nbytes;
+        std::string key = node->name();
+        if (key.empty())
+        {
+            key = "(unnamed)";
+        }
+        key += " ";
+        key += nntile::dtype_to_string(node->dtype());
+        key += " [";
+        bool first = true;
+        for (nntile::Index d : node->shape())
+        {
+            if (!first)
+            {
+                key += ",";
+            }
+            first = false;
+            key += std::to_string(static_cast<long long>(d));
+        }
+        key += "]";
+        Agg &agg = by_key[key];
+        agg.nbytes += nbytes;
+        agg.count += 1;
+    }
+
+    std::vector<std::pair<std::string, Agg>> rows;
+    rows.reserve(by_key.size());
+    for (auto const &kv : by_key)
+    {
+        rows.emplace_back(kv.first, kv.second);
+    }
+    std::sort(
+        rows.begin(),
+        rows.end(),
+        [](auto const &a, auto const &b)
+        {
+            return a.second.nbytes > b.second.nbytes;
+        });
+
+    std::ostringstream ss;
+    double const total_gib =
+        static_cast<double>(total) / (1024.0 * 1024.0 * 1024.0);
+    ss << "Pending TensorGraph data: live=" << n_live
+       << " groups=" << rows.size()
+       << " total=" << std::fixed << std::setprecision(3) << total_gib
+       << " GiB\n";
+    std::size_t shown = 0;
+    for (auto const &row : rows)
+    {
+        if (shown >= 40)
+        {
+            break;
+        }
+        double const gib =
+            static_cast<double>(row.second.nbytes)
+            / (1024.0 * 1024.0 * 1024.0);
+        ss << "  " << std::setw(8) << std::setprecision(3) << gib
+           << " GiB  n=" << row.second.count
+           << "  " << row.first << "\n";
+        ++shown;
+    }
+    if (rows.size() > shown)
+    {
+        ss << "  ... " << (rows.size() - shown) << " more groups\n";
+    }
+    return ss.str();
+}
+
 std::string format_info_locked()
 {
     auto avg_ms = [](double seconds, std::uint64_t calls) -> double
@@ -1950,12 +2179,22 @@ std::string format_info_locked()
         ss << "  NOTE: TORCH_NNTILE_SKIP_STARPU=1 "
               "(no compute submit / staging acquire; reclaim on)\n";
     }
+    if (skip_nntile_kernels())
+    {
+        ss << "  NOTE: TORCH_NNTILE_SKIP_KERNELS=1 "
+              "(no compute-op insert; UNREGISTER still "
+              "compiled / submitted)\n";
+    }
     ss << "  compile_graph: " << g_timing.compile_calls << " calls, "
        << g_timing.compile_s << "s"
        << " (avg " << avg_ms(g_timing.compile_s, g_timing.compile_calls)
        << " ms), tile-ops lowered=" << g_timing.compile_ops << '\n';
     if (g_timing.compile_calls > 0)
     {
+        ss << "    pre (invalidate): " << g_timing.compile_pre_s << "s"
+           << " (avg "
+           << avg_ms(g_timing.compile_pre_s, g_timing.compile_calls)
+           << " ms)\n";
         ss << "    seal+reclaim: " << g_timing.compile_seal_s << "s"
            << " (avg "
            << avg_ms(g_timing.compile_seal_s, g_timing.compile_calls)
@@ -1972,6 +2211,16 @@ std::string format_info_locked()
            << " (avg "
            << avg_ms(g_timing.compile_runtime_s, g_timing.compile_calls)
            << " ms)\n";
+        ss << "      dce:        " << g_timing.compile_runtime_dce_s << "s"
+           << " (avg "
+           << avg_ms(
+                  g_timing.compile_runtime_dce_s, g_timing.compile_calls)
+           << " ms)\n";
+        ss << "      allocate:   " << g_timing.compile_runtime_alloc_s
+           << "s (avg "
+           << avg_ms(
+                  g_timing.compile_runtime_alloc_s, g_timing.compile_calls)
+           << " ms)\n";
     }
     ss << "  run (submit):  " << g_timing.run_calls << " calls, "
        << g_timing.run_s << "s"
@@ -1981,6 +2230,24 @@ std::string format_info_locked()
        << g_timing.wait_s << "s"
        << " (avg " << avg_ms(g_timing.wait_s, g_timing.wait_calls)
        << " ms; finishes a pending run() only)\n";
+    if (g_timing.wait_calls > 0)
+    {
+        ss << "    starpu_join:  " << g_timing.wait_starpu_s << "s (avg "
+           << avg_ms(g_timing.wait_starpu_s, g_timing.wait_calls)
+           << " ms)\n";
+        ss << "    compact:      " << g_timing.wait_compact_s << "s (avg "
+           << avg_ms(g_timing.wait_compact_s, g_timing.wait_calls)
+           << " ms)\n";
+        ss << "    gc collect:   " << g_timing.wait_gc_collect_s << "s (avg "
+           << avg_ms(g_timing.wait_gc_collect_s, g_timing.wait_calls)
+           << " ms)\n";
+        ss << "    gc erase:     " << g_timing.wait_gc_erase_s << "s (avg "
+           << avg_ms(g_timing.wait_gc_erase_s, g_timing.wait_calls)
+           << " ms; dead_nodes=" << g_timing.wait_gc_dead << ")\n";
+        ss << "    gc destroy:   " << g_timing.wait_gc_destroy_s << "s (avg "
+           << avg_ms(g_timing.wait_gc_destroy_s, g_timing.wait_calls)
+           << " ms)\n";
+    }
     ss << "  starpu_task_wait_for_all: "
        << nntile::g_starpu_wait_for_all_count.load()
        << " calls (all sources; should stay flat between run()s if async)\n";
@@ -1992,6 +2259,8 @@ std::string format_info_locked()
        << "compile/run/wait)\n";
     ss << "  sum compile+run+wait: "
        << (g_timing.compile_s + g_timing.run_s + g_timing.wait_s) << "s\n";
+    ss << "  record(nntile): " << nntile::GraphFillScope::seconds()
+       << "s (nntile record, cumulative)\n";
     if (g_timing.record_get_node_calls > 0 ||
         g_timing.record_linear_bwd_calls > 0)
     {
@@ -2073,6 +2342,11 @@ void print_info()
     }
     std::fputs(text.c_str(), stdout);
     std::fflush(stdout);
+}
+
+double record_nntile_seconds()
+{
+    return nntile::GraphFillScope::seconds();
 }
 
 } // namespace torch_nntile

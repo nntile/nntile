@@ -1,0 +1,11 @@
+{
+  "_comment": "Overhead XL: C=5760, 4 blocks (depth analog), 192^2",
+  "in_channels": 3,
+  "num_classes": 10,
+  "height": 192,
+  "width": 192,
+  "base_channels": 5760,
+  "blocks": 4,
+  "layer_norm_eps": 1e-3,
+  "lr": 1e-4
+}

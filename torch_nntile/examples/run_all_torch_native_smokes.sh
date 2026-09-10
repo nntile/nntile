@@ -69,6 +69,16 @@ do
     --ncuda "${NCUDA}"
 done
 
+run_py "${EXAMPLES}/train_llama_hf.py" train \
+  --device "${DEVICE}" \
+  --seed "${SEED}" \
+  --steps "${STEPS}" \
+  --seq-len "${SEQ_LEN}" \
+  --batch-size 1 \
+  --ncpu "${NCPU}" \
+  --ncuda "${NCUDA}" \
+  --config "${EXAMPLES}/llama_hf_tiny_gqa_config.json"
+
 GPT2_OUT="${TMPDIR:-/tmp}/torch_nntile_gpt2_hf_smoke_$$"
 mkdir -p "${GPT2_OUT}"
 GPT2_ARGS=(

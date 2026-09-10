@@ -2,14 +2,31 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/nntile_add.cpp
- * Out-of-place aten::add for device=nntile (torch-native StarPU path).
+ * PrivateUse1 ``aten::add`` (torch autograd InputBuffer / AccumulateGrad
+ * and user ``torch.add``).
+ *
+ * Dual-path: if torch-native ops are enabled, ``aten::add`` always uses
+ * torch-native kernels (HF / ``torch.nn`` graphs: broadcast, SDPA, mixed
+ * layouts). Classic ``nntile::tensor::add`` is used only when torch-native
+ * is off (classic-only builds). ``torch_nntile.nn`` still calls classic
+ * add directly.
  */
 
-#include "nntile_executor.h"
 #include "nntile_graph_recorder.h"
 #include "nntile_graph_recorder_impl.h"
+#include "nntile_no_implicit_copy.h"
 #include "nntile_tensor_gc.h"
 
+#include <nntile/defs.h>
+
+#ifdef NNTILE_NNTILE_NATIVE_OPS
+#include "nntile_executor_classic.h"
+#endif
+#ifdef NNTILE_TORCH_NATIVE_OPS
+#include "nntile_executor.h"
+#endif
+
+#include <ATen/ExpandUtils.h>
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
 #include <c10/core/DeviceGuard.h>
@@ -21,39 +38,7 @@ namespace torch_nntile
 namespace
 {
 
-bool is_nntile_device(c10::Device device)
-{
-    return device.type() == c10::DeviceType::PrivateUse1;
-}
-
-bool is_cpu_scalar_tensor(const at::Tensor &t)
-{
-    return t.is_cpu() && t.numel() == 1;
-}
-
-at::Tensor gather_cpu(const at::Tensor &self)
-{
-    TORCH_CHECK(
-        is_nntile_device(self.device()),
-        "nntile add: expected nntile tensor");
-    return gather_nntile_view_to_cpu(self);
-}
-
-at::Tensor scatter_nntile(
-    const at::Tensor &cpu,
-    c10::Device device)
-{
-    TORCH_CHECK(cpu.is_cpu(), "nntile add: expected CPU tensor");
-    at::Tensor contig = cpu.contiguous();
-    at::Tensor out = empty_metadata_tensor(
-        contig.sizes(),
-        contig.scalar_type(),
-        device);
-    init_nntile_input_from_cpu(contig, out);
-    return out;
-}
-
-void check_add_inputs(
+void check_add_dtypes(
     const at::Tensor &self,
     const at::Tensor &other)
 {
@@ -62,47 +47,79 @@ void check_add_inputs(
             is_nntile_device(other.device()),
         "nntile add expects both operands on device nntile");
     TORCH_CHECK(
-        self.sizes().equals(other.sizes()),
-        "nntile torch_add: same-shape tensors only "
-        "(broadcast disabled under NNTILE_TORCH_NATIVE_OPS)");
-    TORCH_CHECK(
         self.scalar_type() == other.scalar_type(),
         "nntile add: dtype mismatch");
     TORCH_CHECK(
         self.scalar_type() == at::ScalarType::Float,
-        "nntile torch_add supports float32 only");
+        "nntile add supports float32 only");
 }
 
-at::Tensor as_contiguous_fp32(const at::Tensor &tensor)
+#ifdef NNTILE_NNTILE_NATIVE_OPS
+void require_classic_add_fp32(
+    const at::Tensor &self,
+    const at::Tensor &other,
+    char const *op)
 {
-    return tensor.is_contiguous() ? tensor : tensor.contiguous();
+    TORCH_CHECK(
+        self.scalar_type() == at::ScalarType::Float &&
+            other.scalar_type() == at::ScalarType::Float,
+        "nntile ",
+        op,
+        ": classic add supports float32 only");
+    TORCH_CHECK(
+        self.is_contiguous() && other.is_contiguous(),
+        "nntile ",
+        op,
+        ": classic add requires contiguous tensors");
+    TORCH_CHECK(
+        self.sizes().equals(other.sizes()),
+        "nntile ",
+        op,
+        ": classic add requires equal shapes (no broadcast)");
 }
 
-void run_torch_add(
+void classic_add_out(
+    const at::Tensor &self,
+    const at::Tensor &other,
+    float alpha,
+    at::Tensor &out)
+{
+    require_classic_add_fp32(self, other, "add");
+    TORCH_CHECK(
+        out.sizes().equals(self.sizes()) &&
+            out.scalar_type() == at::ScalarType::Float,
+        "nntile add: output shape/dtype mismatch");
+    classic_tensor_add_fp32(1.0f, self, alpha, other, out);
+}
+
+void classic_add_inplace(
+    at::Tensor &self,
+    const at::Tensor &other,
+    float alpha)
+{
+    require_classic_add_fp32(self, other, "add_");
+    classic_tensor_add_inplace_fp32(alpha, other, 1.0f, self);
+}
+#endif
+
+void run_add(
     const at::Tensor &self,
     const at::Tensor &other,
     const at::Scalar &alpha,
     at::Tensor &out)
 {
-    // tensor_add_fp32(alpha_x, x, beta_y, y, out) with alpha_x=1,
-    // beta_y = torch alpha → out = x + alpha * y.
+#ifdef NNTILE_TORCH_NATIVE_OPS
     tensor_add_fp32(
         1.0f,
-        as_contiguous_fp32(self),
+        self,
         alpha.to<float>(),
-        as_contiguous_fp32(other),
+        other,
         out);
-}
-
-at::Tensor add_host(
-    const at::Tensor &self,
-    const at::Tensor &other,
-    const at::Scalar &alpha)
-{
-    at::Tensor a = gather_cpu(self);
-    at::Tensor b = is_nntile_device(other.device()) ? gather_cpu(other)
-                                                    : other.cpu();
-    return scatter_nntile(at::add(a, b, alpha), self.device());
+#elif defined(NNTILE_NNTILE_NATIVE_OPS)
+    classic_add_out(self, other, alpha.to<float>(), out);
+#else
+    TORCH_CHECK(false, "nntile add is not available in this build");
+#endif
 }
 
 } // namespace
@@ -112,11 +129,56 @@ at::Tensor add_scalar(
     const at::Scalar &other,
     const at::Scalar &alpha)
 {
+    nntile::GraphFillScope record;
+    require_nntile_operand(self, "add.Scalar", "self");
+    if (self.scalar_type() == at::ScalarType::Long)
+    {
+#ifdef NNTILE_TORCH_NATIVE_OPS
+        TORCH_CHECK(
+            alpha.to<double>() == 1.0,
+            "nntile add.Scalar int64: alpha must be 1");
+        at::Tensor filled = empty_metadata_tensor(
+            self.sizes(),
+            at::kLong,
+            self.device());
+        tensor_fill_i64(filled, other.to<int64_t>());
+        at::Tensor out = empty_metadata_tensor(
+            self.sizes(),
+            at::kLong,
+            self.device());
+        tensor_add_i64(self, filled, out);
+        return out;
+#else
+        TORCH_CHECK(
+            false,
+            "nntile add.Scalar int64 requires torch-native ops");
+#endif
+    }
     TORCH_CHECK(
-        is_nntile_device(self.device()),
-        "nntile add.Scalar expects nntile self");
-    at::Tensor cpu = gather_cpu(self);
-    return scatter_nntile(at::add(cpu, other, alpha), self.device());
+        self.scalar_type() == at::ScalarType::Float,
+        "nntile add.Scalar supports float32 only");
+#ifdef NNTILE_TORCH_NATIVE_OPS
+    at::Tensor filled = at::empty_like(self);
+    at::Tensor out = at::empty_like(self);
+    tensor_fill_fp32(
+        filled,
+        other.to<float>() * alpha.to<float>());
+    tensor_add_fp32(1.0f, self, 1.0f, filled, out);
+    return out;
+#elif defined(NNTILE_NNTILE_NATIVE_OPS)
+    TORCH_CHECK(
+        self.is_contiguous(),
+        "nntile add.Scalar: classic add requires a contiguous tensor");
+    at::Tensor filled = at::empty_like(self);
+    at::Tensor out = at::empty_like(self);
+    classic_tensor_fill_fp32(
+        filled,
+        other.to<float>() * alpha.to<float>());
+    classic_tensor_add_fp32(1.0f, self, 1.0f, filled, out);
+    return out;
+#else
+    TORCH_CHECK(false, "nntile add.Scalar is not available in this build");
+#endif
 }
 
 at::Tensor &add_scalar_out(
@@ -125,6 +187,7 @@ at::Tensor &add_scalar_out(
     const at::Scalar &alpha,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     TORCH_CHECK(
         is_nntile_device(self.device()) && is_nntile_device(out.device()),
         "nntile add.Scalar_out expects nntile");
@@ -138,22 +201,44 @@ at::Tensor add_tensor(
     const at::Tensor &other,
     const at::Scalar &alpha)
 {
+    nntile::GraphFillScope record;
     if (is_nntile_device(self.device()) && is_cpu_scalar_tensor(other))
     {
         return add_scalar(self, other.item(), alpha);
     }
-    if (!is_nntile_device(other.device()) ||
-        self.scalar_type() != other.scalar_type() ||
-        self.scalar_type() != at::ScalarType::Float ||
-        !self.sizes().equals(other.sizes()))
+    if (is_cpu_scalar_tensor(self) && is_nntile_device(other.device()))
     {
-        return add_host(self, other, alpha);
+        return add_scalar(other, self.item(), alpha);
     }
-    check_add_inputs(self, other);
+    require_nntile_operand(self, "add.Tensor", "self");
+    require_nntile_operand(other, "add.Tensor", "other");
+    if (self.scalar_type() == at::kLong &&
+        other.scalar_type() == at::kLong)
+    {
+#ifdef NNTILE_TORCH_NATIVE_OPS
+        TORCH_CHECK(
+            alpha.to<double>() == 1.0,
+            "nntile add.Tensor int64: alpha must be 1");
+        auto bcast = at::infer_size(self.sizes(), other.sizes());
+        at::Tensor out = empty_metadata_tensor(
+            bcast,
+            at::kLong,
+            self.device());
+        tensor_add_i64(self, other, out);
+        return out;
+#else
+        TORCH_CHECK(
+            false,
+            "nntile add.Tensor int64 requires torch-native ops");
+#endif
+    }
+    check_add_dtypes(self, other);
+    std::vector<int64_t> out_sizes =
+        at::infer_size(self.sizes(), other.sizes());
     at::Tensor out = at::empty(
-        self.sizes(),
+        out_sizes,
         self.options().memory_format(at::MemoryFormat::Contiguous));
-    run_torch_add(self, other, alpha, out);
+    run_add(self, other, alpha, out);
     return out;
 }
 
@@ -163,31 +248,25 @@ at::Tensor &add_out(
     const at::Scalar &alpha,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     if (is_nntile_device(self.device()) && is_cpu_scalar_tensor(other))
     {
         return add_scalar_out(self, other.item(), alpha, out);
     }
-    if (!is_nntile_device(other.device()) ||
-        self.scalar_type() != other.scalar_type() ||
-        self.scalar_type() != at::ScalarType::Float ||
-        !self.sizes().equals(other.sizes()))
-    {
-        at::Tensor tmp = add_host(self, other, alpha);
-        out.copy_(tmp);
-        return out;
-    }
-    check_add_inputs(self, other);
+    require_nntile_operand(self, "add.out", "self");
+    require_nntile_operand(other, "add.out", "other");
+    check_add_dtypes(self, other);
     TORCH_CHECK(
         is_nntile_device(out.device()),
         "nntile add.out expects output on device nntile");
     TORCH_CHECK(
-        out.sizes().equals(self.sizes()),
+        out.sizes().equals(
+            at::infer_size(self.sizes(), other.sizes())),
         "nntile add.out: output shape mismatch");
     TORCH_CHECK(
-        out.scalar_type() == at::ScalarType::Float &&
-            out.is_contiguous(),
-        "nntile add.out requires contiguous float32 output");
-    run_torch_add(self, other, alpha, out);
+        out.scalar_type() == at::ScalarType::Float,
+        "nntile add.out expects float32 output");
+    run_add(self, other, alpha, out);
     return out;
 }
 
@@ -196,29 +275,53 @@ at::Tensor &add__tensor(
     const at::Tensor &other,
     const at::Scalar &alpha)
 {
+    nntile::GraphFillScope record;
     if (is_cpu_scalar_tensor(other))
     {
         at::Tensor tmp = add_scalar(self, other.item(), alpha);
         self.copy_(tmp);
         return self;
     }
-    if (!is_nntile_device(other.device()) ||
-        self.scalar_type() != other.scalar_type() ||
-        self.scalar_type() != at::ScalarType::Float ||
-        !self.sizes().equals(other.sizes()))
+    require_nntile_operand(self, "add_.Tensor", "self");
+    require_nntile_operand(other, "add_.Tensor", "other");
+    if (self.scalar_type() == at::kLong &&
+        other.scalar_type() == at::kLong)
     {
-        at::Tensor tmp = add_host(self, other, alpha);
+#ifdef NNTILE_TORCH_NATIVE_OPS
+        TORCH_CHECK(
+            alpha.to<double>() == 1.0,
+            "nntile add_.Tensor int64: alpha must be 1");
+        at::Tensor tmp = empty_metadata_tensor(
+            self.sizes(),
+            at::kLong,
+            self.device());
+        tensor_add_i64(self, other, tmp);
         self.copy_(tmp);
         return self;
+#else
+        TORCH_CHECK(
+            false,
+            "nntile add_.Tensor int64 requires torch-native ops");
+#endif
     }
-    check_add_inputs(self, other);
-    // SSA: record out-of-place add and rebind ``self`` to the result node.
+    check_add_dtypes(self, other);
+    TORCH_CHECK(
+        self.sizes().equals(
+            at::infer_size(self.sizes(), other.sizes())),
+        "nntile add_.Tensor: other must broadcast to self");
+#ifdef NNTILE_TORCH_NATIVE_OPS
     tensor_add_inplace_fp32(
         alpha.to<float>(),
-        as_contiguous_fp32(other),
+        other,
         1.0f,
         self);
     return self;
+#elif defined(NNTILE_NNTILE_NATIVE_OPS)
+    classic_add_inplace(self, other, alpha.to<float>());
+    return self;
+#else
+    TORCH_CHECK(false, "nntile add_ is not available in this build");
+#endif
 }
 
 at::Tensor &add__scalar(
@@ -226,6 +329,7 @@ at::Tensor &add__scalar(
     const at::Scalar &other,
     const at::Scalar &alpha)
 {
+    nntile::GraphFillScope record;
     at::Tensor tmp = add_scalar(self, other, alpha);
     self.copy_(tmp);
     return self;

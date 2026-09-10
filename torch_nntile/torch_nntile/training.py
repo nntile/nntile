@@ -141,6 +141,10 @@ def cross_entropy(
         raise ValueError("nntile cross_entropy supports reduction 'mean' or 'sum'")
     if target.device.type != "nntile":
         raise ValueError("cross_entropy expects nntile target")
+    if not logits.is_contiguous():
+        logits = logits.contiguous()
+    if not target.is_contiguous():
+        target = target.contiguous()
     if not torch.is_grad_enabled() or not logits.requires_grad:
         loss, maxsumexp = _C.cross_entropy_forward(
             logits, target, reduction_enum, ignore_index
@@ -581,6 +585,7 @@ def train_full_batch_step(
     name_axis_groups: Callable[[torch.Tensor, torch.Tensor], None] | None = None,
     axis_group_tiling: Mapping[str, int | list[int] | tuple[int, ...]] | None = None,
     print_axis_groups: bool = False,
+    forward_kwargs: Mapping[str, torch.Tensor] | None = None,
 ) -> float:
     """One full-batch SGD step; returns scalar loss.
 
@@ -590,8 +595,12 @@ def train_full_batch_step(
     On nntile, free the autograd graph and ``zero_grad`` **before**
     ``compile_graph`` so activation/grad ``INVALIDATE`` ops land in the same
     sealed phase (same pattern as GPT-2 / Google five-layer examples; debt D7).
+
+    ``forward_kwargs`` are passed to ``model(inputs, **forward_kwargs)``
+    (e.g. GPT-2 ``cache_position`` / ``position_ids``).
     """
-    logits = model(inputs)
+    extra = {} if forward_kwargs is None else dict(forward_kwargs)
+    logits = model(inputs, **extra)
     if hasattr(logits, "logits"):
         logits = logits.logits
     if logits.device.type == "nntile":

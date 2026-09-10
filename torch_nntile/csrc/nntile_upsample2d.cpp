@@ -25,11 +25,11 @@ bool is_nntile_device(c10::Device device)
     return device.type() == c10::DeviceType::PrivateUse1;
 }
 
-at::Tensor as_contiguous_fp32(const at::Tensor &tensor, const char *name)
+at::Tensor checked_fp32(const at::Tensor &tensor, const char *name)
 {
     TORCH_CHECK(is_nntile_device(tensor.device()), name, ": expected nntile");
     TORCH_CHECK(tensor.scalar_type() == at::ScalarType::Float, name, ": fp32");
-    return tensor.is_contiguous() ? tensor : tensor.contiguous();
+    return tensor;
 }
 
 std::vector<int64_t> sym_to_i64(c10::SymIntArrayRef values)
@@ -64,8 +64,9 @@ at::Tensor upsample_nearest2d(
     std::optional<double> scales_h,
     std::optional<double> scales_w)
 {
+    nntile::GraphFillScope record;
     const at::Tensor input =
-        as_contiguous_fp32(self, "nntile upsample_nearest2d");
+        checked_fp32(self, "nntile upsample_nearest2d");
     TORCH_CHECK(input.dim() == 4, "nntile upsample_nearest2d: NCHW only");
     std::vector<int64_t> out_hw = expand_output_size_2d(output_size);
     std::vector<int64_t> out_shape = input.sizes().vec();
@@ -91,8 +92,9 @@ at::Tensor &upsample_nearest2d_out(
     std::optional<double> scales_w,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     const at::Tensor input =
-        as_contiguous_fp32(self, "nntile upsample_nearest2d.out");
+        checked_fp32(self, "nntile upsample_nearest2d.out");
     TORCH_CHECK(is_nntile_device(out.device()), "upsample.out: nntile out");
     std::vector<int64_t> out_hw = expand_output_size_2d(output_size);
     tensor_upsample_nearest2d_fp32(
@@ -111,7 +113,8 @@ at::Tensor upsample_nearest2d_backward(
     std::optional<double> scales_h,
     std::optional<double> scales_w)
 {
-    const at::Tensor go = as_contiguous_fp32(
+    nntile::GraphFillScope record;
+    const at::Tensor go = checked_fp32(
         grad_output,
         "nntile upsample_nearest2d_backward");
     std::vector<int64_t> out_hw = expand_output_size_2d(output_size);
@@ -139,7 +142,8 @@ at::Tensor &upsample_nearest2d_backward_out(
     std::optional<double> scales_w,
     at::Tensor &grad_input)
 {
-    const at::Tensor go = as_contiguous_fp32(
+    nntile::GraphFillScope record;
+    const at::Tensor go = checked_fp32(
         grad_output,
         "nntile upsample_nearest2d_backward.grad_input");
     std::vector<int64_t> out_hw = expand_output_size_2d(output_size);
@@ -161,8 +165,9 @@ at::Tensor upsample_bilinear2d(
     std::optional<double> scales_h,
     std::optional<double> scales_w)
 {
+    nntile::GraphFillScope record;
     const at::Tensor input =
-        as_contiguous_fp32(self, "nntile upsample_bilinear2d");
+        checked_fp32(self, "nntile upsample_bilinear2d");
     TORCH_CHECK(input.dim() == 4, "nntile upsample_bilinear2d: NCHW only");
     std::vector<int64_t> out_hw = expand_output_size_2d(output_size);
     std::vector<int64_t> out_shape = input.sizes().vec();
@@ -190,8 +195,9 @@ at::Tensor &upsample_bilinear2d_out(
     std::optional<double> scales_w,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     const at::Tensor input =
-        as_contiguous_fp32(self, "nntile upsample_bilinear2d.out");
+        checked_fp32(self, "nntile upsample_bilinear2d.out");
     TORCH_CHECK(is_nntile_device(out.device()), "upsample.out: nntile out");
     std::vector<int64_t> out_hw = expand_output_size_2d(output_size);
     tensor_upsample_bilinear2d_fp32(
@@ -212,7 +218,8 @@ at::Tensor upsample_bilinear2d_backward(
     std::optional<double> scales_h,
     std::optional<double> scales_w)
 {
-    const at::Tensor go = as_contiguous_fp32(
+    nntile::GraphFillScope record;
+    const at::Tensor go = checked_fp32(
         grad_output,
         "nntile upsample_bilinear2d_backward");
     std::vector<int64_t> out_hw = expand_output_size_2d(output_size);
@@ -242,7 +249,8 @@ at::Tensor &upsample_bilinear2d_backward_out(
     std::optional<double> scales_w,
     at::Tensor &grad_input)
 {
-    const at::Tensor go = as_contiguous_fp32(
+    nntile::GraphFillScope record;
+    const at::Tensor go = checked_fp32(
         grad_output,
         "nntile upsample_bilinear2d_backward.grad_input");
     std::vector<int64_t> out_hw = expand_output_size_2d(output_size);

@@ -6,7 +6,7 @@
 
 #include "nntile_add_fiber.h"
 
-#include "nntile_executor.h"
+#include "nntile_executor_classic.h"
 #include "nntile_graph_recorder_impl.h"
 #include "nntile_tensor_gc.h"
 
@@ -74,11 +74,12 @@ at::Tensor add_fiber_forward(
     double alpha,
     double beta)
 {
+    nntile::GraphFillScope record;
     check_add_fiber_inputs(fiber, tensor, axis, batch_ndim);
     at::Tensor out = at::empty(
         tensor.sizes(),
         tensor.options().memory_format(at::MemoryFormat::Contiguous));
-    tensor_add_fiber_fp32(
+    classic_tensor_add_fiber_fp32(
         static_cast<float>(alpha),
         fiber,
         static_cast<float>(beta),
@@ -99,6 +100,7 @@ std::tuple<at::Tensor, at::Tensor> add_fiber_backward(
     double alpha,
     double beta)
 {
+    nntile::GraphFillScope record;
     TORCH_CHECK(
         is_nntile_device(grad_out.device()),
         "nntile add_fiber_backward expects nntile grad_out");
@@ -108,10 +110,18 @@ std::tuple<at::Tensor, at::Tensor> add_fiber_backward(
     TORCH_CHECK(
         grad_out.is_contiguous(),
         "nntile add_fiber_backward requires contiguous grad_out");
-    check_add_fiber_inputs(fiber, tensor, axis, batch_ndim);
-    TORCH_CHECK(
-        grad_out.sizes().equals(tensor.sizes()),
-        "nntile add_fiber_backward: grad_out shape must match tensor");
+    if (tensor.defined())
+    {
+        check_add_fiber_inputs(fiber, tensor, axis, batch_ndim);
+        TORCH_CHECK(
+            grad_out.sizes().equals(tensor.sizes()),
+            "nntile add_fiber_backward: grad_out shape must match "
+            "tensor");
+    }
+    else
+    {
+        check_add_fiber_inputs(fiber, grad_out, axis, batch_ndim);
+    }
     TORCH_CHECK(
         beta == 1.0,
         "nntile add_fiber_backward currently supports beta=1 only");
@@ -123,7 +133,7 @@ std::tuple<at::Tensor, at::Tensor> add_fiber_backward(
         grad_fiber = at::empty(
             fiber.sizes(),
             fiber.options().memory_format(at::MemoryFormat::Contiguous));
-        tensor_sum_fiber_fp32(
+        classic_tensor_sum_fiber_fp32(
             grad_out,
             grad_fiber,
             axis,

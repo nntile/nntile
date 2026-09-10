@@ -8,6 +8,7 @@
 #pragma once
 
 #include <torch/torch.h>
+#include <torch_nntile/classic_nn.hh>
 
 #include <cstdint>
 
@@ -40,9 +41,9 @@ TORCH_MODULE(MixerMlp);
 
 struct MixerBlockImpl : torch::nn::Module
 {
-    torch::nn::LayerNorm norm_1{nullptr};
+    nn_classic::LayerNorm norm_1{nullptr};
     MixerMlp mlp_1{nullptr};
-    torch::nn::LayerNorm norm_2{nullptr};
+    nn_classic::LayerNorm norm_2{nullptr};
     MixerMlp mlp_2{nullptr};
 
     MixerBlockImpl(

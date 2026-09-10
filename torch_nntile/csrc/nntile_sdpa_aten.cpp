@@ -8,6 +8,8 @@
 
 #include "nntile_sdpa.h"
 
+#include <nntile/tensor/graph_fill_timer.hh>
+
 #include <ATen/SDPBackend.h>
 #include <ATen/native/transformers/attention.h>
 #include <torch/library.h>
@@ -84,14 +86,9 @@ at::Tensor make_causal_mask(
     int64_t k_seq,
     const c10::Device &device)
 {
-    const auto idx_opts = at::TensorOptions().dtype(at::kLong);
-    const at::Tensor k_idx = at::arange(k_seq, idx_opts);
-    const at::Tensor q_idx = at::arange(q_seq, idx_opts);
-    at::Tensor mask = (k_idx.unsqueeze(0) <= q_idx.unsqueeze(1)).contiguous();
-    if (mask.device() != device)
-    {
-        mask = mask.to(device);
-    }
+    const auto idx_opts =
+        at::TensorOptions().dtype(at::kBool).device(device);
+    at::Tensor mask = at::ones({q_seq, k_seq}, idx_opts).tril();
     TORCH_CHECK(
         mask.is_contiguous(),
         "nntile sdpa: causal mask must be contiguous");
@@ -131,9 +128,6 @@ at::Tensor broadcastable_attn_bias_to_2d(
     at::Tensor bias = squeeze_size_one_dims(attn_bias);
     if (bias.dim() == 2)
     {
-        TORCH_CHECK(
-            bias.is_contiguous(),
-            "nntile sdpa: attn_bias must be contiguous");
         return bias;
     }
 
@@ -154,9 +148,6 @@ at::Tensor broadcastable_attn_bias_to_2d(
             "nntile sdpa: attn_bias leading dims must be size 1 to "
             "broadcast to [q_seq, k_seq] without host materialization");
     }
-    TORCH_CHECK(
-        canonical.is_contiguous(),
-        "nntile sdpa: attn_bias canonical slice must be contiguous");
     return canonical;
 }
 
@@ -223,19 +214,7 @@ std::optional<at::Tensor> convert_attn_bias_to_mask(
     {
         bool_mask = bool_mask.to(device);
     }
-    TORCH_CHECK(
-        bool_mask.is_contiguous(),
-        "nntile sdpa: mask must be contiguous");
     return bool_mask;
-}
-
-void require_contiguous_nntile(const at::Tensor &tensor, const char *name)
-{
-    TORCH_CHECK(
-        tensor.is_contiguous(),
-        "nntile sdpa: ",
-        name,
-        " must be contiguous");
 }
 
 } // namespace
@@ -250,6 +229,10 @@ int64_t fused_sdp_choice(
     std::optional<double> scale,
     bool enable_gqa)
 {
+    nntile::GraphFillScope record;
+    // Debt D8: never OVERRIDEABLE. MATH is CompositeImplicit and
+    // records mm / softmax / mask as TensorGraph nodes. The fused
+    // TorchKind::Sdpa codelet stays unused until a later fused SDPA.
     (void)attn_mask;
     (void)is_causal;
     if (!sdpa_inputs_supported(
@@ -262,7 +245,7 @@ int64_t fused_sdp_choice(
     {
         return static_cast<int64_t>(at::SDPBackend::error);
     }
-    return static_cast<int64_t>(at::SDPBackend::overrideable);
+    return static_cast<int64_t>(at::SDPBackend::math);
 }
 
 std::tuple<
@@ -285,6 +268,7 @@ sdpa_overrideable_forward(
     bool return_debug_mask,
     std::optional<double> scale)
 {
+    nntile::GraphFillScope record;
     TORCH_CHECK(
         sdpa_inputs_supported(
             query,
@@ -330,8 +314,8 @@ sdpa_overrideable_forward(
         batch_ndim,
         causal_flag);
     const at::Tensor logsumexp = logsumexp_placeholder(query);
-    // PyTorch SDPA API requires logsumexp; nntile softmax uses maxsumexp internally.
-    // Backward ignores this tensor and uses maxsumexp buffers in sdpa_backward.
+    // PyTorch SDPA API requires logsumexp; nntile softmax uses
+    // maxsumexp internally. Backward ignores this placeholder.
     // Keep philox tensors on CPU - they are unused API placeholders only.
     const at::Tensor philox_seed = at::empty(
         {},
@@ -387,8 +371,8 @@ sdpa_overrideable_backward(
     const at::Tensor &philox_offset,
     std::optional<double> scale)
 {
+    nntile::GraphFillScope record;
     (void)out;
-    // PyTorch passes logsumexp from forward; sdpa_backward uses maxsumexp internally.
     (void)logsumexp;
     (void)cum_seq_q;
     (void)cum_seq_k;
@@ -430,14 +414,21 @@ sdpa_overrideable_backward(
     }
 
     // Untiled: grad_out may be a strided view; layout is packed at record.
+    // Fused ATen SDPA does not save softmax weights; rebuild attn from Q/K.
+    auto fwd = sdpa_forward_with_attn(
+        query,
+        key,
+        value,
+        mask,
+        batch_ndim,
+        causal_flag);
     auto grad_qkv = sdpa_backward(
         query,
         key,
         value,
+        std::get<1>(fwd),
         grad_out,
-        mask,
-        batch_ndim,
-        causal_flag);
+        batch_ndim);
 
     at::Tensor grad_q = grad_input_mask[0] ? std::get<0>(grad_qkv)
                                           : at::Tensor();

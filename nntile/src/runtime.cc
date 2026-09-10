@@ -33,11 +33,13 @@
 #include "nntile/dtype.hh"
 #include "nntile/tile/lowering_context.hh"
 
+#include <chrono>
 #include <cstring>
-#include <set>
 #include <stdexcept>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 namespace nntile
 {
@@ -58,33 +60,70 @@ bool tile_logical_is_live(TileGraph::TileNode const *tile)
     return desc != nullptr && tensor_ref_is_live(desc->source_node);
 }
 
+//! Keep the logical tensor flag in sync with its tiles (O(tiles)).
+void sync_logical_starpu_flag(TileGraph::TileNode *tile)
+{
+    if (tile == nullptr)
+    {
+        return;
+    }
+    TileGraph::TensorDescriptor const *desc =
+        tile->tensor_descriptor();
+    if (desc == nullptr || desc->source_node == nullptr)
+    {
+        return;
+    }
+    bool any = false;
+    for (TileGraph::TileNode *t : desc->tiles)
+    {
+        if (t != nullptr && t->is_starpu_registered())
+        {
+            any = true;
+            break;
+        }
+    }
+    auto *src = const_cast<TensorGraph::TensorNode *>(
+        desc->source_node);
+    if (any)
+    {
+        src->note_starpu_registered();
+    }
+    else
+    {
+        src->note_starpu_unregistered();
+    }
+}
+
 template <typename T>
 void allocate_tile_and_register(
     TileGraph::TileNode *node, const std::vector<Index> &shape)
 {
     auto t = std::make_shared<nntile::core::Tile<T>>(shape);
     node->set_payload(std::move(t));
+    sync_logical_starpu_flag(node);
 }
 
-//! Track both inputs and outputs when an op is needed: many kernels read
-//! accumulator buffers listed only as outputs (in-place / incremental IR).
-void insert_op_io_into_live(const TileGraph::OpNode &op,
-    std::unordered_set<const TileGraph::TileNode *> &live,
-    bool &changed)
+//! Enqueue op I/O tiles that are not yet live. Accumulators listed only as
+//! outputs still need a live edge (in-place / incremental IR).
+void enqueue_op_io(
+    TileGraph::OpNode const &op,
+    std::unordered_set<TileGraph::TileNode const *> &live,
+    std::vector<TileGraph::TileNode const *> &work)
 {
-    for (const auto *in : op.inputs())
+    auto note = [&](TileGraph::TileNode const *tile)
     {
-        if (in != nullptr && live.insert(in).second)
+        if (tile != nullptr && live.insert(tile).second)
         {
-            changed = true;
+            work.push_back(tile);
         }
+    };
+    for (TileGraph::TileNode const *in : op.inputs())
+    {
+        note(in);
     }
-    for (const auto *out : op.outputs())
+    for (TileGraph::TileNode const *out : op.outputs())
     {
-        if (out != nullptr && live.insert(out).second)
-        {
-            changed = true;
-        }
+        note(out);
     }
 }
 
@@ -131,8 +170,14 @@ void Runtime::compile()
         compiled_graph_op_count_ = graph_ops.size();
     }
 
+    auto const t_dce = std::chrono::steady_clock::now();
     eliminate_dead_ops();
+    last_compile_dce_s_ = std::chrono::duration<double>(
+        std::chrono::steady_clock::now() - t_dce).count();
+    auto const t_alloc = std::chrono::steady_clock::now();
     allocate_missing_tiles();
+    last_compile_alloc_s_ = std::chrono::duration<double>(
+        std::chrono::steady_clock::now() - t_alloc).count();
     tile_adoption_.clear();
 
     execution_schedule_ = ExecutionSchedule{};
@@ -175,7 +220,7 @@ void Runtime::invalidate_logical_tiles(
         {
             continue;
         }
-        if (tile->has_payload())
+        if (tile->has_payload() && tile->is_starpu_registered())
         {
             to_release.push_back(tile);
         }
@@ -190,26 +235,46 @@ void Runtime::invalidate_logical_tiles(
     // safe during overlapping compile/run phases (no wait_for_all).
     for (const TileGraph::TileNode *tile : to_release)
     {
-        if (tile == nullptr || !tile->has_payload())
+        if (tile == nullptr || !tile->is_starpu_registered()
+            || !tile->has_payload())
         {
             continue;
         }
         auto payload = tile->payload();
         invalidate_tile_buffer(tile, payload);
-        const_cast<TileGraph::TileNode *>(tile)->clear_payload();
+        auto *mut = const_cast<TileGraph::TileNode *>(tile);
+        mut->clear_payload();
+        sync_logical_starpu_flag(mut);
     }
     init_state_.erase(logical);
 }
 
 void Runtime::invalidate_tile(TileGraph::TileNode *tile)
 {
-    if (tile == nullptr || !tile->has_payload())
+    if (tile == nullptr || !tile->is_starpu_registered()
+        || !tile->has_payload())
     {
         return;
     }
     auto payload = tile->payload();
     invalidate_tile_buffer(tile, payload);
     tile->clear_payload();
+    sync_logical_starpu_flag(tile);
+}
+
+void Runtime::unregister_tile(TileGraph::TileNode *tile)
+{
+    if (tile == nullptr || !tile->is_starpu_registered())
+    {
+        return;
+    }
+    if (tile->has_payload())
+    {
+        auto payload = tile->payload();
+        unregister_tile_buffer(tile, payload);
+    }
+    tile->clear_payload();
+    sync_logical_starpu_flag(tile);
 }
 
 void Runtime::mark_initialized(TensorGraph::TensorNode const *tensor)
@@ -217,6 +282,30 @@ void Runtime::mark_initialized(TensorGraph::TensorNode const *tensor)
     if (tensor != nullptr)
     {
         init_state_[tensor] = true;
+    }
+}
+
+void Runtime::forget_logical(TensorGraph::TensorNode const *tensor)
+{
+    if (tensor == nullptr)
+    {
+        return;
+    }
+    init_state_.erase(tensor);
+    TileGraph::TensorDescriptor const *desc =
+        graph_.get_tensor_descriptor(tensor);
+    if (desc == nullptr)
+    {
+        return;
+    }
+    for (TileGraph::TileNode *tile : desc->tiles)
+    {
+        if (tile == nullptr)
+        {
+            continue;
+        }
+        tile_adoption_.erase(tile);
+        live_tile_nodes_.erase(tile);
     }
 }
 
@@ -280,6 +369,10 @@ void Runtime::validate_initialized_inputs_at_compile()
 {
     for (const auto &uptr : graph_.tensor_descriptors())
     {
+        if (!uptr)
+        {
+            continue;
+        }
         const TileGraph::TensorDescriptor &desc = *uptr;
         if (!tensor_requires_init_at_execute(desc))
         {
@@ -335,6 +428,10 @@ void Runtime::export_all_tiles(
     out.clear();
     for (const auto &uptr : graph_.tensor_descriptors())
     {
+        if (!uptr)
+        {
+            continue;
+        }
         const TileGraph::TensorDescriptor &desc = *uptr;
         if (desc.source_node == nullptr)
         {
@@ -620,8 +717,9 @@ void Runtime::allocate_missing_tiles()
         auto adopt_it = tile_adoption_.find(tile_key);
         if (adopt_it != tile_adoption_.end())
         {
-            const_cast<TileGraph::TileNode *>(tile_key)->set_payload(
-                adopt_it->second);
+            auto *node = const_cast<TileGraph::TileNode *>(tile_key);
+            node->set_payload(adopt_it->second);
+            sync_logical_starpu_flag(node);
             return;
         }
         if (tile_key->has_payload())
@@ -697,35 +795,6 @@ void Runtime::allocate_missing_tiles()
         try_allocate(all_tiles[i].get(), false);
     }
     compiled_tile_node_count_ = all_tiles.size();
-}
-
-size_t Runtime::last_input_consumer_end(
-    TileNode const *tile,
-    size_t op_begin,
-    size_t op_end) const
-{
-    if (tile == nullptr || op_begin >= op_end)
-    {
-        return op_begin;
-    }
-    if (op_end > execution_order_.size())
-    {
-        throw std::out_of_range(
-            "Runtime::last_input_consumer_end: bad range");
-    }
-    size_t last = op_begin;
-    for (size_t i = op_begin; i < op_end; ++i)
-    {
-        for (TileNode const *in : execution_order_[i]->inputs())
-        {
-            if (in == tile)
-            {
-                last = i + 1;
-                break;
-            }
-        }
-    }
-    return last;
 }
 
 void Runtime::execute_range(
@@ -876,6 +945,60 @@ void Runtime::invalidate_tile_buffer(
     }
 }
 
+void Runtime::unregister_tile_buffer(
+    const TileGraph::TileNode *node,
+    const std::shared_ptr<void> &tile_ptr)
+{
+    if (node == nullptr || tile_ptr == nullptr)
+    {
+        return;
+    }
+    switch (node->dtype())
+    {
+    case DataType::FP32:
+        std::static_pointer_cast<nntile::core::Tile<nntile::fp32_t>>(tile_ptr)
+            ->unregister_submit();
+        break;
+    case DataType::FP32_FAST_TF32:
+        std::static_pointer_cast<
+            nntile::core::Tile<nntile::fp32_fast_tf32_t>>(tile_ptr)
+            ->unregister_submit();
+        break;
+    case DataType::FP32_FAST_FP16:
+        std::static_pointer_cast<
+            nntile::core::Tile<nntile::fp32_fast_fp16_t>>(tile_ptr)
+            ->unregister_submit();
+        break;
+    case DataType::FP32_FAST_BF16:
+        std::static_pointer_cast<
+            nntile::core::Tile<nntile::fp32_fast_bf16_t>>(tile_ptr)
+            ->unregister_submit();
+        break;
+    case DataType::FP64:
+        std::static_pointer_cast<nntile::core::Tile<nntile::fp64_t>>(tile_ptr)
+            ->unregister_submit();
+        break;
+    case DataType::FP16:
+        std::static_pointer_cast<nntile::core::Tile<nntile::fp16_t>>(tile_ptr)
+            ->unregister_submit();
+        break;
+    case DataType::BF16:
+        std::static_pointer_cast<nntile::core::Tile<nntile::bf16_t>>(tile_ptr)
+            ->unregister_submit();
+        break;
+    case DataType::INT64:
+        std::static_pointer_cast<nntile::core::Tile<nntile::int64_t>>(tile_ptr)
+            ->unregister_submit();
+        break;
+    case DataType::BOOL:
+        std::static_pointer_cast<nntile::core::Tile<nntile::bool_t>>(tile_ptr)
+            ->unregister_submit();
+        break;
+    default:
+        break;
+    }
+}
+
 void Runtime::release_dead_tiles_after_op(size_t op_idx)
 {
     queue_dead_tiles_after_op(op_idx);
@@ -916,13 +1039,16 @@ void Runtime::flush_queued_dead_tiles()
     }
     for (const TileGraph::TileNode *tile : queued_dead_tiles_)
     {
-        if (tile == nullptr || !tile->has_payload())
+        if (tile == nullptr || !tile->is_starpu_registered()
+            || !tile->has_payload())
         {
             continue;
         }
         auto payload = tile->payload();
         invalidate_tile_buffer(tile, payload);
-        const_cast<TileGraph::TileNode *>(tile)->clear_payload();
+        auto *mut = const_cast<TileGraph::TileNode *>(tile);
+        mut->clear_payload();
+        sync_logical_starpu_flag(mut);
     }
     queued_dead_tiles_.clear();
 }
@@ -930,74 +1056,98 @@ void Runtime::flush_queued_dead_tiles()
 void Runtime::eliminate_dead_ops()
 {
     live_tile_nodes_.clear();
-    const size_t n = execution_order_.size();
+    size_t const n = execution_order_.size();
     if (n == 0)
     {
         return;
     }
-    // Already-executed prefix is immutable for incremental sessions; DCE only
-    // the pending suffix so compile stays O(new phase), not O(history).
-    const size_t pending_begin =
+    // Already-executed prefix is immutable for incremental sessions; DCE
+    // only the pending suffix so compile stays O(new phase).
+    size_t const pending_begin =
         executed_op_end_ < n ? executed_op_end_ : n;
     if (pending_begin >= n)
     {
         return;
     }
+    size_t const pending = n - pending_begin;
 
-    using TNode = const TileGraph::TileNode *;
-    std::unordered_map<TNode, std::unordered_set<size_t>> producer;
-    std::unordered_map<TNode, std::unordered_set<size_t>> consumer;
+    using TNode = TileGraph::TileNode const *;
+    // Adjacency is pending-local op indices. A std::set of live ops plus
+    // re-scanning all live tiles every round was O(E log E) and quadratic
+    // in the untilled HF graphs (one tile per tensor, thousands of ops).
+    std::unordered_map<TNode, std::vector<size_t>> producer;
+    std::unordered_map<TNode, std::vector<size_t>> consumer;
     std::unordered_set<TNode> consumed;
+    producer.reserve(pending * 2);
+    consumer.reserve(pending * 2);
+    consumed.reserve(pending * 2);
 
     for (size_t i = pending_begin; i < n; ++i)
     {
-        const auto &op = execution_order_[i];
-        for (const auto *out : op->outputs())
+        size_t const local = i - pending_begin;
+        auto const &op = execution_order_[i];
+        for (TNode out : op->outputs())
         {
             if (out != nullptr)
             {
-                producer[out].insert(i);
+                producer[out].push_back(local);
             }
         }
-        for (const auto *in : op->inputs())
+        for (TNode in : op->inputs())
         {
             if (in != nullptr)
             {
                 consumed.insert(in);
-                consumer[in].insert(i);
+                consumer[in].push_back(local);
             }
         }
     }
 
     std::unordered_set<TNode> live_data;
+    std::vector<TNode> work;
+    live_data.reserve(pending * 2);
+    work.reserve(pending * 2);
+    auto seed_tile = [&](TNode tile)
+    {
+        if (tile != nullptr && live_data.insert(tile).second)
+        {
+            work.push_back(tile);
+        }
+    };
+
     // Seed from tiles whose logical still has a live TensorRef.
+    // TILE_UNREGISTER is recorded when that TensorRef is already gone;
+    // the StarPU handle stays until this op runs, so seed its inputs
+    // even though tile_logical_is_live is false.
     for (size_t i = pending_begin; i < n; ++i)
     {
-        const auto &op = execution_order_[i];
-        for (const auto *out : op->outputs())
+        auto const &op = execution_order_[i];
+        bool const unregister =
+            op->op_name() == "TILE_UNREGISTER";
+        for (TNode out : op->outputs())
         {
             if (out != nullptr && tile_logical_is_live(out))
             {
-                live_data.insert(out);
+                seed_tile(out);
             }
         }
-        for (const auto *in : op->inputs())
+        for (TNode in : op->inputs())
         {
-            if (in != nullptr && tile_logical_is_live(in))
+            if (in != nullptr &&
+                (unregister || tile_logical_is_live(in)))
             {
-                live_data.insert(in);
+                seed_tile(in);
             }
         }
     }
 
-    const bool any_live_output = !live_data.empty();
-    if (!any_live_output)
+    if (work.empty())
     {
-        for (const auto &p : producer)
+        for (auto const &p : producer)
         {
             if (consumed.count(p.first) == 0)
             {
-                live_data.insert(p.first);
+                seed_tile(p.first);
             }
         }
     }
@@ -1006,49 +1156,50 @@ void Runtime::eliminate_dead_ops()
         return;
     }
 
-    std::set<size_t> live_ops;
-    bool changed = true;
-    while (changed)
+    std::vector<char> live_op(pending, 0);
+    size_t live_op_count = 0;
+    auto mark_ops =
+        [&](std::vector<size_t> const *ops)
     {
-        changed = false;
-        auto live_data_copy = live_data;
-        for (TNode t : live_data_copy)
+        if (ops == nullptr)
         {
-            auto prod_it = producer.find(t);
-            if (prod_it != producer.end())
+            return;
+        }
+        for (size_t local : *ops)
+        {
+            if (live_op[local] != 0)
             {
-                for (size_t op_idx : prod_it->second)
-                {
-                    if (live_ops.insert(op_idx).second)
-                    {
-                        changed = true;
-                        insert_op_io_into_live(
-                            *execution_order_[op_idx], live_data, changed);
-                    }
-                }
+                continue;
             }
-            // Any op that reads a live tile may be needed (sink ops have empty
-            // outputs; others appear here when producer edges are
-            // insufficient).
-            auto cons_it = consumer.find(t);
-            if (cons_it != consumer.end())
-            {
-                for (size_t op_idx : cons_it->second)
-                {
-                    if (live_ops.insert(op_idx).second)
-                    {
-                        changed = true;
-                        insert_op_io_into_live(
-                            *execution_order_[op_idx], live_data, changed);
-                    }
-                }
-            }
+            live_op[local] = 1;
+            ++live_op_count;
+            enqueue_op_io(
+                *execution_order_[pending_begin + local],
+                live_data,
+                work);
+        }
+    };
+
+    size_t wi = 0;
+    while (wi < work.size())
+    {
+        TNode const t = work[wi++];
+        auto const prod_it = producer.find(t);
+        if (prod_it != producer.end())
+        {
+            mark_ops(&prod_it->second);
+        }
+        // Consumers of a live tile may be sinks (empty outputs).
+        auto const cons_it = consumer.find(t);
+        if (cons_it != consumer.end())
+        {
+            mark_ops(&cons_it->second);
         }
     }
 
     // Keep the executed prefix in place. Rebuilding the full vector every
     // compile recopied O(history) shared_ptrs and made step time grow.
-    if (live_ops.size() == n - pending_begin)
+    if (live_op_count == pending)
     {
         live_tile_nodes_ = std::move(live_data);
         return;
@@ -1056,7 +1207,7 @@ void Runtime::eliminate_dead_ops()
     size_t write = pending_begin;
     for (size_t i = pending_begin; i < n; ++i)
     {
-        if (live_ops.count(i) == 0)
+        if (live_op[i - pending_begin] == 0)
         {
             continue;
         }
@@ -1068,6 +1219,16 @@ void Runtime::eliminate_dead_ops()
     }
     execution_order_.resize(write);
     live_tile_nodes_ = std::move(live_data);
+}
+
+std::string Runtime::execution_op_name(size_t i) const
+{
+    if (i >= execution_order_.size())
+    {
+        throw std::out_of_range(
+            "Runtime::execution_op_name: index");
+    }
+    return execution_order_[i]->op_name();
 }
 
 void Runtime::wait()
@@ -1089,8 +1250,9 @@ bool Runtime::drop_fully_executed_history()
     compiled_graph_op_count_ = 0;
     live_tile_nodes_.clear();
     execution_schedule_ = ExecutionSchedule{};
-    // Keep compiled_tile_node_count_: tile nodes / payloads persist across
-    // session compaction (same as TensorGraph data nodes).
+    // Keep compiled_tile_node_count_: tile node slots persist (GC leaves
+    // holes; new nodes still append). Dead TileNode IR is destroyed from
+    // torch_nntile after wait + drop_fully_executed_history.
     return true;
 }
 

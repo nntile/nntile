@@ -77,6 +77,12 @@ class TensorGraph::TensorNode
     //! joining their groups. Sizes must match shape.
     void set_axes(const std::vector<std::shared_ptr<AxisDescriptor>> &axes);
 
+    //! Swap-remove this node from each axis ``members`` list (O(ndim)).
+    void unlink_from_axis_groups();
+
+    //! Index of ``(this, dim)`` in ``axes_[dim]->members`` for O(1) unlink.
+    void note_member_index(int dim, std::size_t idx);
+
     //! True after any op lists this node as an output (O(1) producer check).
     bool has_producer() const { return has_producer_; }
     void note_produced() { has_producer_ = true; }
@@ -112,6 +118,14 @@ class TensorGraph::TensorNode
     //! Label for debugging/export only (tensor identity is this pointer).
     TensorNode *set_name(std::string new_name);
 
+    //! Process-wide stamp for O(1) phase-touch walks.
+    //!
+    //! ``ensure_phase_layouts`` and ``append_tensor_graph_phase`` both
+    //! walk the same nodes. Separate static counters reused gen=1 and
+    //! skipped every tensor on the first factory-only compile
+    //! (ones / arange).
+    static std::uint32_t next_touch_gen();
+
     //! Generation stamp for O(1) phase touch dedup (mutable / non-identity).
     std::uint32_t touch_gen() const
     {
@@ -122,15 +136,32 @@ class TensorGraph::TensorNode
         touch_gen_ = gen;
     }
 
+    //! True while StarPU still holds a handle for this tensor's tiles.
+    bool is_starpu_registered() const
+    {
+        return starpu_registered_;
+    }
+    void note_starpu_registered()
+    {
+        starpu_registered_ = true;
+    }
+    void note_starpu_unregistered()
+    {
+        starpu_registered_ = false;
+    }
+
   private:
     NodeId id_;
     TensorGraph *graph_;
     std::vector<Index> shape_;
     std::vector<std::shared_ptr<AxisDescriptor>> axes_;
+    //! Parallel to ``axes_``: index into that descriptor's ``members``.
+    std::vector<std::size_t> member_index_;
     DataType dtype_;
     std::string name_;
     bool has_producer_ = false;
     bool has_constant_value_ = false;
+    bool starpu_registered_ = false;
     Scalar constant_value_ = 0;
     std::optional<std::vector<std::uint8_t>> bind_hint_;
     mutable std::uint32_t touch_gen_ = 0;
@@ -140,6 +171,8 @@ class TensorGraph::TensorNode
 
     friend class TensorGraph;
     friend class TensorRef;
+    friend void merge_axis(std::shared_ptr<AxisDescriptor> &,
+        std::shared_ptr<AxisDescriptor> &);
 };
 
 //! Validate same shape and merge axes for two tensors (single loop).

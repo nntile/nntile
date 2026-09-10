@@ -173,12 +173,8 @@ void append_tensor_graph_phase(
     tile_graph.set_tiling_scheme(tiling);
 
     std::vector<TensorGraph::TensorNode const*> touched;
-    static std::uint32_t next_gen = 1;
-    std::uint32_t const gen = next_gen++;
-    if(next_gen == 0)
-    {
-        next_gen = 1;
-    }
+    std::uint32_t const gen =
+        TensorGraph::TensorNode::next_touch_gen();
     collect_phase_tensors(tg, phase, touched, gen);
 
     for(TensorGraph::TensorNode const* t : touched)

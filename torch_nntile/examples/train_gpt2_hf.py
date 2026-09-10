@@ -12,22 +12,35 @@ Torch cannot use CUDA and the PrivateUse1 ``nntile`` device in one process
 separate runs, then ``compare`` two checkpoints. CPU is useful for small
 numerical-accuracy showcases; larger runs should use cuda or nntile.
 
-Attention: ``cuda``/``cpu`` use HF ``eager`` (classic matmul) for a fair
-compare vs NNTile; ``nntile`` uses HF ``sdpa`` so attention goes through
-``F.scaled_dot_product_attention``, which torch_nntile overrides with its
-SDPA kernel (eager HF attention is not fully supported on nntile).
+Attention: both ``cuda`` and ``nntile`` use HF ``sdpa``. Nntile always
+selects PyTorch MATH SDPA (composite ``mm`` / ``softmax``; debt D8).
+``--device cuda`` pins the same MATH backend (flash / mem-efficient /
+cuDNN off). ``--disable-tf32`` only disables TF32 GEMM / cuDNN matmul.
 
 Use ``--disable-tf32`` on ``--device cuda`` for full FP32 matmul (no TF32)
 when comparing numerically against nntile.
 
 Before training, all epoch batches (inputs + labels) and the model are moved
 onto the training device; the script prints prefetch time and wall training
-time. On ``nntile``, each iter ``compile_graph``/``run``s after
-``optimizer.zero_grad``, then prints loss via ``.to("cpu")`` (host sync) so
-grad ``INVALIDATE``s share that step's compile phase (avoids ``STARPU_W``-only
-clear VRAM blowup under multi-step async submit; debt D7). On ``cuda``/``cpu``,
-each iter prints loss via ``.item()`` after ``zero_grad`` (device sync), and
-``synchronize_device`` runs again before the final wall-time measurement.
+time. On ``nntile`` the prefetch ``wait()``s so StarPU H2D finishes before
+optimizer setup. Both paths then ``wait`` / ``synchronize_device`` again
+**immediately before the train timer**, so leftover compute is not in
+flight when the clock starts. Stock HuggingFace GPT-2 builds
+``cache_position`` with ``torch.arange`` on ``device=nntile``. On nntile,
+each iter is **recorded** and ``compile_graph``'d while the previous
+``run()`` is in flight, then ``wait()`` joins that submit and ``run()``
+starts the compiled step. A final ``wait()`` joins the last submit.
+``--wait-after-run`` instead does ``run()`` then ``wait()`` on the same
+step so record/compile never overlap GPU work (prep vs compute).
+Cumulative record / compile / run / wait times are printed as a
+breakdown. The train wall is that clock through the final ``wait()``
+(every record, compile, wait, and run). The final loss is read after
+that join. CUDA synchronizes after every iter so each printed step
+includes device work, then reads the final loss after the wall.
+After the loss (and checkpoint), one extra isolated step is timed:
+CUDA prints a synchronized iter wall; nntile prints sequential
+record / compile / run / wait / run+wait with the GPU idle (no
+overlap with a previous ``run()``).
 
 Modes:
 
@@ -75,9 +88,20 @@ import time
 from pathlib import Path
 
 import torch
+from hf_tiny_train_common import configure_single_thread_host, configure_tf32
+from nntile_iter_phases import (
+    compile_run_wait_iter,
+    compile_wait_run_iter,
+    print_nntile_prep_compute,
+    measure_isolated_nntile_iter,
+    print_nntile_iter_timings,
+    print_nntile_phase_timings,
+    print_torch_isolated_iter,
+    print_torch_iter_timings,
+    wait_end,
+    wait_then_start_timer,
+)
 from transformers import GPT2Config, GPT2LMHeadModel
-
-from hf_tiny_train_common import configure_single_thread_host
 
 
 def _default_config_path() -> Path:
@@ -85,29 +109,15 @@ def _default_config_path() -> Path:
 
 
 def _attn_implementation_for_device(device: str) -> str:
-    """Attention backend for stock HF GPT-2.
-
-    * ``cuda`` / ``cpu``: ``eager`` - classic matmul attention for a fair
-      compare vs NNTile's explicit SDPA kernel (FP32 Flash / mem-efficient
-      SDPA would otherwise dominate on CUDA).
-    * ``nntile``: ``sdpa`` - routes through ``F.scaled_dot_product_attention``,
-      which torch_nntile overrides with its SDPA kernel. Eager HF attention
-      uses ops that are not fully supported on ``device=nntile``.
-
-    Remaining wall-time gap vs CUDA should shrink once HF layout transforms
-    (``split``/``narrow``/``transpose``) are zero-copy views with packed
-    sizes/strides/offset. ``--verbose`` + ``print_info()`` layout-copy
-    counters should stay near zero for those paths.
-    """
-    if device == "nntile":
-        return "sdpa"
-    return "eager"
+    """Same HF attention backend on cuda/cpu/nntile: ``sdpa``."""
+    del device
+    return "sdpa"
 
 
 def load_gpt2_config(
     path: Path,
     *,
-    attn_implementation: str = "eager",
+    attn_implementation: str = "sdpa",
 ) -> GPT2Config:
     with path.open(encoding="utf-8") as handle:
         raw = json.load(handle)
@@ -340,30 +350,26 @@ def synchronize_device(device: torch.device) -> None:
         torch.cuda.synchronize(device)
 
 
-def configure_tf32(*, disable_tf32: bool, device: str) -> None:
-    """Optionally disable CUDA TF32 for FP32 matmul / cuDNN.
+def configure_cuda_sdpa_math(*, device: str) -> None:
+    """Pin CUDA SDPA to MATH (same composite nntile uses; debt D8).
 
-    Useful for fair numerical compares vs NNTile FP32. No-op on cpu/nntile
-    unless CUDA backends are present (then still toggles global PyTorch flags).
+    Flash / mem-efficient / cuDNN are off so ``--device cuda`` cannot
+    pick a fused kernel.
     """
-    if not disable_tf32:
+    if device not in {"cuda", "nntile"}:
         return
-    if device != "cuda":
-        print(
-            f"Note: --disable-tf32 is mainly for --device cuda "
-            f"(got --device {device}); applying PyTorch CUDA TF32 flags anyway "
-            "if CUDA backends exist."
-        )
-    if hasattr(torch.backends, "cuda") and hasattr(
-        torch.backends.cuda, "matmul"
-    ):
-        torch.backends.cuda.matmul.allow_tf32 = False
-    if hasattr(torch.backends, "cudnn"):
-        torch.backends.cudnn.allow_tf32 = False
-    # PyTorch 2.x: 'highest' prefers full FP32 over TF32.
-    if hasattr(torch, "set_float32_matmul_precision"):
-        torch.set_float32_matmul_precision("highest")
-    print("TF32 disabled (cuda.matmul.allow_tf32=False, cudnn.allow_tf32=False)")
+    cuda_be = getattr(torch.backends, "cuda", None)
+    if cuda_be is None or not hasattr(cuda_be, "enable_math_sdp"):
+        return
+    cuda_be.enable_flash_sdp(False)
+    cuda_be.enable_mem_efficient_sdp(False)
+    cuda_be.enable_math_sdp(True)
+    if hasattr(cuda_be, "enable_cudnn_sdp"):
+        cuda_be.enable_cudnn_sdp(False)
+    print(
+        "CUDA SDPA: math (flash/mem-efficient/cudnn off)",
+        flush=True,
+    )
 
 
 def prepare_epoch_batches_cpu(
@@ -531,7 +537,11 @@ def causal_lm_loss_nntile(
     input_ids: torch.Tensor,
     labels: torch.Tensor,
 ):
-    """Next-token CE on nntile via stock ``F.cross_entropy`` (aten path)."""
+    """Next-token CE on nntile via stock ``F.cross_entropy`` (aten path).
+
+    Stock HF ``forward`` builds ``cache_position`` with ``torch.arange`` on
+    ``device=nntile``.
+    """
     logits = model(input_ids=input_ids).logits
     vocab = logits.shape[-1]
     return torch.nn.functional.cross_entropy(
@@ -629,52 +639,85 @@ def train_torch(args: argparse.Namespace) -> int:
 
     print(f"\nTraining on torch ({device})...")
     print(
-        "Per-iter loss .item() after zero_grad (device sync); "
-        "synchronize_device before final wall time"
+        "Per-iter synchronize so each printed step includes GPU work; "
+        "loss readout after the wall"
     )
-    t_train0 = time.perf_counter()
-    # Clear grads before the loop; clear again each iter before loss readout.
     optimizer.zero_grad(set_to_none=True)
+    last_loss: torch.Tensor | None = None
+    last_inputs: torch.Tensor | None = None
+    last_labels: torch.Tensor | None = None
+    n_epoch_batches = len(epoch_batches)
+    n_steps = sum(len(epoch_data) for epoch_data in epoch_batches)
+    synchronize_device(device)
+    t_train0 = time.perf_counter()
+    print(
+        "timing torch train wall t0: device idle, "
+        "clock includes first iter through last synchronize",
+        flush=True,
+    )
     for epoch_idx, epoch_data in enumerate(epoch_batches):
-        epoch = start_epoch + epoch_idx
         n_batches = len(epoch_data)
         for batch_idx, (inputs, labels) in enumerate(epoch_data):
-            t_submit0 = time.perf_counter()
+            t_iter0 = time.perf_counter()
             loss = causal_lm_loss_torch(model, inputs, labels)
             loss.backward()
             optimizer.step()
             step_loss = loss.detach()
             del loss
             optimizer.zero_grad(set_to_none=True)
-            # .item() synchronizes the device (fair vs nntile loss readout).
-            loss_value = float(step_loss.item())
-            del step_loss
-            t_done = time.perf_counter()
+            synchronize_device(device)
+            iter_s = time.perf_counter() - t_iter0
             global_step += 1
-            print(
-                f"[{device.type}] epoch {epoch + 1}/{end_epoch}  "
-                f"iter {batch_idx + 1}/{n_batches}  "
-                f"loss={loss_value:.6f}  "
-                f"wall={t_done - t_submit0:.3f}s  "
-                f"steps={global_step}"
+            is_last = (
+                epoch_idx == n_epoch_batches - 1
+                and batch_idx == n_batches - 1
             )
-    synchronize_device(device)
+            if is_last:
+                last_loss = step_loss
+                last_inputs = inputs
+                last_labels = labels
+            else:
+                del step_loss
+            print_torch_iter_timings(global_step, n_steps, iter_s)
     train_wall_s = time.perf_counter() - t_train0
+    if last_loss is None:
+        raise RuntimeError("train_torch: no steps ran")
+    loss_value = float(last_loss.item())
+    del last_loss
     print(
-        f"timing torch train wall (incl. per-iter sync): {train_wall_s:.3f}s "
-        f"({args.epochs} epochs)"
+        f"[{device.type}] final loss={loss_value:.6f}  steps={global_step}"
+    )
+    print(
+        f"timing torch train wall (loop+sync, loss readout after): "
+        f"{train_wall_s:.3f}s ({args.epochs} epochs)"
     )
 
-    save_checkpoint(
-        ckpt_path,
-        model=model,
-        config=config,
-        seed=seed,
-        epoch=end_epoch,
-        global_step=global_step,
-        optimizer_state=optimizer.state_dict(),
-        device_name=device.type,
+    if not args.no_save_checkpoint:
+        save_checkpoint(
+            ckpt_path,
+            model=model,
+            config=config,
+            seed=seed,
+            epoch=end_epoch,
+            global_step=global_step,
+            optimizer_state=optimizer.state_dict(),
+            device_name=device.type,
+        )
+    if last_inputs is None or last_labels is None:
+        raise RuntimeError("train_torch: missing last batch")
+    print(
+        "Isolated extra step after loss (not in train wall; "
+        "GPU idle, synchronized)"
     )
+    synchronize_device(device)
+    t_iso0 = time.perf_counter()
+    loss = causal_lm_loss_torch(model, last_inputs, last_labels)
+    loss.backward()
+    optimizer.step()
+    del loss
+    optimizer.zero_grad(set_to_none=True)
+    synchronize_device(device)
+    print_torch_isolated_iter(time.perf_counter() - t_iso0)
     return 0
 
 
@@ -731,14 +774,17 @@ def train_nntile(args: argparse.Namespace) -> int:
         with torch.no_grad():
             epoch_batches = preload_batches_to_nntile(epoch_batches_cpu)
             model = cpu_model.to("nntile")
+        # Submit H2D and join before the train timer so the loop only
+        # records compute on already-resident nntile tensors.
+        torch_nntile.compile_graph()
+        torch_nntile.run()
+        torch_nntile.wait()
         prefetch_s = time.perf_counter() - t_pre0
         print(
             f"timing host->nntile prefetch: {prefetch_s:.3f}s "
             f"(input elems {n_input_elems}, label elems {n_label_elems}, "
             f"+ model)"
         )
-        torch_nntile.compile_graph()
-        torch_nntile.run()
         del cpu_model
         del epoch_batches_cpu
         for param in model.parameters():
@@ -768,91 +814,163 @@ def train_nntile(args: argparse.Namespace) -> int:
         end_epoch = start_epoch + args.epochs
 
         print("\nTraining on nntile...")
-        print(
-            "Per-iter compile_graph/run; loss .to('cpu') after zero_grad "
-            "(sync; grad INVALIDATE in same phase)"
-        )
-        t_train0 = time.perf_counter()
-        # Clear grads before the loop; clear again each iter before compile so
-        # grad INVALIDATEs share that step's sealed phase with the train ops.
+        if args.wait_after_run:
+            print(
+                "Per-iter record, compile_graph, run, wait "
+                "(wait joins this run; no overlap with record/compile)"
+            )
+        else:
+            print(
+                "Per-iter record, compile_graph, wait, run "
+                "(wait joins the previous run)"
+            )
         optimizer.zero_grad(set_to_none=True)
+        if torch_nntile.has_pending_graph():
+            torch_nntile.compile_graph()
+            torch_nntile.run()
+        last_loss: torch.Tensor | None = None
+        last_inputs: torch.Tensor | None = None
+        last_labels: torch.Tensor | None = None
+        n_epoch_batches = len(epoch_batches)
+        n_steps = sum(len(epoch_data) for epoch_data in epoch_batches)
+        record_nntile_s = 0.0
+        record_torch_s = 0.0
+        compile_s = 0.0
+        run_s = 0.0
+        wait_s = 0.0
+        t_train0 = wait_then_start_timer(torch_nntile)
+        print(
+            "timing nntile train wall t0: GPU idle, "
+            "clock includes first record through final wait",
+            flush=True,
+        )
+        first_record_logged = False
         for epoch_idx, epoch_data in enumerate(epoch_batches):
-            epoch = start_epoch + epoch_idx
             n_batches = len(epoch_data)
             for batch_idx in range(n_batches):
                 inputs, labels = epoch_data[batch_idx]
-                # Drop list refs so used batches can be reclaimed after run().
                 epoch_data[batch_idx] = None
-                t_submit0 = time.perf_counter()
-                loss = causal_lm_loss_nntile(model, inputs, labels)
+                nntile_t0 = torch_nntile.record_nntile_seconds()
+                t_record0 = time.perf_counter()
+                loss = causal_lm_loss_nntile(
+                    model,
+                    inputs,
+                    labels,
+                )
                 loss.backward()
                 optimizer.step()
-                # Free autograd before compile so activation tiles unmark;
-                # keep a detached scalar for host readout after zero_grad.
-                # del inputs/labels is safe once their last use is recorded:
-                # TensorRef drop appends ordinary graph INVALIDATE (ordered
-                # after embedding); no pre-submit invalidate side channel.
                 step_loss = loss.detach()
                 del loss
-                del inputs
-                del labels
                 optimizer.zero_grad(set_to_none=True)
-                t_record = time.perf_counter()
-                torch_nntile.compile_graph()
-                t_compile = time.perf_counter()
-                torch_nntile.run()
-                t_run = time.perf_counter()
-                # Host loss readout joins StarPU (sync point; not bare wait()).
-                with torch.no_grad():
-                    loss_value = float(step_loss.to("cpu").item())
-                del step_loss
-                t_readout = time.perf_counter()
-                global_step += 1
-                wall_s = t_readout - t_submit0
-                line = (
-                    f"[nntile] epoch {epoch + 1}/{end_epoch}  "
-                    f"iter {batch_idx + 1}/{n_batches}  "
-                    f"loss={loss_value:.6f}  "
-                    f"wall={wall_s:.3f}s  "
-                )
-                if args.verbose:
-                    record_s = t_record - t_submit0
-                    compile_s = t_compile - t_record
-                    run_s = t_run - t_compile
-                    readout_s = t_readout - t_run
-                    line += (
-                        f"(record={record_s:.3f}s compile={compile_s:.3f}s "
-                        f"run={run_s:.3f}s readout={readout_s:.3f}s)  "
+                record_wall_s = time.perf_counter() - t_record0
+                if not first_record_logged:
+                    print(
+                        "timing nntile elapsed after first record: "
+                        f"{time.perf_counter() - t_train0:.3f}s "
+                        "(must be > 0 if the wall includes that record)",
+                        flush=True,
                     )
-                line += f"steps={global_step}"
-                print(line)
-        torch_nntile.wait()
+                    first_record_logged = True
+                step_nntile_s = max(
+                    0.0,
+                    torch_nntile.record_nntile_seconds() - nntile_t0,
+                )
+                step_torch_s = max(0.0, record_wall_s - step_nntile_s)
+                record_nntile_s += step_nntile_s
+                record_torch_s += step_torch_s
+                if args.wait_after_run:
+                    dc, dw, dr = compile_run_wait_iter(torch_nntile)
+                else:
+                    dc, dw, dr = compile_wait_run_iter(torch_nntile)
+                compile_s += dc
+                wait_s += dw
+                run_s += dr
+                global_step += 1
+                is_last = (
+                    epoch_idx == n_epoch_batches - 1
+                    and batch_idx == n_batches - 1
+                )
+                if is_last:
+                    if not args.wait_after_run:
+                        extra_wait = wait_end(torch_nntile)
+                        wait_s += extra_wait
+                        dw += extra_wait
+                    last_loss = step_loss
+                    last_inputs = inputs
+                    last_labels = labels
+                else:
+                    del step_loss
+                    del inputs
+                    del labels
+                print_nntile_iter_timings(
+                    global_step,
+                    n_steps,
+                    step_nntile_s,
+                    step_torch_s,
+                    dc,
+                    dr,
+                    dw,
+                    prep_compute=args.wait_after_run,
+                )
         train_wall_s = time.perf_counter() - t_train0
         if args.verbose:
             torch_nntile.print_info()
+        if last_loss is None:
+            raise RuntimeError("train_nntile: no steps ran")
+        with torch.no_grad():
+            loss_value = float(last_loss.to("cpu").item())
+        del last_loss
+        print_nntile_phase_timings(
+            record_nntile_s, record_torch_s, compile_s, run_s, wait_s
+        )
+        if args.wait_after_run:
+            print_nntile_prep_compute(
+                record_nntile_s + record_torch_s + compile_s,
+                run_s + wait_s,
+            )
+        print(f"[nntile] final loss={loss_value:.6f}  steps={global_step}")
         print(
-            f"timing nntile train wall (incl. per-iter loss sync): "
+            f"timing nntile train wall "
+            f"(loop through final wait, loss readout after): "
             f"{train_wall_s:.3f}s ({args.epochs} epochs)"
         )
 
-        with torch.no_grad():
-            weights = {
-                name: tensor.detach().cpu().clone()
-                for name, tensor in model.state_dict().items()
+        if not args.no_save_checkpoint:
+            with torch.no_grad():
+                weights = {
+                    name: tensor.detach().cpu().clone()
+                    for name, tensor in model.state_dict().items()
+                }
+            path = ckpt_path
+            path.parent.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "model_state_dict": weights,
+                "config": config.to_dict(),
+                "seed": seed,
+                "epoch": end_epoch,
+                "global_step": global_step,
+                "device": "nntile",
+                "optimizer_state_dict": None,
             }
-        path = ckpt_path
-        path.parent.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "model_state_dict": weights,
-            "config": config.to_dict(),
-            "seed": seed,
-            "epoch": end_epoch,
-            "global_step": global_step,
-            "device": "nntile",
-            "optimizer_state_dict": None,
-        }
-        torch.save(payload, path)
-        print(f"Saved checkpoint to {path}")
+            torch.save(payload, path)
+            print(f"Saved checkpoint to {path}")
+        if last_inputs is None or last_labels is None:
+            raise RuntimeError("train_nntile: missing last batch")
+        print(
+            "Isolated extra step after loss (not in train wall; "
+            "GPU idle, sequential record/compile/run/wait)"
+        )
+
+        def _record_isolated() -> None:
+            loss = causal_lm_loss_nntile(
+                model, last_inputs, last_labels
+            )
+            loss.backward()
+            optimizer.step()
+            del loss
+            optimizer.zero_grad(set_to_none=True)
+
+        measure_isolated_nntile_iter(torch_nntile, _record_isolated)
     finally:
         torch_nntile.shutdown_context()
     return 0
@@ -904,6 +1022,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="GPT-2 JSON config path",
     )
     train.add_argument("--output-dir", required=True)
+    train.add_argument(
+        "--no-save-checkpoint",
+        action="store_true",
+        help="Skip writing checkpoint.pt (benchmark / overhead runs)",
+    )
     train.add_argument("--epochs", type=int, default=1)
     train.add_argument("--lr", type=float, default=1e-3)
     train.add_argument("--momentum", type=float, default=0.0)
@@ -936,9 +1059,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--disable-tf32",
         action="store_true",
         help=(
-            "Disable CUDA TF32 for matmul/cuDNN (full FP32). "
-            "Recommended for fair numerical compares vs nntile FP32 "
-            "(applies on --device cuda)"
+            "Disable CUDA TF32 (cuBLAS matmul, cuDNN conv/RNN). "
+            "Without this flag, TF32 is enabled on those paths. "
+            "Honored by ATen CUDA kernels on --device nntile too."
         ),
     )
     train.add_argument(
@@ -970,11 +1093,19 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     train.add_argument(
+        "--wait-after-run",
+        action="store_true",
+        help=(
+            "Nntile only: wait() immediately after each run() so record "
+            "and compile do not overlap GPU work. Prints prep vs compute."
+        ),
+    )
+    train.add_argument(
         "--verbose",
         action="store_true",
         help=(
             "Verbose StarPU / NNTile context logging (nntile only); also "
-            "print per-iter record/compile/run/readout and print_info()"
+            "print_info() after run()+wait()"
         ),
     )
 
@@ -1002,6 +1133,7 @@ def main(argv: list[str] | None = None) -> int:
             disable_tf32=bool(args.disable_tf32),
             device=args.device,
         )
+        configure_cuda_sdpa_math(device=args.device)
         if args.device == "nntile":
             return train_nntile(args)
         return train_torch(args)

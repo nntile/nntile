@@ -41,5 +41,14 @@ is **not** implemented as shared `Parameter` storage.
 Revisit when PrivateUse1 parameter aliasing is solid on `device=nntile` and
 training needs true tied grads.
 
-See also the debt table in
-[torch_nntile_tensor_architecture.md](torch_nntile_tensor_architecture.md#technical-debt-future-fixes).
+### Public ATen `*.out` only (D9)
+
+Torch-native StarPU codelets stay on public high-level `at::*_out` forever
+(macOS arm64 cannot link x86 DispatchStubs; hidden `raw_*` is not a
+product API). Autogen `convolution_backward.out` /
+`cudnn_convolution_transpose.out` may still `copy_` into the StarPU
+blob.
+
+This is **not** a follow-up to unwind. See the debt table in
+[torch_nntile_tensor_architecture.md](torch_nntile_tensor_architecture.md#technical-debt-future-fixes)
+and the user note in [docs/torch_nntile.md](../torch_nntile.md).

@@ -4,7 +4,11 @@
 # @file torch_nntile/torch_nntile/compat/hf.py
 # HuggingFace compatibility shims for device="nntile".
 
-"""Route selected HuggingFace ops to supported nntile kernels."""
+"""Route selected HuggingFace ops to supported nntile kernels.
+
+Do **not** monkey-patch HuggingFace ``GPT2Model.forward``. Stock GPT-2
+builds ``cache_position`` with ``torch.arange`` on ``device=nntile``.
+"""
 
 from __future__ import annotations
 
@@ -13,7 +17,6 @@ import torch.nn.functional as F
 
 _patched = False
 _patched_device = False
-_patched_gpt2 = False
 _ORIGINAL_LINEAR = F.linear
 
 
@@ -25,98 +28,6 @@ def _is_nntile_device(device: object) -> bool:
     if isinstance(device, torch.device):
         return device.type == "nntile"
     return False
-
-
-def _gpt2_batch_size(
-    *,
-    input_ids: torch.Tensor | None,
-    inputs_embeds: torch.Tensor | None,
-) -> int | None:
-    if input_ids is not None:
-        return int(input_ids.shape[0])
-    if inputs_embeds is not None:
-        return int(inputs_embeds.shape[0])
-    return None
-
-
-def _gpt2_sequence_length(
-    *,
-    input_ids: torch.Tensor | None,
-    inputs_embeds: torch.Tensor | None,
-) -> int | None:
-    if input_ids is not None:
-        return int(input_ids.shape[-1])
-    if inputs_embeds is not None:
-        return int(inputs_embeds.shape[-2])
-    return None
-
-
-def patch_gpt2_cache_position() -> None:
-    """Create GPT-2 ``cache_position`` on CPU, then copy to nntile."""
-    global _patched_gpt2
-    if _patched_gpt2:
-        return
-
-    try:
-        from transformers.models.gpt2.modeling_gpt2 import GPT2Model
-    except (ImportError, RuntimeError, ModuleNotFoundError):
-        return
-
-    _orig_forward = GPT2Model.forward
-
-    def _forward(self, *args, **kwargs):
-        if self.wte.weight.device.type != "nntile":
-            return _orig_forward(self, *args, **kwargs)
-
-        input_ids = kwargs.get("input_ids")
-        if input_ids is None and args:
-            input_ids = args[0]
-        inputs_embeds = kwargs.get("inputs_embeds")
-        batch_size = _gpt2_batch_size(
-            input_ids=input_ids,
-            inputs_embeds=inputs_embeds,
-        )
-
-        if kwargs.get("cache_position") is None:
-            seq_len = _gpt2_sequence_length(
-                input_ids=input_ids,
-                inputs_embeds=inputs_embeds,
-            )
-            if seq_len is not None:
-                past_key_values = kwargs.get("past_key_values")
-                past_seen = (
-                    past_key_values.get_seq_length()
-                    if past_key_values is not None
-                    else 0
-                )
-                nntile_device = self.wte.weight.device
-                kwargs["cache_position"] = torch.arange(
-                    past_seen,
-                    past_seen + seq_len,
-                    device="cpu",
-                ).to(nntile_device)
-
-        _orig_wpe_forward = self.wpe.forward
-
-        def _wpe_forward(position_ids: torch.Tensor) -> torch.Tensor:
-            out = _orig_wpe_forward(position_ids)
-            if (
-                batch_size is not None
-                and out.device.type == "nntile"
-                and out.shape[0] == 1
-                and batch_size > 1
-            ):
-                return out.repeat(batch_size, 1, 1)
-            return out
-
-        self.wpe.forward = _wpe_forward  # type: ignore[method-assign]
-        try:
-            return _orig_forward(self, *args, **kwargs)
-        finally:
-            self.wpe.forward = _orig_wpe_forward  # type: ignore[method-assign]
-
-    GPT2Model.forward = _forward  # type: ignore[method-assign]
-    _patched_gpt2 = True
 
 
 def patch_hf_device_transfer() -> None:
@@ -165,7 +76,7 @@ def _nntile_linear(
 
 
 def patch_hf_activations() -> None:
-    """Apply HuggingFace compatibility shims for device='nntile'."""
+    """Apply HuggingFace activation / linear shims for device='nntile'."""
     global _patched
     if _patched:
         return
@@ -173,7 +84,6 @@ def patch_hf_activations() -> None:
     try:
         from transformers.activations import NewGELUActivation
     except ImportError:
-        patch_gpt2_cache_position()
         patch_hf_device_transfer()
         _patched = True
         return
@@ -187,7 +97,6 @@ def patch_hf_activations() -> None:
 
     NewGELUActivation.forward = _forward
     F.linear = _nntile_linear  # type: ignore[assignment]
-    patch_gpt2_cache_position()
     patch_hf_device_transfer()
     _patched = True
 
@@ -195,12 +104,11 @@ def patch_hf_activations() -> None:
 try:
     patch_hf_activations()
 except Exception:
-    # transformers/torchvision may be missing or incompatible in minimal CI images.
+    # transformers may be missing in minimal CI images.
     pass
 
 __all__ = [
     "patch_hf_activations",
-    "patch_gpt2_cache_position",
     "patch_hf_device_transfer",
     "retie_tied_weights",
 ]

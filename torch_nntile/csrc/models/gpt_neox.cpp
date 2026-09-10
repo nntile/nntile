@@ -9,6 +9,7 @@
 
 #include "nntile_add_fiber.h"
 #include "nntile_gemm.h"
+#include "nntile_nn_classic.h"
 #include "nntile_rope.h"
 #include "nntile_sdpa.h"
 #include "nntile_model_transpose.h"
@@ -69,13 +70,18 @@ void rope_sin_cos_host(
     int64_t batch,
     int64_t seq,
     int64_t rope_dim,
+    int64_t head_dim,
     double base,
     torch::Tensor &sin_out,
     torch::Tensor &cos_out)
 {
-    int64_t const half = rope_dim / 2;
-    std::vector<float> inv(static_cast<std::size_t>(half));
-    for (int64_t i = 0; i < half; ++i)
+    // Frequencies for ``rope_dim`` (HF ``rotary_pct``); remaining pairs
+    // of the full head are identity (sin=0, cos=1) so ``rope`` can run
+    // on the unsplit last axis (narrow+cat disagrees with the kernel).
+    int64_t const half_rot = rope_dim / 2;
+    int64_t const half_full = head_dim / 2;
+    std::vector<float> inv(static_cast<std::size_t>(half_rot));
+    for (int64_t i = 0; i < half_rot; ++i)
     {
         double idx = static_cast<double>(2 * i);
         inv[static_cast<std::size_t>(i)] = static_cast<float>(
@@ -83,7 +89,7 @@ void rope_sin_cos_host(
             / std::pow(base, idx / static_cast<double>(rope_dim)));
     }
     sin_out = torch::empty(
-        {batch, seq, half},
+        {batch, seq, half_full},
         torch::TensorOptions()
             .dtype(torch::kFloat32)
             .device(torch::kCPU));
@@ -94,13 +100,23 @@ void rope_sin_cos_host(
     {
         for (int64_t s = 0; s < seq; ++s)
         {
-            for (int64_t h = 0; h < half; ++h)
+            for (int64_t h = 0; h < half_full; ++h)
             {
-                double angle = static_cast<double>(s)
-                    * static_cast<double>(
-                        inv[static_cast<std::size_t>(h)]);
-                sin_a[b][s][h] = static_cast<float>(std::sin(angle));
-                cos_a[b][s][h] = static_cast<float>(std::cos(angle));
+                if (h < half_rot)
+                {
+                    double angle = static_cast<double>(s)
+                        * static_cast<double>(
+                            inv[static_cast<std::size_t>(h)]);
+                    sin_a[b][s][h] = static_cast<float>(
+                        std::sin(angle));
+                    cos_a[b][s][h] = static_cast<float>(
+                        std::cos(angle));
+                }
+                else
+                {
+                    sin_a[b][s][h] = 0.0f;
+                    cos_a[b][s][h] = 1.0f;
+                }
             }
         }
     }
@@ -110,35 +126,15 @@ torch::Tensor apply_partial_rope(
     torch::Tensor x,
     torch::Tensor sin,
     torch::Tensor cos,
-    int64_t rotary_ndims,
-    int64_t head_dim)
+    int64_t rotary_ndims)
 {
-    // x: [n_heads, batch, seq, head_dim]; sin/cos: [batch, seq, half].
+    // x: [n_heads, batch, seq, head_dim]; sin/cos padded to
+    // [batch, seq, head_dim/2] (identity on unused pairs).
     if (rotary_ndims <= 0)
     {
         return x;
     }
-    int64_t const n_heads = x.size(0);
-    if (sin.dim() == 3)
-    {
-        int64_t const b = sin.size(0);
-        int64_t const s = sin.size(1);
-        int64_t const half = sin.size(2);
-        sin = sin.view({1, b, s, half}).repeat({n_heads, 1, 1, 1});
-        cos = cos.view({1, b, s, half}).repeat({n_heads, 1, 1, 1});
-    }
-    if (rotary_ndims == head_dim)
-    {
-        return rope(sin, cos, x);
-    }
-    auto x_rot = x.narrow(
-        /*dim=*/-1, /*start=*/0, /*length=*/rotary_ndims);
-    auto x_pass = x.narrow(
-        /*dim=*/-1,
-        /*start=*/rotary_ndims,
-        /*length=*/head_dim - rotary_ndims);
-    x_rot = rope(sin, cos, x_rot);
-    return torch::cat({x_rot, x_pass}, /*dim=*/-1);
+    return rope(sin, cos, x);
 }
 
 } // namespace
@@ -215,8 +211,8 @@ torch::Tensor GptNeoXAttentionImpl::forward(
     }
     if (rotary_ndims > 0)
     {
-        q = apply_partial_rope(q, sin, cos, rotary_ndims, head_size);
-        k = apply_partial_rope(k, sin, cos, rotary_ndims, head_size);
+        q = apply_partial_rope(q, sin, cos, rotary_ndims);
+        k = apply_partial_rope(k, sin, cos, rotary_ndims);
     }
     auto attn = sdpa_kernel(
         q,
@@ -270,7 +266,7 @@ torch::Tensor GptNeoXMLPImpl::forward(torch::Tensor x)
         x,
         /*axis=*/x.dim() - 1,
         /*batch_ndim=*/0);
-    x = torch::gelu(x);
+    x = nn_classic::gelu(x, false);
     x = gemm(
         x,
         fc2_weight,
@@ -292,15 +288,11 @@ GptNeoXDecoderImpl::GptNeoXDecoderImpl(GptNeoXConfig const &cfg) :
 {
     input_norm = register_module(
         "input_norm",
-        torch::nn::LayerNorm(
-            torch::nn::LayerNormOptions({cfg.hidden_size})
-                .eps(cfg.layer_norm_eps)));
+        nn_classic::LayerNorm(cfg.hidden_size, cfg.layer_norm_eps));
     attn = register_module("attention", GptNeoXAttention(cfg));
     post_attn_norm = register_module(
         "post_attn_norm",
-        torch::nn::LayerNorm(
-            torch::nn::LayerNormOptions({cfg.hidden_size})
-                .eps(cfg.layer_norm_eps)));
+        nn_classic::LayerNorm(cfg.hidden_size, cfg.layer_norm_eps));
     mlp = register_module("mlp", GptNeoXMLP(cfg));
 }
 
@@ -318,10 +310,14 @@ torch::Tensor GptNeoXDecoderImpl::forward(
     if (parallel_residual)
     {
         auto mlp_out = mlp->forward(post_attn_norm->forward(x));
-        return x + attn_out + mlp_out;
+        return nn_classic::add(
+            nn_classic::add(x, attn_out),
+            mlp_out);
     }
-    auto post = x + attn_out;
-    return post + mlp->forward(post_attn_norm->forward(post));
+    auto post = nn_classic::add(x, attn_out);
+    return nn_classic::add(
+        post,
+        mlp->forward(post_attn_norm->forward(post)));
 }
 
 // -- GptNeoXCausalImpl -----------------------------------------------------
@@ -336,7 +332,7 @@ GptNeoXCausalImpl::GptNeoXCausalImpl(GptNeoXConfig cfg) :
     }
     embed_in = register_module(
         "embed_in",
-        torch::nn::Embedding(config.vocab_size, config.hidden_size));
+        nn_classic::Embedding(config.vocab_size, config.hidden_size));
     torch::nn::ModuleList list;
     for (int64_t i = 0; i < config.num_hidden_layers; ++i)
     {
@@ -345,9 +341,9 @@ GptNeoXCausalImpl::GptNeoXCausalImpl(GptNeoXConfig cfg) :
     layers = register_module("layers", list);
     final_layer_norm = register_module(
         "final_layer_norm",
-        torch::nn::LayerNorm(
-            torch::nn::LayerNormOptions({config.hidden_size})
-                .eps(config.layer_norm_eps)));
+        nn_classic::LayerNorm(
+            config.hidden_size,
+            config.layer_norm_eps));
     lm_weight = register_parameter(
         "lm_weight",
         torch::empty({config.vocab_size, config.hidden_size}));
@@ -376,6 +372,7 @@ void GptNeoXCausalImpl::warm_rope_cache(
             batch,
             seq,
             rope_dim,
+            head_dim,
             config.rotary_emb_base,
             sin_h,
             cos_h);

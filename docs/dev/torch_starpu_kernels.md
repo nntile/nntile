@@ -20,12 +20,18 @@ torch-native aten ops (`TorchKind` / `TensorTorch*Op`). Classic NNTile
 kernels (`swap_two_axes`, `scale_slice`, gemm codelets, …) are **not**
 TensorGraph compute ops on this path.
 
-Each such op must lower to the **same aten schema** inside the StarPU
-codelet:
+Each such op must lower to the **same public aten schema** inside the
+StarPU codelet:
 
 1. `at::from_blob` on **`device=CPU`** or **`device=CUDA`** (StarPU-owned
    buffers; empty deleter). The tensor is **meta + pointer only**.
-2. Call the matching `at::*_out` / `*_copy_out` / functional aten API.
+2. Call a **public** `at::*_out` from `ATen/ops/*.h` that takes the StarPU
+   blob as the out argument. **Never** call `at::native::*Kernel`
+   DispatchStubs, `raw_*` symbols, or other hidden leaves. Those do not
+   link on every LibTorch (macOS arm64 has no AVX2/AVX512 stubs).
+   Autogen `foo.out` may be `functional()` + `copy_` into the blob
+   (extra traffic vs a fused kernel). That is PyTorch API debt
+   (**D9**); do not “fix” it by dropping to internal kernels.
 3. Wrap with `at::NoGradGuard` and
    `at::AutoDispatchBelowADInplaceOrView` so execution does not re-enter
    PrivateUse1 or Autograd.
@@ -35,7 +41,7 @@ codelet:
 I/O ops (`fill` / `subcopy` / scatter / gather / …) may stay classic.
 
 `TorchKind` names follow aten (e.g. `TransposeCopy`, `NarrowCopy`,
-`NativeLayerNorm`), not NNTile classic names.
+`NativeBatchNorm`), not NNTile classic names.
 
 ## Goal
 
@@ -309,6 +315,7 @@ Family codelet `torch_unary` (one `R` input, one `W` output):
 | `Sum` | `sum.IntList_out` | in `R`, out `W` |
 | `VectorNorm` | `linalg_vector_norm.out` | in `R`, out `W` |
 | `NarrowCopy` | `narrow` view + `copy_` | in `R`, out `W` |
+| `CopyIntoView` | `copy_` into parent view | in `R`, out `RW` |
 | `Repeat` | `repeat.out` | in `R`, out `W` |
 | `AvgPool2d` | `avg_pool2d.out` | in `R`, out `W` |
 | `AdaptiveAvgPool2d` | `_adaptive_avg_pool2d.out` | in `R`, out `W` |
@@ -356,17 +363,15 @@ Specialized codelets:
 | `torch_embedding` | `embedding.out` | weight `R`, indices `R`, out `W` |
 | `torch_embedding_dense_backward` | `embedding_dense_backward.out` | grad `R`, indices `R`, grad_weight `W` |
 | `torch_cat` | `cat.out` | each input `R`, out `W` |
-| `torch_layer_norm` | `native_layer_norm` | input `R`; optional weight/bias `R`; out / mean / rstd `W` |
-| `torch_layer_norm_backward` | `native_layer_norm_backward` | grad_out / input / mean / rstd `R`; optional weight/bias `R`; needed grad outs `W` |
 | `torch_sdpa_backward` | flash-CPU bwd; CUDA: efficient (math fallback) | q / k / v / grad_out `R`; optional mask `R`; grad_q / grad_k / grad_v `W` |
 | `torch_nll_loss_forward` | `nll_loss_forward.output` | log_probs `R`, target `R`, loss `W`, total_weight `W` |
 | `torch_nll_loss_backward` | `nll_loss_backward.grad_input` | grad_output / log_probs / target / total_weight `R`, grad_input `W` |
-| `torch_convolution` | `convolution` | input / weight `R`; optional bias `R`; out `W` |
-| `torch_convolution_backward` | `convolution_backward` | grad_out / input / weight `R`; needed grad outs `W` |
+| `torch_convolution` | `select_conv_backend` then public `*_out` (`cudnn_convolution.out`, `cudnn_convolution_transpose.out`, `_conv_depthwise2d.out`, `_slow_conv2d_forward.output`, `slow_conv_transpose2d.out`, …); debt **D9** | input / weight `R`; optional bias `R`; out `W` |
+| `torch_convolution_backward` | CUDA cuDNN/depthwise/transpose: public `convolution_backward.out`; Slow2d: `_slow_conv2d_backward.grad_input`; debt **D9** | grad_out / input / weight `R`; needed grad outs `W` |
 | `torch_max_pool2d_with_indices` | `max_pool2d_with_indices.out` | input `R`, out `W`, indices `W` |
 | `torch_max_pool2d_with_indices_backward` | `max_pool2d_with_indices_backward.grad_input` | grad_out / input / indices `R`, grad_input `W` |
-| `torch_native_batch_norm` | `native_batch_norm` | input `R`; optional weight/bias `R`; running stats `RW` when training; out / saved stats `W` |
-| `torch_native_batch_norm_backward` | `native_batch_norm_backward` | grad_out / input / optional stats `R`; needed grad outs `W` |
+| `torch_native_batch_norm` | `native_batch_norm.out` | input `R`; optional weight/bias `R`; running stats `RW` when training; out / saved stats `W` |
+| `torch_native_batch_norm_backward` | `native_batch_norm_backward` functional + `copy_` into needed grads (D9; autogen `.out` rejects unused outs) | grad_out / input / optional stats `R`; needed grad outs `W` |
 
 Classic I/O kept on this path (not torch-native compute, but same rules):
 
@@ -442,16 +447,20 @@ User call (requires_grad possible)
 
 `AutogradPrivateUse1` is **rare**. Use it only when the generic path is wrong
 for nntile storage (today: `contiguous` densify under autograd) or when a
-documented fused op must replace a host/device-breaking decomposition
-(LayerNorm via `native_layer_norm`). Do **not** use it to reimplement a
-VariableType formula (that was the `rsqrt` mistake).
+CompositeExplicit op would attach a fused backward that has no composite
+(`native_layer_norm` → BN / affine subops). Do **not** use it to
+reimplement a VariableType formula (that was the `rsqrt` mistake).
 
-**RMSNorm matches CUDA:** `aten::rms_norm` is CompositeImplicitAutograd and
-has no `native_rms_norm` device primitive. Leave it unregistered for
-PrivateUse1 / AutogradPrivateUse1 so it decomposes through
-`pow` / `mean` / `rsqrt` / `mul`, as CUDA does. LayerNorm remains fused via
-`native_layer_norm` because that device primitive exists and the single-pass
-mean+variance computation matters.
+**RMSNorm:** leave `rms_norm` unregistered (CompositeImplicit → `pow` /
+`mean` / `rsqrt` / `mul`).
+
+**LayerNorm:** do not register PrivateUse1 `native_layer_norm`.
+CompositeExplicit `math_native_layer_norm` is reshape +
+`native_batch_norm` + affine, not the RMSNorm formula. AutogradPrivateUse1
+runs that math with autograd so backward is the suboperations. Do not
+register `native_layer_norm_backward`. There are no fused StarPU
+`native_layer_norm` wrappers. Classic `torch_nntile.nn` LayerNorm is
+unchanged.
 
 ### Missing fused ops
 
@@ -460,7 +469,7 @@ StarPU `TorchKind` (or whose stock path is host / unfused today):
 
 | Gap | Why it matters | Suggested schema |
 |-----|----------------|------------------|
-| `native_group_norm` (+ bwd) | ViT / ConvNeXt / some CNNs; `group_norm` is CompositeImplicit → this primitive | PrivateUse1 like LayerNorm |
+| `native_group_norm` (+ bwd) | ViT / ConvNeXt / some CNNs; `group_norm` is CompositeImplicit → this primitive | leave unregistered (same as LayerNorm) |
 | `native_dropout` (+ bwd) | Training noise; `dropout` is CompositeImplicit | device primitive |
 | Softplus / Mish / PReLU | Less common activations; Softplus/Mish are device schemas, PReLU CompositeImplicit | low priority |
 
@@ -482,7 +491,7 @@ Not “fused,” but still leave StarPU for composite leftovers:
   through the CUDA-like composite path.
 - General `pow`, `div.Tensor`, `where` — host fallback except `pow` exp 2/3 via mul
 
-Already fused on this path: `NativeLayerNorm`, SDPA overrideable,
+Already fused on this path: SDPA overrideable,
 softmax / NLL, CNN conv/pool/batch_norm, silu/gelu/relu.
 
 ### Worked examples
@@ -533,13 +542,10 @@ Composite view **forward** matches CUDA. Backward (`SliceBackward0`,
 
 nntile→nntile `_copy_from` must **not** SSA-rebind `TensorRef` onto a
 partial / strided destination (that left the base zeros untouched). For
-those destinations, copy does host RMW:
-
-1. `gather_nntile_view_to_cpu(src)` (contiguous logical of the source)
-2. `gather_full_logical_to_cpu(dst)` (full parent buffer)
-3. Patch `full.as_strided(dst.sizes(), dst.strides(), dst.offset()).copy_(src)`
-4. `overwrite_bound_nntile_logical_from_cpu(full, dst)` (scatter into the
-   existing logical; view + base keep the same `TensorRef`)
+fp32 / int64 destinations, copy records `TorchKind::CopyIntoView`:
+packed out layout is the view, the StarPU handle is the parent, access
+is `STARPU_RW` so values outside the view stay. Bool still uses host
+RMW (`gather` → patch → `overwrite_bound_nntile_logical_from_cpu`).
 
 Dense full-cover nntile→nntile copies still SSA-rebind (graph style).
 Do **not** re-register PrivateUse1 `narrow` / `select` to “fix” backward —
@@ -659,9 +665,9 @@ Lessons from wiring the first ops:
 12. **Densify in PrivateUse1 compute impls** when VariableType formulas
     pass non-contiguous views (`mul.Scalar`, `sum`, …). Hard
     `is_contiguous` checks fail CUDA-identical backward graphs.
-13. **nntile→nntile copy into views** uses host RMW +
-    `overwrite_bound_nntile_logical_from_cpu` (not SSA rebind), so Slice /
-    AsStrided Backward match CUDA.
+13. **nntile→nntile copy into views** uses `CopyIntoView` (`STARPU_RW`
+    on the parent handle, packed view layout) so Slice / AsStrided
+    Backward match CUDA without a host gather of the full logical.
 
 Reference sources:
 `nntile/src/{starpu,core,tile/ops,tensor/ops}/torch_dispatch.*`,

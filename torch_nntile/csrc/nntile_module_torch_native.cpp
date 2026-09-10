@@ -163,7 +163,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("ooc_size") = 16 * 1024 * 1024,
         py::arg("logger") = 0,
         py::arg("verbose") = 0,
-        py::arg("cpu_fallback") = true);
+        py::arg("cpu_fallback") = false);
     m.def(
         "is_cpu_fallback_enabled",
         &torch_nntile::is_cpu_fallback_enabled,
@@ -236,4 +236,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         "print_info",
         &torch_nntile::print_info,
         "Print cumulative compile/run/wait/host-readout timing stats");
+    m.def(
+        "record_nntile_seconds",
+        &torch_nntile::record_nntile_seconds,
+        "Cumulative nntile record seconds (record(nntile))");
 }

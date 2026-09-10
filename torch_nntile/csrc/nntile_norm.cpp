@@ -40,7 +40,6 @@ void check_norm_input(const at::Tensor &tensor, const char *name)
     TORCH_CHECK(
         tensor.scalar_type() == at::ScalarType::Float,
         "nntile norm supports float32 only");
-    TORCH_CHECK(tensor.is_contiguous(), "nntile norm requires contiguous");
 }
 
 bool is_two_norm(const at::Scalar &ord)
@@ -102,9 +101,6 @@ std::tuple<at::Tensor, at::Tensor> norm_forward(
                 TORCH_CHECK(
                     out->sizes() == c10::IntArrayRef(sizes),
                     "nntile norm: output tensor shape mismatch");
-                TORCH_CHECK(
-                    out->is_contiguous(),
-                    "nntile norm: output tensor must be contiguous");
                 output = *out;
             }
             else
@@ -120,9 +116,6 @@ std::tuple<at::Tensor, at::Tensor> norm_forward(
             TORCH_CHECK(
                 out->sizes().empty(),
                 "nntile norm: output tensor shape mismatch");
-            TORCH_CHECK(
-                out->is_contiguous(),
-                "nntile norm: output tensor must be contiguous");
             nntile::TensorGraph::TensorNode *node = lookup_data_node(
                 norm_values,
                 {});
@@ -158,9 +151,6 @@ std::tuple<at::Tensor, at::Tensor> norm_forward(
                 out->sizes() == reduced_sizes_ref,
                 "nntile norm: output tensor shape mismatch");
         }
-        TORCH_CHECK(
-            out->is_contiguous(),
-            "nntile norm: output tensor must be contiguous");
         output = *out;
     }
     else if (keepdim)
@@ -187,6 +177,7 @@ at::Tensor linalg_vector_norm_nntile(
     bool keepdim,
     std::optional<at::ScalarType> dtype)
 {
+    nntile::GraphFillScope record;
     if (!is_nntile_device(self.device()))
     {
         return at::linalg_vector_norm(self, ord, dim, keepdim, dtype);
@@ -227,6 +218,7 @@ at::Tensor &linalg_vector_norm_out_nntile(
     std::optional<at::ScalarType> dtype,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     if (!is_nntile_device(self.device()))
     {
         out.copy_(at::linalg_vector_norm(self, ord, dim, keepdim, dtype));

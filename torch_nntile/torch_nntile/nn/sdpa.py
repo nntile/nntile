@@ -15,6 +15,19 @@ from torch import Tensor
 from torch_nntile import _C
 
 
+def make_causal_sdpa_mask(
+    seq_len: int,
+    device: torch.device | None = None,
+) -> Tensor:
+    """BOOL causal mask ``[seq, seq]`` with ``mask[q, k] = (k <= q)``."""
+    q_idx = torch.arange(seq_len, dtype=torch.long, device="cpu")
+    k_idx = torch.arange(seq_len, dtype=torch.long, device="cpu")
+    mask = (k_idx.unsqueeze(0) <= q_idx.unsqueeze(1)).contiguous()
+    if device is not None and device.type != "cpu":
+        mask = mask.to(device)
+    return mask
+
+
 def nntile_model_transpose(x: Tensor, model_ndim: int) -> Tensor:
     """Apply model-code transpose axis (storage order) on nntile tensors."""
     return _C.model_transpose(x, model_ndim)
@@ -112,4 +125,10 @@ class SDPA(nn.Module):
         return sdpa_eager(q, k, v, mask, batch_ndim=self.batch_ndim)
 
 
-__all__ = ["SDPA", "nntile_model_transpose", "sdpa_eager", "sdpa_kernel"]
+__all__ = [
+    "SDPA",
+    "make_causal_sdpa_mask",
+    "nntile_model_transpose",
+    "sdpa_eager",
+    "sdpa_kernel",
+]

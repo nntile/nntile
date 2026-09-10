@@ -95,6 +95,4 @@ def patch_vector_norm() -> None:
     torch.linalg.vector_norm = vector_norm  # type: ignore[assignment]
 
 
-patch_vector_norm()
-
 __all__ = ["vector_norm", "patch_vector_norm"]

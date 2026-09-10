@@ -35,8 +35,13 @@ void data_handle_push(starpu_data_handle_t handle);
  * Otherwise, the function returns a nullptr. */
 starpu_data_handle_t data_handle_pop(starpu_data_handle_t handle);
 
+//! True if ``handle`` is still in the shutdown list (O(1) average).
+bool data_handle_is_registered(starpu_data_handle_t handle);
+
 //! Unregister all data handles
-/* This function is called when the NNTile context is shut down. */
+/* This function is called when the NNTile context is shut down.
+ * Only handles still in the list are unregistered (graph UNREGISTER
+ * already popped those that completed). */
 void data_handle_unregister_all();
 
 // Forward declaration
@@ -73,6 +78,9 @@ public:
 
     //! Unregister a data handle in an async manner
     void unregister_submit();
+
+    //! True until unregister / unregister_submit / deleter claims the handle.
+    bool is_registered() const;
 
     //! Invalidate data handle in an async manner
     void invalidate_submit() const;

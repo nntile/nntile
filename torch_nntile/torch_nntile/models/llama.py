@@ -18,11 +18,13 @@ from dataclasses import dataclass
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch import Tensor
 
+from torch_nntile import _C
 from torch_nntile.gemm import gemm
 from torch_nntile.models.gpt2_minimal import make_causal_sdpa_mask
+from torch_nntile.nn import Embedding, SiLU
+from torch_nntile.nn.functional import add, mul
 from torch_nntile.nn.linear import NntileLinear, prepare_sdpa_mask
 from torch_nntile.nn.sdpa import nntile_model_transpose, sdpa_kernel
 from torch_nntile.normalization import rms_norm
@@ -49,13 +51,17 @@ except ImportError:  # pragma: no cover - stub if rope.py missing
 
 
 def _repeat_kv(x: Tensor, n_rep: int) -> Tensor:
-    """GQA KV expand via ``aten::repeat`` (nntile scale-slice), not host.
+    """GQA KV expand via classic ``scale_slice``, not ``unsqueeze``+``repeat``.
 
-    Matches deleted NNGraph ``scale_slice(..., kv_group_size)``.
+    ``aten::unsqueeze`` is a view that keeps the 4-D storage TensorRef, so
+    SDPA backward can hand ``rope_backward`` a 5-D node vs 4-D ``dx``.
+    Matches C++ ``repeat_kv_heads`` / NNGraph ``scale_slice`` on axis 1.
     ``x`` is ``[H_kv, B, S, D]`` -> ``[H_kv, n_rep, B, S, D]``.
     """
     if n_rep == 1:
         return x
+    if x.device.type == "nntile":
+        return _C.scale_slice(x, 1, n_rep)
     return x.unsqueeze(1).repeat(1, n_rep, 1, 1, 1)
 
 
@@ -120,9 +126,10 @@ class LlamaMLP(nn.Module):
         self.gate_proj = NntileLinear(h, i, bias=bias)
         self.up_proj = NntileLinear(h, i, bias=bias)
         self.down_proj = NntileLinear(i, h, bias=bias)
+        self.act = SiLU()
 
     def forward(self, x: Tensor) -> Tensor:
-        return self.down_proj(F.silu(self.gate_proj(x)) * self.up_proj(x))
+        return self.down_proj(mul(self.act(self.gate_proj(x)), self.up_proj(x)))
 
 
 class LlamaAttention(nn.Module):
@@ -191,7 +198,8 @@ class LlamaAttention(nn.Module):
         return gemm(attn_t, self.o_weight, ndim=out_ndim, batch_ndim=0)
 
     def _apply_rope(self, x: Tensor, sin: Tensor, cos: Tensor) -> Tensor:
-        # RoPE tables must share x's device (upload once if needed).
+        # sin/cos stay ``[B, S, head_dim // 2]``. The RoPE kernel folds
+        # extra leading modes of ``x`` (heads, GQA n_rep) into batch.
         if sin.device != x.device:
             sin = sin.to(x.device)
             cos = cos.to(x.device)
@@ -218,12 +226,14 @@ class LlamaAttention(nn.Module):
             k = _repeat_kv(k, self.n_rep)
             v = _repeat_kv(v, self.n_rep)
             batch_ndim = 3
-        mask = prepare_sdpa_mask(
-            attn_mask,
-            x,
-            q_len=s,
-            is_causal=is_causal,
-        )
+        mask = attn_mask
+        if mask is None and is_causal:
+            mask = prepare_sdpa_mask(
+                None,
+                x,
+                q_len=s,
+                is_causal=True,
+            )
         out = sdpa_kernel(
             q,
             k,
@@ -258,25 +268,26 @@ class LlamaDecoder(nn.Module):
         residual = x
         x = self.input_layernorm(x)
         x = self.self_attn(x, sin, cos, attn_mask, is_causal=is_causal)
-        x = residual + x
+        x = add(residual, x)
         residual = x
         x = self.post_attention_layernorm(x)
         x = self.mlp(x)
-        return residual + x
+        return add(residual, x)
 
 
 class LlamaModel(nn.Module):
     def __init__(self, config: LlamaConfig) -> None:
         super().__init__()
         self.config = config
-        self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size)
+        self.embed_tokens = Embedding(config.vocab_size, config.hidden_size)
         self.layers = nn.ModuleList(
             [LlamaDecoder(config) for _ in range(config.num_hidden_layers)]
         )
         self.norm = LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-        # Host-built index / RoPE tables uploaded once (NNGraph bind_data).
+        # Host-built index / RoPE / causal-mask tables (NNGraph bind_data).
         self._position_ids_cache: dict[tuple[int, int], Tensor] = {}
         self._rope_cache: dict[tuple[int, int], tuple[Tensor, Tensor]] = {}
+        self._causal_mask_cache: dict[int, Tensor] = {}
 
     def _cached_position_ids(self, input_ids: Tensor) -> Tensor:
         batch, seq = int(input_ids.size(0)), int(input_ids.size(-1))
@@ -284,7 +295,7 @@ class LlamaModel(nn.Module):
         cached = self._position_ids_cache.get(key)
         if cached is not None and cached.device == input_ids.device:
             return cached
-        # nntile lacks aten::arange; build on host, upload once.
+        # Host arange + upload once (cache); nntile aten::arange exists.
         position_ids = (
             torch.arange(seq, dtype=torch.long, device="cpu")
             .unsqueeze(0)
@@ -327,9 +338,20 @@ class LlamaModel(nn.Module):
         self._rope_cache[key] = (sin, cos)
         return sin, cos
 
+    def _cached_causal_mask(self, input_ids: Tensor) -> Tensor:
+        """Return ``[seq, seq]`` BOOL causal mask (cached, like GPT-2)."""
+        seq = int(input_ids.size(-1))
+        cached = self._causal_mask_cache.get(seq)
+        if cached is not None and cached.device == input_ids.device:
+            return cached
+        causal_mask = make_causal_sdpa_mask(seq, device=input_ids.device)
+        self._causal_mask_cache[seq] = causal_mask
+        return causal_mask
+
     def clear_sequence_caches(self) -> None:
         self._position_ids_cache.clear()
         self._rope_cache.clear()
+        self._causal_mask_cache.clear()
 
     def warm_sequence_caches(
         self,
@@ -348,6 +370,7 @@ class LlamaModel(nn.Module):
             )
             pos = self._cached_position_ids(probe)
             self._cached_rope(pos)
+            self._cached_causal_mask(probe)
 
     def forward(
         self,
@@ -363,6 +386,8 @@ class LlamaModel(nn.Module):
             position_ids = self._cached_position_ids(input_ids)
         if sin is None or cos is None:
             sin, cos = self._cached_rope(position_ids)
+        if attn_mask is None and is_causal:
+            attn_mask = self._cached_causal_mask(input_ids)
         x = self.embed_tokens(input_ids)
         for layer in self.layers:
             x = layer(x, sin, cos, attn_mask, is_causal=is_causal)

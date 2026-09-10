@@ -6,8 +6,9 @@
 
 #include "nntile_sdpa.h"
 
-#include "nntile_executor.h"
+#include "nntile_executor_classic.h"
 #include "nntile_graph_recorder_impl.h"
+#include "nntile_layout_checks.h"
 #include "nntile_tensor_gc.h"
 
 #include <ATen/Functions.h>
@@ -15,6 +16,7 @@
 #include <ATen/core/LegacyTypeDispatch.h>
 
 #include <cmath>
+#include <vector>
 
 namespace torch_nntile
 {
@@ -25,22 +27,6 @@ namespace
 bool is_nntile_device(c10::Device device)
 {
     return device.type() == c10::DeviceType::PrivateUse1;
-}
-
-//! Densify for StarPU without nesting ContiguousFn autograd.
-//!
-//! ``sdpa_forward`` / ``sdpa_backward`` run under PyTorch's fused-SDPA
-//! autograd wrapper (or ``SdpaKernelFn``). Calling ``tensor.contiguous()``
-//! there would register ``ContiguousFn`` mid-forward and break
-//! split→view→transpose→SDPA backward (Cat on uninitialized handles).
-at::Tensor densify_sdpa_operand(const at::Tensor &tensor)
-{
-    if (tensor.is_contiguous())
-    {
-        return tensor;
-    }
-    at::AutoDispatchBelowADInplaceOrView guard;
-    return tensor.contiguous();
 }
 
 void check_sdpa_tensor(
@@ -54,7 +40,6 @@ void check_sdpa_tensor(
     TORCH_CHECK(
         tensor.scalar_type() == at::ScalarType::Float,
         "nntile sdpa supports float32 only");
-    // Untiled: non-contiguous views OK (sizes/strides/offset packed).
     TORCH_CHECK(tensor.dim() >= 3, "nntile sdpa: tensor rank must be >= 3");
 }
 
@@ -102,10 +87,6 @@ void check_sdpa_mask(
 }
 
 //! Prepare attention mask for graph SDPA (BOOL on nntile).
-//!
-//! The executor records the mask as ``DataType::BOOL``. Do **not** round-trip
-//! through ``mask.cpu()`` - that gathers through StarPU and syncs every
-//! attention layer during graph recording.
 at::Tensor mask_for_nntile_sdpa(const at::Tensor &mask)
 {
     TORCH_CHECK(
@@ -118,12 +99,73 @@ at::Tensor mask_for_nntile_sdpa(const at::Tensor &mask)
     TORCH_CHECK(
         is_nntile_device(mask.device()),
         "nntile sdpa: mask must be on device nntile");
-    // Byte masks are accepted at the API boundary; the executor binds them
-    // as BOOL logical nodes (same 1-byte element size).
     return mask;
 }
 
 } // namespace
+
+std::vector<int64_t> sdpa_attn_sizes(
+    const at::Tensor &q,
+    const at::Tensor &k)
+{
+    std::vector<int64_t> sizes(q.sizes().begin(), q.sizes().end());
+    TORCH_CHECK(
+        !sizes.empty(),
+        "nntile sdpa: Q rank must be >= 1");
+    sizes.back() = k.size(-2);
+    return sizes;
+}
+
+std::tuple<at::Tensor, at::Tensor> sdpa_forward_with_attn(
+    const at::Tensor &q,
+    const at::Tensor &k,
+    const at::Tensor &v,
+    const std::optional<at::Tensor> &mask,
+    int64_t batch_ndim,
+    bool is_causal)
+{
+    nntile::GraphFillScope record;
+    check_sdpa_qkv(q, k, v, batch_ndim);
+    if (mask.has_value())
+    {
+        TORCH_CHECK(
+            mask->scalar_type() == at::ScalarType::Bool ||
+                mask->scalar_type() == at::ScalarType::Byte,
+            "nntile sdpa: mask must be bool or uint8");
+        check_sdpa_mask(*mask, q, k);
+    }
+
+    at::Tensor out = empty_metadata_tensor(
+        q.sizes(),
+        q.scalar_type(),
+        q.device());
+    at::Tensor attn = empty_metadata_tensor(
+        sdpa_attn_sizes(q, k),
+        q.scalar_type(),
+        q.device());
+    at::Tensor mask_u8;
+    if (mask.has_value())
+    {
+        mask_u8 = mask_for_nntile_sdpa(*mask);
+    }
+
+    const at::Tensor *mask_ptr = nullptr;
+    if (mask.has_value())
+    {
+        mask_ptr = &mask_u8;
+    }
+
+    classic_tensor_sdpa_forward_fp32(
+        q,
+        k,
+        v,
+        mask_ptr,
+        out,
+        attn,
+        batch_ndim,
+        is_causal);
+    return {out, attn};
+}
 
 at::Tensor sdpa_forward(
     const at::Tensor &q,
@@ -133,111 +175,52 @@ at::Tensor sdpa_forward(
     int64_t batch_ndim,
     bool is_causal)
 {
-    // Fused c_attn → split → transpose heads yields views whose last-dim
-    // stride spans the full 3H packed width. CUDA SDPA / densify copy_
-    // expects dense [B,H,S,D] buffers — densify at this boundary (graph
-    // Copy only; no ContiguousFn nested under fused-SDPA autograd).
-    const at::Tensor q_c = densify_sdpa_operand(q);
-    const at::Tensor k_c = densify_sdpa_operand(k);
-    const at::Tensor v_c = densify_sdpa_operand(v);
-    check_sdpa_qkv(q_c, k_c, v_c, batch_ndim);
-    if (mask.has_value())
-    {
-        TORCH_CHECK(
-            mask->scalar_type() == at::ScalarType::Bool ||
-                mask->scalar_type() == at::ScalarType::Byte,
-            "nntile sdpa: mask must be bool or uint8");
-        check_sdpa_mask(*mask, q_c, k_c);
-    }
-
-    at::Tensor out = empty_metadata_tensor(
-        q_c.sizes(),
-        q_c.scalar_type(),
-        q_c.device());
-    at::Tensor mask_u8;
-    std::vector<at::Tensor> inputs = {q_c, k_c, v_c};
-    if (mask.has_value())
-    {
-        mask_u8 = mask_for_nntile_sdpa(*mask);
-        inputs.push_back(mask_u8);
-    }
-
-    const at::Tensor *mask_ptr = nullptr;
-    if (mask.has_value())
-    {
-        mask_ptr = &mask_u8;
-    }
-
-    tensor_sdpa_forward_fp32(
-        q_c,
-        k_c,
-        v_c,
-        mask_ptr,
-        out,
-        batch_ndim,
-        is_causal);
-    return out;
+    return std::get<0>(
+        sdpa_forward_with_attn(
+            q,
+            k,
+            v,
+            mask,
+            batch_ndim,
+            is_causal));
 }
 
 std::tuple<at::Tensor, at::Tensor, at::Tensor> sdpa_backward(
     const at::Tensor &q,
     const at::Tensor &k,
     const at::Tensor &v,
+    const at::Tensor &attn,
     const at::Tensor &grad_out,
-    const std::optional<at::Tensor> &mask,
-    int64_t batch_ndim,
-    bool is_causal)
+    int64_t batch_ndim)
 {
-    const at::Tensor q_c = densify_sdpa_operand(q);
-    const at::Tensor k_c = densify_sdpa_operand(k);
-    const at::Tensor v_c = densify_sdpa_operand(v);
-    const at::Tensor go_c = densify_sdpa_operand(grad_out);
-    check_sdpa_qkv(q_c, k_c, v_c, batch_ndim);
-    check_sdpa_tensor(go_c, "grad_out");
+    nntile::GraphFillScope record;
+    check_sdpa_qkv(q, k, v, batch_ndim);
+    check_sdpa_tensor(grad_out, "grad_out");
+    check_sdpa_tensor(attn, "attn");
     TORCH_CHECK(
-        go_c.sizes() == q_c.sizes(),
+        grad_out.sizes() == q.sizes(),
         "nntile sdpa_backward: grad_out shape must match Q");
-    if (mask.has_value())
-    {
-        TORCH_CHECK(
-            mask->scalar_type() == at::ScalarType::Bool ||
-                mask->scalar_type() == at::ScalarType::Byte,
-            "nntile sdpa: mask must be bool or uint8");
-        check_sdpa_mask(*mask, q_c, k_c);
-    }
+    TORCH_CHECK(
+        attn.sizes().equals(sdpa_attn_sizes(q, k)),
+        "nntile sdpa_backward: attn shape must be softmax weights");
 
     at::Tensor grad_q = empty_metadata_tensor(
-        q_c.sizes(), q_c.scalar_type(), q_c.device());
+        q.sizes(), q.scalar_type(), q.device());
     at::Tensor grad_k = empty_metadata_tensor(
-        k_c.sizes(), k_c.scalar_type(), k_c.device());
+        k.sizes(), k.scalar_type(), k.device());
     at::Tensor grad_v = empty_metadata_tensor(
-        v_c.sizes(), v_c.scalar_type(), v_c.device());
+        v.sizes(), v.scalar_type(), v.device());
 
-    at::Tensor mask_u8;
-    std::vector<at::Tensor> inputs = {q_c, k_c, v_c, go_c};
-    if (mask.has_value())
-    {
-        mask_u8 = mask_for_nntile_sdpa(*mask);
-        inputs.push_back(mask_u8);
-    }
-
-    const at::Tensor *mask_ptr = nullptr;
-    if (mask.has_value())
-    {
-        mask_ptr = &mask_u8;
-    }
-
-    tensor_sdpa_backward_fp32(
-        q_c,
-        k_c,
-        v_c,
-        mask_ptr,
-        go_c,
+    classic_tensor_sdpa_backward_fp32(
+        q,
+        k,
+        v,
+        attn,
+        grad_out,
         grad_q,
         grad_k,
         grad_v,
-        batch_ndim,
-        is_causal);
+        batch_ndim);
     return {grad_q, grad_k, grad_v};
 }
 

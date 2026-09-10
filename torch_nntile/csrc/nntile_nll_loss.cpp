@@ -40,9 +40,6 @@ void check_nll_inputs(
         target.scalar_type() == at::ScalarType::Long,
         "nntile nll_loss: target must be int64");
     TORCH_CHECK(
-        self.is_contiguous() && target.is_contiguous(),
-        "nntile nll_loss requires contiguous tensors");
-    TORCH_CHECK(
         self.dim() == 2,
         "nntile nll_loss_forward supports 2D log_probs only");
     TORCH_CHECK(
@@ -62,6 +59,7 @@ std::tuple<at::Tensor, at::Tensor> nll_loss_forward(
     int64_t reduction,
     int64_t ignore_index)
 {
+    nntile::GraphFillScope record;
     check_nll_inputs(self, target, weight);
     TORCH_CHECK(
         reduction == at::Reduction::Mean ||
@@ -105,6 +103,7 @@ at::Tensor nll_loss_backward(
     int64_t ignore_index,
     const at::Tensor &total_weight)
 {
+    nntile::GraphFillScope record;
     check_nll_inputs(self, target, weight);
     TORCH_CHECK(
         is_nntile_device(grad_output.device()),
@@ -116,9 +115,6 @@ at::Tensor nll_loss_backward(
         grad_output.scalar_type() == at::ScalarType::Float &&
             total_weight.scalar_type() == at::ScalarType::Float,
         "nntile nll_loss_backward supports float32 only");
-    TORCH_CHECK(
-        grad_output.is_contiguous() && total_weight.is_contiguous(),
-        "nntile nll_loss_backward requires contiguous tensors");
 
     at::Tensor grad_input = at::empty_like(self);
     tensor_nll_loss_backward_fp32(
