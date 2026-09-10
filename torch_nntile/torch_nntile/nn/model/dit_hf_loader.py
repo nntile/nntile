@@ -1,20 +1,17 @@
 # @copyright (c) 2026-present Skolkovo Institute of Science and Technology
 #                              (Skoltech), Russia. All rights reserved.
 #
-# @file torch_nntile/torch_nntile/models/dit_hf_loader.py
+# @file torch_nntile/torch_nntile/nn/model/dit_hf_loader.py
 # Copy Diffusers DiTTransformer2DModel weights into torch_nntile DiT.
 
 """HF Diffusers DiT → NNTile DiT (AdaLN-Zero, non-overlapping patches)."""
 
 from __future__ import annotations
 
-from torch_nntile.models.dit import DiT, DiTConfig, _ADA_MOD_NAMES
-from torch_nntile.models.hf_rope_layout import copy_linear
 from torch_nntile.nn.linear import (
-    linear_to_output_weight,
-    linear_to_qkv_bias,
-    linear_to_qkv_weight,
-)
+    linear_to_output_weight, linear_to_qkv_bias, linear_to_qkv_weight)
+from torch_nntile.nn.model.dit import _ADA_MOD_NAMES, DiT, DiTConfig
+from torch_nntile.nn.model.hf_rope_layout import copy_linear
 
 
 def dit_config_from_hf(hf_config) -> DiTConfig:

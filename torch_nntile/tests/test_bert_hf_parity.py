@@ -15,44 +15,21 @@ pytest.importorskip("transformers")
 import torch
 from conftest import nntile_cpu
 from parity_helpers import assert_close, contiguous_to_nntile, copy_linear
-from torch_nntile.models.bert import (
-    BertAttention,
-    BertConfig,
-    BertEmbeddings,
-    BertIntermediate,
-    BertLayer,
-    BertMlm,
-    BertMlmHead,
-    BertSelfAttention,
-)
-from torch_nntile.models.bert_hf_loader import (
-    bert_config_from_hf,
-    export_bert_mlm_to_hf_state_dict,
-    load_hf_into_bert_mlm,
-)
+from transformers import BertConfig as HfBertConfig, BertForMaskedLM
+from transformers.models.bert.modeling_bert import (
+    BertAttention as HfAttention, BertEmbeddings as HfEmbeddings,
+    BertIntermediate as HfIntermediate, BertLayer as HfLayer,
+    BertSelfAttention as HfSelfAttention)
+
 from torch_nntile.nn.linear import (
-    linear_to_output_weight,
-    linear_to_qkv_bias,
-    linear_to_qkv_weight,
-    qkv_to_linear_weight,
-)
-from transformers import BertConfig as HfBertConfig
-from transformers import BertForMaskedLM
-from transformers.models.bert.modeling_bert import (
-    BertAttention as HfAttention,
-)
-from transformers.models.bert.modeling_bert import (
-    BertEmbeddings as HfEmbeddings,
-)
-from transformers.models.bert.modeling_bert import (
-    BertIntermediate as HfIntermediate,
-)
-from transformers.models.bert.modeling_bert import (
-    BertLayer as HfLayer,
-)
-from transformers.models.bert.modeling_bert import (
-    BertSelfAttention as HfSelfAttention,
-)
+    linear_to_output_weight, linear_to_qkv_bias, linear_to_qkv_weight,
+    qkv_to_linear_weight)
+from torch_nntile.nn.model.bert import (
+    BertAttention, BertConfig, BertEmbeddings, BertIntermediate, BertLayer,
+    BertMlm, BertMlmHead, BertSelfAttention)
+from torch_nntile.nn.model.bert_hf_loader import (
+    bert_config_from_hf, export_bert_mlm_to_hf_state_dict,
+    load_hf_into_bert_mlm)
 
 RTOL = 1e-4
 ATOL = 1e-4

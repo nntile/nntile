@@ -12,14 +12,14 @@ backend.
 
 - **HF** — HuggingFace Transformers implementation (`transformers` 4.52;
   constraint `transformers<4.53`).
-- **nntile** (as implementation) — `torch_nntile.models`, based on
+- **nntile** (as implementation) — `torch_nntile.nn.model`, based on
   `torch_nntile.nn` operations and backed by hand-written nntile kernels.
 - **cuda** — PyTorch CUDA (`device=cuda`).
 - **nntile** (as backend) — StarPU / nntile (`device=nntile`).
 
 **HF(cuda)** is Transformers on CUDA. **HF(nntile)** is the same
 Transformers graph on `device=nntile`. **nntile(nntile)** is the
-`torch_nntile.models` rewrite on `device=nntile`.
+`torch_nntile.nn.model` rewrite on `device=nntile`.
 """
 
 NOTATION_DIT = """\
@@ -29,14 +29,14 @@ backend.
 
 - **HF** — HuggingFace Diffusers `DiTTransformer2DModel`
   (`diffusers==0.32.2`).
-- **nntile** (as implementation) — `torch_nntile.models.dit.DiT`, based on
+- **nntile** (as implementation) — `torch_nntile.nn.model.dit.DiT`, based on
   `torch_nntile.nn` operations and backed by hand-written nntile kernels.
 - **cuda** — PyTorch CUDA (`device=cuda`).
 - **nntile** (as backend) — StarPU / nntile (`device=nntile`).
 
 **HF(cuda)** is Diffusers on CUDA. **HF(nntile)** is the same Diffusers
 graph on `device=nntile`. **nntile(nntile)** is the
-`torch_nntile.models` rewrite on `device=nntile`.
+`torch_nntile.nn.model` rewrite on `device=nntile`.
 """
 
 # GPT-2 10× reference (docs/dev/gpt2_hf_overhead_scale.md).

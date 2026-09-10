@@ -1,10 +1,10 @@
 # Design notes (`docs/dev`)
 
-Internal notes for the **Graph API** / `torch_nntile` line on `graph_api`.
+Internal notes for the **torch_nntile** line (`device=nntile`, PyTorch autograd).
 Start with the product docs if you are new:
 
-- [Graph API overview](../graph.md)
 - [torch_nntile](../torch_nntile.md)
+- [TensorGraph backend](../graph.md)
 - [C++ stack](../cpp/README.md)
 
 ## Current

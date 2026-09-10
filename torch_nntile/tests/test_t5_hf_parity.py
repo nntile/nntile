@@ -17,40 +17,20 @@ pytest.importorskip("transformers")
 import torch
 from conftest import nntile_cpu
 from parity_helpers import (
-    additive_causal_mask,
-    assert_close,
-    contiguous_to_nntile,
-)
-from torch_nntile.models.hf_rope_layout import copy_linear
-from torch_nntile.models.t5 import (
-    T5Attention,
-    T5Config,
-    T5DecoderBlock,
-    T5EncoderBlock,
-    T5ForConditionalGeneration,
-    T5LayerFF,
-)
-from torch_nntile.models.t5_hf_loader import (
-    disable_t5_relative_attention_bias,
-    load_hf_into_t5,
-    t5_config_from_hf,
-)
+    additive_causal_mask, assert_close, contiguous_to_nntile)
+from transformers import (
+    T5Config as HfT5Config, T5ForConditionalGeneration as HfT5)
+from transformers.models.t5.modeling_t5 import (
+    T5Attention as HfAttention, T5Block as HfBlock, T5LayerFF as HfLayerFF)
+
 from torch_nntile.nn.linear import (
-    linear_to_output_weight,
-    linear_to_qkv_weight,
-    qkv_to_linear_weight,
-)
-from transformers import T5Config as HfT5Config
-from transformers import T5ForConditionalGeneration as HfT5
-from transformers.models.t5.modeling_t5 import (
-    T5Attention as HfAttention,
-)
-from transformers.models.t5.modeling_t5 import (
-    T5Block as HfBlock,
-)
-from transformers.models.t5.modeling_t5 import (
-    T5LayerFF as HfLayerFF,
-)
+    linear_to_output_weight, linear_to_qkv_weight, qkv_to_linear_weight)
+from torch_nntile.nn.model.hf_rope_layout import copy_linear
+from torch_nntile.nn.model.t5 import (
+    T5Attention, T5Config, T5DecoderBlock, T5EncoderBlock,
+    T5ForConditionalGeneration, T5LayerFF)
+from torch_nntile.nn.model.t5_hf_loader import (
+    disable_t5_relative_attention_bias, load_hf_into_t5, t5_config_from_hf)
 
 RTOL = 1e-4
 ATOL = 1e-4

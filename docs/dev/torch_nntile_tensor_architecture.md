@@ -1,7 +1,7 @@
 # torch_nntile tensor architecture
 
 Canonical description of `device=nntile` tensors as implemented on the
-`graph_api` line (PR [#425](https://github.com/nntile/nntile/pull/425)).
+`torch_nntile` line (PR [#425](https://github.com/nntile/nntile/pull/425)).
 
 **Related:** [../graph.md](../graph.md),
 [graph_compiler_on_design.md](graph_compiler_on_design.md)

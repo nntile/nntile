@@ -1,7 +1,7 @@
 # @copyright (c) 2026-present Skolkovo Institute of Science and Technology
 #                              (Skoltech), Russia. All rights reserved.
 #
-# @file torch_nntile/torch_nntile/models/deep_relu.py
+# @file torch_nntile/torch_nntile/nn/model/deep_relu.py
 # PyTorch DeepReLU MLP (bias-free Linear + ReLU chain).
 
 """DeepReLU: a chain of Linear (no bias) -> ReLU blocks.

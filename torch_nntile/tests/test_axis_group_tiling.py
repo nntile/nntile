@@ -9,11 +9,9 @@ from __future__ import annotations
 import subprocess
 import sys
 import textwrap
-from pathlib import Path
 
-import pytest
-import torch
 from conftest import subprocess_environ
+
 
 def _run_subprocess(script: str) -> None:
     env = subprocess_environ()
@@ -80,7 +78,7 @@ def test_deep_relu_axis_groups_with_explicit_naming():
         """
         import torch
         import torch_nntile
-        from torch_nntile.models import DeepReLU
+        from torch_nntile.nn.model import DeepReLU
 
         torch_nntile.init_context(
             ncpu=1, ncuda=0, verbose=0, cpu_fallback=False

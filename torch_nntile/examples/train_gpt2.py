@@ -63,15 +63,9 @@ from pathlib import Path
 
 import torch
 from nntile_iter_phases import (
-    compile_run_wait_iter,
-    compile_wait_run_iter,
-    measure_isolated_nntile_iter,
-    print_nntile_iter_timings,
-    print_nntile_phase_timings,
-    print_nntile_prep_compute,
-    wait_end,
-    wait_then_start_timer,
-)
+    compile_run_wait_iter, compile_wait_run_iter, measure_isolated_nntile_iter,
+    print_nntile_iter_timings, print_nntile_phase_timings,
+    print_nntile_prep_compute, wait_end, wait_then_start_timer)
 from transformers import GPT2Config, GPT2LMHeadModel
 
 import torch_nntile
@@ -350,8 +344,8 @@ def build_minimal_from_hf(
     hf: GPT2LMHeadModel,
 ):
     """Construct ``GPT2LMHead`` and copy HF weights (CPU)."""
-    from torch_nntile.models.gpt2_hf_loader import load_hf_into_gpt2_lm_head
-    from torch_nntile.models.gpt2_minimal import GPT2LMHead
+    from torch_nntile.nn.model.gpt2_hf_loader import load_hf_into_gpt2_lm_head
+    from torch_nntile.nn.model.gpt2_minimal import GPT2LMHead
 
     model = GPT2LMHead(config).float()
     load_hf_into_gpt2_lm_head(model, hf)
@@ -439,9 +433,9 @@ def save_hf_checkpoint(
     global_step: int,
 ) -> None:
     """Save NNTile model weights as an HF-format ``checkpoint.pt``."""
-    from torch_nntile.models.gpt2_hf_loader import (
+    from torch_nntile.nn.model.gpt2_hf_loader import (
         export_gpt2_lm_head_to_hf_state_dict)
-    from torch_nntile.models.gpt2_minimal import GPT2LMHead
+    from torch_nntile.nn.model.gpt2_minimal import GPT2LMHead
     from torch_nntile.training import clone_model_weights
 
     weights = clone_model_weights(model)

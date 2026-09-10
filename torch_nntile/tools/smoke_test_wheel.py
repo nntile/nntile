@@ -2,6 +2,8 @@ import torch
 
 import torch_nntile
 from torch_nntile import _C
+from torch_nntile.nn import functional, module
+from torch_nntile.nn.model import DeepReLU
 
 # Smoke runs on CPU CI and CUDA wheels with ncuda=0; flag must be readable.
 _ = torch_nntile.built_with_cuda()
@@ -10,6 +12,11 @@ if bool(_C.built_with_cuda()) != bool(torch_nntile.built_with_cuda()):
         "built_with_cuda mismatch between _build_info and _C "
         f"(py={torch_nntile.built_with_cuda()} native={_C.built_with_cuda()})"
     )
+
+if not hasattr(functional, "relu") or not hasattr(module, "Linear"):
+    raise SystemExit("expected torch_nntile.nn.functional and nn.module")
+if DeepReLU is not torch_nntile.nn.model.DeepReLU:
+    raise SystemExit("expected torch_nntile.nn.model.DeepReLU")
 
 print(
     f"torch_nntile smoke: TORCH_NATIVE_OPS={torch_nntile.TORCH_NATIVE_OPS} "

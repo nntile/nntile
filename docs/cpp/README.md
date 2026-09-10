@@ -9,7 +9,8 @@ NNTile ships two installable libraries:
 
 `torch_nntile` / **libtorch_nntile** link **libnntile** only.
 
-Product overview of the Graph API: [../graph.md](../graph.md).
+Product entry: [../torch_nntile.md](../torch_nntile.md). Execution backend:
+[../graph.md](../graph.md).
 
 ```mermaid
 flowchart TB

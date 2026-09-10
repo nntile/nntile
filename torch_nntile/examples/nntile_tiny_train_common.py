@@ -7,7 +7,7 @@
 """Shared nntile-native tiny train loop with JSON config / checkpoint.
 
 Mirrors the ``train`` / ``compare`` UX of ``train_gpt2_hf.py`` for the
-hand-written ``torch_nntile.models.*`` stacks (Llama, BERT, …).
+hand-written ``torch_nntile.nn.model.*`` stacks (Llama, BERT, …).
 """
 
 from __future__ import annotations

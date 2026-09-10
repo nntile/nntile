@@ -10,8 +10,9 @@ import torch
 import torch.nn.functional as F
 from classic_graph import assert_classic_graph
 from conftest import nntile_cpu
-from torch_nntile.nn import Embedding, LayerNorm, Linear, ReLU
+
 from torch_nntile.nn.functional import add, gelu, relu
+from torch_nntile.nn.module import Embedding, LayerNorm, Linear, ReLU
 from torch_nntile.nn.sdpa import nntile_model_transpose
 
 

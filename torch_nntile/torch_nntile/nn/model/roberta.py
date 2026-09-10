@@ -1,7 +1,7 @@
 # @copyright (c) 2026-present Skolkovo Institute of Science and Technology
 #                              (Skoltech), Russia. All rights reserved.
 #
-# @file torch_nntile/torch_nntile/models/roberta.py
+# @file torch_nntile/torch_nntile/nn/model/roberta.py
 # RoBERTa masked LM for device="nntile".
 
 """RoBERTa stack mirroring ``nntile::model::roberta`` (RobertaMlm)."""
@@ -17,11 +17,8 @@ from torch import Tensor
 from torch_nntile.nn import Embedding, LayerNorm
 from torch_nntile.nn.functional import add
 from torch_nntile.nn.linear import NntileLinear
-from torch_nntile.models.bert import (
-    BertConfig,
-    BertEncoder,
-    _bert_activation,
-)
+from torch_nntile.nn.model.bert import (
+    BertConfig, BertEncoder, _bert_activation)
 
 
 @dataclass

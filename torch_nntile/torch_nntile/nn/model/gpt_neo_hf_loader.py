@@ -1,7 +1,7 @@
 # @copyright (c) 2026-present Skolkovo Institute of Science and Technology
 #                              (Skoltech), Russia. All rights reserved.
 #
-# @file torch_nntile/torch_nntile/models/gpt_neo_hf_loader.py
+# @file torch_nntile/torch_nntile/nn/model/gpt_neo_hf_loader.py
 # Convert weights between HuggingFace GPT-Neo and torch_nntile GPTNeoCausal.
 
 """Bidirectional HF <-> NNTile weight conversion for GPT-Neo."""
@@ -9,17 +9,13 @@
 from __future__ import annotations
 
 import torch
-from transformers import GPTNeoConfig as HfGPTNeoConfig
-from transformers import GPTNeoForCausalLM
+from transformers import GPTNeoConfig as HfGPTNeoConfig, GPTNeoForCausalLM
 
-from torch_nntile.models.gpt_neo import GPTNeoCausal, GPTNeoConfig
-from torch_nntile.models.hf_rope_layout import copy_linear
 from torch_nntile.nn.linear import (
-    linear_to_output_weight,
-    linear_to_qkv_weight,
-    output_to_linear_weight,
-    qkv_to_linear_weight,
-)
+    linear_to_output_weight, linear_to_qkv_weight, output_to_linear_weight,
+    qkv_to_linear_weight)
+from torch_nntile.nn.model.gpt_neo import GPTNeoCausal, GPTNeoConfig
+from torch_nntile.nn.model.hf_rope_layout import copy_linear
 
 
 def gpt_neo_config_from_hf(hf: HfGPTNeoConfig) -> GPTNeoConfig:

@@ -1,7 +1,7 @@
 # @copyright (c) 2026-present Skolkovo Institute of Science and Technology
 #                              (Skoltech), Russia. All rights reserved.
 #
-# @file torch_nntile/torch_nntile/models/bert.py
+# @file torch_nntile/torch_nntile/nn/model/bert.py
 # BERT masked LM for device="nntile".
 
 """BERT stack mirroring ``nntile::model::bert`` (BertMlm)."""
@@ -14,14 +14,11 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from torch_nntile.nn import Embedding, GELU, LayerNorm, ReLU, SiLU
+from torch_nntile.nn import GELU, Embedding, LayerNorm, ReLU, SiLU
 from torch_nntile.nn.functional import add
 from torch_nntile.nn.linear import (
-    NntileAttentionOutput,
-    NntileLinear,
-    NntileQKVProjection,
-    prepare_sdpa_mask,
-)
+    NntileAttentionOutput, NntileLinear, NntileQKVProjection,
+    prepare_sdpa_mask)
 from torch_nntile.nn.sdpa import sdpa_kernel
 
 

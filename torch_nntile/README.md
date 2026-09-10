@@ -1,12 +1,26 @@
 # torch_nntile
 
-PyTorch **PrivateUse1** device registered as `device="nntile"`.
+PyTorch **PrivateUse1** device registered as `device="nntile"`, backed by
+**PyTorch autograd**.
 
 Stock `torch.nn` / `F.*` on this device run through public high-level ATen
 `*.out` ops inside StarPU codelets (not internal PyTorch kernels). Some of
 those schemas copy into the output buffer; that extra traffic is PyTorch
 API debt and is not something NNTile will work around. See
 [docs/torch_nntile.md](../docs/torch_nntile.md).
+
+## Python API
+
+| Path | Role |
+|------|------|
+| `torch.nn` / `torch.nn.functional` on `device=nntile` | Torch-provided kernels (untiled) |
+| `torch_nntile.nn.functional` | Classic nntile autograd functions |
+| `torch_nntile.nn.module` | Classic nntile `nn.Module` subclasses |
+| `torch_nntile.nn.model` | Models using nntile kernels (DeepReLU, GPT-2, Llama, …) |
+
+`torch_nntile.nn` re-exports the common modules (`Linear`, `ReLU`, …).
+`torch_nntile.models` remains a compatibility alias for
+`torch_nntile.nn.model`.
 
 ## Prebuilt wheels (0.0.6)
 
@@ -19,21 +33,21 @@ Wheels are built in CI, not published to PyPI. Install from a downloaded
 |-|-|
 | **Workflow** (Actions sidebar / run title) | `torch_nntile wheels` |
 | **Workflow file** | `.github/workflows/torch-nntile-wheels.yml` |
-| **Trigger** | Pull requests to `graph_api`, or manual **Run workflow** |
+| **Trigger** | Pull requests to `torch_nntile`, or manual **Run workflow** |
 | **Python** | 3.12 (`cp312`) |
 
-Wheels build on every **open** PR to `graph_api` (push/sync/reopen), when a PR is
+Wheels build on every **open** PR to `torch_nntile` (push/sync/reopen), when a PR is
 **merged**, or when a maintainer starts the workflow manually
 (`workflow_dispatch`). Closed PRs that were not merged are skipped.
 
 ### Triggering a build
 
-**Automatic:** open or update a PR targeting `graph_api` (or merge it).
+**Automatic:** open or update a PR targeting `torch_nntile` (or merge it).
 
 **Manual:** from a machine with write access to the repo:
 
 ```bash
-gh workflow run torch-nntile-wheels.yml --ref graph_api
+gh workflow run torch-nntile-wheels.yml --ref torch_nntile
 gh run watch
 ```
 
@@ -376,7 +390,7 @@ Bias-free MLP matching `nntile/examples/deep_relu_forward.cc`:
 ```python
 import torch
 import torch_nntile
-from torch_nntile.models import DeepReLU
+from torch_nntile.nn.model import DeepReLU
 
 torch_nntile.init_context(ncpu=1, ncuda=0, cpu_fallback=False)
 

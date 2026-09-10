@@ -1,7 +1,7 @@
 # Graph compiler O(N) design
 
 **Status:** implemented (maintain; keep compile cost O(pending work))  
-**Branch:** `graph_api`  
+**Branch:** `torch_nntile`  
 **Related:** [graph_compile_perf_mnist.md](graph_compile_perf_mnist.md),
 [torch_nntile_tensor_architecture.md](torch_nntile_tensor_architecture.md),
 [../graph.md](../graph.md)

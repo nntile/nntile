@@ -13,18 +13,11 @@ pytest.importorskip("transformers")
 
 import torch
 from conftest import nntile_cpu, subprocess_environ
-from torch_nntile.models.gpt2_hf_loader import load_hf_into_gpt2_lm_head
-from torch_nntile.models.gpt2_minimal import (
-    GPT2MLP,
-    GPT2Attention,
-    GPT2Block,
-    GPT2LMHead,
-    GPT2Model,
-    make_causal_sdpa_mask,
-)
 from transformers import GPT2Config, GPT2LMHeadModel
 
-import torch_nntile
+from torch_nntile.nn.model.gpt2_hf_loader import load_hf_into_gpt2_lm_head
+from torch_nntile.nn.model.gpt2_minimal import (
+    GPT2MLP, GPT2Attention, GPT2Block, GPT2LMHead, make_causal_sdpa_mask)
 
 
 @pytest.fixture
@@ -119,7 +112,7 @@ def test_gpt2_block_forward_matches_hf(tiny_gpt2_config):
         GPT2LMHead(tiny_gpt2_config),
         hf,
     )
-    from torch_nntile.models.gpt2_hf_loader import _split_hf_attn_weights
+    from torch_nntile.nn.model.gpt2_hf_loader import _split_hf_attn_weights
 
     hidden = tiny_gpt2_config.n_embd
     n_heads = tiny_gpt2_config.n_head
@@ -206,12 +199,11 @@ def test_gpt2_mlp_backward_matches_hf(tiny_gpt2_config):
 def test_gpt2_attention_forward_matches_hf(tiny_gpt2_config):
     torch.manual_seed(4)
     from transformers.models.gpt2.modeling_gpt2 import (
-        GPT2Attention as HfAttention,
-    )
+        GPT2Attention as HfAttention)
 
     hf_attn = HfAttention(tiny_gpt2_config, layer_idx=0).eval().float()
     attn = GPT2Attention(tiny_gpt2_config).eval().float()
-    from torch_nntile.models.gpt2_hf_loader import _split_hf_attn_weights
+    from torch_nntile.nn.model.gpt2_hf_loader import _split_hf_attn_weights
 
     hidden = tiny_gpt2_config.n_embd
     n_heads = tiny_gpt2_config.n_head
@@ -238,12 +230,11 @@ def test_gpt2_attention_forward_matches_hf(tiny_gpt2_config):
 def test_gpt2_attention_backward_matches_hf(tiny_gpt2_config):
     torch.manual_seed(5)
     from transformers.models.gpt2.modeling_gpt2 import (
-        GPT2Attention as HfAttention,
-    )
+        GPT2Attention as HfAttention)
 
     hf_attn = HfAttention(tiny_gpt2_config, layer_idx=0).eval().float()
     attn = GPT2Attention(tiny_gpt2_config).eval().float()
-    from torch_nntile.models.gpt2_hf_loader import _split_hf_attn_weights
+    from torch_nntile.nn.model.gpt2_hf_loader import _split_hf_attn_weights
 
     hidden = tiny_gpt2_config.n_embd
     n_heads = tiny_gpt2_config.n_head
@@ -326,8 +317,8 @@ def test_gpt2_lm_head_forward_deferred(tiny_gpt2_config):
         import torch
         import torch_nntile
         from transformers import GPT2Config, GPT2LMHeadModel
-        from torch_nntile.models.gpt2_minimal import GPT2LMHead
-        from torch_nntile.models.gpt2_hf_loader import load_hf_into_gpt2_lm_head
+        from torch_nntile.nn.model.gpt2_minimal import GPT2LMHead
+        from torch_nntile.nn.model.gpt2_hf_loader import load_hf_into_gpt2_lm_head
 
         torch_nntile.init_context(
             ncpu=1, ncuda=0, verbose=0, cpu_fallback=False

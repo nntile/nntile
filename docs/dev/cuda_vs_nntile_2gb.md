@@ -2,7 +2,7 @@
 
 Recipe for comparing **stock** HuggingFace / CNN / Diffusers DiT training
 on plain PyTorch CUDA versus `device=nntile` (StarPU CUDA worker).
-This is **not** a `torch_nntile.models.*` benchmark.
+This is **not** a `torch_nntile.nn.model.*` benchmark.
 
 Configs: [`torch_nntile/examples/2gb/`](../../torch_nntile/examples/2gb/)
 (≥2 GiB FP32 weights each).  
@@ -25,7 +25,7 @@ protocol [reproducibility.md](reproducibility.md).
 2. **Dedicated GPU.** Shared-server jobs on the same device distort
    wall time and `nvidia-smi` VRAM. Run `nvidia-smi`, pick a GPU with
    ~idle memory and 0% util, then pin it.
-3. **Stock models only.** Do not touch `torch_nntile.models.*` or the
+3. **Stock models only.** Do not touch `torch_nntile.nn.model.*` or the
    C++ native model bindings. `cpu_fallback` stays **False**.
 4. **No implicit host copy on nntile ops.** ATen `from_blob` inside a
    StarPU codelet is OK. Do not implement a `device=nntile` op as
@@ -329,7 +329,7 @@ BERT already mismatches on the tiny recipe.
 - [ ] `nvidia-smi` shows the chosen GPU idle; `CUDA_VISIBLE_DEVICES` set
 - [ ] CUDA build (`USE_CUDA=ON`), `NNTILE_BUILD_DIR` / `STARPU_LIB` set
 - [ ] Did not import `torch_nntile` in CUDA processes
-- [ ] Did not edit `torch_nntile.models.*` or add cuda to the commons
+- [ ] Did not edit `torch_nntile.nn.model.*` or add cuda to the commons
 - [ ] Ran `bench_cuda_vs_nntile_2gb.py` and saved the printed table
 - [ ] Compared losses to the 50-step table (BERT outlier is known)
 - [ ] If OOM: drop `--cnn-batch-size` or `--hf-batch-size`, do not shrink

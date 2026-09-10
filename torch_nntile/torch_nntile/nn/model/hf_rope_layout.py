@@ -1,7 +1,7 @@
 # @copyright (c) 2026-present Skolkovo Institute of Science and Technology
 #                              (Skoltech), Russia. All rights reserved.
 #
-# @file torch_nntile/torch_nntile/models/hf_rope_layout.py
+# @file torch_nntile/torch_nntile/nn/model/hf_rope_layout.py
 # Convert HF rotate_half RoPE channel order <-> NNTile interleaved pairs.
 
 """RoPE weight-channel layout helpers for HF <-> NNTile conversion.

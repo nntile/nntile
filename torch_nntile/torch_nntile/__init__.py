@@ -4,7 +4,12 @@
 # @file torch_nntile/torch_nntile/__init__.py
 # Register the PyTorch nntile device (PrivateUse1).
 
-"""PyTorch nntile device (PrivateUse1; requires libnntile)."""
+"""PyTorch nntile device (PrivateUse1; requires libnntile).
+
+Stock ``torch.nn`` on ``device=nntile`` uses torch-native kernels.
+Classic nntile kernels live under :mod:`torch_nntile.nn` (``functional``,
+``module``, ``model``). Autograd is PyTorch's.
+"""
 
 from __future__ import annotations
 
@@ -17,15 +22,12 @@ from ._cuda_deps import ensure_linux_cuda_deps
 
 ensure_linux_cuda_deps(required=BUILT_WITH_CUDA)
 
-from . import _C  # noqa: E402, F401 - loads kernels and allocator
-
 # Stock torch.nn on device=nntile uses torch-native TORCH_* codelets when
 # TORCH_NATIVE_OPS is on. Classic nntile::kernel ops live under
-# torch_nntile.nn / C++ models when NNTILE_NATIVE_OPS is on.
-from . import compat as _compat  # noqa: E402, F401
-from . import nn as nn  # noqa: E402, F401
-
-from . import kernels as kernels  # noqa: E402, backward-compat alias
+# torch_nntile.nn (functional / module / model) when NNTILE_NATIVE_OPS is on.
+from . import _C  # noqa: E402, F401 - loads kernels and allocator
+from . import (  # noqa: E402, F401; noqa: E402, backward-compat alias
+    compat as _compat, kernels as kernels, nn as nn)
 
 _registered = False
 _atexit_shutdown_registered = False

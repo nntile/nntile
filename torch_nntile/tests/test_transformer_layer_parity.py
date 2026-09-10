@@ -9,25 +9,16 @@ from __future__ import annotations
 import pytest
 import torch
 import torch.nn.functional as F
-from conftest import nntile_cpu
 from parity_helpers import assert_close, clone_to_nntile, contiguous_to_nntile
 from torch import Tensor
-from torch_nntile.models.bert import BertConfig, BertSelfAttention
-from torch_nntile.models.llama import (
-    LlamaAttention,
-    LlamaConfig,
-    LlamaMLP,
-    LlamaRMSNorm,
-)
+
+from torch_nntile.nn.model.bert import BertConfig, BertSelfAttention
+from torch_nntile.nn.model.llama import (
+    LlamaAttention, LlamaConfig, LlamaMLP, LlamaRMSNorm)
 from torch_nntile.normalization import rms_norm
 from torch_nntile.rope import (
-    _rope_ref_backward,
-    _rope_ref_forward,
-    rope,
-    rope_sin_cos_from_position_ids,
-)
-
-import torch_nntile
+    _rope_ref_backward, _rope_ref_forward, rope,
+    rope_sin_cos_from_position_ids)
 
 RTOL = 1e-4
 ATOL = 1e-4

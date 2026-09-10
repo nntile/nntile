@@ -2,7 +2,7 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/tests/test_models_python_classic_graph.py
-# Python torch_nntile.models must record classic kernels on forward.
+# Python torch_nntile.nn.model must record classic kernels on forward.
 # Backward may use aten::add (TORCH_BINARY) to combine fan-in grads.
 
 from __future__ import annotations
@@ -13,16 +13,16 @@ from classic_graph import assert_classic_graph
 from transformers import GPT2Config
 
 import torch_nntile
-from torch_nntile.models.bert import BertConfig, BertMlm
-from torch_nntile.models.deep_relu import DeepReLU
-from torch_nntile.models.dit import DiT, DiTConfig
-from torch_nntile.models.gpt2_minimal import GPT2LMHead
-from torch_nntile.models.gpt_neo import GPTNeoCausal, GPTNeoConfig
-from torch_nntile.models.gpt_neox import GPTNeoXCausal, GPTNeoXConfig
-from torch_nntile.models.llama import LlamaCausal, LlamaConfig
-from torch_nntile.models.mlp_mixer import MlpMixer, MlpMixerConfig
-from torch_nntile.models.roberta import RobertaConfig, RobertaMlm
-from torch_nntile.models.t5 import T5Config, T5ForConditionalGeneration
+from torch_nntile.nn.model.bert import BertConfig, BertMlm
+from torch_nntile.nn.model.deep_relu import DeepReLU
+from torch_nntile.nn.model.dit import DiT, DiTConfig
+from torch_nntile.nn.model.gpt2_minimal import GPT2LMHead
+from torch_nntile.nn.model.gpt_neo import GPTNeoCausal, GPTNeoConfig
+from torch_nntile.nn.model.gpt_neox import GPTNeoXCausal, GPTNeoXConfig
+from torch_nntile.nn.model.llama import LlamaCausal, LlamaConfig
+from torch_nntile.nn.model.mlp_mixer import MlpMixer, MlpMixerConfig
+from torch_nntile.nn.model.roberta import RobertaConfig, RobertaMlm
+from torch_nntile.nn.model.t5 import T5Config, T5ForConditionalGeneration
 
 pytestmark = pytest.mark.skipif(
     not getattr(torch_nntile, "NNTILE_NATIVE_OPS", False),

@@ -1,7 +1,7 @@
 # @copyright (c) 2026-present Skolkovo Institute of Science and Technology
 #                              (Skoltech), Russia. All rights reserved.
 #
-# @file torch_nntile/torch_nntile/models/bert_hf_loader.py
+# @file torch_nntile/torch_nntile/nn/model/bert_hf_loader.py
 # Convert weights between HuggingFace BERT and torch_nntile BertMlm.
 
 """Bidirectional HF <-> NNTile weight conversion for BERT MLM."""
@@ -9,19 +9,13 @@
 from __future__ import annotations
 
 import torch
-from transformers import BertConfig as HfBertConfig
-from transformers import BertForMaskedLM
+from transformers import BertConfig as HfBertConfig, BertForMaskedLM
 
-from torch_nntile.models.bert import BertConfig, BertMlm
-from torch_nntile.models.hf_rope_layout import copy_linear
 from torch_nntile.nn.linear import (
-    linear_to_output_weight,
-    linear_to_qkv_bias,
-    linear_to_qkv_weight,
-    output_to_linear_weight,
-    qkv_to_linear_bias,
-    qkv_to_linear_weight,
-)
+    linear_to_output_weight, linear_to_qkv_bias, linear_to_qkv_weight,
+    output_to_linear_weight, qkv_to_linear_bias, qkv_to_linear_weight)
+from torch_nntile.nn.model.bert import BertConfig, BertMlm
+from torch_nntile.nn.model.hf_rope_layout import copy_linear
 
 
 def bert_config_from_hf(hf: HfBertConfig) -> BertConfig:

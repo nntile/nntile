@@ -14,47 +14,23 @@ pytest.importorskip("transformers")
 
 import torch
 from parity_helpers import (
-    additive_causal_mask,
-    assert_close,
-    contiguous_to_nntile,
-)
-from torch_nntile.models.hf_rope_layout import (
-    copy_linear,
-    hf_to_nntile_qkv_weight,
-)
-from torch_nntile.models.llama import (
-    LlamaAttention,
-    LlamaCausal,
-    LlamaConfig,
-    LlamaDecoder,
-    LlamaMLP,
-    LlamaRMSNorm,
-)
-from torch_nntile.models.llama_hf_loader import (
-    llama_config_from_hf,
-    load_hf_into_llama_causal,
-)
+    additive_causal_mask, assert_close, contiguous_to_nntile)
+from transformers import LlamaConfig as HfLlamaConfig, LlamaForCausalLM
+from transformers.models.llama.modeling_llama import (
+    LlamaAttention as HfAttention, LlamaDecoderLayer as HfDecoder,
+    LlamaMLP as HfMLP, LlamaRotaryEmbedding)
+
 from torch_nntile.nn.linear import (
-    linear_to_gqa_output_weight,
-    linear_to_gqa_q_weight,
-    linear_to_output_weight,
-    linear_to_qkv_weight,
-)
+    linear_to_gqa_output_weight, linear_to_gqa_q_weight,
+    linear_to_output_weight, linear_to_qkv_weight)
+from torch_nntile.nn.model.hf_rope_layout import (
+    copy_linear, hf_to_nntile_qkv_weight)
+from torch_nntile.nn.model.llama import (
+    LlamaAttention, LlamaCausal, LlamaConfig, LlamaDecoder, LlamaMLP,
+    LlamaRMSNorm)
+from torch_nntile.nn.model.llama_hf_loader import (
+    llama_config_from_hf, load_hf_into_llama_causal)
 from torch_nntile.rope import rope_sin_cos_from_position_ids
-from transformers import LlamaConfig as HfLlamaConfig
-from transformers import LlamaForCausalLM
-from transformers.models.llama.modeling_llama import (
-    LlamaAttention as HfAttention,
-)
-from transformers.models.llama.modeling_llama import (
-    LlamaDecoderLayer as HfDecoder,
-)
-from transformers.models.llama.modeling_llama import (
-    LlamaMLP as HfMLP,
-)
-from transformers.models.llama.modeling_llama import (
-    LlamaRotaryEmbedding,
-)
 
 RTOL = 1e-4
 ATOL = 1e-4

@@ -2,9 +2,9 @@ name: Build and test
 
 on:
   push:
-    branches: [main, graph_api]
+    branches: [main, torch_nntile]
   pull_request:
-    branches: [main, graph_api]
+    branches: [main, torch_nntile]
   workflow_dispatch:
   workflow_call:
     inputs:

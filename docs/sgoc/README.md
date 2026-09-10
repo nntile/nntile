@@ -6,7 +6,7 @@ GPU residency (with optional activation checkpoints), and replays tasks in
 topological order. It targets **single-GPU training under a tight VRAM budget**.
 
 SGOC lives in the [**nntile/starpu**](https://github.com/nntile/starpu) fork
-(`new_sched/` → `libgraph_sgoc_sched.so`). It is **not** the NNTile Graph API
+(`new_sched/` → `libgraph_sgoc_sched.so`). It is **not** the torch_nntile TensorGraph backend
 (see [graph.md](../graph.md)).
 
 ## Installation

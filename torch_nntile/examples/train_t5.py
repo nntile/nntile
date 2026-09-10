@@ -19,10 +19,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import torch
-from torch_nntile.models.t5 import T5Config, T5ForConditionalGeneration
-from torch_nntile.training import cross_entropy
-
 from nntile_tiny_train_common import run_tiny_nntile_main
+
+from torch_nntile.nn.model.t5 import T5Config, T5ForConditionalGeneration
+from torch_nntile.training import cross_entropy
 
 
 def _default_config() -> Path:

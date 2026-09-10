@@ -1,7 +1,7 @@
 # @copyright (c) 2026-present Skolkovo Institute of Science and Technology
 #                              (Skoltech), Russia. All rights reserved.
 #
-# @file torch_nntile/torch_nntile/models/mlp_mixer.py
+# @file torch_nntile/torch_nntile/nn/model/mlp_mixer.py
 # MLP-Mixer for device="nntile" - gemm side-L / side-R, no axis swaps.
 
 """MLP-Mixer matching ``torch_nntile::models::MlpMixer`` / main torch_models.

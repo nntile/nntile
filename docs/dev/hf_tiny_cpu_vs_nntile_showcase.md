@@ -143,7 +143,7 @@ this tiny scale).
 
 Hand-written stacks (`train_llama.py`, `train_bert.py`, …) also take
 JSON `--config` / `--checkpoint`, but always train on `device=nntile`
-and use `torch_nntile.models.*` (plus `_C` helpers such as `gemm` /
+and use `torch_nntile.nn.model.*` (plus `_C` helpers such as `gemm` /
 `rms_norm_forward`). They are **not** in the CPU column of the table.
 
 Example::

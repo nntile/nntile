@@ -6,14 +6,14 @@ backend.
 
 - **HF** — HuggingFace Transformers implementation (`transformers` 4.52;
   constraint `transformers<4.53`).
-- **nntile** (as implementation) — `torch_nntile.models`, based on
+- **nntile** (as implementation) — `torch_nntile.nn.model`, based on
   `torch_nntile.nn` operations and backed by hand-written nntile kernels.
 - **cuda** — PyTorch CUDA (`device=cuda`).
 - **nntile** (as backend) — StarPU / nntile (`device=nntile`).
 
 **HF(cuda)** is Transformers on CUDA. **HF(nntile)** is the same
 Transformers graph on `device=nntile`. **nntile(nntile)** is the
-`torch_nntile.models` rewrite on `device=nntile`.
+`torch_nntile.nn.model` rewrite on `device=nntile`.
 
 Three setups, same configs / seq_len / 10 steps:
 
@@ -21,7 +21,7 @@ Three setups, same configs / seq_len / 10 steps:
    `torch_nntile` import.
 2. **HF(nntile)** — same HF model on `device=nntile` (aten /
    torch-native StarPU codelets).
-3. **nntile(nntile)** — `torch_nntile.models.gpt2_minimal.GPT2LMHead`
+3. **nntile(nntile)** — `torch_nntile.nn.model.gpt2_minimal.GPT2LMHead`
    (`gemm`, `add_fiber`, `sdpa_kernel`, nntile `LayerNorm` / `Embedding` /
    `GELU`, `training.cross_entropy`, fused `SGD`). Hand-written nntile kernels only. `gpt2_minimal.py` was not changed for this study.
 
@@ -401,7 +401,7 @@ CSV: [`gpt2_hf_overhead_s_100.csv`](gpt2_hf_overhead_s_100.csv) (median run).
 Same XS–XL configs as above. This is nntile(nntile) only:
 [`train_nntile_native_overhead.py`](../../torch_nntile/examples/train_nntile_native_overhead.py)
 `--family gpt2` records
-`torch_nntile.models.gpt2_minimal.GPT2LMHead` (nntile(nntile) /
+`torch_nntile.nn.model.gpt2_minimal.GPT2LMHead` (nntile(nntile) /
 hand-written nntile kernels). HF is used only to **init** weights
 (`load_hf_into_gpt2_lm_head`), then discarded. The train loop is
 nntile `cross_entropy` + fused `SGD`. `--ncpu 0 --ncuda 1

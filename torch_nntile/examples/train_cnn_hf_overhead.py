@@ -7,7 +7,7 @@
 
 """Train stock torch.nn CNN graphs on a synthetic image stream.
 
-There is no ``torch_nntile.models`` CNN rewrite. This script only measures
+There is no ``torch_nntile.nn.model`` CNN rewrite. This script only measures
 **HF(cuda)** vs **HF(nntile)**: the same ``nn.Module`` on ``device=cuda``
 versus ``device=nntile``. ``HF`` here means the stock PyTorch CNN
 implementation (LeNet / ResNet / VGG / MobileNet / U-Net / modern U-Net),
@@ -44,32 +44,16 @@ from typing import Any, Callable
 import torch
 import torch.nn as nn
 from cnn_tiny_train_common import (
-    classification_ce_loss,
-    make_image_batch,
-    make_segmentation_batch,
-    segmentation_ce_loss,
-)
+    classification_ce_loss, make_image_batch, make_segmentation_batch,
+    segmentation_ce_loss)
 from hf_tiny_train_common import (
-    compare_checkpoints,
-    configure_cudnn,
-    configure_single_thread_host,
-    configure_tf32,
-    load_checkpoint,
-    load_json_object,
-)
+    compare_checkpoints, configure_cudnn, configure_single_thread_host,
+    configure_tf32, load_checkpoint, load_json_object)
 from nntile_iter_phases import (
-    compile_run_wait_iter,
-    compile_wait_run_iter,
-    measure_isolated_nntile_iter,
-    print_nntile_iter_timings,
-    print_nntile_phase_timings,
-    print_nntile_prep_compute,
-    print_torch_isolated_iter,
-    print_torch_iter_timings,
-    wait_end,
-    wait_then_start_timer,
-)
-
+    compile_run_wait_iter, compile_wait_run_iter, measure_isolated_nntile_iter,
+    print_nntile_iter_timings, print_nntile_phase_timings,
+    print_nntile_prep_compute, print_torch_isolated_iter,
+    print_torch_iter_timings, wait_end, wait_then_start_timer)
 
 BatchDict = dict[str, torch.Tensor]
 ModelFactory = Callable[[dict[str, Any]], nn.Module]
@@ -736,7 +720,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--model",
         required=True,
         choices=CNN_MODELS,
-        help="CNN family (stock torch.nn graph, not torch_nntile.models)",
+        help="CNN family (stock torch.nn graph, not torch_nntile.nn.model)",
     )
     train.add_argument(
         "--device",

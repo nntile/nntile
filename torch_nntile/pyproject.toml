@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "torch_nntile"
 version = "0.0.6"
-description = "PyTorch PrivateUse1 device for nntile (TensorGraph ops via libnntile)"
+description = "PyTorch device=nntile (PrivateUse1) backed by PyTorch autograd and libnntile"
 readme = "README.md"
 requires-python = ">=3.10"
 dynamic = ["dependencies"]
@@ -25,7 +25,7 @@ cuda = [
 test = [
     "pytest>=8.2",
     "numpy>=1.21",
-    # Cap matches graph_api / CTest fixture generators: 4.53+ breaks Llama.
+    # Cap matches torch_nntile / CTest fixture generators: 4.53+ breaks Llama.
     "transformers<4.53",
     "datasets",
     "diffusers==0.32.2",

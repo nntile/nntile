@@ -1,6 +1,6 @@
 # Migration note: NNGraph → libtorch_nntile (complete)
 
-**Status:** complete on `graph_api`  
+**Status:** complete on `torch_nntile`  
 **Related:** [torch_nntile_tensor_architecture.md](torch_nntile_tensor_architecture.md),
 [graph_compiler_on_design.md](graph_compiler_on_design.md),
 [../graph.md](../graph.md)
@@ -11,7 +11,7 @@ NNGraph C++ examples were removed. The product path is:
 ```text
 C++ / Python apps
        │
- libtorch_nntile  (ATen PrivateUse1 + custom autograd + models)
+ libtorch_nntile  (ATen PrivateUse1 + PyTorch autograd + models)
        │
  libnntile        (TensorGraph → TileGraph → Runtime → StarPU → kernels)
 ```

@@ -1,16 +1,20 @@
-# NNTile Graph API
+# TensorGraph execution backend
 
-**Status:** work in progress (primary product path on `graph_api`)  
-**Product entry:** [torch_nntile](torch_nntile.md) (`device="nntile"`)  
+**Status:** implementation detail of torch_nntile  
+**Product entry:** [torch_nntile](torch_nntile.md) (`device="nntile"`, PyTorch autograd)  
 **C++ stack:** [cpp/README.md](cpp/README.md)
 
-NNTile training runs through a **deferred** TensorGraph stack. Ops are recorded
-into a shared graph, lowered to tiles, compiled, then submitted to StarPU.
-There is no separate per-op “eager graph” path and no standalone NNGraph /
+torch_nntile does **not** ship its own autograd. Forward and backward are
+PyTorch's; recorded ATen / classic ops append to a deferred **TensorGraph**,
+lower to **TileGraph**, and run through **Runtime** (StarPU). There is no
+separate per-op “eager graph” path and no standalone NNGraph /
 `python/nntile` bindings (removed).
 
 ```text
-record ops → TensorGraph
+PyTorch autograd (forward / backward)
+     │  record ops
+     ▼
+TensorGraph
      │  seal_phase + append_tensor_graph_phase
      ▼
 TileGraph
@@ -24,7 +28,7 @@ Runtime → StarPU → kernels
 | Library | Role |
 |---------|------|
 | **libnntile** | TensorGraph → TileGraph → Runtime (StarPU) |
-| **libtorch_nntile** | LibTorch PrivateUse1 `device=nntile` + models |
+| **libtorch_nntile** | LibTorch PrivateUse1 `device=nntile` + C++ models |
 | **torch_nntile** (Python) | Pip wheel / bindings over libtorch_nntile |
 
 Apps (Python or C++) go through **libtorch_nntile**. Autograd is PyTorch’s;

@@ -1,7 +1,7 @@
 # @copyright (c) 2026-present Skolkovo Institute of Science and Technology
 #                              (Skoltech), Russia. All rights reserved.
 #
-# @file torch_nntile/torch_nntile/models/llama_hf_loader.py
+# @file torch_nntile/torch_nntile/nn/model/llama_hf_loader.py
 # Convert weights between HuggingFace Llama and torch_nntile LlamaCausal.
 
 """Bidirectional HF <-> NNTile weight conversion for Llama."""
@@ -9,25 +9,16 @@
 from __future__ import annotations
 
 import torch
-from transformers import LlamaConfig as HfLlamaConfig
-from transformers import LlamaForCausalLM
+from transformers import LlamaConfig as HfLlamaConfig, LlamaForCausalLM
 
-from torch_nntile.models.hf_rope_layout import (
-    copy_linear,
-    hf_to_nntile_qkv_weight,
-    nntile_to_hf_qkv_weight,
-)
-from torch_nntile.models.llama import LlamaCausal, LlamaConfig
 from torch_nntile.nn.linear import (
-    gqa_output_to_linear_weight,
-    gqa_q_to_linear_weight,
-    linear_to_gqa_output_weight,
-    linear_to_gqa_q_weight,
-    linear_to_output_weight,
-    linear_to_qkv_weight,
-    output_to_linear_weight,
-    qkv_to_linear_weight,
-)
+    gqa_output_to_linear_weight, gqa_q_to_linear_weight,
+    linear_to_gqa_output_weight, linear_to_gqa_q_weight,
+    linear_to_output_weight, linear_to_qkv_weight, output_to_linear_weight,
+    qkv_to_linear_weight)
+from torch_nntile.nn.model.hf_rope_layout import (
+    copy_linear, hf_to_nntile_qkv_weight, nntile_to_hf_qkv_weight)
+from torch_nntile.nn.model.llama import LlamaCausal, LlamaConfig
 
 
 def llama_config_from_hf(hf: HfLlamaConfig) -> LlamaConfig:

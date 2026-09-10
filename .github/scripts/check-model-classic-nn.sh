@@ -4,7 +4,7 @@
 #
 # @file .github/scripts/check-model-classic-nn.sh
 #
-# Production torch_nntile.models must not call stock torch.nn compute
+# Production torch_nntile.nn.model must not call stock torch.nn compute
 # (Linear / LayerNorm / Embedding / F.linear / F.relu / ...). Those lower
 # to torch-native TORCH_* ops. Use torch_nntile.nn instead.
 set -euo pipefail
@@ -12,7 +12,7 @@ set -euo pipefail
 root="${1:-.}"
 cd "$root"
 
-models_dir="torch_nntile/torch_nntile/models"
+models_dir="torch_nntile/torch_nntile/nn/model"
 if [ ! -d "$models_dir" ]; then
     echo "skip: $models_dir not found"
     exit 0
@@ -53,7 +53,7 @@ for line in open(src, encoding="utf-8"):
 open(dst, "w", encoding="utf-8").writelines(keep)
 PY
     if [ -s "$filtered" ]; then
-        echo "::error::torch_nntile.models must use torch_nntile.nn, not stock torch.nn compute:"
+        echo "::error::torch_nntile.nn.model must use torch_nntile.nn, not stock torch.nn compute:"
         cat "$filtered"
         exit 1
     fi

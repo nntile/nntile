@@ -1,7 +1,7 @@
 # @copyright (c) 2026-present Skolkovo Institute of Science and Technology
 #                              (Skoltech), Russia. All rights reserved.
 #
-# @file torch_nntile/torch_nntile/models/gpt_neox_hf_loader.py
+# @file torch_nntile/torch_nntile/nn/model/gpt_neox_hf_loader.py
 # Convert weights between HuggingFace GPT-NeoX and torch_nntile GPTNeoXCausal.
 
 """Bidirectional HF <-> NNTile weight conversion for GPT-NeoX."""
@@ -9,21 +9,14 @@
 from __future__ import annotations
 
 import torch
-from transformers import GPTNeoXConfig as HfGPTNeoXConfig
-from transformers import GPTNeoXForCausalLM
+from transformers import GPTNeoXConfig as HfGPTNeoXConfig, GPTNeoXForCausalLM
 
-from torch_nntile.models.gpt_neox import GPTNeoXCausal, GPTNeoXConfig
-from torch_nntile.models.hf_rope_layout import (
-    copy_linear,
-    hf_to_nntile_fused_qkv_bias,
-    hf_to_nntile_fused_qkv_weight,
-    nntile_to_hf_fused_qkv_bias,
-    nntile_to_hf_fused_qkv_weight,
-)
 from torch_nntile.nn.linear import (
-    linear_to_output_weight,
-    output_to_linear_weight,
-)
+    linear_to_output_weight, output_to_linear_weight)
+from torch_nntile.nn.model.gpt_neox import GPTNeoXCausal, GPTNeoXConfig
+from torch_nntile.nn.model.hf_rope_layout import (
+    copy_linear, hf_to_nntile_fused_qkv_bias, hf_to_nntile_fused_qkv_weight,
+    nntile_to_hf_fused_qkv_bias, nntile_to_hf_fused_qkv_weight)
 
 
 def _hf_rotary_params(hf: HfGPTNeoXConfig) -> tuple[float, float]:

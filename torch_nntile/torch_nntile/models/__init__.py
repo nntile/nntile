@@ -2,44 +2,26 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/torch_nntile/models/__init__.py
-# PyTorch models for the nntile device.
+# Compatibility alias for torch_nntile.nn.model.
 
-from .bert import BertConfig, BertMlm, BertModel
-from .deep_relu import DeepReLU
-from .dit import DiT, DiTConfig
-from .gpt_neo import GPTNeoCausal, GPTNeoConfig, GPTNeoModel
-from .gpt_neox import GPTNeoXCausal, GPTNeoXConfig, GPTNeoXModel
-from .gpt2_minimal import GPT2LMHead, GPT2Model
-from .llama import LlamaCausal, LlamaConfig, LlamaModel
-from .mlp_mixer import MlpMixer, MlpMixerConfig, MlpMixerCpu
-from .roberta import RobertaConfig, RobertaMlm, RobertaModel
-from .t5 import T5Config, T5ForConditionalGeneration, T5Model
+"""Compatibility alias for :mod:`torch_nntile.nn.model`.
 
-__all__ = [
-    "BertConfig",
-    "BertMlm",
-    "BertModel",
-    "DeepReLU",
-    "DiT",
-    "DiTConfig",
-    "GPT2LMHead",
-    "GPT2Model",
-    "GPTNeoCausal",
-    "GPTNeoConfig",
-    "GPTNeoModel",
-    "GPTNeoXCausal",
-    "GPTNeoXConfig",
-    "GPTNeoXModel",
-    "LlamaCausal",
-    "LlamaConfig",
-    "LlamaModel",
-    "MlpMixer",
-    "MlpMixerConfig",
-    "MlpMixerCpu",
-    "RobertaConfig",
-    "RobertaMlm",
-    "RobertaModel",
-    "T5Config",
-    "T5ForConditionalGeneration",
-    "T5Model",
-]
+Prefer::
+
+    from torch_nntile.nn.model import DeepReLU
+"""
+
+from __future__ import annotations
+
+import pkgutil
+import sys
+
+from torch_nntile.nn import model as _model
+from torch_nntile.nn.model import *  # noqa: F403
+
+__all__ = list(_model.__all__)
+
+for _info in pkgutil.iter_modules(_model.__path__):
+    _sub = __import__(f"{_model.__name__}.{_info.name}", fromlist=["*"])
+    sys.modules[f"{__name__}.{_info.name}"] = _sub
+    globals()[_info.name] = _sub

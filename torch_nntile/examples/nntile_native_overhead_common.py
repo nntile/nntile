@@ -2,7 +2,7 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/examples/nntile_native_overhead_common.py
-# Shared 10-step overhead loop for torch_nntile.models (classic kernels).
+# Shared 10-step overhead loop for torch_nntile.nn.model (classic kernels).
 
 """Train wall matching ``train_gpt2.py``: dict batches, classic SGD / CE."""
 
@@ -14,18 +14,12 @@ from pathlib import Path
 from typing import Any
 
 import torch
+from nntile_iter_phases import (
+    compile_run_wait_iter, compile_wait_run_iter, measure_isolated_nntile_iter,
+    print_nntile_iter_timings, print_nntile_phase_timings,
+    print_nntile_prep_compute, wait_end, wait_then_start_timer)
 
 import torch_nntile
-from nntile_iter_phases import (
-    compile_run_wait_iter,
-    compile_wait_run_iter,
-    measure_isolated_nntile_iter,
-    print_nntile_iter_timings,
-    print_nntile_phase_timings,
-    print_nntile_prep_compute,
-    wait_end,
-    wait_then_start_timer,
-)
 from torch_nntile.training import SGD
 
 BatchDict = dict[str, torch.Tensor]

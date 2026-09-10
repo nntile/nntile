@@ -8,15 +8,11 @@ import pytest
 import torch
 
 pytest.importorskip("torchvision")
-from torch_nntile.models import DeepReLU
-from torch_nntile.training import (
-    clone_model_weights,
-    max_weight_delta,
-    train_full_batch_step,
-)
 from torchvision import datasets
 
-import torch_nntile
+from torch_nntile.nn.model import DeepReLU
+from torch_nntile.training import (
+    clone_model_weights, max_weight_delta, train_full_batch_step)
 
 pytestmark = pytest.mark.slow
 

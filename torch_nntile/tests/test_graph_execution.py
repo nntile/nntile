@@ -9,7 +9,6 @@ from __future__ import annotations
 import subprocess
 import sys
 import textwrap
-from pathlib import Path
 
 from conftest import subprocess_environ
 
@@ -97,7 +96,7 @@ def test_graph_forward_matches_cpu():
         """
         import torch
         import torch_nntile
-        from torch_nntile.models import DeepReLU
+        from torch_nntile.nn.model import DeepReLU
 
         torch.manual_seed(0)
         model_cpu = DeepReLU.tiny()
@@ -288,7 +287,7 @@ def test_train_full_batch_step():
 
         import torch
         import torch_nntile
-        from torch_nntile.models import DeepReLU
+        from torch_nntile.nn.model import DeepReLU
         from torch_nntile.training import clone_model_weights, train_full_batch_step
 
         torch_nntile.init_context(
@@ -321,7 +320,7 @@ def test_train_full_batch_step_multi_epoch():
 
         import torch
         import torch_nntile
-        from torch_nntile.models import DeepReLU
+        from torch_nntile.nn.model import DeepReLU
         from torch_nntile.training import (
             clone_model_weights,
             max_weight_delta,

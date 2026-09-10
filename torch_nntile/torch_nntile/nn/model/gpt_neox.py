@@ -1,7 +1,7 @@
 # @copyright (c) 2026-present Skolkovo Institute of Science and Technology
 #                              (Skoltech), Russia. All rights reserved.
 #
-# @file torch_nntile/torch_nntile/models/gpt_neox.py
+# @file torch_nntile/torch_nntile/nn/model/gpt_neox.py
 # GPT-NeoX causal LM for device="nntile".
 
 """GPT-NeoX stack mirroring ``nntile::model::gptneox``.
@@ -20,10 +20,10 @@ from torch import Tensor
 
 from torch_nntile.add_fiber import add_fiber
 from torch_nntile.gemm import gemm
-from torch_nntile.models.gpt2_minimal import make_causal_sdpa_mask
-from torch_nntile.nn import Embedding, GELU, LayerNorm
+from torch_nntile.nn import GELU, Embedding, LayerNorm
 from torch_nntile.nn.functional import add
 from torch_nntile.nn.linear import NntileLinear, prepare_sdpa_mask
+from torch_nntile.nn.model.gpt2_minimal import make_causal_sdpa_mask
 from torch_nntile.nn.sdpa import nntile_model_transpose, sdpa_kernel
 
 try:

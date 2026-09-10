@@ -3,13 +3,13 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/examples/train_nntile_native_overhead.py
-# Overhead train for torch_nntile.models (HF init, classic kernels).
+# Overhead train for torch_nntile.nn.model (HF init, classic kernels).
 
 """Classic-kernel overhead trainer. HF is used only to initialize weights.
 
 GPT-2 / GPT-Neo / GPT-NeoX / Llama / BERT / RoBERTa / T5 use
 ``--family`` plus a HF config JSON. DiT (``--family dit``): host
-patchify + integer timesteps, then ``torch_nntile.models.DiT``
+patchify + integer timesteps, then ``torch_nntile.nn.model.DiT``
 noise-prediction MSE on ``device=nntile``.
 """
 
@@ -21,13 +21,10 @@ from pathlib import Path
 
 import torch
 from hf_tiny_train_common import (
-    configure_single_thread_host,
-    load_hf_config_from_json,
-    load_json_object,
-    make_encoder_decoder_batch,
-    make_mlm_batch,
-)
+    configure_single_thread_host, load_hf_config_from_json, load_json_object,
+    make_encoder_decoder_batch, make_mlm_batch)
 from nntile_native_overhead_common import BatchDict, run_native_overhead
+
 from torch_nntile.training import cross_entropy
 
 IGNORE_INDEX = -100
@@ -176,10 +173,9 @@ def dit_epochs(
     args: argparse.Namespace,
 ) -> list[list[BatchDict]]:
     from dit_hf_tiny_train_common import make_synthetic_diffusion_batch
-    from torch_nntile.models.dit import (
-        nchw_to_unpatchify_tokens,
-        patchify_nchw,
-    )
+
+    from torch_nntile.nn.model.dit import (
+        nchw_to_unpatchify_tokens, patchify_nchw)
 
     patch = int(config.patch_size)
     sample = int(config.sample_size)
@@ -249,8 +245,8 @@ def dit_loss(model: torch.nn.Module, batch: BatchDict) -> torch.Tensor:
 
 
 def gpt2_from_hf(hf: torch.nn.Module) -> torch.nn.Module:
-    from torch_nntile.models.gpt2_hf_loader import load_hf_into_gpt2_lm_head
-    from torch_nntile.models.gpt2_minimal import GPT2LMHead
+    from torch_nntile.nn.model.gpt2_hf_loader import load_hf_into_gpt2_lm_head
+    from torch_nntile.nn.model.gpt2_minimal import GPT2LMHead
 
     model = GPT2LMHead(hf.config).float()
     load_hf_into_gpt2_lm_head(model, hf)
@@ -259,11 +255,9 @@ def gpt2_from_hf(hf: torch.nn.Module) -> torch.nn.Module:
 
 
 def llama_from_hf(hf: torch.nn.Module) -> torch.nn.Module:
-    from torch_nntile.models.llama import LlamaCausal
-    from torch_nntile.models.llama_hf_loader import (
-        llama_config_from_hf,
-        load_hf_into_llama_causal,
-    )
+    from torch_nntile.nn.model.llama import LlamaCausal
+    from torch_nntile.nn.model.llama_hf_loader import (
+        llama_config_from_hf, load_hf_into_llama_causal)
 
     model = LlamaCausal(llama_config_from_hf(hf.config)).float()
     load_hf_into_llama_causal(model, hf)
@@ -272,11 +266,9 @@ def llama_from_hf(hf: torch.nn.Module) -> torch.nn.Module:
 
 
 def gpt_neo_from_hf(hf: torch.nn.Module) -> torch.nn.Module:
-    from torch_nntile.models.gpt_neo import GPTNeoCausal
-    from torch_nntile.models.gpt_neo_hf_loader import (
-        gpt_neo_config_from_hf,
-        load_hf_into_gpt_neo_causal,
-    )
+    from torch_nntile.nn.model.gpt_neo import GPTNeoCausal
+    from torch_nntile.nn.model.gpt_neo_hf_loader import (
+        gpt_neo_config_from_hf, load_hf_into_gpt_neo_causal)
 
     model = GPTNeoCausal(gpt_neo_config_from_hf(hf.config)).float()
     load_hf_into_gpt_neo_causal(model, hf)
@@ -285,11 +277,9 @@ def gpt_neo_from_hf(hf: torch.nn.Module) -> torch.nn.Module:
 
 
 def gpt_neox_from_hf(hf: torch.nn.Module) -> torch.nn.Module:
-    from torch_nntile.models.gpt_neox import GPTNeoXCausal
-    from torch_nntile.models.gpt_neox_hf_loader import (
-        gpt_neox_config_from_hf,
-        load_hf_into_gpt_neox_causal,
-    )
+    from torch_nntile.nn.model.gpt_neox import GPTNeoXCausal
+    from torch_nntile.nn.model.gpt_neox_hf_loader import (
+        gpt_neox_config_from_hf, load_hf_into_gpt_neox_causal)
 
     model = GPTNeoXCausal(gpt_neox_config_from_hf(hf.config)).float()
     load_hf_into_gpt_neox_causal(model, hf)
@@ -298,11 +288,9 @@ def gpt_neox_from_hf(hf: torch.nn.Module) -> torch.nn.Module:
 
 
 def bert_from_hf(hf: torch.nn.Module) -> torch.nn.Module:
-    from torch_nntile.models.bert import BertMlm
-    from torch_nntile.models.bert_hf_loader import (
-        bert_config_from_hf,
-        load_hf_into_bert_mlm,
-    )
+    from torch_nntile.nn.model.bert import BertMlm
+    from torch_nntile.nn.model.bert_hf_loader import (
+        bert_config_from_hf, load_hf_into_bert_mlm)
 
     model = BertMlm(bert_config_from_hf(hf.config)).float()
     load_hf_into_bert_mlm(model, hf)
@@ -311,11 +299,9 @@ def bert_from_hf(hf: torch.nn.Module) -> torch.nn.Module:
 
 
 def roberta_from_hf(hf: torch.nn.Module) -> torch.nn.Module:
-    from torch_nntile.models.roberta import RobertaMlm
-    from torch_nntile.models.roberta_hf_loader import (
-        load_hf_into_roberta_mlm,
-        roberta_config_from_hf,
-    )
+    from torch_nntile.nn.model.roberta import RobertaMlm
+    from torch_nntile.nn.model.roberta_hf_loader import (
+        load_hf_into_roberta_mlm, roberta_config_from_hf)
 
     model = RobertaMlm(roberta_config_from_hf(hf.config)).float()
     load_hf_into_roberta_mlm(model, hf)
@@ -324,11 +310,9 @@ def roberta_from_hf(hf: torch.nn.Module) -> torch.nn.Module:
 
 
 def t5_from_hf(hf: torch.nn.Module) -> torch.nn.Module:
-    from torch_nntile.models.t5 import T5ForConditionalGeneration
-    from torch_nntile.models.t5_hf_loader import (
-        load_hf_into_t5,
-        t5_config_from_hf,
-    )
+    from torch_nntile.nn.model.t5 import T5ForConditionalGeneration
+    from torch_nntile.nn.model.t5_hf_loader import (
+        load_hf_into_t5, t5_config_from_hf)
 
     model = T5ForConditionalGeneration(t5_config_from_hf(hf.config)).float()
     load_hf_into_t5(model, hf)
@@ -337,11 +321,9 @@ def t5_from_hf(hf: torch.nn.Module) -> torch.nn.Module:
 
 
 def dit_from_hf(hf: torch.nn.Module) -> torch.nn.Module:
-    from torch_nntile.models.dit import DiT
-    from torch_nntile.models.dit_hf_loader import (
-        dit_config_from_hf,
-        load_hf_into_dit,
-    )
+    from torch_nntile.nn.model.dit import DiT
+    from torch_nntile.nn.model.dit_hf_loader import (
+        dit_config_from_hf, load_hf_into_dit)
 
     model = DiT(dit_config_from_hf(hf.config)).float()
     load_hf_into_dit(model, hf)

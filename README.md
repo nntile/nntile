@@ -47,8 +47,8 @@ Full documentation lives under **[docs/](docs/README.md)**. Start at
 
 | Topic | Guide |
 |-------|--------|
-| Graph API (main, WIP) | [docs/graph.md](docs/graph.md) |
-| torch_nntile (Python / LibTorch) | [torch_nntile/README.md](torch_nntile/README.md) |
+| torch_nntile (main: `device=nntile`, PyTorch autograd) | [docs/torch_nntile.md](docs/torch_nntile.md) |
+| TensorGraph execution backend | [docs/graph.md](docs/graph.md) |
 | Build, Docker, CMake, testing | [docs/build/README.md](docs/build/README.md) |
 | C++ stack (kernel → TensorGraph → Runtime) | [docs/cpp/README.md](docs/cpp/README.md) |
 | Inference, HTTP gateway, Telegram bot | [docs/inference/README.md](docs/inference/README.md) |

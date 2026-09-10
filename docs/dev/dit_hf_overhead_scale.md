@@ -6,14 +6,14 @@ backend.
 
 - **HF** — HuggingFace Diffusers `DiTTransformer2DModel`
   (`diffusers==0.32.2`).
-- **nntile** (as implementation) — `torch_nntile.models.dit.DiT`, based on
+- **nntile** (as implementation) — `torch_nntile.nn.model.dit.DiT`, based on
   `torch_nntile.nn` operations and backed by hand-written nntile kernels.
 - **cuda** — PyTorch CUDA (`device=cuda`).
 - **nntile** (as backend) — StarPU / nntile (`device=nntile`).
 
 **HF(cuda)** is Diffusers on CUDA. **HF(nntile)** is the same Diffusers
 graph on `device=nntile`. **nntile(nntile)** is the
-`torch_nntile.models` rewrite on `device=nntile`.
+`torch_nntile.nn.model` rewrite on `device=nntile`.
 
 Three setups, same configs / patch counts / 10 steps:
 
@@ -21,7 +21,7 @@ Three setups, same configs / patch counts / 10 steps:
 2. **HF(nntile)** — same HF model on `device=nntile` (aten / torch-native
    StarPU codelets).
 3. **nntile(nntile)** —
-   `torch_nntile.models.dit.DiT` (hand-written nntile kernels). Host patchify
+   `torch_nntile.nn.model.dit.DiT` (hand-written nntile kernels). Host patchify
    + integer timesteps; HF is used only to init weights.
 
 Three-setup loss and wall: [Three setups](#three-setups). HF(cuda) /
@@ -53,7 +53,7 @@ nntile(nntile): [`train_nntile_native_overhead.py`](../../torch_nntile/examples/
 - **HF:** Diffusers `DiTTransformer2DModel` (AdaLN-Zero, `patch_size=2`,
   `in_channels=3`). Class/timestep conditioning; label dropout disabled
   (`disable_dit_label_dropout`) for deterministic runs.
-- **nntile(nntile):** `torch_nntile.models.dit.DiT`. Patchify NCHW and
+- **nntile(nntile):** `torch_nntile.nn.model.dit.DiT`. Patchify NCHW and
   `nchw_to_unpatchify_tokens` on the host; timesteps are integer table
   indices. AdaLN-Zero uses six `Linear(H, H)` (classic `narrow` is wrong
   for `start ≠ 0`).

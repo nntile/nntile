@@ -3,7 +3,7 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # Run all torch-native (stock HF / CNN / DiT) tiny training smokes.
-# Skips specialized torch_nntile.models.* scripts (disabled under
+# Skips specialized torch_nntile.nn.model.* scripts (disabled under
 # NNTILE_TORCH_NATIVE_OPS).
 
 set -euo pipefail

@@ -6,7 +6,7 @@ name: torch_nntile wheels
 on:
   pull_request:
     branches:
-      - graph_api
+      - torch_nntile
   workflow_dispatch:
 
 permissions:

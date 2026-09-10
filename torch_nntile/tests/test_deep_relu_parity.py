@@ -6,9 +6,8 @@
 
 import torch
 from conftest import nntile_cpu
-from torch_nntile.models import DeepReLU
 
-import torch_nntile
+from torch_nntile.nn.model import DeepReLU
 
 
 def test_deep_relu_forward_matches_cpu():

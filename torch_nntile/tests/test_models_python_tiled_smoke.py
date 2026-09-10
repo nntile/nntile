@@ -4,7 +4,7 @@
 # @file torch_nntile/tests/test_models_python_tiled_smoke.py
 # One tiled classic-kernel smoke per Python model family.
 
-"""Each ``torch_nntile.models`` family must compile with axis-group tiling.
+"""Each ``torch_nntile.nn.model`` family must compile with axis-group tiling.
 
 Cached RoPE / position / token-type tables are independent uploads. Name
 their batch axis too, or the tiled activations disagree with untiled
@@ -66,7 +66,7 @@ def _run(body: str) -> None:
 def test_tiled_deep_relu():
     _run(
         """
-        from torch_nntile.models.deep_relu import DeepReLU
+        from torch_nntile.nn.model.deep_relu import DeepReLU
         model = DeepReLU(32, 64, 8, 2).eval().float().to("nntile")
         ids = torch.randn(4, 32).contiguous().to("nntile")
         out = model(ids)
@@ -84,7 +84,7 @@ def test_tiled_gpt2():
     _run(
         """
         from transformers import GPT2Config
-        from torch_nntile.models.gpt2_minimal import GPT2LMHead
+        from torch_nntile.nn.model.gpt2_minimal import GPT2LMHead
         cfg = GPT2Config(
             n_layer=1, n_head=4, n_embd=64, n_positions=16,
             vocab_size=128, n_inner=128, attn_pdrop=0.0,
@@ -110,7 +110,7 @@ def test_tiled_gpt2():
 def test_tiled_llama():
     _run(
         """
-        from torch_nntile.models.llama import LlamaCausal, LlamaConfig
+        from torch_nntile.nn.model.llama import LlamaCausal, LlamaConfig
         cfg = LlamaConfig(
             vocab_size=128, hidden_size=64, intermediate_size=128,
             num_hidden_layers=1, num_attention_heads=4,
@@ -138,7 +138,7 @@ def test_tiled_llama():
 def test_tiled_gpt_neo():
     _run(
         """
-        from torch_nntile.models.gpt_neo import GPTNeoCausal, GPTNeoConfig
+        from torch_nntile.nn.model.gpt_neo import GPTNeoCausal, GPTNeoConfig
         cfg = GPTNeoConfig(
             vocab_size=128, hidden_size=64, intermediate_size=128,
             num_hidden_layers=2, num_attention_heads=4,
@@ -164,7 +164,7 @@ def test_tiled_gpt_neo():
 def test_tiled_gpt_neox():
     _run(
         """
-        from torch_nntile.models.gpt_neox import GPTNeoXCausal, GPTNeoXConfig
+        from torch_nntile.nn.model.gpt_neox import GPTNeoXCausal, GPTNeoXConfig
         cfg = GPTNeoXConfig(
             vocab_size=128, hidden_size=64, intermediate_size=128,
             num_hidden_layers=1, num_attention_heads=4,
@@ -192,7 +192,7 @@ def test_tiled_gpt_neox():
 def test_tiled_bert():
     _run(
         """
-        from torch_nntile.models.bert import BertConfig, BertMlm
+        from torch_nntile.nn.model.bert import BertConfig, BertMlm
         cfg = BertConfig(
             vocab_size=128, hidden_size=64, intermediate_size=128,
             num_hidden_layers=1, num_attention_heads=4,
@@ -226,7 +226,7 @@ def test_tiled_bert():
 def test_tiled_roberta():
     _run(
         """
-        from torch_nntile.models.roberta import RobertaConfig, RobertaMlm
+        from torch_nntile.nn.model.roberta import RobertaConfig, RobertaMlm
         cfg = RobertaConfig(
             vocab_size=128, hidden_size=64, intermediate_size=128,
             num_hidden_layers=1, num_attention_heads=4,
@@ -261,7 +261,7 @@ def test_tiled_roberta():
 def test_tiled_t5():
     _run(
         """
-        from torch_nntile.models.t5 import T5Config, T5ForConditionalGeneration
+        from torch_nntile.nn.model.t5 import T5Config, T5ForConditionalGeneration
         cfg = T5Config(
             vocab_size=128, d_model=64, d_kv=16, d_ff=128,
             num_layers=1, num_decoder_layers=1, num_heads=4,
@@ -286,7 +286,7 @@ def test_tiled_t5():
 def test_tiled_mlp_mixer():
     _run(
         """
-        from torch_nntile.models.mlp_mixer import MlpMixer, MlpMixerConfig
+        from torch_nntile.nn.model.mlp_mixer import MlpMixer, MlpMixerConfig
         cfg = MlpMixerConfig(
             channel_dim=8, init_patch_dim=4, projected_patch_dim=4,
             num_mixer_layers=1, n_classes=3,
@@ -307,7 +307,7 @@ def test_tiled_mlp_mixer():
 def test_tiled_dit():
     _run(
         """
-        from torch_nntile.models.dit import DiT, DiTConfig
+        from torch_nntile.nn.model.dit import DiT, DiTConfig
         cfg = DiTConfig(
             sample_size=8, patch_size=2, in_channels=3,
             num_layers=1, num_attention_heads=2, attention_head_dim=8,

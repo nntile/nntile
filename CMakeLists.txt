@@ -25,7 +25,7 @@ option(USE_CUDA_FP16 "Enable FP16 CUDA support" ON)
 option(USE_CUDA_TF32 "Enable TF32 CUDA support" ON)
 option(USE_CUDA_BF16 "Enable BF16 CUDA support" ON)
 option(USE_CUDA_FP8 "Enable FP8 CUDA support" ON)
-option(USE_FLASH_SDPA "Build cuDNN flash SDPA (disabled on graph_api until C-order migration)" OFF)
+option(USE_FLASH_SDPA "Build cuDNN flash SDPA (disabled on torch_nntile until C-order migration)" OFF)
 option(USE_CBLAS "Use CPU CBLAS" ON)
 option(BUILD_DOCS "Build Doxygen-based documentation" OFF)
 # Default ON: the user-facing product is the torch_nntile pip wheel (needs

@@ -31,7 +31,7 @@ Rules:
   reimplement GPT-2 / Llama / BERT / … from Hugging Face `torch.nn`.
   Tests: `test_models_classic_graph.py` (`_C.cpp_*` fwd+bwd; no
   `TORCH_*` except autograd grad-combine `TORCH_BINARY`).
-- Python `torch_nntile.models` are the same stacks for the Python API
+- Python `torch_nntile.nn.model` is the same stacks for the Python API
   (CI: `.github/scripts/check-model-classic-nn.sh`; graph:
   `test_models_python_classic_graph.py`; tiled smoke:
   `test_models_python_tiled_smoke.py`). They are not a second HF port.

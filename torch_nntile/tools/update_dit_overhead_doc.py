@@ -435,7 +435,7 @@ Three setups, same configs / patch counts / 10 steps:
 1. **HF(cuda)** — stock Diffusers `DiTTransformer2DModel`, `device=cuda`.
 2. **HF(nntile)** — same HF model on `device=nntile` (aten / torch-native
    StarPU codelets).
-3. **nntile(nntile)** — `torch_nntile.models.dit.DiT` (hand-written nntile
+3. **nntile(nntile)** — `torch_nntile.nn.model.dit.DiT` (hand-written nntile
    kernels). Host patchify + integer timesteps; HF is used only to init
    weights.
 

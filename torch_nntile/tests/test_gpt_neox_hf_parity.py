@@ -14,42 +14,20 @@ pytest.importorskip("transformers")
 
 import torch
 from parity_helpers import (
-    additive_causal_mask,
-    assert_close,
-    contiguous_to_nntile,
-)
-from torch_nntile.models.gpt_neox import (
-    GPTNeoXAttention,
-    GPTNeoXCausal,
-    GPTNeoXConfig,
-    GPTNeoXLayer,
-    GPTNeoXMLP,
-)
-from torch_nntile.models.gpt_neox_hf_loader import (
-    gpt_neox_config_from_hf,
-    load_hf_into_gpt_neox_causal,
-)
-from torch_nntile.models.hf_rope_layout import (
-    copy_linear,
-    hf_to_nntile_fused_qkv_bias,
-    hf_to_nntile_fused_qkv_weight,
-)
+    additive_causal_mask, assert_close, contiguous_to_nntile)
+from transformers import GPTNeoXConfig as HfGPTNeoXConfig, GPTNeoXForCausalLM
+from transformers.models.gpt_neox.modeling_gpt_neox import (
+    GPTNeoXAttention as HfAttention, GPTNeoXLayer as HfLayer,
+    GPTNeoXMLP as HfMLP, GPTNeoXRotaryEmbedding)
+
 from torch_nntile.nn.linear import linear_to_output_weight
+from torch_nntile.nn.model.gpt_neox import (
+    GPTNeoXAttention, GPTNeoXCausal, GPTNeoXConfig, GPTNeoXLayer, GPTNeoXMLP)
+from torch_nntile.nn.model.gpt_neox_hf_loader import (
+    gpt_neox_config_from_hf, load_hf_into_gpt_neox_causal)
+from torch_nntile.nn.model.hf_rope_layout import (
+    copy_linear, hf_to_nntile_fused_qkv_bias, hf_to_nntile_fused_qkv_weight)
 from torch_nntile.rope import rope_sin_cos_from_position_ids
-from transformers import GPTNeoXConfig as HfGPTNeoXConfig
-from transformers import GPTNeoXForCausalLM
-from transformers.models.gpt_neox.modeling_gpt_neox import (
-    GPTNeoXAttention as HfAttention,
-)
-from transformers.models.gpt_neox.modeling_gpt_neox import (
-    GPTNeoXLayer as HfLayer,
-)
-from transformers.models.gpt_neox.modeling_gpt_neox import (
-    GPTNeoXMLP as HfMLP,
-)
-from transformers.models.gpt_neox.modeling_gpt_neox import (
-    GPTNeoXRotaryEmbedding,
-)
 
 RTOL = 1e-4
 ATOL = 1e-4

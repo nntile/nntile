@@ -8,7 +8,7 @@
 """Short DiT training smoke: host patchify, then nntile(nntile) MSE.
 
 Host prep (patchify NCHW, integer timesteps) happens before ``.to("nntile")``.
-The nntile(nntile) model is ``torch_nntile.models.dit.DiT``.
+The nntile(nntile) model is ``torch_nntile.nn.model.dit.DiT``.
 
 Uses JSON config / checkpoint like ``train_llama.py``::
 
@@ -23,13 +23,10 @@ from pathlib import Path
 
 from dit_hf_tiny_train_common import make_synthetic_diffusion_batch
 from nntile_tiny_train_common import run_tiny_nntile_main
-from torch_nntile.models.dit import (
-    DiT,
-    DiTConfig,
-    nchw_to_unpatchify_tokens,
-    patchify_nchw,
-)
+
 from torch_nntile.nn.functional import add, mse_loss
+from torch_nntile.nn.model.dit import (
+    DiT, DiTConfig, nchw_to_unpatchify_tokens, patchify_nchw)
 
 
 def _default_config() -> Path:

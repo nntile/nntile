@@ -1,7 +1,7 @@
 # @copyright (c) 2026-present Skolkovo Institute of Science and Technology
 #                              (Skoltech), Russia. All rights reserved.
 #
-# @file torch_nntile/torch_nntile/models/llama.py
+# @file torch_nntile/torch_nntile/nn/model/llama.py
 # Llama causal LM for device="nntile".
 
 """Llama stack mirroring ``nntile::model::llama`` (RMSNorm, RoPE, SiLU MLP).
@@ -22,10 +22,10 @@ from torch import Tensor
 
 from torch_nntile import _C
 from torch_nntile.gemm import gemm
-from torch_nntile.models.gpt2_minimal import make_causal_sdpa_mask
 from torch_nntile.nn import Embedding, SiLU
 from torch_nntile.nn.functional import add, mul
 from torch_nntile.nn.linear import NntileLinear, prepare_sdpa_mask
+from torch_nntile.nn.model.gpt2_minimal import make_causal_sdpa_mask
 from torch_nntile.nn.sdpa import nntile_model_transpose, sdpa_kernel
 from torch_nntile.normalization import rms_norm
 

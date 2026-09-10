@@ -76,13 +76,19 @@ pre-commit run --all-files
 Uses ruff, isort, and standard pre-commit hooks. Configuration is in
 `.pre-commit-config.yaml` and `pyproject.toml`.
 
-### Graph API work (`graph_api` branch)
+### torch_nntile work (`torch_nntile` branch)
 
-Graph API is the main product path (still WIP): deferred TensorGraph →
-TileGraph → Runtime, exposed as `device=nntile` via torch_nntile. NNGraph and
-per-op eager graph execution are gone.
+**torch_nntile** is the product path: PyTorch `device=nntile` backed by
+**PyTorch autograd**. Ops record into TensorGraph → TileGraph → Runtime
+(StarPU). NNGraph / a separate NNTile autograd are gone.
 
-- **Overview:** [docs/graph.md](docs/graph.md)
+- Stock `torch.nn` / `F.*` on `device=nntile` — torch-native kernels (untiled)
+- `torch_nntile.nn.functional` — classic nntile autograd functions
+- `torch_nntile.nn.module` — classic nntile `nn.Module` subclasses
+- `torch_nntile.nn.model` — models built from those modules
+
+- **User docs:** [docs/torch_nntile.md](docs/torch_nntile.md)
+- **Execution backend:** [docs/graph.md](docs/graph.md)
 - **Design notes index:** [docs/dev/README.md](docs/dev/README.md)
 - **O(N) compiler design:** [docs/dev/graph_compiler_on_design.md](docs/dev/graph_compiler_on_design.md)
 - **Tensor / session semantics:** [docs/dev/torch_nntile_tensor_architecture.md](docs/dev/torch_nntile_tensor_architecture.md)
@@ -92,6 +98,6 @@ per-op eager graph execution are gone.
   (build+install libnntile → ctest against prefix → build+install
   libtorch_nntile → CI wheel → Python tests). No separate cmake-install
   jobs; tests do not rebuild the libraries.
-- **`torch_nntile` wheels:** cibuildwheel on PRs to `graph_api` /
+- **`torch_nntile` wheels:** cibuildwheel on PRs to `torch_nntile` /
   `workflow_dispatch`, with `tools/smoke_test_wheel.py`; see
   [torch_nntile/README.md](torch_nntile/README.md#prebuilt-wheels-001)

@@ -15,15 +15,9 @@ from conftest import nntile_cpu
 from parity_helpers import assert_close, contiguous_to_nntile
 
 import torch_nntile
-from torch_nntile.models.dit import (
-    DiT,
-    DiTConfig,
-    nchw_to_unpatchify_tokens,
-    patchify_nchw,
-    sincos_2d_pos_embed,
-    timestep_embedding_table,
-    unpatchify_nchw,
-)
+from torch_nntile.nn.model.dit import (
+    DiT, DiTConfig, nchw_to_unpatchify_tokens, patchify_nchw,
+    sincos_2d_pos_embed, timestep_embedding_table, unpatchify_nchw)
 
 pytestmark = pytest.mark.skipif(
     not getattr(torch_nntile, "NNTILE_NATIVE_OPS", False),
@@ -122,10 +116,8 @@ def _tiny_hf_dit():
 
 
 def test_dit_hf_forward_backward_parity():
-    from torch_nntile.models.dit_hf_loader import (
-        dit_config_from_hf,
-        load_hf_into_dit,
-    )
+    from torch_nntile.nn.model.dit_hf_loader import (
+        dit_config_from_hf, load_hf_into_dit)
 
     hf = _tiny_hf_dit()
     local = DiT(dit_config_from_hf(hf.config)).eval().float()

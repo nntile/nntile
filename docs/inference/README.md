@@ -4,7 +4,7 @@ NNTile inference spans three layers:
 
 1. **Library** — the installable [`torch_nntile`](../../torch_nntile/README.md)
    wheel, which registers PyTorch `device="nntile"` and model helpers under
-   [`torch_nntile/models/`](../../torch_nntile/models/)
+   [`torch_nntile.nn.model`](../../torch_nntile/torch_nntile/nn/model/)
 2. **Examples** — [`torch_nntile/examples/`](../../torch_nntile/examples/)
 3. **Services** — production-style **HTTP gateway** and **Telegram bot** in [`infra/`](../../infra/)
 
@@ -31,7 +31,7 @@ CMake/cibuildwheel flow documented in [build/README.md](../build/README.md).
 
 ### Model helpers
 
-`torch_nntile.models` includes PyTorch modules and Hugging Face loaders for
+`torch_nntile.nn.model` includes PyTorch modules and Hugging Face loaders for
 families such as BERT, RoBERTa, GPT-2, GPT-Neo, GPT-NeoX, Llama, T5, and
 MLP-Mixer. Tests under [`torch_nntile/tests/`](../../torch_nntile/tests/)
 cover model parity and supported `device="nntile"` operators.

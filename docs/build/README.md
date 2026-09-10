@@ -280,7 +280,7 @@ CXX=g++ pip install -e ./torch_nntile --no-build-isolation
 ## Build and test CI (layered)
 
 [`.github/workflows/build-test.yml`](../../.github/workflows/build-test.yml)
-runs on pushes/PRs to `main` and `graph_api`. On
+runs on pushes/PRs to `main` and `torch_nntile`. On
 `graph_api_torch_kernels` / `NNTILE_TORCH_NATIVE_OPS=ON`, libnntile links
 LibTorch (StarPU aten codelets) and CTest labels show progress of the
 torch-native stack:
@@ -317,7 +317,7 @@ Full pytest suites stay in **build-and-test**.
 
 | | |
 |-|-|
-| **Trigger** | Pull requests to `graph_api`, or `workflow_dispatch` |
+| **Trigger** | Pull requests to `torch_nntile`, or `workflow_dispatch` |
 | **Skipped when** | PR closed without merge |
 | **Tooling** | cibuildwheel + [`tools/build_wheel_deps.sh`](../../torch_nntile/tools/build_wheel_deps.sh) |
 | **Smoke** | `tools/smoke_test_wheel.py` (cibuildwheel `test-command`) |
@@ -328,8 +328,8 @@ Full pytest suites stay in **build-and-test**.
 | Goal | Action |
 |------|--------|
 | Build from a PR branch | Push to the PR (automatic) |
-| Build after landing changes | Merge PR into `graph_api` |
-| Rebuild without a merge | `gh workflow run torch-nntile-wheels.yml --ref graph_api` |
+| Build after landing changes | Merge PR into `torch_nntile` |
+| Rebuild without a merge | `gh workflow run torch-nntile-wheels.yml --ref torch_nntile` |
 | Download artifacts | `gh run download RUN_ID -D wheelhouse` |
 
 ### Matrix
@@ -379,7 +379,7 @@ do not. Import checks NVIDIA libs only when `built_with_cuda()` is true.
 ```bash
 gh run list --workflow=torch-nntile-wheels.yml --limit 5
 gh run download RUN_ID -D wheelhouse
-gh workflow run torch-nntile-wheels.yml --ref graph_api   # manual rebuild
+gh workflow run torch-nntile-wheels.yml --ref torch_nntile   # manual rebuild
 ```
 
 End-user install instructions:

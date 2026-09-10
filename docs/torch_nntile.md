@@ -1,8 +1,9 @@
 # torch_nntile
 
-PyTorch **PrivateUse1** backend registered as `device="nntile"`. Builds always
-link **libnntile**; selected ops record into a shared `TensorGraph`, lower to
-`TileGraph`, and run through `Runtime` (StarPU).
+PyTorch **PrivateUse1** backend registered as `device="nntile"`, backed by
+**PyTorch autograd**. Builds always link **libnntile**; selected ops record
+into a shared `TensorGraph`, lower to `TileGraph`, and run through
+`Runtime` (StarPU). There is no separate NNTile autograd.
 
 Two APIs in one wheel (CMake: `NNTILE_TORCH_NATIVE_OPS` and
 `NNTILE_NNTILE_NATIVE_OPS`, both default ON):
@@ -10,10 +11,14 @@ Two APIs in one wheel (CMake: `NNTILE_TORCH_NATIVE_OPS` and
 - Stock `torch.nn` / `F.*` on `device=nntile` — torch-native aten codelets,
   untiled (`NNTILE_TORCH_NATIVE_OPS` appends those sources to libnntile).
 - `torch_nntile.nn` — classic `nntile::kernel` ops; tiling allowed
-  (`NNTILE_NNTILE_NATIVE_OPS` gates torch_nntile wrappers). Classic
-  kernels themselves are libnntile’s default source lists. C++
-  `torch_nntile::models` are the nntile-native implementations (ports of
-  deleted `nntile::model::*`, not Hugging Face `torch.nn` rewrites).
+  (`NNTILE_NNTILE_NATIVE_OPS` gates torch_nntile wrappers):
+  - `torch_nntile.nn.functional` — autograd functions
+  - `torch_nntile.nn.module` — `torch.nn.Module` subclasses
+  - `torch_nntile.nn.model` — models built from those modules
+
+Classic kernels themselves are libnntile’s default source lists. C++
+`torch_nntile::models` are the nntile-native implementations (ports of
+deleted `nntile::model::*`, not Hugging Face `torch.nn` rewrites).
 
 Torch-native StarPU codelets call **only** public high-level ATen ops
 (`at::add_out`, `at::mm_out`, …). They do not call internal
@@ -31,7 +36,7 @@ CI builds `torch_nntile` 0.0.6 wheels via the **`torch_nntile wheels`** workflow
 
 | Trigger | When wheels build |
 |---------|-------------------|
-| **Pull request → `graph_api`** | On open/update (and on merge close) |
+| **Pull request → `torch_nntile`** | On open/update (and on merge close) |
 | **`workflow_dispatch`** | Maintainer runs manually (Actions UI or `gh workflow run`) |
 
 Closed PRs that were not merged are skipped.
@@ -54,7 +59,7 @@ gh run download RUN_ID -D wheelhouse
 Manual dispatch (write access required):
 
 ```bash
-gh workflow run torch-nntile-wheels.yml --ref graph_api
+gh workflow run torch-nntile-wheels.yml --ref torch_nntile
 ```
 
 Install the matching `torch` first, then the local wheel (see
@@ -456,10 +461,11 @@ pytest -vv torch_nntile/tests/test_graph_execution.py
 pytest -vv torch_nntile/tests/test_deep_relu_parity.py
 ```
 
-## Relation to C++ Graph API
+## Relation to the TensorGraph backend
 
-torch_nntile is the product front end for the same stack described in
+torch_nntile is the product front end for the execution stack described in
 [graph.md](graph.md): one session `TensorGraph` → `TileGraph` → `Runtime`.
+Autograd stays in PyTorch; the graph is the compute IR and StarPU executor.
 
 | libnntile / C++ | torch_nntile |
 |-----------------|--------------|

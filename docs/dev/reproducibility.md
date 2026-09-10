@@ -5,7 +5,7 @@ HuggingFace / CNN / DiT training on plain PyTorch vs `device=nntile`.
 Use it on any host (Cloud Agent CPU VM, GPU server, laptop) so walls stay
 comparable.
 
-Specialized `torch_nntile.models.*` stacks are **out of scope**: they are
+Specialized `torch_nntile.nn.model.*` stacks are **out of scope**: they are
 disabled under `NNTILE_TORCH_NATIVE_OPS`. Only stock modules that go through
 PrivateUse1 aten ops are measured.
 

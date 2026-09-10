@@ -9,7 +9,7 @@
 - **cuda** — PyTorch CUDA (`device=cuda`).
 - **nntile** (as backend) — StarPU / nntile (`device=nntile`).
 
-**There is no nntile(nntile) LeNet.** `torch_nntile.models` has no CNN
+**There is no nntile(nntile) LeNet.** `torch_nntile.nn.model` has no CNN
 ports; this study is only **HF(cuda)** vs **HF(nntile)**.
 
 Two setups, same configs / 10 steps:

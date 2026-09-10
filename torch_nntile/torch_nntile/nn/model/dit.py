@@ -1,7 +1,7 @@
 # @copyright (c) 2026-present Skolkovo Institute of Science and Technology
 #                              (Skoltech), Russia. All rights reserved.
 #
-# @file torch_nntile/torch_nntile/models/dit.py
+# @file torch_nntile/torch_nntile/nn/model/dit.py
 # DiT (AdaLN-Zero) for device="nntile" via torch_nntile.nn only.
 
 """Diffusers-style DiT on classic NNTile kernels (no new low-level ops).
@@ -22,13 +22,10 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from torch_nntile.nn import Embedding, GELU, LayerNorm, SiLU
+from torch_nntile.nn import GELU, Embedding, LayerNorm, SiLU
 from torch_nntile.nn.functional import add, mul, scale_slice
 from torch_nntile.nn.linear import (
-    NntileAttentionOutput,
-    NntileLinear,
-    NntileQKVProjection,
-)
+    NntileAttentionOutput, NntileLinear, NntileQKVProjection)
 from torch_nntile.nn.sdpa import sdpa_kernel
 
 _TIMESTEP_FREQ_DIM = 256

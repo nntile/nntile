@@ -6,14 +6,14 @@ backend.
 
 - **HF** — HuggingFace Transformers implementation (`transformers` 4.52;
   constraint `transformers<4.53`).
-- **nntile** (as implementation) — `torch_nntile.models`, based on
+- **nntile** (as implementation) — `torch_nntile.nn.model`, based on
   `torch_nntile.nn` operations and backed by hand-written nntile kernels.
 - **cuda** — PyTorch CUDA (`device=cuda`).
 - **nntile** (as backend) — StarPU / nntile (`device=nntile`).
 
 **HF(cuda)** is Transformers on CUDA. **HF(nntile)** is the same
 Transformers graph on `device=nntile`. **nntile(nntile)** is the
-`torch_nntile.models` rewrite on `device=nntile`.
+`torch_nntile.nn.model` rewrite on `device=nntile`.
 
 Three setups, same configs / seq_len / 10 steps:
 
@@ -22,7 +22,7 @@ Three setups, same configs / seq_len / 10 steps:
 2. **HF(nntile)** — same HF model on `device=nntile` (aten /
    torch-native StarPU codelets).
 3. **nntile(nntile)** —
-   `torch_nntile.models.llama.LlamaCausal` (hand-written nntile kernels). HF is used
+   `torch_nntile.nn.model.llama.LlamaCausal` (hand-written nntile kernels). HF is used
    only to init weights.
 
 Three-setup loss and wall: [Three setups](#three-setups). HF(cuda) / HF(nntile)

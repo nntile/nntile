@@ -15,39 +15,19 @@ pytest.importorskip("transformers")
 import torch
 from conftest import nntile_cpu
 from parity_helpers import (
-    additive_causal_mask,
-    additive_local_causal_mask,
-    assert_close,
-    contiguous_to_nntile,
-)
-from torch_nntile.models.gpt_neo import (
-    GPTNeoAttention,
-    GPTNeoBlock,
-    GPTNeoCausal,
-    GPTNeoConfig,
-    GPTNeoMLP,
-)
-from torch_nntile.models.gpt_neo_hf_loader import (
-    gpt_neo_config_from_hf,
-    load_hf_into_gpt_neo_causal,
-)
-from torch_nntile.models.hf_rope_layout import copy_linear
+    additive_causal_mask, additive_local_causal_mask, assert_close,
+    contiguous_to_nntile)
+from transformers import GPTNeoConfig as HfGPTNeoConfig, GPTNeoForCausalLM
+from transformers.models.gpt_neo.modeling_gpt_neo import (
+    GPTNeoAttention as HfAttention, GPTNeoBlock as HfBlock, GPTNeoMLP as HfMLP)
+
 from torch_nntile.nn.linear import (
-    linear_to_output_weight,
-    linear_to_qkv_weight,
-    qkv_to_linear_weight,
-)
-from transformers import GPTNeoConfig as HfGPTNeoConfig
-from transformers import GPTNeoForCausalLM
-from transformers.models.gpt_neo.modeling_gpt_neo import (
-    GPTNeoAttention as HfAttention,
-)
-from transformers.models.gpt_neo.modeling_gpt_neo import (
-    GPTNeoBlock as HfBlock,
-)
-from transformers.models.gpt_neo.modeling_gpt_neo import (
-    GPTNeoMLP as HfMLP,
-)
+    linear_to_output_weight, linear_to_qkv_weight, qkv_to_linear_weight)
+from torch_nntile.nn.model.gpt_neo import (
+    GPTNeoAttention, GPTNeoBlock, GPTNeoCausal, GPTNeoConfig, GPTNeoMLP)
+from torch_nntile.nn.model.gpt_neo_hf_loader import (
+    gpt_neo_config_from_hf, load_hf_into_gpt_neo_causal)
+from torch_nntile.nn.model.hf_rope_layout import copy_linear
 
 RTOL = 1e-4
 ATOL = 1e-4

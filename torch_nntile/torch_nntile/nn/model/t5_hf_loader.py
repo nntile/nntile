@@ -1,7 +1,7 @@
 # @copyright (c) 2026-present Skolkovo Institute of Science and Technology
 #                              (Skoltech), Russia. All rights reserved.
 #
-# @file torch_nntile/torch_nntile/models/t5_hf_loader.py
+# @file torch_nntile/torch_nntile/nn/model/t5_hf_loader.py
 # Convert weights between HuggingFace T5 and torch_nntile T5.
 
 """Bidirectional HF <-> NNTile weight conversion for T5.
@@ -14,19 +14,15 @@ FF weights; callers should disable HF relative bias before comparing forwards
 from __future__ import annotations
 
 import torch
-from transformers import T5Config as HfT5Config
 from transformers import (
-    T5ForConditionalGeneration as HfT5ForConditionalGeneration,
-)
+    T5Config as HfT5Config,
+    T5ForConditionalGeneration as HfT5ForConditionalGeneration)
 
-from torch_nntile.models.hf_rope_layout import copy_linear
 from torch_nntile.nn.linear import (
-    linear_to_output_weight,
-    linear_to_qkv_weight,
-    output_to_linear_weight,
-    qkv_to_linear_weight,
-)
-from torch_nntile.models.t5 import T5Config, T5ForConditionalGeneration
+    linear_to_output_weight, linear_to_qkv_weight, output_to_linear_weight,
+    qkv_to_linear_weight)
+from torch_nntile.nn.model.hf_rope_layout import copy_linear
+from torch_nntile.nn.model.t5 import T5Config, T5ForConditionalGeneration
 
 
 def t5_config_from_hf(hf: HfT5Config) -> T5Config:

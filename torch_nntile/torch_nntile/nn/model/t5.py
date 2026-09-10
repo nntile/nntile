@@ -1,7 +1,7 @@
 # @copyright (c) 2026-present Skolkovo Institute of Science and Technology
 #                              (Skoltech), Russia. All rights reserved.
 #
-# @file torch_nntile/torch_nntile/models/t5.py
+# @file torch_nntile/torch_nntile/nn/model/t5.py
 # T5 encoder-decoder for device="nntile".
 
 """Simplified T5 mirroring ``nntile::model::t5``."""
@@ -15,7 +15,7 @@ import torch.nn as nn
 from torch import Tensor
 
 from torch_nntile.gemm import gemm
-from torch_nntile.nn import Embedding, GELU, ReLU
+from torch_nntile.nn import GELU, Embedding, ReLU
 from torch_nntile.nn.functional import add, mul, mul_scalar
 from torch_nntile.nn.linear import NntileLinear, prepare_sdpa_mask
 from torch_nntile.nn.sdpa import nntile_model_transpose, sdpa_kernel

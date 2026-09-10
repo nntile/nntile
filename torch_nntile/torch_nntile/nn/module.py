@@ -1,8 +1,13 @@
 # @copyright (c) 2026-present Skolkovo Institute of Science and Technology
 #                              (Skoltech), Russia. All rights reserved.
 #
-# @file torch_nntile/torch_nntile/nn/modules.py
-"""``torch.nn``-style modules backed by classic NNTile kernels."""
+# @file torch_nntile/torch_nntile/nn/module.py
+"""``torch.nn.Module`` subclasses backed by classic NNTile kernels.
+
+Import from :mod:`torch_nntile.nn.module` (or :mod:`torch_nntile.nn`).
+Autograd functions live in :mod:`torch_nntile.nn.functional`. Models built
+from these modules live in :mod:`torch_nntile.nn.model`.
+"""
 
 from __future__ import annotations
 
@@ -15,8 +20,11 @@ from torch import Tensor
 from torch_nntile.loss import cross_entropy as _cross_entropy
 from torch_nntile.nn.activations import gelu, relu, silu
 from torch_nntile.nn.embedding import embedding as _embedding
-from torch_nntile.nn.linear import NntileLinear
+from torch_nntile.nn.linear import (
+    NntileAttentionOutput as NntileAttentionOutput,
+    NntileLinear as NntileLinear, NntileQKVProjection as NntileQKVProjection)
 from torch_nntile.nn.norm import layer_norm, rms_norm
+from torch_nntile.nn.sdpa import SDPA as SDPA
 
 
 class Linear(NntileLinear):
@@ -158,7 +166,11 @@ __all__ = [
     "GELU",
     "LayerNorm",
     "Linear",
+    "NntileAttentionOutput",
+    "NntileLinear",
+    "NntileQKVProjection",
     "RMSNorm",
     "ReLU",
+    "SDPA",
     "SiLU",
 ]

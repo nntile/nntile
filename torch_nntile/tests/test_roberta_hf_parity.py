@@ -15,46 +15,22 @@ pytest.importorskip("transformers")
 import torch
 from conftest import nntile_cpu
 from parity_helpers import assert_close, contiguous_to_nntile, copy_linear
-from torch_nntile.models.bert import (
-    BertAttention,
-    BertIntermediate,
-    BertLayer,
-    BertSelfAttention,
-)
-from torch_nntile.models.roberta import (
-    RobertaConfig,
-    RobertaEmbeddings,
-    RobertaMlm,
-    RobertaMlmHead,
-)
-from torch_nntile.models.roberta_hf_loader import (
-    export_roberta_mlm_to_hf_state_dict,
-    load_hf_into_roberta_mlm,
-    roberta_config_from_hf,
-)
+from transformers import RobertaConfig as HfRobertaConfig, RobertaForMaskedLM
+from transformers.models.roberta.modeling_roberta import (
+    RobertaAttention as HfAttention, RobertaEmbeddings as HfEmbeddings,
+    RobertaIntermediate as HfIntermediate, RobertaLayer as HfLayer,
+    RobertaSelfAttention as HfSelfAttention)
+
 from torch_nntile.nn.linear import (
-    linear_to_output_weight,
-    linear_to_qkv_bias,
-    linear_to_qkv_weight,
-    qkv_to_linear_weight,
-)
-from transformers import RobertaConfig as HfRobertaConfig
-from transformers import RobertaForMaskedLM
-from transformers.models.roberta.modeling_roberta import (
-    RobertaAttention as HfAttention,
-)
-from transformers.models.roberta.modeling_roberta import (
-    RobertaEmbeddings as HfEmbeddings,
-)
-from transformers.models.roberta.modeling_roberta import (
-    RobertaIntermediate as HfIntermediate,
-)
-from transformers.models.roberta.modeling_roberta import (
-    RobertaLayer as HfLayer,
-)
-from transformers.models.roberta.modeling_roberta import (
-    RobertaSelfAttention as HfSelfAttention,
-)
+    linear_to_output_weight, linear_to_qkv_bias, linear_to_qkv_weight,
+    qkv_to_linear_weight)
+from torch_nntile.nn.model.bert import (
+    BertAttention, BertIntermediate, BertLayer, BertSelfAttention)
+from torch_nntile.nn.model.roberta import (
+    RobertaConfig, RobertaEmbeddings, RobertaMlm, RobertaMlmHead)
+from torch_nntile.nn.model.roberta_hf_loader import (
+    export_roberta_mlm_to_hf_state_dict, load_hf_into_roberta_mlm,
+    roberta_config_from_hf)
 
 RTOL = 1e-4
 ATOL = 1e-4
