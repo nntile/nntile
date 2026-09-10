@@ -37,7 +37,7 @@ write-up (layers, dump commands, worked examples):
 | CUDA pattern | What nntile should do |
 |--------------|------------------------|
 | Device kernel (`RegisterCUDA` / structured `.out`) | PrivateUse1 device impl; Autograd stays on generic VariableType |
-| `CompositeImplicitAutograd` (`chunk`, `narrow`, `linear`, `matmul`, …) | **Do not** register PrivateUse1 — let the composite lower to primitives (`as_strided`, `addmm`, `mm`, …) |
+| `CompositeImplicitAutograd` (`chunk`, `narrow`, `linear`, `matmul`, `layer_norm`, …) | **Do not** register PrivateUse1 — let the composite lower to primitives (`as_strided`, `addmm`, `mm`, …) |
 | `CompositeExplicitAutograd` shared default (`select.int`, `alias`, …) | Prefer composite unless nntile storage needs a hook (`as_strided` / `alias` for `TensorRef`) |
 | AutogradCUDA = VariableType formula (e.g. `rsqrt` → `result.pow(3)`) | **Do not** register AutogradPrivateUse1; implement the formula’s device ops (`pow`) |
 
@@ -77,9 +77,10 @@ Intentional deviations (nntile storage / StarPU):
 
 `rms_norm` is not an intentional deviation: CUDA leaves it as
 CompositeImplicitAutograd, so `device=nntile` does the same and relies on
-the primitive ops (`pow` / `mean` / `rsqrt` / `mul`). LayerNorm remains fused
-through `native_layer_norm` because PyTorch has that device primitive and
-single-pass mean+variance matters.
+the primitive ops (`pow` / `mean` / `rsqrt` / `mul`). Stock
+`F.layer_norm` / `nn.LayerNorm` is the same: do **not** register
+`native_layer_norm` so the composite can lower. Classic
+`torch_nntile.nn` LayerNorm is separate.
 
 Known gap vs CUDA view backward: ~~nntile→nntile `_copy_from` rebinds
 `TensorRef` (SSA) instead of writing the parent at `storage_offset`.~~
@@ -123,7 +124,8 @@ Also: `contiguous` on **AutogradPrivateUse1**, and a boxed **`cpu_fallback`**
 for unregistered ops when `cpu_fallback=True`.
 
 Not registered (CUDA composite → our primitives): `narrow`, `select.int`,
-`chunk`, `split` / `split_with_sizes`, `linear`, `matmul`.
+`chunk`, `split` / `split_with_sizes`, `linear`, `matmul`, `layer_norm` /
+`native_layer_norm`.
 
 ### Elementwise / reductions / norms
 
@@ -163,7 +165,6 @@ register `linear` / `matmul` (CUDA CompositeImplicit → `addmm` / `mm`).
 
 | File | Schemas |
 |------|---------|
-| `nntile_layer_norm.cpp` | `native_layer_norm`, `native_layer_norm_backward` |
 | `nntile_batch_norm.cpp` | `native_batch_norm`, `native_batch_norm_backward` |
 | `nntile_embedding.cpp` | `embedding`, `embedding_dense_backward` |
 | `nntile_cat.cpp` | `cat`, `cat.out` |

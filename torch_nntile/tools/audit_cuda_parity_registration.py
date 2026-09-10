@@ -66,6 +66,8 @@ def main() -> int:
         "linear",
         "matmul",
         "rms_norm",
+        "layer_norm",
+        "native_layer_norm",
         "chunk",
         "split",
         "narrow",

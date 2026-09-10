@@ -363,8 +363,8 @@ Specialized codelets:
 | `torch_embedding` | `embedding.out` | weight `R`, indices `R`, out `W` |
 | `torch_embedding_dense_backward` | `embedding_dense_backward.out` | grad `R`, indices `R`, grad_weight `W` |
 | `torch_cat` | `cat.out` | each input `R`, out `W` |
-| `torch_layer_norm` | `native_layer_norm.out` (D9) | input `R`; optional weight/bias `R`; out / mean / rstd `W` |
-| `torch_layer_norm_backward` | `native_layer_norm_backward.out` (D9) | grad_out / input / mean / rstd `R`; optional weight `R`; needed grad outs `W` |
+| `torch_layer_norm` | `native_layer_norm.out` (D9; unused from stock `F.layer_norm`) | input `R`; optional weight/bias `R`; out / mean / rstd `W` |
+| `torch_layer_norm_backward` | `native_layer_norm_backward.out` (D9; unused from stock `F.layer_norm`) | grad_out / input / mean / rstd `R`; optional weight `R`; needed grad outs `W` |
 | `torch_sdpa_backward` | flash-CPU bwd; CUDA: efficient (math fallback) | q / k / v / grad_out `R`; optional mask `R`; grad_q / grad_k / grad_v `W` |
 | `torch_nll_loss_forward` | `nll_loss_forward.output` | log_probs `R`, target `R`, loss `W`, total_weight `W` |
 | `torch_nll_loss_backward` | `nll_loss_backward.grad_input` | grad_output / log_probs / target / total_weight `R`, grad_input `W` |
@@ -448,17 +448,15 @@ User call (requires_grad possible)
 | `AutogradCUDA` = same CompositeImplicit | Autograd *is* the decomposition | Same as composite forward — no PrivateUse1 override. |
 
 `AutogradPrivateUse1` is **rare**. Use it only when the generic path is wrong
-for nntile storage (today: `contiguous` densify under autograd) or when a
-documented fused op must replace a host/device-breaking decomposition
-(LayerNorm via `native_layer_norm`). Do **not** use it to reimplement a
-VariableType formula (that was the `rsqrt` mistake).
+for nntile storage (today: `contiguous` densify under autograd). Do **not**
+use it to reimplement a VariableType formula (that was the `rsqrt`
+mistake).
 
-**RMSNorm matches CUDA:** `aten::rms_norm` is CompositeImplicitAutograd and
-has no `native_rms_norm` device primitive. Leave it unregistered for
-PrivateUse1 / AutogradPrivateUse1 so it decomposes through
-`pow` / `mean` / `rsqrt` / `mul`, as CUDA does. LayerNorm remains fused via
-`native_layer_norm` because that device primitive exists and the single-pass
-mean+variance computation matters.
+**RMSNorm and LayerNorm:** leave `rms_norm` and `native_layer_norm`
+unregistered. Stock `F.layer_norm` / `nn.LayerNorm` then uses PyTorch’s
+composite and lowers through `mean` / `sub` / `mul` / `add` / `rsqrt`,
+the same idea as CompositeImplicit `rms_norm`. Classic `torch_nntile.nn`
+LayerNorm is unchanged.
 
 ### Missing fused ops
 
@@ -467,7 +465,7 @@ StarPU `TorchKind` (or whose stock path is host / unfused today):
 
 | Gap | Why it matters | Suggested schema |
 |-----|----------------|------------------|
-| `native_group_norm` (+ bwd) | ViT / ConvNeXt / some CNNs; `group_norm` is CompositeImplicit → this primitive | PrivateUse1 like LayerNorm |
+| `native_group_norm` (+ bwd) | ViT / ConvNeXt / some CNNs; `group_norm` is CompositeImplicit → this primitive | leave unregistered (same as LayerNorm) |
 | `native_dropout` (+ bwd) | Training noise; `dropout` is CompositeImplicit | device primitive |
 | Softplus / Mish / PReLU | Less common activations; Softplus/Mish are device schemas, PReLU CompositeImplicit | low priority |
 
@@ -489,7 +487,7 @@ Not “fused,” but still leave StarPU for composite leftovers:
   through the CUDA-like composite path.
 - General `pow`, `div.Tensor`, `where` — host fallback except `pow` exp 2/3 via mul
 
-Already fused on this path: `NativeLayerNorm`, SDPA overrideable,
+Already fused on this path: SDPA overrideable,
 softmax / NLL, CNN conv/pool/batch_norm, silu/gelu/relu.
 
 ### Worked examples

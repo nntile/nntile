@@ -93,7 +93,6 @@ set(TORCH_NNTILE_CSRC_ATEN
     csrc/nntile_bmm.cpp
     csrc/nntile_addmm.cpp
     csrc/nntile_sum.cpp
-    csrc/nntile_layer_norm.cpp
     csrc/nntile_embedding.cpp
     csrc/nntile_sdpa_aten.cpp
     csrc/nntile_sub.cpp

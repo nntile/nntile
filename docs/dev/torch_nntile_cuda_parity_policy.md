@@ -25,10 +25,9 @@ classic builds). Do **not** monkey-patch stock ``torch.nn.functional``.
 1. **Storage / views / I/O** — `empty`, `as_strided`, `alias`, `_copy_from`,
    `contiguous` (densify partial covers), `_local_scalar_dense`, etc.
 2. **CUDA device primitives** where PyTorch registers a real device kernel on
-   CUDA (`native_layer_norm`, `mm`, `gelu`, …) — PrivateUse1 impl must call
-   the **same** `aten::*` inside a StarPU codelet with **identical** tensor
-   layouts/strides as CUDA (no legacy NNLayerNorm reduced-stats layout, no
-   blanket `contiguous()` in the wrapper).
+   CUDA (`mm`, `gelu`, …) — PrivateUse1 impl must call the **same**
+   `aten::*` inside a StarPU codelet with **identical** tensor
+   layouts/strides as CUDA (no blanket `contiguous()` in the wrapper).
 3. **Explicit `cpu_fallback`** — unregistered schemas only when
    `init_context(cpu_fallback=True)`; not the default training path.
 
@@ -36,21 +35,18 @@ classic builds). Do **not** monkey-patch stock ``torch.nn.functional``.
 
 | Pattern | CUDA | nntile rule |
 |---------|------|-------------|
-| `CompositeImplicitAutograd` (`linear`, `matmul`, `chunk`, `narrow`, `rms_norm`, …) | Composite lowers to primitives | **Do not** register PrivateUse1 |
+| `CompositeImplicitAutograd` (`linear`, `matmul`, `chunk`, `narrow`, `rms_norm`, `layer_norm`, …) | Composite lowers to primitives | **Do not** register PrivateUse1 |
 | VariableType-only autograd (`rsqrt` → `pow`) | No custom AutogradCUDA kernel | **Do not** register AutogradPrivateUse1 |
 | Classic NNTile tiled ops (`gemm`, `rope`, `sum_slice`, …) | N/A | **`torch_nntile.nn.functional` only** |
 | Host-only reimplementations (`div`, `where`, … in `nntile_host_aten.cpp`) | CUDA device kernels | **Remove or replace** with torch-native StarPU aten codelets |
 
-## LayerNorm parity (fixed Aug 2026)
+## LayerNorm (composite, Sep 2026)
 
-Previous `nntile_layer_norm.cpp` forced `.contiguous()` and allocated **reduced**
-(non-keepdim) mean/rstd buffers (legacy `NNLayerNormOp`). CUDA uses keepdim
-`[..., 1]` stats and accepts strided inputs. The PrivateUse1 wrapper now:
-
-- passes tensors with their **actual strides** into `pack_tensor_layout`;
-- allocates mean/rstd with **keepdim** shapes matching CUDA;
-- lets the StarPU codelet call public `at::native_layer_norm_out`
-  (D9: no DispatchStub `LayerNormKernel`).
+Do **not** register PrivateUse1 `native_layer_norm` /
+`native_layer_norm_backward`. Stock `F.layer_norm` / `nn.LayerNorm` then
+stays on PyTorch’s composite path and lowers to the same primitives as
+`rms_norm` (`mean` / `sub` / `mul` / `add` / `rsqrt`). Classic
+`torch_nntile.nn` LayerNorm is unchanged.
 
 ## Layout / densification policy (Aug 2026)
 
@@ -75,7 +71,7 @@ Run before adding a new PrivateUse1 registration:
 
 ```bash
 python3 torch_nntile/tools/audit_cuda_parity_registration.py \
-  --ops native_layer_norm linear rms_norm contiguous
+  --ops layer_norm native_layer_norm linear rms_norm contiguous
 ```
 
 Compare `torch._C._dispatch_dump_table("aten::OP")` before and after
@@ -84,7 +80,7 @@ regressions unless documented.
 
 ## Migration checklist (ongoing)
 
-- [x] LayerNorm: CUDA keepdim stats, no wrapper `contiguous()`
+- [x] LayerNorm: unregistered; composite lowers to mean/sub/mul/rsqrt
 - [x] `torch_nntile.nn.functional` namespace for classic `_C` ops (`kernels` alias)
 - [x] `pow` / `div` / `triu` host wrappers call matching `aten::*_out` codelets
 - [x] Remove blanket `contiguous()` from unary/binary PrivateUse1 wrappers (mul, trig, …)
