@@ -373,7 +373,7 @@ Specialized codelets:
 | `torch_max_pool2d_with_indices` | `max_pool2d_with_indices.out` | input `R`, out `W`, indices `W` |
 | `torch_max_pool2d_with_indices_backward` | `max_pool2d_with_indices_backward.grad_input` | grad_out / input / indices `R`, grad_input `W` |
 | `torch_native_batch_norm` | `native_batch_norm.out` | input `R`; optional weight/bias `R`; running stats `RW` when training; out / saved stats `W` |
-| `torch_native_batch_norm_backward` | `native_batch_norm_backward.out` | grad_out / input / optional stats `R`; needed grad outs `W` |
+| `torch_native_batch_norm_backward` | `native_batch_norm_backward` functional + `copy_` into needed grads (D9; autogen `.out` rejects unused outs) | grad_out / input / optional stats `R`; needed grad outs `W` |
 
 Classic I/O kept on this path (not torch-native compute, but same rules):
 
@@ -452,11 +452,16 @@ for nntile storage (today: `contiguous` densify under autograd). Do **not**
 use it to reimplement a VariableType formula (that was the `rsqrt`
 mistake).
 
-**RMSNorm and LayerNorm:** leave `rms_norm` and `native_layer_norm`
-unregistered. Stock `F.layer_norm` / `nn.LayerNorm` then uses PyTorch’s
-composite and lowers through `mean` / `sub` / `mul` / `add` / `rsqrt`,
-the same idea as CompositeImplicit `rms_norm`. Classic `torch_nntile.nn`
-LayerNorm is unchanged.
+**RMSNorm:** leave `rms_norm` unregistered (CompositeImplicit → `pow` /
+`mean` / `rsqrt` / `mul`).
+
+**LayerNorm:** leave `native_layer_norm` unregistered. CompositeExplicit
+is `math_native_layer_norm` → reshape + `native_batch_norm` + affine,
+not the RMSNorm formula. `native_layer_norm_backward` has no composite
+in core, so PrivateUse1 registers math that calls
+`native_batch_norm_backward` (`nntile_layer_norm_backward.cpp`). Do not
+route stock `F.layer_norm` through fused StarPU `torch_layer_norm`
+codelets. Classic `torch_nntile.nn` LayerNorm is unchanged.
 
 ### Missing fused ops
 

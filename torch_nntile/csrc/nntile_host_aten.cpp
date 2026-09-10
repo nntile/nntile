@@ -711,6 +711,38 @@ at::Tensor &masked_fill__scalar(
     return self;
 }
 
+at::Tensor addcmul_tensor(
+    const at::Tensor &self,
+    const at::Tensor &tensor1,
+    const at::Tensor &tensor2,
+    const at::Scalar &value)
+{
+    nntile::GraphFillScope record;
+    require_nntile_operand(self, "addcmul", "self");
+    require_nntile_operand(tensor1, "addcmul", "tensor1");
+    require_nntile_operand(tensor2, "addcmul", "tensor2");
+    at::Tensor prod = at::mul(tensor1, tensor2);
+    if (value.to<double>() != 1.0)
+    {
+        prod = at::mul(prod, value);
+    }
+    return at::add(self, prod);
+}
+
+at::Tensor &addcmul_out(
+    const at::Tensor &self,
+    const at::Tensor &tensor1,
+    const at::Tensor &tensor2,
+    const at::Scalar &value,
+    at::Tensor &out)
+{
+    nntile::GraphFillScope record;
+    require_nntile_operand(out, "addcmul.out", "out");
+    at::Tensor tmp = addcmul_tensor(self, tensor1, tensor2, value);
+    out.copy_(tmp);
+    return out;
+}
+
 } // namespace torch_nntile
 
 TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
@@ -752,4 +784,6 @@ TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
     m.impl(
         "masked_fill_.Scalar",
         TORCH_FN(torch_nntile::masked_fill__scalar));
+    m.impl("addcmul", TORCH_FN(torch_nntile::addcmul_tensor));
+    m.impl("addcmul.out", TORCH_FN(torch_nntile::addcmul_out));
 }

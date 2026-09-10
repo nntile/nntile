@@ -78,8 +78,10 @@ Intentional deviations (nntile storage / StarPU):
 `rms_norm` is not an intentional deviation: CUDA leaves it as
 CompositeImplicitAutograd, so `device=nntile` does the same and relies on
 the primitive ops (`pow` / `mean` / `rsqrt` / `mul`). Stock
-`F.layer_norm` / `nn.LayerNorm` is the same: do **not** register
-`native_layer_norm` so the composite can lower. Classic
+`F.layer_norm` / `nn.LayerNorm` is different: do **not** register
+`native_layer_norm` so CompositeExplicit `math_native_layer_norm` can
+lower to `native_batch_norm`. Register math
+`native_layer_norm_backward` (no composite in core). Classic
 `torch_nntile.nn` LayerNorm is separate.
 
 Known gap vs CUDA view backward: ~~nntile→nntile `_copy_from` rebinds
@@ -125,7 +127,7 @@ for unregistered ops when `cpu_fallback=True`.
 
 Not registered (CUDA composite → our primitives): `narrow`, `select.int`,
 `chunk`, `split` / `split_with_sizes`, `linear`, `matmul`, `layer_norm` /
-`native_layer_norm`.
+`native_layer_norm` (backward is registered; see below).
 
 ### Elementwise / reductions / norms
 
@@ -166,6 +168,7 @@ register `linear` / `matmul` (CUDA CompositeImplicit → `addmm` / `mm`).
 | File | Schemas |
 |------|---------|
 | `nntile_batch_norm.cpp` | `native_batch_norm`, `native_batch_norm_backward` |
+| `nntile_layer_norm_backward.cpp` | `native_layer_norm_backward` (math via BN backward) |
 | `nntile_embedding.cpp` | `embedding`, `embedding_dense_backward` |
 | `nntile_cat.cpp` | `cat`, `cat.out` |
 | `nntile_trig.cpp` | `cos`, `sin`, `neg`, `rsqrt`, `exp` (+ `.out`) |

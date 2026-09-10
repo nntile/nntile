@@ -135,7 +135,7 @@ remains a separate custom API for NNTile-layout SDPA.
 | `F.linear` / `nn.Linear` | `tensor::gemm` (+ `add_fiber_inplace` / `sum_fiber` when bias is set) |
 | `F.relu` / `nn.ReLU` | `tensor::relu` |
 | ReLU backward | `tensor::relu_backward(alpha, x, dy, beta, dx)` (`beta=0` → `STARPU_W`) |
-| `F.layer_norm` / `nn.LayerNorm` | composite (`mean` / `sub` / `mul` / `rsqrt`); classic `torch_nntile.nn` uses tiled LN |
+| `F.layer_norm` / `nn.LayerNorm` | composite forward (`native_batch_norm`); math `native_layer_norm_backward`; classic `torch_nntile.nn` uses tiled LN |
 | `F.rms_norm` / `nn.RMSNorm` | custom autograd + `rms_norm_forward` / `rms_norm_backward` |
 | `torch.linalg.vector_norm` (ord=2) | forward only via `norm_forward`; errors if `requires_grad` and grad mode is on; use under `torch.no_grad()` |
 | `F.silu` / `nn.SiLU` | `tensor::silu` |

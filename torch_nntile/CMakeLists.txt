@@ -105,6 +105,7 @@ set(TORCH_NNTILE_CSRC_ATEN
     csrc/nntile_upsample2d.cpp
     csrc/nntile_convolution.cpp
     csrc/nntile_batch_norm.cpp
+    csrc/nntile_layer_norm_backward.cpp
     csrc/nntile_broadcast_torch_native.cpp
 )
 

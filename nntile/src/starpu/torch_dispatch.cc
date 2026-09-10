@@ -4362,23 +4362,38 @@ void TorchNativeBatchNormBackward::cpu(
         std::array<bool, 3> output_mask = {need_gi, need_gw, need_gb};
         at::AutoDispatchBelowADInplaceOrView guard;
         at::NoGradGuard no_grad;
-        at::Tensor gi = need_gi ? grad_input : unused_fp32(grad_out);
-        at::Tensor gw = need_gw ? grad_weight : unused_fp32(grad_out);
-        at::Tensor gb = need_gb ? grad_bias : unused_fp32(grad_out);
-        at::native_batch_norm_backward_out(
-            gi,
-            gw,
-            gb,
+        // Autogen native_batch_norm_backward.out rejects both empty
+        // throwaways and undefined unused outs. Use functional + copy_
+        // into the grads the mask actually requested (D9).
+        auto result = at::native_batch_norm_backward(
             grad_out,
             input,
             has_w ? c10::optional<at::Tensor>(weight) : c10::nullopt,
-            has_rm ? c10::optional<at::Tensor>(running_mean) : c10::nullopt,
-            has_rv ? c10::optional<at::Tensor>(running_var) : c10::nullopt,
+            has_rm
+                ? c10::optional<at::Tensor>(running_mean)
+                : c10::nullopt,
+            has_rv
+                ? c10::optional<at::Tensor>(running_var)
+                : c10::nullopt,
             has_sm ? c10::optional<at::Tensor>(save_mean) : c10::nullopt,
-            has_si ? c10::optional<at::Tensor>(save_invstd) : c10::nullopt,
+            has_si
+                ? c10::optional<at::Tensor>(save_invstd)
+                : c10::nullopt,
             training,
             static_cast<double>(args->scalars[1]),
             output_mask);
+        if (need_gi)
+        {
+            grad_input.copy_(std::get<0>(result));
+        }
+        if (need_gw)
+        {
+            grad_weight.copy_(std::get<1>(result));
+        }
+        if (need_gb)
+        {
+            grad_bias.copy_(std::get<2>(result));
+        }
     }
     catch (const std::exception &ex)
     {
