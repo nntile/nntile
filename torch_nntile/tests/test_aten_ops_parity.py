@@ -221,6 +221,13 @@ def test_layer_norm_no_affine_matches_cpu_forward_backward():
     )
 
 
+def test_layer_norm_backward_uses_subops_not_fused():
+    torch.manual_seed(0)
+    x = torch.randn(2, 4, 8, dtype=torch.float32, requires_grad=True)
+    y = F.layer_norm(x.to("nntile"), (8,), eps=1e-5)
+    assert type(y.grad_fn).__name__ != "NativeLayerNormBackward0"
+
+
 @pytest.mark.parametrize(
     "name,make_inputs,op",
     [

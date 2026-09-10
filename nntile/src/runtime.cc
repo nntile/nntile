@@ -36,6 +36,7 @@
 #include <chrono>
 #include <cstring>
 #include <stdexcept>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -1115,9 +1116,14 @@ void Runtime::eliminate_dead_ops()
     };
 
     // Seed from tiles whose logical still has a live TensorRef.
+    // TILE_UNREGISTER is recorded when that TensorRef is already gone;
+    // the StarPU handle stays until this op runs, so seed its inputs
+    // even though tile_logical_is_live is false.
     for (size_t i = pending_begin; i < n; ++i)
     {
         auto const &op = execution_order_[i];
+        bool const unregister =
+            op->op_name() == "TILE_UNREGISTER";
         for (TNode out : op->outputs())
         {
             if (out != nullptr && tile_logical_is_live(out))
@@ -1127,7 +1133,8 @@ void Runtime::eliminate_dead_ops()
         }
         for (TNode in : op->inputs())
         {
-            if (in != nullptr && tile_logical_is_live(in))
+            if (in != nullptr &&
+                (unregister || tile_logical_is_live(in)))
             {
                 seed_tile(in);
             }
@@ -1212,6 +1219,16 @@ void Runtime::eliminate_dead_ops()
     }
     execution_order_.resize(write);
     live_tile_nodes_ = std::move(live_data);
+}
+
+std::string Runtime::execution_op_name(size_t i) const
+{
+    if (i >= execution_order_.size())
+    {
+        throw std::out_of_range(
+            "Runtime::execution_op_name: index");
+    }
+    return execution_order_[i]->op_name();
 }
 
 void Runtime::wait()

@@ -269,6 +269,63 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "DCE keeps TILE_UNREGISTER after TensorRef drop",
+    "[graph][tile]")
+{
+    TensorGraph tg("dce_unreg");
+    nntile::TensorRef x = tg.data({2}, DataType::FP32);
+        x->set_name("x");
+    nntile::TensorRef y = nntile::TensorRef::adopt(gt::scale(2.0f, x));
+    y->set_name("y");
+    nntile::TensorRef z = nntile::TensorRef::adopt(gt::scale(3.0f, x));
+    z->set_name("z");
+
+    TensorGraph::PhaseSnapshot p1 = tg.seal_phase();
+    TileGraph tile("t_dce_unreg");
+    TileGraphIncrementalState st;
+    TensorNodeToTileMap tm;
+    append_tensor_graph_phase(
+        tg, p1, TensorGraphTiling::from_tensor_graph(tg), tile, st, tm);
+
+    Runtime rt(tile);
+    rt.compile();
+    rt.bind_data(x, std::vector<float>{1.f, 2.f});
+    size_t const n1 = rt.execution_op_count();
+    rt.execute();
+    rt.wait();
+
+    TensorGraph::TensorNode *y_raw = y.get();
+    y = nntile::TensorRef{};
+    nntile::TensorRef w = nntile::TensorRef::adopt(gt::scale(4.0f, z));
+    w->set_name("w");
+    TensorGraph::PhaseSnapshot p2 = tg.seal_phase();
+    append_tensor_graph_phase(
+        tg, p2, TensorGraphTiling::from_tensor_graph(tg), tile, st, tm);
+
+    rt.compile();
+    bool saw_unreg = false;
+    for (size_t i = n1; i < rt.execution_op_count(); ++i)
+    {
+        if (rt.execution_op_name(i) == "TILE_UNREGISTER")
+        {
+            saw_unreg = true;
+            break;
+        }
+    }
+    REQUIRE(saw_unreg);
+
+    rt.execute_range(n1, rt.execution_op_count());
+    rt.wait();
+    std::unordered_map<TensorGraph::TensorNode const *,
+        std::vector<std::shared_ptr<void>>>
+        after;
+    rt.export_all_tiles(after);
+    REQUIRE(after.count(y_raw) == 0);
+    REQUIRE(after.count(z) == 1);
+    REQUIRE(after.count(w) == 1);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
     "append_tensor_graph_phase throws on tiling change",
     "[graph][tile]")
 {

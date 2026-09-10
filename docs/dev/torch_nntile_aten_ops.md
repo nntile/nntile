@@ -65,6 +65,7 @@ match CPU for the same call (`RsqrtBackward0`, `AddmmBackward0`,
 | `chunk` / `split` / `narrow` / `select.int` | Composite → views | **No** PrivateUse1; keep `as_strided` (+ `alias`) |
 | `as_strided` / `alias` | device / shared composite | PrivateUse1 (keep `TensorRef`) |
 | `contiguous` | CompositeImplicit | PrivateUse1 + AutogradPrivateUse1 densify |
+| `native_layer_norm` | CompositeExplicit + fused bwd | No PrivateUse1 kernel; AutogradPrivateUse1 math (BN + affine) so backward is subops |
 | `rms_norm` | CompositeImplicit (`pow` / `mean` / `rsqrt` / `mul`) | **No** PrivateUse1 / AutogradPrivateUse1; match CUDA |
 
 Intentional deviations (nntile storage / StarPU):
@@ -79,10 +80,12 @@ Intentional deviations (nntile storage / StarPU):
 CompositeImplicitAutograd, so `device=nntile` does the same and relies on
 the primitive ops (`pow` / `mean` / `rsqrt` / `mul`). Stock
 `F.layer_norm` / `nn.LayerNorm` is different: do **not** register
-`native_layer_norm` so CompositeExplicit `math_native_layer_norm` can
-lower to `native_batch_norm`. Register math
-`native_layer_norm_backward` (no composite in core). Classic
-`torch_nntile.nn` LayerNorm is separate.
+PrivateUse1 `native_layer_norm`. Inference uses CompositeExplicit
+`math_native_layer_norm` (reshape + `native_batch_norm` + affine).
+AutogradPrivateUse1 runs that same math *with* autograd so backward is
+the BN / affine suboperations (`NativeLayerNormBackward0` has no
+composite in core). Do **not** register `native_layer_norm_backward`.
+Classic `torch_nntile.nn` LayerNorm is separate.
 
 Known gap vs CUDA view backward: ~~nntile→nntile `_copy_from` rebinds
 `TensorRef` (SSA) instead of writing the parent at `storage_offset`.~~
@@ -122,12 +125,14 @@ Sources live under `torch_nntile/csrc/`.
 | `set_.source_Storage` |
 | `set_.source_Storage_storage_offset` |
 
-Also: `contiguous` on **AutogradPrivateUse1**, and a boxed **`cpu_fallback`**
-for unregistered ops when `cpu_fallback=True`.
+Also: `contiguous` and `native_layer_norm` on **AutogradPrivateUse1**,
+and a boxed **`cpu_fallback`** for unregistered ops when
+`cpu_fallback=True`.
 
 Not registered (CUDA composite → our primitives): `narrow`, `select.int`,
 `chunk`, `split` / `split_with_sizes`, `linear`, `matmul`, `layer_norm` /
-`native_layer_norm` (backward is registered; see below).
+PrivateUse1 `native_layer_norm` (AutogradPrivateUse1 math only; no
+`native_layer_norm_backward`).
 
 ### Elementwise / reductions / norms
 
@@ -168,7 +173,7 @@ register `linear` / `matmul` (CUDA CompositeImplicit → `addmm` / `mm`).
 | File | Schemas |
 |------|---------|
 | `nntile_batch_norm.cpp` | `native_batch_norm`, `native_batch_norm_backward` |
-| `nntile_layer_norm_backward.cpp` | `native_layer_norm_backward` (math via BN backward) |
+| `nntile_layer_norm.cpp` | AutogradPrivateUse1 `native_layer_norm` (math via BN + affine) |
 | `nntile_embedding.cpp` | `embedding`, `embedding_dense_backward` |
 | `nntile_cat.cpp` | `cat`, `cat.out` |
 | `nntile_trig.cpp` | `cos`, `sin`, `neg`, `rsqrt`, `exp` (+ `.out`) |

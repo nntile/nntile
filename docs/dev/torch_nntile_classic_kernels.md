@@ -40,8 +40,11 @@ Rules:
 
 CMake (both default ON):
 
-- `NNTILE_TORCH_NATIVE_OPS` — torch-native aten / StarPU `TORCH_*`
-  codelets (stock `torch.nn` on `device=nntile`).
+- `NNTILE_TORCH_NATIVE_OPS` — appends torch-native StarPU/aten sources
+  (`torch_dispatch.cc`, …) to libnntile’s lists, plus torch_nntile aten
+  wrappers (stock `torch.nn` on `device=nntile`).
 - `NNTILE_NNTILE_NATIVE_OPS` — classic `nntile::kernel` wrappers, C++
-  models, and `torch_nntile.nn`. Turn one flag off to skip that stack
-  while developing the other.
+  models, and `torch_nntile.nn`. Does **not** strip classic kernel
+  sources from libnntile; those are the default lists in
+  `nntile/src/CMakeLists.txt`. Turn one flag off to skip that
+  torch_nntile stack while developing the other.

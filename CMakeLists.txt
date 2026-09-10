@@ -38,9 +38,11 @@ option(BUILD_TORCH_NNTILE
     "Build torch_nntile Python product (_C extension + pip wheel)" ON)
 option(BUILD_COVERAGE "Generate code coverage report" OFF)
 # Dual-path torch_nntile (both default ON). Turn one off to skip that
-# stack while developing the other.
-#   NNTILE_TORCH_NATIVE_OPS: libnntile torch_dispatch + torch_nntile aten
-#   NNTILE_NNTILE_NATIVE_OPS: classic nntile::kernel ops / models
+# torch_nntile stack while developing the other.
+#   NNTILE_TORCH_NATIVE_OPS: append torch_dispatch sources to libnntile
+#     + torch_nntile aten wrappers
+#   NNTILE_NNTILE_NATIVE_OPS: torch_nntile classic wrappers / models
+#     (libnntile classic kernels are the default CMake source lists)
 option(NNTILE_TORCH_NATIVE_OPS
     "Enable torch-native StarPU/aten compute (libnntile + torch_nntile)"
     ON)

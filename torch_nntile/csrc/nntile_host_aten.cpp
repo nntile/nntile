@@ -69,7 +69,8 @@ at::Tensor to_copy(
             "_to_copy: only strided layout on nntile");
     }
 
-    // Same-device dtype change: StarPU from_blob + copy_, no gather.
+    // aten::_to_copy always materializes a new tensor (never alias
+    // ``self``), including same-device / same-dtype.
     const c10::Device out_device =
         device.has_value() ? *device : self.device();
     if (is_nntile_device(self.device()) &&
@@ -77,15 +78,30 @@ at::Tensor to_copy(
     {
         const at::ScalarType out_dtype =
             dtype.value_or(self.scalar_type());
-        if (out_dtype == self.scalar_type())
-        {
-            return self;
-        }
         at::Tensor out = empty_metadata_tensor(
             self.sizes(),
             out_dtype,
             out_device);
-        tensor_cast(self, out);
+        if (out_dtype == self.scalar_type())
+        {
+            if (out_dtype == at::kFloat)
+            {
+                tensor_copy_fp32(self, out);
+            }
+            else if (out_dtype == at::kLong)
+            {
+                tensor_copy_i64(self, out);
+            }
+            else
+            {
+                at::Tensor cpu = gather_nntile_view_to_cpu(self);
+                init_nntile_input_from_cpu(cpu.contiguous(), out);
+            }
+        }
+        else
+        {
+            tensor_cast(self, out);
+        }
         return out;
     }
 

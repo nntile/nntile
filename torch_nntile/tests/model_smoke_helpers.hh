@@ -35,8 +35,8 @@ struct ContextGuard
                 "/tmp/nntile_ooc",
                 16ull * 1024ull * 1024ull,
                 0,
-                0,
-                false);
+                0);
+            REQUIRE_FALSE(torch_nntile::is_cpu_fallback_enabled());
             torch_nntile::restrict_cpu();
         }
     }

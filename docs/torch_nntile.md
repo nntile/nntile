@@ -8,11 +8,12 @@ Two APIs in one wheel (CMake: `NNTILE_TORCH_NATIVE_OPS` and
 `NNTILE_NNTILE_NATIVE_OPS`, both default ON):
 
 - Stock `torch.nn` / `F.*` on `device=nntile` — torch-native aten codelets,
-  untiled (`NNTILE_TORCH_NATIVE_OPS`).
+  untiled (`NNTILE_TORCH_NATIVE_OPS` appends those sources to libnntile).
 - `torch_nntile.nn` — classic `nntile::kernel` ops; tiling allowed
-  (`NNTILE_NNTILE_NATIVE_OPS`). C++ `torch_nntile::models` are the
-  nntile-native implementations (ports of deleted `nntile::model::*`,
-  not Hugging Face `torch.nn` rewrites).
+  (`NNTILE_NNTILE_NATIVE_OPS` gates torch_nntile wrappers). Classic
+  kernels themselves are libnntile’s default source lists. C++
+  `torch_nntile::models` are the nntile-native implementations (ports of
+  deleted `nntile::model::*`, not Hugging Face `torch.nn` rewrites).
 
 Torch-native StarPU codelets call **only** public high-level ATen ops
 (`at::add_out`, `at::mm_out`, …). They do not call internal

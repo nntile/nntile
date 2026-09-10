@@ -41,7 +41,7 @@ StarPU codelet:
 I/O ops (`fill` / `subcopy` / scatter / gather / …) may stay classic.
 
 `TorchKind` names follow aten (e.g. `TransposeCopy`, `NarrowCopy`,
-`NativeLayerNorm`), not NNTile classic names.
+`NativeBatchNorm`), not NNTile classic names.
 
 ## Goal
 
@@ -363,8 +363,6 @@ Specialized codelets:
 | `torch_embedding` | `embedding.out` | weight `R`, indices `R`, out `W` |
 | `torch_embedding_dense_backward` | `embedding_dense_backward.out` | grad `R`, indices `R`, grad_weight `W` |
 | `torch_cat` | `cat.out` | each input `R`, out `W` |
-| `torch_layer_norm` | `native_layer_norm.out` (D9; unused from stock `F.layer_norm`) | input `R`; optional weight/bias `R`; out / mean / rstd `W` |
-| `torch_layer_norm_backward` | `native_layer_norm_backward.out` (D9; unused from stock `F.layer_norm`) | grad_out / input / mean / rstd `R`; optional weight `R`; needed grad outs `W` |
 | `torch_sdpa_backward` | flash-CPU bwd; CUDA: efficient (math fallback) | q / k / v / grad_out `R`; optional mask `R`; grad_q / grad_k / grad_v `W` |
 | `torch_nll_loss_forward` | `nll_loss_forward.output` | log_probs `R`, target `R`, loss `W`, total_weight `W` |
 | `torch_nll_loss_backward` | `nll_loss_backward.grad_input` | grad_output / log_probs / target / total_weight `R`, grad_input `W` |
@@ -448,20 +446,21 @@ User call (requires_grad possible)
 | `AutogradCUDA` = same CompositeImplicit | Autograd *is* the decomposition | Same as composite forward — no PrivateUse1 override. |
 
 `AutogradPrivateUse1` is **rare**. Use it only when the generic path is wrong
-for nntile storage (today: `contiguous` densify under autograd). Do **not**
-use it to reimplement a VariableType formula (that was the `rsqrt`
-mistake).
+for nntile storage (today: `contiguous` densify under autograd) or when a
+CompositeExplicit op would attach a fused backward that has no composite
+(`native_layer_norm` → BN / affine subops). Do **not** use it to
+reimplement a VariableType formula (that was the `rsqrt` mistake).
 
 **RMSNorm:** leave `rms_norm` unregistered (CompositeImplicit → `pow` /
 `mean` / `rsqrt` / `mul`).
 
-**LayerNorm:** leave `native_layer_norm` unregistered. CompositeExplicit
-is `math_native_layer_norm` → reshape + `native_batch_norm` + affine,
-not the RMSNorm formula. `native_layer_norm_backward` has no composite
-in core, so PrivateUse1 registers math that calls
-`native_batch_norm_backward` (`nntile_layer_norm_backward.cpp`). Do not
-route stock `F.layer_norm` through fused StarPU `torch_layer_norm`
-codelets. Classic `torch_nntile.nn` LayerNorm is unchanged.
+**LayerNorm:** do not register PrivateUse1 `native_layer_norm`.
+CompositeExplicit `math_native_layer_norm` is reshape +
+`native_batch_norm` + affine, not the RMSNorm formula. AutogradPrivateUse1
+runs that math with autograd so backward is the suboperations. Do not
+register `native_layer_norm_backward`. There are no fused StarPU
+`native_layer_norm` wrappers. Classic `torch_nntile.nn` LayerNorm is
+unchanged.
 
 ### Missing fused ops
 

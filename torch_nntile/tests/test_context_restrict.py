@@ -4,6 +4,8 @@
 # @file torch_nntile/tests/test_context_restrict.py
 # Tests for restrict_cuda / restore_where context controls.
 
+import inspect
+
 import pytest
 
 import torch_nntile
@@ -14,6 +16,14 @@ def test_init_context_before_ops():
     assert not torch_nntile.is_cpu_fallback_enabled()
     torch_nntile.restrict_cpu()
     torch_nntile.restore_where()
+
+
+def test_init_context_cpu_fallback_defaults_false():
+    py_default = inspect.signature(torch_nntile.init_context).parameters[
+        "cpu_fallback"
+    ].default
+    assert py_default is False
+    assert not torch_nntile.is_cpu_fallback_enabled()
 
 
 def test_restrict_restore_roundtrip():

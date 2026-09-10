@@ -79,6 +79,9 @@ class Runtime
 
     size_t execution_op_count() const { return execution_order_.size(); }
 
+    //! ``op_name()`` of compiled tile op ``i`` (for tests / debug).
+    std::string execution_op_name(size_t i) const;
+
     //! Bind host data to a logical tensor or scatter to its tiles.
     template <typename T>
     void bind_data(

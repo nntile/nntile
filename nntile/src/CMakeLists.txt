@@ -543,8 +543,11 @@ if(NNTILE_USE_FLASH_SDPA)
 endif()
 
 
-# Dual-path: classic nntile::kernel ops always stay in libnntile.
-# NNTILE_TORCH_NATIVE_OPS adds torch-native dispatch for PrivateUse1 aten.
+# Classic nntile::kernel / StarPU / core / tensor / tile ops are the
+# default lists above. That is the libnntile native-op gate: a classic
+# kernel is in libnntile iff it is listed here. NNTILE_NNTILE_NATIVE_OPS
+# does not strip these lists (it only gates torch_nntile wrappers).
+# NNTILE_TORCH_NATIVE_OPS appends torch-native dispatch below.
 if(NNTILE_TORCH_NATIVE_OPS)
     message(STATUS
         "NNTILE_TORCH_NATIVE_OPS: add torch-native dispatch")

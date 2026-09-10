@@ -467,35 +467,6 @@ void tensor_adamw_step_fp32(
     at::Tensor &second_moment,
     at::Tensor &param);
 
-void tensor_layer_norm_forward_fp32(
-    const at::Tensor &input,
-    const at::Tensor *weight,
-    const at::Tensor *bias,
-    bool has_weight,
-    bool has_bias,
-    at::Tensor &output,
-    at::Tensor &mean,
-    at::Tensor &rstd,
-    int64_t norm_axis,
-    float eps);
-
-void tensor_layer_norm_backward_fp32(
-    const at::Tensor &grad_out,
-    const at::Tensor &input,
-    const at::Tensor &mean,
-    const at::Tensor &rstd,
-    const at::Tensor *weight,
-    const at::Tensor *bias,
-    bool has_weight,
-    bool has_bias,
-    at::Tensor *grad_input,
-    at::Tensor *grad_weight,
-    at::Tensor *grad_bias,
-    bool grad_input_needed,
-    bool grad_weight_needed,
-    bool grad_bias_needed,
-    int64_t norm_axis);
-
 void tensor_rms_norm_forward_fp32(
     const at::Tensor &input,
     const at::Tensor *weight,

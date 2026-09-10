@@ -48,11 +48,12 @@ Do **not** register PrivateUse1 `native_layer_norm`. Stock
 `native_batch_norm` (then affine `addcmul` / `mul` / `add`). That is
 **not** the RMSNorm formula (`pow` / `mean` / `rsqrt`).
 
-`native_layer_norm_backward` has **no** composite in core (CPU/CUDA
-kernels only). Register PrivateUse1 math that undoes the same affine
-and calls `native_batch_norm_backward`. Do **not** revive the fused
-StarPU `torch_layer_norm` / `_backward` codelets for stock
-`F.layer_norm`. Classic `torch_nntile.nn` LayerNorm is unchanged.
+`native_layer_norm_backward` has **no** composite in core. Register
+AutogradPrivateUse1 `native_layer_norm` that runs the same math with
+autograd so backward is those suboperations. Do **not** register
+`native_layer_norm_backward`. There are no fused StarPU
+`native_layer_norm` wrappers. Classic `torch_nntile.nn` LayerNorm is
+unchanged.
 
 ## Layout / densification policy (Aug 2026)
 
@@ -86,8 +87,8 @@ regressions unless documented.
 
 ## Migration checklist (ongoing)
 
-- [x] LayerNorm: unregistered forward (`native_batch_norm`); math
-      `native_layer_norm_backward`
+- [x] LayerNorm: AutogradPrivateUse1 math (`native_batch_norm` + affine);
+      no `native_layer_norm_backward`
 - [x] `torch_nntile.nn.functional` namespace for classic `_C` ops (`kernels` alias)
 - [x] `pow` / `div` / `triu` host wrappers call matching `aten::*_out` codelets
 - [x] Remove blanket `contiguous()` from unary/binary PrivateUse1 wrappers (mul, trig, …)

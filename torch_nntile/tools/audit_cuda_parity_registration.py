@@ -61,7 +61,9 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    # Ops that must never gain PrivateUse1 (CUDA uses composite).
+    # Ops that must never gain a PrivateUse1 *device* kernel
+    # (CUDA uses composite). AutogradPrivateUse1 is allowed for
+    # native_layer_norm (math via BN / affine so backward is subops).
     composite_only = {
         "linear",
         "matmul",
@@ -73,6 +75,7 @@ def main() -> int:
         "narrow",
         "select.int",
     }
+    allow_autograd_privateuse1 = {"contiguous", "native_layer_norm"}
 
     failed = False
     for op in args.ops:
@@ -92,13 +95,37 @@ def main() -> int:
                     print(f"    - {row}")
         else:
             print("  PrivateUse1 unchanged.")
-        if op in composite_only and pu_after:
+        device_pu = [
+            row
+            for row in pu_after
+            if "PrivateUse1" in row
+            and "AutogradPrivateUse1" not in row
+            and "[default backend kernel]" not in row
+            and "[backend fallback]" not in row
+        ]
+        autograd_pu = [
+            row
+            for row in pu_after
+            if "AutogradPrivateUse1" in row
+            and "[autograd kernel]" not in row
+        ]
+        if op in composite_only and device_pu:
             print(
-                f"  FAIL: {schema} must stay composite (no PrivateUse1); "
+                f"  FAIL: {schema} must stay composite "
+                f"(no PrivateUse1 device kernel); "
                 f"see docs/dev/torch_nntile_cuda_parity_policy.md",
                 file=sys.stderr,
             )
             failed = True
+        if autograd_pu and op not in allow_autograd_privateuse1:
+            if op in composite_only:
+                print(
+                    f"  FAIL: {schema} must not register "
+                    f"AutogradPrivateUse1; "
+                    f"see docs/dev/torch_nntile_cuda_parity_policy.md",
+                    file=sys.stderr,
+                )
+                failed = True
         if re.search(r"CompositeImplicitAutograd", before) and pu_after:
             print(
                 f"  WARN: CUDA uses CompositeImplicitAutograd but nntile "

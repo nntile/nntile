@@ -75,8 +75,6 @@ enum class TorchKind : std::int32_t
     Cat = 60,                // R… → W   aten::cat.out
     NarrowCopy = 61,         // R → W    aten::narrow_copy.out
     Repeat = 62,             // R → W    aten::repeat.out
-    NativeLayerNorm = 70,    // R,(R),(R) → W,W,W  native_layer_norm
-    NativeLayerNormBackward = 71, // R… → W…  native_layer_norm_backward
     Embedding = 80,          // R,R → W  aten::embedding.out
     EmbeddingDenseBackward = 81, // R,R → W  embedding_dense_backward
     Sdpa = 90,               // D8 unused fused SDPA; F.sdpa uses MATH
@@ -135,10 +133,6 @@ struct TorchDispatchArgs
     // Repeat: repeat counts in iargs[0..out_ndim-1] (output rank; may
     //   pad leading dims when the input tile is still the 1D parent)
     // Cat: dim, n_tensors
-    // NativeLayerNorm: normalized_ndim, has_weight, has_bias;
-    //   eps in scalars[0]
-    // NativeLayerNormBackward: normalized_ndim, has_weight,
-    //   has_bias, need_gi, need_gw, need_gb
     // NllLoss*: reduction in iargs[0], ignore_index in iargs[1]
     // Add: torch alpha in scalars[0] (out = a + alpha * b)
     // Addmm: beta in scalars[0], alpha in scalars[1];
@@ -434,72 +428,6 @@ public:
         Handle weight,
         Handle indices,
         Handle out
-    );
-};
-
-//! LayerNorm: input + optional weight/bias → out, mean, rstd.
-class TorchLayerNorm
-{
-public:
-    Codelet codelet;
-    TorchLayerNorm();
-    using args_t = TorchDispatchArgs;
-    static uint32_t footprint(struct starpu_task *task);
-    static void cpu(void *buffers[], void *cl_args) noexcept;
-    static constexpr func_array cpu_funcs = {cpu};
-#ifdef NNTILE_USE_CUDA
-    static void cuda(void *buffers[], void *cl_args) noexcept;
-    static constexpr func_array cuda_funcs = {cuda};
-#else
-    static constexpr func_array cuda_funcs = {};
-#endif
-    void submit(
-        int starpu_worker_hint,
-        const args_t &meta,
-        Handle input,
-        Handle weight,
-        Handle bias,
-        Handle out,
-        Handle mean,
-        Handle rstd,
-        bool has_weight,
-        bool has_bias
-    );
-};
-
-//! LayerNorm backward: inputs R → optional grad outs W.
-class TorchLayerNormBackward
-{
-public:
-    Codelet codelet;
-    TorchLayerNormBackward();
-    using args_t = TorchDispatchArgs;
-    static uint32_t footprint(struct starpu_task *task);
-    static void cpu(void *buffers[], void *cl_args) noexcept;
-    static constexpr func_array cpu_funcs = {cpu};
-#ifdef NNTILE_USE_CUDA
-    static void cuda(void *buffers[], void *cl_args) noexcept;
-    static constexpr func_array cuda_funcs = {cuda};
-#else
-    static constexpr func_array cuda_funcs = {};
-#endif
-    void submit(
-        int starpu_worker_hint,
-        const args_t &meta,
-        Handle grad_out,
-        Handle input,
-        Handle mean,
-        Handle rstd,
-        Handle weight,
-        Handle bias,
-        Handle grad_input,
-        Handle grad_weight,
-        Handle grad_bias,
-        bool has_weight,
-        bool has_bias,
-        bool need_grad_input,
-        bool need_grad_weight,
-        bool need_grad_bias
     );
 };
 
@@ -845,8 +773,6 @@ extern TorchMaxPool2dWithIndicesBackward
     torch_max_pool2d_with_indices_backward;
 extern TorchNativeBatchNorm torch_native_batch_norm;
 extern TorchNativeBatchNormBackward torch_native_batch_norm_backward;
-extern TorchLayerNorm torch_layer_norm;
-extern TorchLayerNormBackward torch_layer_norm_backward;
 extern TorchSdpaBackward torch_sdpa_backward;
 extern TorchNllLossForward torch_nll_loss_forward;
 extern TorchNllLossBackward torch_nll_loss_backward;

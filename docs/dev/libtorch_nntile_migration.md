@@ -45,9 +45,9 @@ training needs true tied grads.
 
 Torch-native StarPU codelets stay on public high-level `at::*_out` forever
 (macOS arm64 cannot link x86 DispatchStubs; hidden `raw_*` is not a
-product API). Autogen `native_layer_norm.out` /
-`convolution_backward.out` / `cudnn_convolution_transpose.out` may still
-`copy_` into the StarPU blob.
+product API). Autogen `convolution_backward.out` /
+`cudnn_convolution_transpose.out` may still `copy_` into the StarPU
+blob.
 
 This is **not** a follow-up to unwind. See the debt table in
 [torch_nntile_tensor_architecture.md](torch_nntile_tensor_architecture.md#technical-debt-future-fixes)
