@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "torch_nntile"
-version = "0.0.6"
+version = "0.1.0"
 description = "PyTorch device=nntile (PrivateUse1) backed by PyTorch autograd and libnntile"
 readme = "README.md"
 requires-python = ">=3.10"
