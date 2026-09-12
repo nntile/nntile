@@ -99,7 +99,8 @@ def test_tiled_gpt2():
         torch_nntile.ddp()
         info = torch_nntile.format_axis_groups()
         assert "name='batch'" in info
-        assert "pending_tile=1,1" in info
+        assert "DDP axis='batch'" in info
+        assert "replicas=2" in info
         torch_nntile.execute()
         assert_classic_graph()
         _ = out.detach().cpu()
@@ -127,7 +128,8 @@ def test_tiled_llama():
         torch_nntile.ddp()
         info = torch_nntile.format_axis_groups()
         assert "name='batch'" in info
-        assert "pending_tile=1,1" in info
+        assert "DDP axis='batch'" in info
+        assert "replicas=2" in info
         torch_nntile.execute()
         assert_classic_graph()
         _ = out.detach().cpu()
@@ -153,7 +155,8 @@ def test_tiled_gpt_neo():
         torch_nntile.ddp()
         info = torch_nntile.format_axis_groups()
         assert "name='batch'" in info
-        assert "pending_tile=1,1" in info
+        assert "DDP axis='batch'" in info
+        assert "replicas=2" in info
         torch_nntile.execute()
         assert_classic_graph()
         _ = out.detach().cpu()
@@ -181,7 +184,8 @@ def test_tiled_gpt_neox():
         torch_nntile.ddp()
         info = torch_nntile.format_axis_groups()
         assert "name='batch'" in info
-        assert "pending_tile=1,1" in info
+        assert "DDP axis='batch'" in info
+        assert "replicas=2" in info
         torch_nntile.execute()
         assert_classic_graph()
         _ = out.detach().cpu()
@@ -215,7 +219,8 @@ def test_tiled_bert():
         torch_nntile.ddp()
         info = torch_nntile.format_axis_groups()
         assert "name='batch'" in info
-        assert "pending_tile=1,1" in info
+        assert "DDP axis='batch'" in info
+        assert "replicas=2" in info
         torch_nntile.execute()
         assert_classic_graph()
         _ = out.detach().cpu()
@@ -250,7 +255,8 @@ def test_tiled_roberta():
         torch_nntile.ddp()
         info = torch_nntile.format_axis_groups()
         assert "name='batch'" in info
-        assert "pending_tile=1,1" in info
+        assert "DDP axis='batch'" in info
+        assert "replicas=2" in info
         torch_nntile.execute()
         assert_classic_graph()
         _ = out.detach().cpu()
