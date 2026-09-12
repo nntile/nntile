@@ -462,6 +462,11 @@ STARPU_NCPU=4 STARPU_NCUDA=0 \
 STARPU_NCPU=0 STARPU_NCUDA=2 \
   python torch_nntile/examples/train_deep_relu_mnist.py \
     --restrict-cuda --epochs 5 --ddp
+
+# Classic LlamaCausal (not HuggingFace). --batch-size >= ncpu.
+# Stock train_llama_hf.py cannot use --ddp (torch-native ops stay untiled).
+python torch_nntile/examples/train_llama.py train \
+    --seed 0 --ncpu 2 --batch-size 4 --steps 2 --ddp
 ```
 
 Do not ``.cpu()`` nntile weights before the first DDP ``compile_graph()``

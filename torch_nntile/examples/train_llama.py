@@ -3,15 +3,25 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/examples/train_llama.py
-# Tiny LlamaCausal smoke train on device="nntile" (no tiling).
+# Tiny LlamaCausal smoke train on device="nntile" (optional --ddp).
 
 """Short LlamaCausal training smoke: synthetic tokens, few steps, print loss.
+
+Classic ``torch_nntile.nn.model.llama.LlamaCausal`` (not HuggingFace).
+Stock ``train_llama_hf.py`` cannot use DDP (torch-native ops stay untiled).
 
 Uses JSON config / checkpoint like ``train_gpt2_hf.py``::
 
     python torch_nntile/examples/train_llama.py train \\
         --seed 0 --config llama_tiny_config.json \\
         --output-dir /tmp/llama --steps 2
+
+DDP (shards ``batch`` across StarPU workers; ``--batch-size`` must be
+>= worker count)::
+
+    python torch_nntile/examples/train_llama.py train \\
+        --seed 0 --ncpu 2 --batch-size 4 --steps 2 --ddp \\
+        --print-axis-groups
 """
 
 from __future__ import annotations

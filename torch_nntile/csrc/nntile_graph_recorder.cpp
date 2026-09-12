@@ -298,6 +298,38 @@ bool graph_has_torch_compute_op_locked()
     return false;
 }
 
+bool is_tensor_graph_bookkeeping_op(std::string const &name)
+{
+    return name == "COPY" || name == "COPY_INTERSECTION" ||
+        name == "SCATTER" || name == "GATHER" || name == "FILL" ||
+        name == "CLEAR" || name == "UNREGISTER" ||
+        name == "INVALIDATE" || name == "CONTIGUOUS_VIEW";
+}
+
+bool graph_has_classic_compute_op_locked()
+{
+    if (g_graph == nullptr)
+    {
+        return false;
+    }
+    const size_t begin = g_graph->phase_seal_cursor();
+    const auto &ops = g_graph->ops();
+    for (size_t i = begin; i < ops.size(); ++i)
+    {
+        const std::string &name = ops[i]->op_name();
+        if (name.rfind("TORCH_", 0) == 0)
+        {
+            continue;
+        }
+        if (is_tensor_graph_bookkeeping_op(name))
+        {
+            continue;
+        }
+        return true;
+    }
+    return false;
+}
+
 void require_untiled_torch_session_locked()
 {
     if (g_graph == nullptr)
@@ -1306,6 +1338,13 @@ void shutdown_recorder_locked()
 }
 
 } // namespace
+
+bool prefer_classic_aten_add()
+{
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    return graph_has_classic_compute_op_locked() &&
+        !graph_has_torch_compute_op_locked();
+}
 
 bool has_pending_graph()
 {

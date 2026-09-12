@@ -149,7 +149,9 @@ otherwise CPU). Tile sizes are not a user input.
 
 > Stock ``torch.nn`` / ``F.*`` on ``device=nntile`` stay torch-native and
 > **untiled**. Classic ``torch_nntile.nn`` graphs may use DDP. Mixing
-> ``TORCH_*`` compute with DDP raises. See
+> ``TORCH_*`` compute with DDP raises. Autograd fan-in ``aten::add`` on
+> a classic-only graph records classic ``ADD`` (so Llama residuals /
+> QKV can DDP). See
 > [dev/torch_nntile_aten_ops.md](dev/torch_nntile_aten_ops.md) and
 > [dev/torch_nntile_classic_kernels.md](dev/torch_nntile_classic_kernels.md).
 
@@ -451,6 +453,25 @@ Integration test (downloads MNIST, 3 epochs, CPU workers):
 ```bash
 pytest -vv -m slow torch_nntile/tests/test_deep_relu_mnist_train.py
 ```
+
+### Classic Llama (DDP)
+
+HuggingFace ``train_llama_hf.py`` uses stock ``torch.nn`` and cannot use
+``ddp()``. Classic ``LlamaCausal`` can. ``--batch-size`` must be at least
+the replica count (``ncuda`` if ``ncuda > 0``, else ``ncpu``):
+
+```bash
+export LD_LIBRARY_PATH=$PWD/build/nntile:$PWD/build/torch_nntile:/opt/starpu/lib
+python torch_nntile/examples/train_llama.py train \
+    --seed 0 --ncpu 2 --batch-size 4 --steps 2 --ddp \
+    --print-axis-groups
+```
+
+The same ``--ddp`` / ``--ddp-axis`` / ``--print-axis-groups`` flags work
+on the other tiny classic trainers that share
+``nntile_tiny_train_common.py`` (BERT, T5, GPT-Neo, GPT-NeoX, RoBERTa,
+DiT). Name dim 0 of cached RoPE / position tables as well as the batch
+(the example does this automatically).
 
 ## Tests
 

@@ -22,6 +22,10 @@ kernels are not used for **aten** compute on this path.
   `ddp()` and compile with a sharded batch axis.
 - If any pending compute op name starts with `TORCH_`, DDP / tiling is
   rejected (stock aten stays untiled).
+- Autograd fan-in uses `aten::add`. On a classic-only pending graph,
+  same-shape contiguous fp32 `aten::add` records classic `ADD` so DDP
+  can tile residual / QKV / MLP fan-in. Bare `torch.add` (no classic
+  compute yet) still records `TORCH_BINARY`.
 - `compile_graph` / `execute` also reject a session that is already tiled
   **and** contains torch-native compute.
 
@@ -219,7 +223,7 @@ until fused SDPA preallocates workspace as graph tensors.
 
 | Test module | Ops covered when tiled |
 |-------------|------------------------|
-| `torch_nntile/tests/test_ddp.py` | Linear + CE + `ddp()` |
+| `torch_nntile/tests/test_ddp.py` | Linear + CE + `ddp()`; Llama train step |
 | `torch_nntile/tests/test_axis_group_tiling.py` | `add`, DeepReLU / CE ingress |
 | `torch_nntile/tests/test_simple_matmul_tiling.py` | `matmul` / `mm` |
 | `torch_nntile/tests/test_bmm_tiling.py` | `bmm` |

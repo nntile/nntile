@@ -2,8 +2,8 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/tests/test_models_classic_graph.py
-# C++ nntile-native models must record classic kernels on forward.
-# Backward may use aten::add (TORCH_BINARY) to combine fan-in grads.
+# C++ nntile-native models must record classic kernels on forward
+# and backward (autograd fan-in aten::add records classic ADD).
 # These are torch_nntile::models (ports of deleted nntile::model::*), not
 # Hugging Face torch.nn rewrites.
 
@@ -39,6 +39,7 @@ def _assert_classic_fwd_bwd(out: torch.Tensor) -> None:
     assert_classic_graph()
     grad = torch.ones(tuple(out.shape), dtype=out.dtype).contiguous()
     out.backward(grad.to(out.device))
+    assert_classic_graph()
 
 
 @pytest.mark.parametrize("n_kv", [4, 2])

@@ -56,6 +56,8 @@ Incremental compile aims for **O(work this call)** complexity — see
 `compile_graph` splits the named axis into `count_execution_workers()`
 tiles, lowers the pending suffix, then rewrites weight-grad-like writes
 onto phase-local full-sized tiles and `ADD`s into the canonical dest.
+Autograd fan-in `aten::add` on a classic-only graph records classic
+`ADD` so those residual / QKV writes can be tiled too.
 `TileGraph::OpNode::device_hint` pins sharded compute to logical workers
 `0..N-1` (`-1` = StarPU dynamic). There is no `tiling.json` /
 `execution.json`.

@@ -100,6 +100,76 @@ def test_ddp_rejects_second_axis():
     )
 
 
+def test_ddp_llama_train_step():
+    _run_subprocess(
+        """
+        import torch
+        import torch_nntile
+        from torch_nntile.nn.model.llama import LlamaCausal, LlamaConfig
+        from torch_nntile.training import AdamW, cross_entropy
+
+        torch_nntile.init_context(
+            ncpu=2, ncuda=0, verbose=0, cpu_fallback=False
+        )
+        torch_nntile.restrict_cpu()
+        cfg = LlamaConfig(
+            vocab_size=128,
+            hidden_size=64,
+            intermediate_size=128,
+            num_hidden_layers=1,
+            num_attention_heads=4,
+            num_key_value_heads=4,
+            max_position_embeddings=16,
+        )
+        model = LlamaCausal(cfg).float().train().to("nntile")
+        g = torch.Generator().manual_seed(0)
+        packed = torch.randint(
+            0, 128, (4, 9), dtype=torch.long, generator=g
+        )
+        ids = packed[:, :-1].contiguous().to("nntile")
+        labels = packed[:, 1:].contiguous().to("nntile")
+        torch_nntile.set_axis_group_name(ids, {0: "batch"})
+        torch_nntile.set_axis_group_name(labels, {0: "batch"})
+        torch_nntile.ddp()
+        torch_nntile.compile_graph()
+        torch_nntile.run()
+        torch_nntile.wait()
+        for p in model.parameters():
+            p.requires_grad_(True)
+        opt = AdamW(
+            [p for p in model.parameters() if p.requires_grad],
+            lr=1e-3,
+        )
+        opt.zero_grad(set_to_none=True)
+        logits = model(ids)
+        loss = cross_entropy(logits, labels, reduction="mean")
+        loss.backward()
+        opt.step()
+        names = torch_nntile.pending_op_names()
+        torch_ops = [n for n in names if n.startswith("TORCH_")]
+        assert not torch_ops, torch_ops
+        pos = model.model._position_ids_cache[(4, 8)]
+        sin, cos = model.model._rope_cache[(4, 8)]
+        for tensor in (ids, labels, logits, pos, sin, cos):
+            torch_nntile.set_axis_group_name(tensor, {0: "batch"})
+        torch_nntile.ddp()
+        info = torch_nntile.format_axis_groups()
+        assert "DDP axis='batch'" in info
+        assert "replicas=2" in info
+        step_loss = loss.detach()
+        del logits
+        del loss
+        opt.zero_grad(set_to_none=True)
+        torch_nntile.compile_graph()
+        torch_nntile.run()
+        torch_nntile.wait()
+        val = float(step_loss.to("cpu").item())
+        assert val == val
+        assert val > 0.0
+        """
+    )
+
+
 def test_ddp_torch_add_raises():
     _run_subprocess(
         """
