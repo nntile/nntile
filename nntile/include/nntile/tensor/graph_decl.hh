@@ -71,6 +71,11 @@ class TensorGraph
     //! Number of axis groups that have no tiling set.
     size_t num_untiled_groups() const;
 
+    //! Session DDP policy: split this named axis at compile (default batch).
+    void enable_ddp(std::string axis = "batch");
+    bool ddp_enabled() const { return !ddp_axis_.empty(); }
+    std::string const &ddp_axis() const { return ddp_axis_; }
+
     // Queries
     const std::string &name() const { return name_; }
     //! High-water slot count (includes GC holes). NodeIds are never reused.
@@ -158,6 +163,7 @@ class TensorGraph
     NodeId next_data_id_ = 0;
     NodeId next_op_id_ = 0;
     size_t phase_seal_cursor_ = 0;
+    std::string ddp_axis_;
 };
 
 //! One sealed slice of a ``TensorGraph``, ready for optional transforms and

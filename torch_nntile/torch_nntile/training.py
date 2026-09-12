@@ -583,7 +583,8 @@ def train_full_batch_step(
     learning_rate: float,
     *,
     name_axis_groups: Callable[[torch.Tensor, torch.Tensor], None] | None = None,
-    axis_group_tiling: Mapping[str, int | list[int] | tuple[int, ...]] | None = None,
+    ddp: bool = False,
+    ddp_axis: str = "batch",
     print_axis_groups: bool = False,
     forward_kwargs: Mapping[str, torch.Tensor] | None = None,
 ) -> float:
@@ -610,9 +611,8 @@ def train_full_batch_step(
         optimizer.step()
         if name_axis_groups is not None:
             name_axis_groups(inputs, logits)
-        if axis_group_tiling is not None:
-            for name, tile_sizes in axis_group_tiling.items():
-                torch_nntile.set_axis_group_tiling(name, tile_sizes)
+        if ddp:
+            torch_nntile.ddp(ddp_axis)
         if print_axis_groups:
             torch_nntile.print_axis_groups()
         # Detached scalar stays marked for host readout; drop autograd + grads

@@ -98,9 +98,9 @@ SIZE_PRESETS: dict[str, MatmulBenchmarkSize] = {
 
 def apply_axis_tiling(mt: int, nt: int, kt: int) -> None:
     """Re-apply tiling before each compile (cleared after compile_graph)."""
-    torch_nntile.set_axis_group_tiling("M", mt)
-    torch_nntile.set_axis_group_tiling("N", nt)
-    torch_nntile.set_axis_group_tiling("K", kt)
+    torch_nntile._set_axis_group_tiling("M", mt)
+    torch_nntile._set_axis_group_tiling("N", nt)
+    torch_nntile._set_axis_group_tiling("K", kt)
 
 
 def run_matmul_round(

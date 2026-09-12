@@ -44,6 +44,20 @@ struct TileAddInplaceOp : TileGraph::OpNode
 
     void execute(Runtime& runtime) const override;
 
+    void replace_named_tile(
+        TileGraph::TileNode *from,
+        TileGraph::TileNode *to) override
+    {
+        if (x == from)
+        {
+            x = to;
+        }
+        if (y == from)
+        {
+            y = to;
+        }
+    }
+
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
         return std::make_shared<TileAddInplaceOp>(*this);

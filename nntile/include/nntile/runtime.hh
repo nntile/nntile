@@ -17,7 +17,6 @@
 // Standard library headers
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -29,7 +28,7 @@
 
 // NNTile headers
 #include <nntile/base_types.hh>
-#include <nntile/core/execution_schedule.hh>
+#include <nntile/core/execution_worker.hh>
 #include <nntile/defs.h>
 #include <nntile/dtype.hh>
 #include <nntile/tensor/graph_data_node.hh>
@@ -107,8 +106,7 @@ class Runtime
 
     //! StarPU worker for ``STARPU_EXECUTE_ON_WORKER`` during tile op execution,
     //! or -1 for default StarPU placement. Set by ``execute()`` /
-    //! ``execute_range()`` from the static execution schedule when one is
-    //! installed.
+    //! ``execute_range()`` from ``OpNode::device_hint``.
     int starpu_worker_hint() const noexcept { return starpu_worker_hint_; }
 
     //! Block until all tasks submitted by ``execute()`` / ``execute_range()``
@@ -195,41 +193,6 @@ class Runtime
         std::unordered_map<TensorGraph::TensorNode const *, bool> const
             &persisted_init);
 
-    ExecutionSchedule const &execution_schedule() const
-    {
-        return execution_schedule_;
-    }
-
-    bool has_execution_schedule() const
-    {
-        return !execution_schedule_.ops.empty();
-    }
-
-    //! After ``compile()``: build round-robin schedule from DCE order (does not
-    //! write a file; use ``generate_round_robin_execution_json`` for that).
-    ExecutionSchedule generate_round_robin_execution_schedule() const;
-
-    //! After ``compile()``: batch-slice affinity tile split (same JSON schema).
-    ExecutionSchedule generate_affinity_batch_execution_schedule() const;
-
-    //! Optional: pin workers during ``execute()`` (from generator or
-    //! ``load_execution_schedule_json``). Without a schedule, StarPU chooses
-    //! workers at runtime.
-    void set_execution_schedule(ExecutionSchedule schedule);
-
-    void load_execution_schedule(std::string const &path);
-
-    //! Load ``execution.json`` once (per path), then ``set_execution_schedule``.
-    //! Re-reads only when ``path`` changes. Clears cache if apply fails.
-    void apply_execution_schedule_from_file(std::string const &path);
-
-    void clear_execution_schedule_file_cache();
-
-    //! ``compile()`` then round-robin schedule in memory (convenience for tests).
-    void compile_with_round_robin_schedule();
-
-    void write_execution_schedule_json(std::string const &path) const;
-
   private:
 
     void allocate_missing_tiles();
@@ -257,9 +220,6 @@ class Runtime
     const TileGraph &graph_;
     //! Payloads live on ``TileNode::payload_`` (O(1) field access).
     std::vector<std::shared_ptr<OpNode>> execution_order_;
-    ExecutionSchedule execution_schedule_;
-    std::optional<ExecutionSchedule> execution_schedule_file_cache_;
-    std::string execution_schedule_file_cache_path_;
     bool compiled_ = false;
     int starpu_worker_hint_ = -1;
     std::unordered_map<TensorGraph::TensorNode const *, bool> init_state_;

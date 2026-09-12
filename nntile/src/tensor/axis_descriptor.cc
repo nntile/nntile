@@ -190,4 +190,33 @@ void merge_axis(std::shared_ptr<AxisDescriptor>& lhs,
     }
 }
 
+void apply_tiling_to_axis(
+    AxisDescriptor *ad,
+    std::vector<Index> const &sizes)
+{
+    if (ad == nullptr)
+    {
+        throw std::invalid_argument(
+            "apply_tiling_to_axis: axis descriptor is null");
+    }
+    if (sizes.size() == 1)
+    {
+        ad->set_tiling(sizes[0]);
+        return;
+    }
+    Index total = 0;
+    for (Index s : sizes)
+    {
+        total += s;
+    }
+    if (total != ad->extent)
+    {
+        throw std::runtime_error(
+            "tiling: sum of tile sizes for axis '" + ad->name +
+            "' (" + std::to_string(total) + ") != extent (" +
+            std::to_string(ad->extent) + ")");
+    }
+    ad->set_tiling(sizes);
+}
+
 } // namespace nntile

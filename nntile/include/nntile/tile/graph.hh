@@ -15,6 +15,10 @@
 
 #pragma once
 
+// Standard library headers
+#include <cstddef>
+#include <iterator>
+
 // NNTile headers
 #include <nntile/tile/graph_decl.hh>
 #include <nntile/tile/graph_data_node.hh>
@@ -83,6 +87,53 @@ inline void TileGraph::add_op(
         op_node->set_name(name);
     }
     ops_.push_back(std::move(op_node));
+}
+
+inline void TileGraph::insert_ops(
+    size_t index, std::vector<std::shared_ptr<OpNode>> op_nodes)
+{
+    if (index > ops_.size())
+    {
+        throw std::out_of_range(
+            "TileGraph::insert_ops: index out of range");
+    }
+    if (op_nodes.empty())
+    {
+        return;
+    }
+    for (std::shared_ptr<OpNode> &op_node : op_nodes)
+    {
+        if (op_node == nullptr)
+        {
+            throw std::invalid_argument(
+                "TileGraph::insert_ops: op node must be non-null");
+        }
+        for (TileNode const *input : op_node->inputs())
+        {
+            if (input->graph() != this)
+            {
+                throw std::invalid_argument(
+                    "TileGraph::insert_ops: input data '" +
+                    input->name() +
+                    "' does not belong to this graph");
+            }
+        }
+        for (TileNode const *output : op_node->outputs())
+        {
+            if (output->graph() != this)
+            {
+                throw std::invalid_argument(
+                    "TileGraph::insert_ops: output data '" +
+                    output->name() +
+                    "' does not belong to this graph");
+            }
+        }
+        op_node->id_ = next_op_id_++;
+    }
+    ops_.insert(
+        ops_.begin() + static_cast<std::ptrdiff_t>(index),
+        std::make_move_iterator(op_nodes.begin()),
+        std::make_move_iterator(op_nodes.end()));
 }
 
 inline void TileGraph::clear_ops()

@@ -2,7 +2,7 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/tests/test_axis_group_tiling.py
-# Axis-group naming and tiling for torch_nntile graph recorder.
+# Axis-group naming, DDP, and test-only tiling for torch_nntile.
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ def test_axis_group_tiling_add():
         import torch_nntile
 
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
+            ncpu=2, ncuda=0, verbose=0, cpu_fallback=False
         )
         torch_nntile.restrict_cpu()
         x = torch.randn(4, 8).to("nntile")
@@ -44,7 +44,7 @@ def test_axis_group_tiling_add():
         torch_nntile.set_axis_group_name(x, {0: "batch"})
         from torch_nntile.nn.functional import add
         z = add(x, y)
-        torch_nntile.set_axis_group_tiling("batch", [1, 1, 2])
+        torch_nntile.ddp()
         torch_nntile.execute()
         assert torch.allclose(z.cpu(), (x.cpu() + y.cpu()))
         """
@@ -66,7 +66,7 @@ def test_axis_group_tiling_invalid_sum_raises():
         torch_nntile.set_axis_group_name(x, {0: "batch"})
         from torch_nntile.nn.functional import add
         _ = add(x, y)
-        torch_nntile.set_axis_group_tiling("batch", [1, 1, 1])
+        torch_nntile._set_axis_group_tiling("batch", [1, 1, 1])
         with pytest.raises(RuntimeError, match="sum"):
             torch_nntile.execute()
         """
@@ -104,9 +104,9 @@ def test_deep_relu_axis_groups_with_explicit_naming():
         assert "name='features'" in info
         assert "name='classes'" in info
         assert "name='hidden'" in info
-        torch_nntile.set_axis_group_tiling("batch", [4, 4])
-        torch_nntile.set_axis_group_tiling("features", 64)
-        torch_nntile.set_axis_group_tiling("hidden", 128)
+        torch_nntile._set_axis_group_tiling("batch", [4, 4])
+        torch_nntile._set_axis_group_tiling("features", 64)
+        torch_nntile._set_axis_group_tiling("hidden", 128)
         torch_nntile.execute()
         assert logits.shape == (8, 10)
         """
@@ -127,7 +127,7 @@ def test_print_axis_groups_shows_pending_tiling():
         torch_nntile.set_axis_group_name(x, {0: "batch"})
         from torch_nntile.nn.functional import add
         _ = add(x, y)
-        torch_nntile.set_axis_group_tiling("batch", [1, 1, 2])
+        torch_nntile._set_axis_group_tiling("batch", [1, 1, 2])
         info = torch_nntile.format_axis_groups()
         assert "pending_tile=1,1,2" in info
         torch_nntile.execute()
@@ -135,8 +135,8 @@ def test_print_axis_groups_shows_pending_tiling():
     )
 
 
-def test_int64_label_ingress_with_batch_tiling():
-    """INT64 scatter into a tiled logical must work (CE labels + --axis-tiling)."""
+def test_int64_label_ingress_with_ddp():
+    """INT64 scatter into a DDP-sharded logical must work (CE labels)."""
     _run_subprocess(
         """
         import torch
@@ -144,7 +144,7 @@ def test_int64_label_ingress_with_batch_tiling():
         from torch_nntile.training import cross_entropy
 
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
+            ncpu=2, ncuda=0, verbose=0, cpu_fallback=False
         )
         torch_nntile.restrict_cpu()
         logits = torch.randn(8, 4).to("nntile")
@@ -152,7 +152,7 @@ def test_int64_label_ingress_with_batch_tiling():
         torch_nntile.set_axis_group_name(logits, {0: "batch"})
         torch_nntile.set_axis_group_name(labels, {0: "batch"})
         loss = cross_entropy(logits, labels)
-        torch_nntile.set_axis_group_tiling("batch", [4, 4])
+        torch_nntile.ddp()
         torch_nntile.compile_graph()
         torch_nntile.run()
         value = float(loss.to("cpu").item())
@@ -161,8 +161,8 @@ def test_int64_label_ingress_with_batch_tiling():
     )
 
 
-def test_early_host_roundtrip_before_axis_tiling_raises():
-    """``.cpu()`` before tiling seals untiled layouts; later tiling must fail."""
+def test_early_host_roundtrip_before_ddp_raises():
+    """``.cpu()`` before ``ddp()`` seals untiled layouts; later DDP must fail."""
     _run_subprocess(
         """
         import pytest
@@ -170,18 +170,18 @@ def test_early_host_roundtrip_before_axis_tiling_raises():
         import torch_nntile
 
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
+            ncpu=2, ncuda=0, verbose=0, cpu_fallback=False
         )
         torch_nntile.restrict_cpu()
         x = torch.randn(4, 8).to("nntile")
         y = torch.randn(4, 8).to("nntile")
         # Host round-trip compiles ingress scatter under the default
-        # (untiled) layout before axis tiling is registered.
+        # (untiled) layout before DDP is enabled.
         _ = x.cpu()
         torch_nntile.set_axis_group_name(x, {0: "batch"})
         from torch_nntile.nn.functional import add
         z = add(x, y)
-        torch_nntile.set_axis_group_tiling("batch", [1, 1, 2])
+        torch_nntile.ddp()
         with pytest.raises(
             RuntimeError,
             match="layout_fingerprint mismatch|tile count mismatch",
@@ -207,7 +207,7 @@ def test_axis_tiling_without_early_host_roundtrip():
         torch_nntile.set_axis_group_name(x, {0: "batch"})
         from torch_nntile.nn.functional import add
         z = add(x, y)
-        torch_nntile.set_axis_group_tiling("batch", [1, 1, 2])
+        torch_nntile._set_axis_group_tiling("batch", [1, 1, 2])
         torch_nntile.execute()
         assert z.shape == (4, 8)
         out = z.cpu()
@@ -217,7 +217,7 @@ def test_axis_tiling_without_early_host_roundtrip():
 
 
 def test_tiled_torch_add_raises():
-    """Stock aten add + tiling is rejected (torch-native stays untiled)."""
+    """Stock aten add + DDP is rejected (torch-native stays untiled)."""
     _run_subprocess(
         """
         import pytest
@@ -225,14 +225,14 @@ def test_tiled_torch_add_raises():
         import torch_nntile
 
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
+            ncpu=2, ncuda=0, verbose=0, cpu_fallback=False
         )
         torch_nntile.restrict_cpu()
         x = torch.randn(4, 8).to("nntile")
         y = torch.randn(4, 8).to("nntile")
         torch_nntile.set_axis_group_name(x, {0: "batch"})
         _ = x + y
-        torch_nntile.set_axis_group_tiling("batch", [1, 1, 2])
+        torch_nntile.ddp()
         with pytest.raises(RuntimeError, match="TORCH_"):
             torch_nntile.execute()
         """

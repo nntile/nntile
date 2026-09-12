@@ -321,20 +321,20 @@ Architecture reference:
   `softmax`). A fused `TorchKind::Sdpa` codelet remains for a later
   graph-native fused kernel.
 
-### Axis-group naming and tiling
+### Axis-group naming and DDP
 
 Full reference: [docs/torch_nntile.md](../docs/torch_nntile.md).
 
-Tiling is configured on named **axis groups** in the recorded `TensorGraph`
-(mirroring the C++ `AxisDescriptor` workflow). Name dimensions from a tensor,
-then set tile sizes by group name before ``compile_graph()``.
+Name dimensions from a tensor, then call ``ddp()`` before
+``compile_graph()``. Replica count is the StarPU worker count from
+``init_context``. Tile sizes are not a user input.
 
 | API | Purpose |
 |-----|---------|
 | `set_axis_group_name(tensor, {dim: name})` | Name axis groups (partial dims OK) |
-| `set_axis_group_tiling(name, tile_sizes)` | Uniform `int` or heterogeneous `list` |
+| `ddp(axis="batch")` | Data-parallel compile for that named axis |
 | `format_axis_groups()` | String summary of pending axis groups |
-| `print_axis_groups()` | Print summary (includes `pending_tile=` before compile) |
+| `print_axis_groups()` | Print summary (includes `DDP axis=` when enabled) |
 | `print_info()` | Print cumulative `compile_graph` / `run` / `wait` / host-readout timing |
 
 ### Profiling knobs (host vs StarPU)
@@ -368,7 +368,7 @@ torch_nntile.init_context(
 x = torch.randn(4, 128).to("nntile")
 torch_nntile.set_axis_group_name(x, {0: "batch", 1: "features"})
 logits = model(x)
-torch_nntile.set_axis_group_tiling("batch", [1, 1, 2])
+torch_nntile.ddp()
 torch_nntile.print_axis_groups()
 torch_nntile.compile_graph()
 torch_nntile.run()
@@ -378,10 +378,9 @@ Models do **not** assign axis names internally. The MNIST example defines
 ``name_mnist_axis_groups`` (batch, features, classes, and ``hidden`` on each
 linear weight/grad/velocity) and passes it to ``train_full_batch_step``.
 
-CLI: ``--axis-tiling NAME=SIZES`` (repeatable), ``--print-axis-groups``,
-``--restrict-cuda``, ``--verbose``.
+CLI: ``--ddp``, ``--print-axis-groups``, ``--restrict-cuda``, ``--verbose``.
 
-Tests: `pytest -vv torch_nntile/tests/test_axis_group_tiling.py`
+Tests: `pytest -vv torch_nntile/tests/test_ddp.py`
 
 ## Phase 3 (DeepReLU example)
 
@@ -459,16 +458,13 @@ STARPU_NCPU=4 STARPU_NCUDA=0 \
   python torch_nntile/examples/train_deep_relu_mnist.py \
     --compare-torch --epochs 5
 
-# CUDA StarPU workers, nntile-only (larger tiled runs)
+# CUDA StarPU workers, nntile-only (DDP)
 STARPU_NCPU=0 STARPU_NCUDA=2 \
   python torch_nntile/examples/train_deep_relu_mnist.py \
-    --restrict-cuda --epochs 5 \
-    --axis-tiling batch=15000,15000,15000,15000 \
-    --axis-tiling features=392,392 \
-    --axis-tiling hidden=128,128
+    --restrict-cuda --epochs 5 --ddp
 ```
 
-Do not ``.cpu()`` nntile weights before the first tiled ``compile_graph()``
+Do not ``.cpu()`` nntile weights before the first DDP ``compile_graph()``
 (``layout_fingerprint mismatch``); the example gathers weights after training.
 
 **Parity expectations** (with ``--compare-torch``): CPU workers → loss diffs

@@ -92,7 +92,7 @@ set(TESTS_TILE_CATCH2
 set(TESTS_TILE_ROOT_CATCH2
     "append_tensor_graph_phase"
     "add_mixed_tile"
-    "execution_schedule"
+    "ddp_rewrite"
     "tile_graph"
 )
 

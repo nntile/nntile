@@ -382,6 +382,22 @@ inline size_t TensorGraph::num_untiled_groups() const
     return count;
 }
 
+inline void TensorGraph::enable_ddp(std::string axis)
+{
+    if (axis.empty())
+    {
+        throw std::invalid_argument(
+            "TensorGraph::enable_ddp: axis name must be non-empty");
+    }
+    if (!ddp_axis_.empty() && ddp_axis_ != axis)
+    {
+        throw std::runtime_error(
+            "TensorGraph::enable_ddp: already enabled for axis '" +
+            ddp_axis_ + "'");
+    }
+    ddp_axis_ = std::move(axis);
+}
+
 inline std::string TensorGraph::to_string() const
 {
     auto groups = axis_groups();
@@ -389,7 +405,9 @@ inline std::string TensorGraph::to_string() const
     for (const auto *g : groups)
     {
         if (g->is_tiled())
+        {
             ++tiled;
+        }
     }
 
     std::stringstream ss;
@@ -397,6 +415,10 @@ inline std::string TensorGraph::to_string() const
        << "/" << num_data()
        << ", ops=" << num_ops() << ", axis_groups=" << groups.size()
        << ", tiled=" << tiled << "/" << groups.size() << ")\n";
+    if (!ddp_axis_.empty())
+    {
+        ss << "DDP axis='" << ddp_axis_ << "'\n";
+    }
 
     if (!groups.empty())
     {

@@ -16,12 +16,12 @@ torch-native TensorGraph op that lowers to the **same aten call on
 [torch_starpu_kernels.md](torch_starpu_kernels.md)). Classic NNTile
 kernels are not used for **aten** compute on this path.
 
-**Axis-group tiling:**
+**Axis-group DDP:**
 
 - Classic-only pending graphs (`torch_nntile.nn`) may call
-  `set_axis_group_tiling` and compile tiled.
-- If any pending compute op name starts with `TORCH_`, tiling is rejected
-  (stock aten stays untiled).
+  `ddp()` and compile with a sharded batch axis.
+- If any pending compute op name starts with `TORCH_`, DDP / tiling is
+  rejected (stock aten stays untiled).
 - `compile_graph` / `execute` also reject a session that is already tiled
   **and** contains torch-native compute.
 
@@ -219,6 +219,7 @@ until fused SDPA preallocates workspace as graph tensors.
 
 | Test module | Ops covered when tiled |
 |-------------|------------------------|
+| `torch_nntile/tests/test_ddp.py` | Linear + CE + `ddp()` |
 | `torch_nntile/tests/test_axis_group_tiling.py` | `add`, DeepReLU / CE ingress |
 | `torch_nntile/tests/test_simple_matmul_tiling.py` | `matmul` / `mm` |
 | `torch_nntile/tests/test_bmm_tiling.py` | `bmm` |

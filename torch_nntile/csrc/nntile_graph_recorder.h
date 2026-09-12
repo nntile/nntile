@@ -56,6 +56,8 @@ void set_axis_group_tiling(
     const std::string &name,
     const std::vector<std::int64_t> &tile_sizes);
 
+void ddp(const std::string &axis = "batch");
+
 std::string format_axis_groups();
 
 void print_axis_groups();

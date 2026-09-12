@@ -50,17 +50,18 @@ Python helpers: `torch_nntile.compile_graph()`, `run()`, `wait()`. Legacy
 Incremental compile aims for **O(work this call)** complexity — see
 [dev/graph_compiler_on_design.md](dev/graph_compiler_on_design.md).
 
-## Static tiling and schedules (optional)
+## DDP (`ddp()`)
 
-| Artifact | Role |
-|----------|------|
-| Axis-group tiling / `tiling.json` | Tile geometry (`AxisDescriptor`, `tiling_spec_json.hh`) |
-| `execution.json` | Optional static worker assignment for tile ops |
+`torch_nntile.ddp(axis="batch")` is a session compile policy. Each
+`compile_graph` splits the named axis into `count_execution_workers()`
+tiles, lowers the pending suffix, then rewrites weight-grad-like writes
+onto phase-local full-sized tiles and `ADD`s into the canonical dest.
+`TileGraph::OpNode::device_hint` pins sharded compute to logical workers
+`0..N-1` (`-1` = StarPU dynamic). There is no `tiling.json` /
+`execution.json`.
 
-`Runtime::compile()` does **not** invent a schedule. If no schedule is set,
-StarPU picks workers (`starpu_worker_hint = -1`). Round-robin and affinity-batch
-generators live in `nntile/include/nntile/core/execution_schedule.hh`. Schema:
-[dev/execution_json_schema.md](dev/execution_json_schema.md).
+If the user never calls `ddp()`, each tensor stays one tile and StarPU
+picks workers.
 
 ## Where to read next
 
@@ -71,7 +72,6 @@ generators live in `nntile/include/nntile/core/execution_schedule.hh`. Schema:
 | [dev/README.md](dev/README.md) | Design notes index |
 | [dev/torch_nntile_tensor_architecture.md](dev/torch_nntile_tensor_architecture.md) | `TensorRef`, I/O, INVALIDATE, session memory |
 | [dev/graph_compiler_on_design.md](dev/graph_compiler_on_design.md) | O(N) incremental compile invariants |
-| [dev/execution_json_schema.md](dev/execution_json_schema.md) | `execution.json` contract |
 
 ## Removed (do not revive)
 

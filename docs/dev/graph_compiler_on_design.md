@@ -113,7 +113,7 @@ Rules:
 
 - Per-op `lower_to_tile` micro-optimizations and buffer/node pooling.
 - Compile-once + replay with scalar lifting (Adam `lr` / `num_iter`).
-- MPI / `home_node` / `execution.json` schema changes.
+- MPI / `home_node` / later parallel built-ins (`tp()`, …).
 
 ## Validation
 

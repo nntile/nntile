@@ -23,6 +23,7 @@
 #include <nntile/dtype.hh>
 #include <nntile/tensor/axis_descriptor.hh>
 #include <nntile/tensor/graph.hh>
+#include <nntile/core/execution_worker.hh>
 #include <nntile/tensor/ops/clear.hh>
 #include <nntile/tensor/ops/invalidate.hh>
 #include <nntile/tensor/ops/unregister.hh>
@@ -31,20 +32,11 @@
 #include <nntile/tensor/ops/contiguous_view.hh>
 #include <nntile/tensor/tensor_graph_tiling.hh>
 #include <nntile/tile/append_tensor_graph_phase.hh>
+#include <nntile/tile/ddp.hh>
 #include <nntile/tile/graph.hh>
 #include <nntile/tile/lower_staging_tensor.hh>
 
 #include <starpu.h>
-
-namespace nntile
-{
-void apply_tiling_to_axis(
-    AxisDescriptor *ad,
-    const std::vector<Index> &sizes);
-std::vector<Index> tile_sizes_for_axis_extent(
-    const std::vector<Index> &pattern,
-    Index extent);
-} // namespace nntile
 
 #include <algorithm>
 #include <chrono>
@@ -122,6 +114,7 @@ std::unordered_map<TensorImplKey, ParamGradEntry> g_param_grad_registry;
 std::unordered_map<TensorImplKey, std::unordered_map<int, std::string>>
     g_axis_name_hints;
 std::unordered_map<std::string, std::vector<nntile::Index>> g_axis_tiling_by_name;
+std::string g_ddp_axis;
 std::size_t g_ephemeral_staging_serial = 0;
 
 struct RecorderExecState
@@ -339,6 +332,32 @@ void apply_pending_axis_tiling_locked()
             continue;
         }
         nntile::apply_tiling_to_axis(group, pending->second);
+    }
+}
+
+void apply_session_ddp_tiling_locked()
+{
+    if (g_graph == nullptr || !g_graph->ddp_enabled())
+    {
+        return;
+    }
+    if (graph_has_torch_compute_op_locked())
+    {
+        throw_tiled_aten_temporarily_disabled();
+    }
+    nntile::tile::apply_ddp_axis_tiling(*g_graph, g_graph->ddp_axis());
+}
+
+void ensure_tensor_graph_locked()
+{
+    if (g_graph == nullptr)
+    {
+        g_graph = std::make_unique<nntile::TensorGraph>("torch_nntile");
+        set_logical_tensor_nodes_alive(true);
+        if (!g_ddp_axis.empty())
+        {
+            g_graph->enable_ddp(g_ddp_axis);
+        }
     }
 }
 
@@ -1067,6 +1086,7 @@ void compile_graph_locked()
 
     sync_param_grad_aliases_locked();
     apply_pending_axis_tiling_locked();
+    apply_session_ddp_tiling_locked();
     require_untiled_torch_session_locked();
 
     // Marks must reflect live Python refs before INVALIDATE selection.
@@ -1097,6 +1117,7 @@ void compile_graph_locked()
     g_timing.compile_tiling_s += seconds_since(t_part);
 
     t_part = SteadyClock::now();
+    size_t const tile_ops_before = g_exec->tile_graph->num_ops();
     try
     {
         nntile::append_tensor_graph_phase(
@@ -1115,11 +1136,19 @@ void compile_graph_locked()
             throw std::runtime_error(
                 msg +
                 " Hint: avoid .cpu() / host round-trips on nntile tensors "
-                "before the first compile_graph() that applies "
-                "set_axis_group_tiling(); early host reads seal the untiled "
-                "layout into the TileGraph.");
+                "before the first compile_graph() that applies ddp() "
+                "(or test-only axis tiling); early host reads seal the "
+                "untiled layout into the TileGraph.");
         }
         throw;
+    }
+    if (g_graph->ddp_enabled())
+    {
+        nntile::tile::rewrite_ddp_pending(
+            *g_exec->tile_graph,
+            tile_ops_before,
+            g_exec->tile_graph->num_ops(),
+            g_graph->ddp_axis());
     }
     g_timing.compile_append_s += seconds_since(t_part);
 
@@ -1566,8 +1595,7 @@ void init_nntile_input_from_cpu(
 
     if (g_graph == nullptr)
     {
-        g_graph = std::make_unique<nntile::TensorGraph>("torch_nntile");
-        set_logical_tensor_nodes_alive(true);
+        ensure_tensor_graph_locked();
     }
 
     const std::vector<nntile::Index> shape =
@@ -1695,8 +1723,7 @@ nntile::TensorGraph::TensorNode *get_or_create_data_node(
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     if (g_graph == nullptr)
     {
-        g_graph = std::make_unique<nntile::TensorGraph>("torch_nntile");
-        set_logical_tensor_nodes_alive(true);
+        ensure_tensor_graph_locked();
     }
 
     const std::size_t data_before = g_graph->num_data();
@@ -1945,6 +1972,27 @@ void set_axis_group_tiling(
     g_axis_tiling_by_name[name] = std::move(sizes);
 }
 
+void ddp(const std::string &axis)
+{
+    if (axis.empty())
+    {
+        throw std::runtime_error(
+            "torch_nntile ddp: axis name must be non-empty");
+    }
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    if (!g_ddp_axis.empty() && g_ddp_axis != axis)
+    {
+        throw std::runtime_error(
+            "torch_nntile ddp: already enabled for axis '" +
+            g_ddp_axis + "'");
+    }
+    g_ddp_axis = axis;
+    if (g_graph != nullptr)
+    {
+        g_graph->enable_ddp(axis);
+    }
+}
+
 std::string format_pending_tile_sizes(
     const std::vector<nntile::Index> &sizes)
 {
@@ -1990,6 +2038,11 @@ std::string format_axis_groups_locked()
        << "/" << g_graph->num_data()
        << ", ops=" << g_graph->num_ops() << ", axis_groups=" << groups.size()
        << ", tiled=" << tiled << '/' << groups.size() << '\n';
+    if (!g_ddp_axis.empty())
+    {
+        ss << "DDP axis='" << g_ddp_axis << "' replicas="
+           << nntile::sched::count_execution_workers() << '\n';
+    }
     if (groups.empty())
     {
         return ss.str();

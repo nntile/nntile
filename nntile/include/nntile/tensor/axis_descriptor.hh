@@ -63,6 +63,10 @@ struct AxisDescriptor
     std::string tile_sizes_to_string() const;
 };
 
+//! Apply uniform (one size) or explicit per-tile sizes to an axis group.
+void apply_tiling_to_axis(
+    AxisDescriptor *ad, std::vector<Index> const &sizes);
+
 //! Merge two axis groups. All tensors holding `replace` are redirected
 //! to hold `keep`. Throws if extents differ. No-op if already same.
 void merge_axis(std::shared_ptr<AxisDescriptor>& keep,

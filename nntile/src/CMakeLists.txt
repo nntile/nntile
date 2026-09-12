@@ -344,7 +344,6 @@ set(LOGGER_SRC
 
 set(GRAPH_TENSOR_LAYER_SRC
     "tensor/axis_descriptor.cc"
-    "tensor/tiling_spec_json.cc"
     "tensor/tensor_graph_tiling.cc"
     "tensor/graph_data_node.cc"
     "tensor/graph_op_node.cc"
@@ -429,12 +428,13 @@ set(GRAPH_TENSOR_LAYER_SRC
 )
 
 set(GRAPH_RUNTIME_SRC
-    "core/execution_schedule.cc"
+    "core/execution_worker.cc"
     "runtime.cc"
     )
 
 set(GRAPH_TILE_LAYER_SRC
     "tile/append_tensor_graph_phase.cc"
+    "tile/ddp_rewrite.cc"
     "tile/lower_staging_tensor.cc"
     "tile/from_tensor_graph.cc"
     "tile/graph_data_node.cc"
