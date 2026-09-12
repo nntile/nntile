@@ -12,13 +12,13 @@
 #include "context_fixture.hh"
 
 #include <nntile/context.hh>
-#include <nntile/runtime.hh>
 #include <nntile/tensor.hh>
 #include <nntile/tensor/axis_descriptor.hh>
 #include <nntile/tensor/ops/fill.hh>
 #include <nntile/tensor/ops/gemm.hh>
 #include <nntile/tensor/ops/sgd_step.hh>
 #include <nntile/tile.hh>
+#include <nntile/runtime.hh>
 #include <nntile/tile/ddp.hh>
 
 #include <catch2/catch_test_macros.hpp>

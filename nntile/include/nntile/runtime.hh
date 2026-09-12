@@ -31,11 +31,11 @@
 #include <nntile/core/execution_worker.hh>
 #include <nntile/defs.h>
 #include <nntile/dtype.hh>
+#include <nntile/tile/graph_decl.hh>
 #include <nntile/tensor/graph_data_node.hh>
 #include <nntile/tensor/tensor_ref.hh>
 #include <nntile/tensor/tensor_graph_tiling.hh>
 #include <nntile/tile/graph_data_node.hh>
-#include <nntile/tile/graph_decl.hh>
 #include <nntile/tile/lowering_context.hh>
 #include <nntile/core/tile.hh>
 

@@ -26,7 +26,7 @@ namespace nntile::tile
 {
 
 //! Even split of ``extent`` into ``n_replicas`` positive chunks.
-//! Last tiles absorb the remainder; throws if any chunk would be zero.
+//! First tiles absorb the remainder; throws if any chunk would be zero.
 std::vector<Index> ddp_tile_sizes(Index extent, int n_replicas);
 
 //! Set tile sizes on every live axis group named ``axis``.
