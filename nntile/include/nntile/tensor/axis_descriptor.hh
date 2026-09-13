@@ -58,9 +58,12 @@ struct AxisDescriptor
     //! Number of tiles along this axis (1 if not tiled).
     Index num_tiles() const;
 
-    //! Human-readable tile sizes for display: "N" for single/uniform,
-    //! "{a,b,c}" for heterogeneous. Returns empty string if not tiled.
+    //! Tile sizes as a comma-separated partition of ``extent``.
+    //! Empty if not tiled. Example: ``2,2`` or leftover ``3,2``.
     std::string tile_sizes_to_string() const;
+
+    //! ``ntiles=N tiles=a,b,...`` for axis-group dumps. Empty if not tiled.
+    std::string tiling_to_string() const;
 };
 
 //! Apply uniform (one size) or explicit per-tile sizes to an axis group.

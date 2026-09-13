@@ -129,8 +129,78 @@ def test_print_axis_groups_shows_pending_tiling():
         _ = add(x, y)
         torch_nntile._set_axis_group_tiling("batch", [1, 1, 2])
         info = torch_nntile.format_axis_groups()
-        assert "pending_tile=1,1,2" in info
+        assert "pending_ntiles=3" in info
+        assert "pending_tiles=1,1,2" in info
         torch_nntile.execute()
+        """
+    )
+
+
+def test_print_axis_groups_pending_uniform_tile_size():
+    _run_subprocess(
+        """
+        import torch
+        import torch_nntile
+
+        torch_nntile.init_context(
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
+        )
+        x = torch.randn(4, 8).to("nntile")
+        y = torch.randn(4, 8).to("nntile")
+        torch_nntile.set_axis_group_name(x, {0: "batch"})
+        from torch_nntile.nn.functional import add
+        _ = add(x, y)
+        torch_nntile._set_axis_group_tiling("batch", 2)
+        info = torch_nntile.format_axis_groups()
+        assert "pending_ntiles=2" in info
+        assert "pending_tiles=2,2" in info
+        torch_nntile.execute()
+        """
+    )
+
+
+def test_format_axis_groups_ddp_prints_ntiles_and_tiles():
+    _run_subprocess(
+        """
+        import torch
+        import torch_nntile
+
+        torch_nntile.init_context(
+            ncpu=2, ncuda=0, verbose=0, cpu_fallback=False
+        )
+        torch_nntile.restrict_cpu()
+        x = torch.randn(4, 8).to("nntile")
+        torch_nntile.set_axis_group_name(x, {0: "batch"})
+        torch_nntile.ddp()
+        torch_nntile.compile_graph()
+        torch_nntile.run()
+        info = torch_nntile.format_axis_groups()
+        assert "name='batch'" in info
+        assert "ntiles=2" in info
+        assert "tiles=2,2" in info
+        assert " tile=" not in info
+        """
+    )
+
+
+def test_format_axis_groups_ddp_leftover_tiles():
+    _run_subprocess(
+        """
+        import torch
+        import torch_nntile
+
+        torch_nntile.init_context(
+            ncpu=2, ncuda=0, verbose=0, cpu_fallback=False
+        )
+        torch_nntile.restrict_cpu()
+        x = torch.randn(5, 8).to("nntile")
+        torch_nntile.set_axis_group_name(x, {0: "batch"})
+        torch_nntile.ddp()
+        torch_nntile.compile_graph()
+        torch_nntile.run()
+        info = torch_nntile.format_axis_groups()
+        assert "ntiles=2" in info
+        assert "tiles=3,2" in info
         """
     )
 

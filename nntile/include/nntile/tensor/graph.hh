@@ -432,7 +432,7 @@ inline std::string TensorGraph::to_string() const
             }
             if (g->is_tiled())
             {
-                ss << " tile=" << g->tile_sizes_to_string();
+                ss << " " << g->tiling_to_string();
             }
             ss << " members=" << g->members.size() << "\n";
         }

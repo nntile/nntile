@@ -205,6 +205,19 @@ Axis groups:
   extent=10 name='classes' members=2
 ```
 
+After compile, a DDP split into ``N`` chunks (or a provided tile size)
+shows both the tile count and the partition of ``extent``:
+
+```text
+  extent=4 name='batch' ntiles=2 tiles=2,2 members=8
+  extent=256 name='hidden' ntiles=4 tiles=64,64,64,64 members=4
+  extent=5 name='batch' ntiles=2 tiles=3,2 members=8
+```
+
+``ntiles`` is the number of chunks. ``tiles=`` is the division of the
+dimension (not a single collapsed tile size). A leftover last tile is
+listed explicitly (``3,2``), not as ``tile=3``.
+
 After `compile_graph()` + `run()`, pending ops are cleared but the compiled
 session may persist for tile reuse. Call `format_axis_groups()` only while a
 graph is pending (`has_pending_graph()`).

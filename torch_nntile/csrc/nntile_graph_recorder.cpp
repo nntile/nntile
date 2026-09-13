@@ -2032,29 +2032,6 @@ void ddp(const std::string &axis)
     }
 }
 
-std::string format_pending_tile_sizes(
-    const std::vector<nntile::Index> &sizes)
-{
-    if (sizes.empty())
-    {
-        return "";
-    }
-    if (sizes.size() == 1)
-    {
-        return std::to_string(sizes.front());
-    }
-    std::ostringstream ss;
-    for (size_t i = 0; i < sizes.size(); ++i)
-    {
-        if (i > 0)
-        {
-            ss << ',';
-        }
-        ss << sizes[i];
-    }
-    return ss.str();
-}
-
 std::string format_axis_groups_locked()
 {
     if (g_graph == nullptr)
@@ -2101,14 +2078,26 @@ std::string format_axis_groups_locked()
         }
         if (group->is_tiled())
         {
-            ss << " tile=" << group->tile_sizes_to_string();
+            ss << " " << group->tiling_to_string();
         }
         else if (!group->name.empty())
         {
             const auto pending = g_axis_tiling_by_name.find(group->name);
             if (pending != g_axis_tiling_by_name.end())
             {
-                ss << " pending_tile=" << format_pending_tile_sizes(pending->second);
+                nntile::AxisDescriptor probe;
+                probe.extent = group->extent;
+                if (pending->second.size() == 1)
+                {
+                    probe.set_tiling(pending->second.front());
+                }
+                else
+                {
+                    probe.set_tiling(pending->second);
+                }
+                ss << " pending_ntiles=" << probe.num_tiles()
+                   << " pending_tiles="
+                   << probe.tile_sizes_to_string();
             }
         }
         ss << " members=" << group->members.size() << '\n';

@@ -333,7 +333,7 @@ Name dimensions from a tensor, then call ``ddp()`` before
 |-----|---------|
 | `set_axis_group_name(tensor, {dim: name})` | Name axis groups (partial dims OK) |
 | `ddp(axis="batch")` | Data-parallel compile for that named axis |
-| `format_axis_groups()` | String summary of pending axis groups |
+| `format_axis_groups()` | String summary of pending axis groups (`ntiles` + `tiles=` partition) |
 | `print_axis_groups()` | Print summary (includes `DDP axis=` when enabled) |
 | `print_info()` | Print cumulative `compile_graph` / `run` / `wait` / host-readout timing |
 
