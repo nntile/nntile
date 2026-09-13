@@ -150,7 +150,7 @@ def test_rope_seq_half_tables_match_ref():
 
 
 def test_rope_heads_as_batch_matches_ref():
-    """HF-shaped ``[B, S, half]`` tables; heads are extra leading modes of x."""
+    """HF-shaped ``[B, S, half]``; heads are extra leading modes of x."""
     torch.manual_seed(3)
     heads, batch, seq, head_dim = 4, 2, 8, 16
     position_ids = (
