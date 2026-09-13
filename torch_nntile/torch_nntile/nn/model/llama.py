@@ -7,9 +7,9 @@
 """Llama stack mirroring ``nntile::model::llama`` (RMSNorm, RoPE, SiLU MLP).
 
 Forward / backward keep activations on ``device=nntile`` end-to-end.
-``position_ids`` / RoPE ``sin``/``cos`` are one-shot host tables (see
-``warm_sequence_caches``), matching deleted NNGraph ``bind_data`` - prepared
-once for training, not recomputed from activations each step.
+RoPE ``sin``/``cos`` are ``[seq, head_dim // 2]`` host tables (see
+``warm_sequence_caches``); the kernel applies them across heads and
+batch. ``position_ids`` is unused in compute.
 """
 
 from __future__ import annotations
@@ -42,10 +42,10 @@ except ImportError:  # pragma: no cover - stub if rope.py missing
         rope_theta: float = 10000.0,
     ) -> tuple[Tensor, Tensor]:
         del rope_theta
-        b, s = position_ids.shape
         half = head_dim // 2
+        shape = (*tuple(position_ids.shape), half)
         z = torch.zeros(
-            b, s, half, dtype=torch.float32, device=position_ids.device
+            shape, dtype=torch.float32, device=position_ids.device
         )
         return z, torch.ones_like(z)
 
@@ -198,8 +198,8 @@ class LlamaAttention(nn.Module):
         return gemm(attn_t, self.o_weight, ndim=out_ndim, batch_ndim=0)
 
     def _apply_rope(self, x: Tensor, sin: Tensor, cos: Tensor) -> Tensor:
-        # sin/cos stay ``[B, S, head_dim // 2]``. The RoPE kernel folds
-        # extra leading modes of ``x`` (heads, GQA n_rep) into batch.
+        # sin/cos are ``[S, head_dim // 2]``. Extra leading modes of
+        # ``x`` (heads, GQA n_rep, batch) are the kernel batch ``n``.
         if sin.device != x.device:
             sin = sin.to(x.device)
             cos = cos.to(x.device)
@@ -285,8 +285,9 @@ class LlamaModel(nn.Module):
         )
         self.norm = LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         # Host-built index / RoPE / causal-mask tables (NNGraph bind_data).
+        # RoPE tables are ``[seq, head_dim // 2]`` (shared across batch).
         self._position_ids_cache: dict[tuple[int, int], Tensor] = {}
-        self._rope_cache: dict[tuple[int, int], tuple[Tensor, Tensor]] = {}
+        self._rope_cache: dict[int, tuple[Tensor, Tensor]] = {}
         self._causal_mask_cache: dict[int, Tensor] = {}
 
     def _cached_position_ids(self, input_ids: Tensor) -> Tensor:
@@ -310,23 +311,16 @@ class LlamaModel(nn.Module):
     def _cached_rope(
         self, position_ids: Tensor
     ) -> tuple[Tensor, Tensor]:
-        """Return sin/cos on ``position_ids.device`` (built once, then reused).
+        """Return ``[seq, head_dim // 2]`` sin/cos (built once, then reused).
 
-        Matches deleted NNGraph: RoPE tables are prepared on the host and
-        bound once for training - never recomputed from activations.
+        Shared across batch: the RoPE kernel applies the same table to
+        every batch row. Matches deleted NNGraph bind_data.
         """
-        batch, seq = int(position_ids.size(0)), int(position_ids.size(-1))
-        key = (batch, seq)
-        cached = self._rope_cache.get(key)
+        seq = int(position_ids.size(-1))
+        cached = self._rope_cache.get(seq)
         if cached is not None and cached[0].device == position_ids.device:
             return cached
-        # One-shot host table from arange (do not gather nntile position_ids).
-        pos_host = (
-            torch.arange(seq, dtype=torch.long, device="cpu")
-            .unsqueeze(0)
-            .expand(batch, seq)
-            .contiguous()
-        )
+        pos_host = torch.arange(seq, dtype=torch.long, device="cpu")
         sin, cos = rope_sin_cos_from_position_ids(
             pos_host,
             self.config.head_dim,
@@ -335,7 +329,7 @@ class LlamaModel(nn.Module):
         if position_ids.device.type != "cpu":
             sin = sin.to(position_ids.device)
             cos = cos.to(position_ids.device)
-        self._rope_cache[key] = (sin, cos)
+        self._rope_cache[seq] = (sin, cos)
         return sin, cos
 
     def _cached_causal_mask(self, input_ids: Tensor) -> Tensor:

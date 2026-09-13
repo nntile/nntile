@@ -54,7 +54,6 @@ torch::Tensor rms_norm(
 }
 
 void rope_sin_cos_host(
-    int64_t batch,
     int64_t seq,
     int64_t head_dim,
     double rope_theta,
@@ -77,25 +76,22 @@ void rope_sin_cos_host(
                 idx / static_cast<double>(head_dim)));
     }
     sin_out = torch::empty(
-        {batch, seq, half},
+        {seq, half},
         torch::TensorOptions()
             .dtype(torch::kFloat32)
             .device(torch::kCPU));
     cos_out = torch::empty_like(sin_out);
-    auto sin_a = sin_out.accessor<float, 3>();
-    auto cos_a = cos_out.accessor<float, 3>();
-    for (int64_t b = 0; b < batch; ++b)
+    auto sin_a = sin_out.accessor<float, 2>();
+    auto cos_a = cos_out.accessor<float, 2>();
+    for (int64_t s = 0; s < seq; ++s)
     {
-        for (int64_t s = 0; s < seq; ++s)
+        for (int64_t h = 0; h < half; ++h)
         {
-            for (int64_t h = 0; h < half; ++h)
-            {
-                double angle = static_cast<double>(s)
-                    * static_cast<double>(
-                        inv[static_cast<std::size_t>(h)]);
-                sin_a[b][s][h] = static_cast<float>(std::sin(angle));
-                cos_a[b][s][h] = static_cast<float>(std::cos(angle));
-            }
+            double angle = static_cast<double>(s)
+                * static_cast<double>(
+                    inv[static_cast<std::size_t>(h)]);
+            sin_a[s][h] = static_cast<float>(std::sin(angle));
+            cos_a[s][h] = static_cast<float>(std::cos(angle));
         }
     }
 }
@@ -106,8 +102,8 @@ torch::Tensor apply_rope(
     torch::Tensor cos)
 {
     // x: [n_heads, batch, seq, head_dim] (or GQA [n_kv, n_rep, ...]).
-    // sin/cos stay [batch, seq, head_dim/2]; the kernel folds extra
-    // leading modes of x into batch n. Do not scale_slice-expand them.
+    // sin/cos are [seq, head_dim/2]; extra leading modes of x are the
+    // kernel batch n. Do not scale_slice-expand the tables.
     return rope(sin, cos, x);
 }
 
@@ -321,12 +317,12 @@ void LlamaCausalImpl::warm_rope_cache(
     int64_t seq,
     torch::Device device)
 {
+    (void)batch;
     int64_t const head_dim =
         config.hidden_size / config.num_attention_heads;
     torch::Tensor sin_h;
     torch::Tensor cos_h;
     rope_sin_cos_host(
-        batch,
         seq,
         head_dim,
         config.rope_theta,
@@ -342,7 +338,6 @@ void LlamaCausalImpl::warm_rope_cache(
     rope_sin_ = sin_h;
     rope_cos_ = cos_h;
     cached_mask_ = mask;
-    rope_cache_batch_ = batch;
     rope_cache_seq_ = seq;
 }
 
@@ -350,8 +345,7 @@ torch::Tensor LlamaCausalImpl::forward(torch::Tensor input_ids)
 {
     int64_t const b = input_ids.size(0);
     int64_t const s = input_ids.size(1);
-    if (!rope_sin_.defined() || rope_cache_batch_ != b
-        || rope_cache_seq_ != s
+    if (!rope_sin_.defined() || rope_cache_seq_ != s
         || rope_sin_.device() != input_ids.device())
     {
         warm_rope_cache(b, s, input_ids.device());

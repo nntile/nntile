@@ -6,8 +6,10 @@
 
 """GPT-NeoX stack mirroring ``nntile::model::gptneox``.
 
-Uses RoPE and parallel residual. Activations stay on ``device=nntile``;
-position / RoPE tables are cached uploads (deleted NNGraph bind_data pattern).
+Uses RoPE and parallel residual. Activations stay on ``device=nntile``.
+RoPE ``sin``/``cos`` are ``[seq, head_dim // 2]`` host tables (identity
+padded for partial rotary); the kernel applies them across heads and
+batch.
 """
 
 from __future__ import annotations
@@ -37,12 +39,13 @@ except ImportError:  # pragma: no cover
         head_dim: int,
         *,
         rope_theta: float = 10000.0,
+        identity_pad_head_dim: int | None = None,
     ) -> tuple[Tensor, Tensor]:
         del rope_theta
-        b, s = position_ids.shape
-        half = head_dim // 2
+        half = (identity_pad_head_dim or head_dim) // 2
+        shape = (*tuple(position_ids.shape), half)
         z = torch.zeros(
-            b, s, half, dtype=torch.float32, device=position_ids.device
+            shape, dtype=torch.float32, device=position_ids.device
         )
         return z, torch.ones_like(z)
 
@@ -167,9 +170,10 @@ class GPTNeoXAttention(nn.Module):
         return out
 
     def _apply_rope(self, x: Tensor, sin: Tensor, cos: Tensor) -> Tensor:
-        # Partial rotary: sin/cos are identity-padded to ``head_dim // 2``
-        # (host tables). Full-head ``rope`` matches Llama; densifying
-        # ``narrow`` + ``cat`` disagrees with the RoPE kernel layout.
+        # sin/cos are ``[S, head_dim // 2]`` (identity-padded for partial
+        # rotary). Extra leading modes of ``x`` (heads, batch) are the
+        # kernel batch ``n``. Densifying ``narrow`` + ``cat`` disagrees
+        # with the RoPE kernel layout.
         if self.rotary_ndims <= 0:
             return x
         if sin.device != x.device:
@@ -275,7 +279,8 @@ class GPTNeoXModel(nn.Module):
             config.hidden_size, eps=config.layer_norm_eps
         )
         self._position_ids_cache: dict[tuple[int, int], Tensor] = {}
-        self._rope_cache: dict[tuple[int, int], tuple[Tensor, Tensor]] = {}
+        # RoPE tables are ``[seq, head_dim // 2]`` (shared across batch).
+        self._rope_cache: dict[int, tuple[Tensor, Tensor]] = {}
 
     def _cached_position_ids(self, input_ids: Tensor) -> Tensor:
         batch, seq = int(input_ids.size(0)), int(input_ids.size(-1))
@@ -297,22 +302,16 @@ class GPTNeoXModel(nn.Module):
     def _cached_rope(
         self, position_ids: Tensor
     ) -> tuple[Tensor, Tensor]:
-        """Return sin/cos on ``position_ids.device`` (built once, then reused).
+        """Return ``[seq, head_dim // 2]`` sin/cos (built once, then reused).
 
-        Matches deleted NNGraph: RoPE tables are prepared on the host and
-        bound once for training - never recomputed from activations.
+        Shared across batch: the RoPE kernel applies the same table to
+        every batch row. Matches deleted NNGraph bind_data.
         """
-        batch, seq = int(position_ids.size(0)), int(position_ids.size(-1))
-        key = (batch, seq)
-        cached = self._rope_cache.get(key)
+        seq = int(position_ids.size(-1))
+        cached = self._rope_cache.get(seq)
         if cached is not None and cached[0].device == position_ids.device:
             return cached
-        pos_host = (
-            torch.arange(seq, dtype=torch.long, device="cpu")
-            .unsqueeze(0)
-            .expand(batch, seq)
-            .contiguous()
-        )
+        pos_host = torch.arange(seq, dtype=torch.long, device="cpu")
         sin, cos = rope_sin_cos_from_position_ids(
             pos_host,
             self.config.rotary_ndims,
@@ -322,7 +321,7 @@ class GPTNeoXModel(nn.Module):
         if position_ids.device.type != "cpu":
             sin = sin.to(position_ids.device)
             cos = cos.to(position_ids.device)
-        self._rope_cache[key] = (sin, cos)
+        self._rope_cache[seq] = (sin, cos)
         return sin, cos
 
     def clear_sequence_caches(self) -> None:

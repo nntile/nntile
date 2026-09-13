@@ -97,7 +97,6 @@ struct GptNeoXCausalImpl : torch::nn::Module
     torch::Tensor rope_sin_;
     torch::Tensor rope_cos_;
     torch::Tensor cached_mask_;
-    int64_t rope_cache_batch_ = -1;
     int64_t rope_cache_seq_ = -1;
 
     explicit GptNeoXCausalImpl(GptNeoXConfig cfg);

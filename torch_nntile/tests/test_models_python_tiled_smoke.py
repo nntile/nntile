@@ -6,9 +6,9 @@
 
 """Each ``torch_nntile.nn.model`` family must compile with ``ddp()``.
 
-Cached RoPE / position / token-type tables are independent uploads. Name
-their batch axis too, or the sharded activations disagree with untiled
-tables (``grid_linear`` OOB).
+Name dim 0 of batched compute tensors (tokens, logits). Llama / GPT-NeoX
+RoPE tables are ``[seq, head_dim // 2]`` and must not join the DDP batch
+group; the kernel applies them across heads and batch.
 """
 
 from __future__ import annotations
@@ -121,10 +121,12 @@ def test_tiled_llama():
         ids = torch.randint(0, 128, (2, 8), dtype=torch.long)
         ids = ids.contiguous().to("nntile")
         out = model(ids)
-        pos = model.model._position_ids_cache[(2, 8)]
-        sin, cos = model.model._rope_cache[(2, 8)]
-        for t in (ids, out, pos, sin, cos):
-            torch_nntile.set_axis_group_name(t, {0: "batch"})
+        sin, cos = model.model._rope_cache[8]
+        half = cfg.hidden_size // cfg.num_attention_heads // 2
+        assert tuple(sin.shape) == (8, half)
+        assert tuple(cos.shape) == (8, half)
+        torch_nntile.set_axis_group_name(ids, {0: "batch"})
+        torch_nntile.set_axis_group_name(out, {0: "batch"})
         torch_nntile.ddp()
         info = torch_nntile.format_axis_groups()
         assert "name='batch'" in info
@@ -177,10 +179,12 @@ def test_tiled_gpt_neox():
         ids = torch.randint(0, 128, (2, 8), dtype=torch.long)
         ids = ids.contiguous().to("nntile")
         out = model(ids)
-        pos = model.gpt_neox._position_ids_cache[(2, 8)]
-        sin, cos = model.gpt_neox._rope_cache[(2, 8)]
-        for t in (ids, out, pos, sin, cos):
-            torch_nntile.set_axis_group_name(t, {0: "batch"})
+        sin, cos = model.gpt_neox._rope_cache[8]
+        half = cfg.hidden_size // cfg.num_attention_heads // 2
+        assert tuple(sin.shape) == (8, half)
+        assert tuple(cos.shape) == (8, half)
+        torch_nntile.set_axis_group_name(ids, {0: "batch"})
+        torch_nntile.set_axis_group_name(out, {0: "batch"})
         torch_nntile.ddp()
         info = torch_nntile.format_axis_groups()
         assert "name='batch'" in info

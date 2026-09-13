@@ -148,10 +148,11 @@ def test_ddp_llama_train_step():
         names = torch_nntile.pending_op_names()
         torch_ops = [n for n in names if n.startswith("TORCH_")]
         assert not torch_ops, torch_ops
-        pos = model.model._position_ids_cache[(4, 8)]
-        sin, cos = model.model._rope_cache[(4, 8)]
-        for tensor in (ids, labels, logits, pos, sin, cos):
-            torch_nntile.set_axis_group_name(tensor, {0: "batch"})
+        sin, cos = model.model._rope_cache[8]
+        half = cfg.hidden_size // cfg.num_attention_heads // 2
+        assert tuple(sin.shape) == (8, half)
+        assert tuple(cos.shape) == (8, half)
+        torch_nntile.set_axis_group_name(logits, {0: "batch"})
         torch_nntile.ddp()
         info = torch_nntile.format_axis_groups()
         assert "DDP axis='batch'" in info

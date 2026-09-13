@@ -175,27 +175,16 @@ def name_ddp_batch_axis(
     batch: dict[str, torch.Tensor],
     axis: str = "batch",
 ) -> None:
-    """Name dim 0 of batch tensors and cached sequence tables (RoPE / pos).
+    """Name dim 0 of batched compute inputs (tokens, labels, ...).
 
-    Cached RoPE / position_ids are independent uploads. If they stay
-    unnamed while activations are sharded, lowering can OOB.
+    RoPE ``sin``/``cos`` are ``[seq, head_dim // 2]`` and must not join
+    the DDP batch group: the kernel applies them across heads / batch.
+    Cached ``position_ids`` are unused in compute.
     """
+    del model
     for tensor in batch.values():
         if tensor.ndim >= 1:
             torch_nntile.set_axis_group_name(tensor, {0: axis})
-    for module in model.modules():
-        pos_cache = getattr(module, "_position_ids_cache", None)
-        if isinstance(pos_cache, dict):
-            for tensor in pos_cache.values():
-                if tensor.ndim >= 1:
-                    torch_nntile.set_axis_group_name(tensor, {0: axis})
-        rope_cache = getattr(module, "_rope_cache", None)
-        if isinstance(rope_cache, dict):
-            for value in rope_cache.values():
-                tables = value if isinstance(value, tuple) else (value,)
-                for tensor in tables:
-                    if tensor.ndim >= 1:
-                        torch_nntile.set_axis_group_name(tensor, {0: axis})
 
 
 def _load_train_state(

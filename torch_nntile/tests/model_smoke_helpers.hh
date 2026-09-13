@@ -85,9 +85,8 @@ inline at::Tensor bool_local_causal_mask(
     return ((k <= q) & ((q - k) < window)).to(opts);
 }
 
-//! Host RoPE tables ``[batch, seq, head_dim/2]`` (matches Llama warm cache).
+//! Host RoPE tables ``[seq, head_dim/2]`` (matches Llama / GPT-NeoX cache).
 inline void rope_sin_cos(
-    int64_t batch,
     int64_t seq,
     int64_t head_dim,
     double rope_theta,
@@ -112,22 +111,19 @@ inline void rope_sin_cos(
     auto opts = torch::TensorOptions()
         .dtype(torch::kFloat32)
         .device(torch::kCPU);
-    sin_out = torch::empty({batch, seq, half}, opts);
+    sin_out = torch::empty({seq, half}, opts);
     cos_out = torch::empty_like(sin_out);
-    auto sin_a = sin_out.accessor<float, 3>();
-    auto cos_a = cos_out.accessor<float, 3>();
-    for (int64_t b = 0; b < batch; ++b)
+    auto sin_a = sin_out.accessor<float, 2>();
+    auto cos_a = cos_out.accessor<float, 2>();
+    for (int64_t s = 0; s < seq; ++s)
     {
-        for (int64_t s = 0; s < seq; ++s)
+        for (int64_t h = 0; h < half; ++h)
         {
-            for (int64_t h = 0; h < half; ++h)
-            {
-                double angle = static_cast<double>(s) *
-                    static_cast<double>(
-                        inv[static_cast<std::size_t>(h)]);
-                sin_a[b][s][h] = static_cast<float>(std::sin(angle));
-                cos_a[b][s][h] = static_cast<float>(std::cos(angle));
-            }
+            double angle = static_cast<double>(s) *
+                static_cast<double>(
+                    inv[static_cast<std::size_t>(h)]);
+            sin_a[s][h] = static_cast<float>(std::sin(angle));
+            cos_a[s][h] = static_cast<float>(std::cos(angle));
         }
     }
 }

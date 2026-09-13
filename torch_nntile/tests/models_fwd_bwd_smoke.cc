@@ -291,7 +291,7 @@ TEST_CASE("C++ LlamaAttention fwd+bwd smoke", "[models][smoke][parts]")
     auto x = to_nntile_float(rand_hidden(), true);
     at::Tensor sin;
     at::Tensor cos;
-    rope_sin_cos(kB, kS, kHd, 10000.0, sin, cos);
+    rope_sin_cos(kS, kHd, 10000.0, sin, cos);
     auto sin_n = to_nntile_float(sin, false);
     auto cos_n = to_nntile_float(cos, false);
     auto mask = bool_causal_mask(kS).contiguous().to(nntile_device());
@@ -309,7 +309,7 @@ TEST_CASE("C++ LlamaDecoder fwd+bwd smoke", "[models][smoke][parts]")
     auto x = to_nntile_float(rand_hidden(), true);
     at::Tensor sin;
     at::Tensor cos;
-    rope_sin_cos(kB, kS, kHd, 10000.0, sin, cos);
+    rope_sin_cos(kS, kHd, 10000.0, sin, cos);
     auto sin_n = to_nntile_float(sin, false);
     auto cos_n = to_nntile_float(cos, false);
     auto mask = bool_causal_mask(kS).contiguous().to(nntile_device());
@@ -509,7 +509,7 @@ TEST_CASE("C++ GptNeoXAttention fwd+bwd smoke", "[models][smoke][parts]")
     auto x = to_nntile_float(rand_hidden(), true);
     at::Tensor sin;
     at::Tensor cos;
-    rope_sin_cos(kB, kS, kHd, 10000.0, sin, cos);
+    rope_sin_cos(kS, kHd, 10000.0, sin, cos);
     auto sin_n = to_nntile_float(sin, false);
     auto cos_n = to_nntile_float(cos, false);
     auto mask = bool_causal_mask(kS).contiguous().to(nntile_device());
@@ -527,7 +527,7 @@ TEST_CASE("C++ GptNeoXDecoder fwd+bwd smoke", "[models][smoke][parts]")
     auto x = to_nntile_float(rand_hidden(), true);
     at::Tensor sin;
     at::Tensor cos;
-    rope_sin_cos(kB, kS, kHd, 10000.0, sin, cos);
+    rope_sin_cos(kS, kHd, 10000.0, sin, cos);
     auto sin_n = to_nntile_float(sin, false);
     auto cos_n = to_nntile_float(cos, false);
     auto mask = bool_causal_mask(kS).contiguous().to(nntile_device());

@@ -470,8 +470,9 @@ python torch_nntile/examples/train_llama.py train \
 The same ``--ddp`` / ``--ddp-axis`` / ``--print-axis-groups`` flags work
 on the other tiny classic trainers that share
 ``nntile_tiny_train_common.py`` (BERT, T5, GPT-Neo, GPT-NeoX, RoBERTa,
-DiT). Name dim 0 of cached RoPE / position tables as well as the batch
-(the example does this automatically).
+DiT). Name dim 0 of the batch (tokens / labels). Llama / GPT-NeoX RoPE
+tables are ``[seq, head_dim // 2]`` and must not be named ``batch`` —
+the kernel applies them across heads and the DDP replicas.
 
 ## Tests
 
