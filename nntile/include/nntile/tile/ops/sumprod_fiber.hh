@@ -36,6 +36,24 @@ struct TileSumprodFiberOp : TileGraph::OpNode
     }
     std::string op_name() const override { return "TILE_SUMPROD_FIBER"; }
     void execute(Runtime& runtime) const override;
+    void replace_named_tile(
+        TileGraph::TileNode *from,
+        TileGraph::TileNode *to) override
+    {
+        if (s1 == from)
+        {
+            s1 = to;
+        }
+        if (s2 == from)
+        {
+            s2 = to;
+        }
+        if (dst == from)
+        {
+            dst = to;
+        }
+    }
+
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
         return std::make_shared<TileSumprodFiberOp>(*this);

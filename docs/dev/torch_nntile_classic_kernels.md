@@ -30,7 +30,8 @@ Rules:
   of deleted `nntile::model::*`). Wire them to these kernels; do **not**
   reimplement GPT-2 / Llama / BERT / … from Hugging Face `torch.nn`.
   Tests: `test_models_classic_graph.py` (`_C.cpp_*` fwd+bwd; no
-  `TORCH_*` except autograd grad-combine `TORCH_BINARY`).
+  `TORCH_*`). Autograd fan-in `aten::add` on a classic-only pending
+  graph records classic `ADD` so DDP can tile it.
 - Python `torch_nntile.nn.model` is the same stacks for the Python API
   (CI: `.github/scripts/check-model-classic-nn.sh`; graph:
   `test_models_python_classic_graph.py`; tiled smoke:

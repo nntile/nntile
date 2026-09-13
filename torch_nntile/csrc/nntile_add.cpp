@@ -5,11 +5,13 @@
  * PrivateUse1 ``aten::add`` (torch autograd InputBuffer / AccumulateGrad
  * and user ``torch.add``).
  *
- * Dual-path: if torch-native ops are enabled, ``aten::add`` always uses
- * torch-native kernels (HF / ``torch.nn`` graphs: broadcast, SDPA, mixed
- * layouts). Classic ``nntile::tensor::add`` is used only when torch-native
- * is off (classic-only builds). ``torch_nntile.nn`` still calls classic
- * add directly.
+ * Dual-path: if torch-native ops are enabled, ``aten::add`` uses
+ * torch-native kernels (HF / ``torch.nn``: broadcast, SDPA, mixed
+ * layouts) unless the pending TensorGraph is already classic-only
+ * compute. Then same-shape contiguous fp32 add records classic
+ * ``tensor::add`` so autograd fan-in can be DDP-tiled. Bare
+ * ``torch.add`` (no classic ops yet) stays ``TORCH_BINARY``.
+ * ``torch_nntile.nn`` still calls classic add directly.
  */
 
 #include "nntile_graph_recorder.h"
@@ -102,6 +104,17 @@ void classic_add_inplace(
 }
 #endif
 
+#if defined(NNTILE_TORCH_NATIVE_OPS) && defined(NNTILE_NNTILE_NATIVE_OPS)
+bool use_classic_aten_add(
+    const at::Tensor &self,
+    const at::Tensor &other)
+{
+    return self.is_contiguous() && other.is_contiguous() &&
+        self.sizes().equals(other.sizes()) &&
+        prefer_classic_aten_add();
+}
+#endif
+
 void run_add(
     const at::Tensor &self,
     const at::Tensor &other,
@@ -109,6 +122,13 @@ void run_add(
     at::Tensor &out)
 {
 #ifdef NNTILE_TORCH_NATIVE_OPS
+#if defined(NNTILE_NNTILE_NATIVE_OPS)
+    if (use_classic_aten_add(self, other))
+    {
+        classic_add_out(self, other, alpha.to<float>(), out);
+        return;
+    }
+#endif
     tensor_add_fp32(
         1.0f,
         self,
@@ -310,6 +330,13 @@ at::Tensor &add__tensor(
             at::infer_size(self.sizes(), other.sizes())),
         "nntile add_.Tensor: other must broadcast to self");
 #ifdef NNTILE_TORCH_NATIVE_OPS
+#if defined(NNTILE_NNTILE_NATIVE_OPS)
+    if (use_classic_aten_add(self, other))
+    {
+        classic_add_inplace(self, other, alpha.to<float>());
+        return self;
+    }
+#endif
     tensor_add_inplace_fp32(
         alpha.to<float>(),
         other,

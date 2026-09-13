@@ -33,6 +33,20 @@ struct TileLogsumexpOp : TileGraph::OpNode
     }
     std::string op_name() const override { return "TILE_LOGSUMEXP"; }
     void execute(Runtime& runtime) const override;
+    void replace_named_tile(
+        TileGraph::TileNode *from,
+        TileGraph::TileNode *to) override
+    {
+        if (src == from)
+        {
+            src = to;
+        }
+        if (dst == from)
+        {
+            dst = to;
+        }
+    }
+
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
         return std::make_shared<TileLogsumexpOp>(*this);

@@ -174,8 +174,14 @@ def run_nntile_train_iters(
     steps: int,
     opt: torch.optim.Optimizer,
     torch_nntile: Any,
+    before_compile: Callable[[], None] | None = None,
 ) -> int:
-    """Record/compile each step, wait, then run; wait after the last run."""
+    """Record/compile each step, wait, then run; wait after the last run.
+
+    ``before_compile`` runs after record (and ``zero_grad``) and before
+    ``compile_graph``. Use it to name DDP axes on tensors created during
+    this step (RoPE / position tables) and to call ``ddp()``.
+    """
     if torch_nntile.has_pending_graph():
         torch_nntile.compile_graph()
         torch_nntile.run()
@@ -201,6 +207,8 @@ def run_nntile_train_iters(
         )
         record_nntile_s += step_nntile_s
         record_torch_s += max(0.0, record_wall_s - step_nntile_s)
+        if before_compile is not None:
+            before_compile()
         dc, dw, dr = compile_wait_run_iter(torch_nntile)
         compile_s += dc
         wait_s += dw

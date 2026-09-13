@@ -35,10 +35,10 @@ training time.
 Pass ``--compare-torch`` with ``--device nntile`` to also train a CPU
 PyTorch reference and print per-epoch loss / final weight parity.
 Nntile-only flags (``--ncpu``, ``--ncuda``, ``--restrict-*``,
-``--axis-tiling``, ``--print-axis-groups``, ``--compare-torch``) are
+``--ddp``, ``--print-axis-groups``, ``--compare-torch``) are
 accepted on ``--device cpu`` / ``cuda`` but ignored (reported in output).
 
-Axis-group naming and tiling (optional) are configured in this script:
+Axis-group naming (optional) is configured in this script:
 
 - ``batch`` - input/logits batch dimension
 - ``features`` - flattened image dimension (784)
@@ -46,15 +46,16 @@ Axis-group naming and tiling (optional) are configured in this script:
   weight/grad/velocity matrix row or column of that size
 - ``classes`` - output logits dimension (10)
 
-Nntile (tiled CUDA workers)::
+Pass ``--ddp`` so compile shards ``batch`` across StarPU workers
+(``ncpu`` / ``ncuda``). Weights stay one tile; weight grads are reduced
+with ``ADD``.
+
+Nntile (DDP across CUDA workers)::
 
     export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib
     python torch_nntile/examples/train_deep_relu_mnist.py \\
         --device nntile --ncpu 0 --ncuda 2 --restrict-cuda \\
-        --epochs 5 \\
-        --axis-tiling batch=15000,15000,15000,15000 \\
-        --axis-tiling features=392,392 \\
-        --axis-tiling hidden=128,128
+        --epochs 5 --ddp
 
 Gradient accumulation (4 microbatches of 15 000; lower peak activation memory)::
 
@@ -169,40 +170,6 @@ def split_microbatches(
         )
         for i in range(grad_accum_steps)
     ]
-
-
-def parse_axis_tiling_arg(spec: str) -> tuple[str, list[int]]:
-    """Parse ``name=size`` or ``name=size,size,...``."""
-    if "=" not in spec:
-        raise argparse.ArgumentTypeError(
-            f"axis tiling must be NAME=SIZES, got {spec!r}"
-        )
-    name, sizes_text = spec.split("=", 1)
-    name = name.strip()
-    if not name:
-        raise argparse.ArgumentTypeError("axis group name must be non-empty")
-    sizes: list[int] = []
-    for part in sizes_text.split(","):
-        part = part.strip()
-        if not part:
-            raise argparse.ArgumentTypeError(
-                f"invalid tile size list in {spec!r}"
-            )
-        value = int(part)
-        if value <= 0:
-            raise argparse.ArgumentTypeError("tile sizes must be positive")
-        sizes.append(value)
-    return name, sizes
-
-
-def build_axis_group_tiling(
-    specs: list[str],
-) -> dict[str, list[int]]:
-    tiling: dict[str, list[int]] = {}
-    for spec in specs:
-        name, sizes = parse_axis_tiling_arg(spec)
-        tiling[name] = sizes
-    return tiling
 
 
 def synchronize_device(device: torch.device) -> None:
@@ -334,8 +301,8 @@ def name_prefetched_mnist_axis_groups(
     The first ``compile_graph`` seals *all* pending ingress scatters (every
     prefetched microbatch), not only the microbatch being trained. Inputs that
     are still unnamed are lowered untiled; naming them later with
-    ``--axis-tiling`` then raises ``layout_fingerprint mismatch``. Call this
-    before the first tiled compile when ``len(microbatches) > 1``.
+    ``--ddp`` then raises ``layout_fingerprint mismatch``. Call this
+    before the first DDP compile when ``len(microbatches) > 1``.
     """
     import torch_nntile
 
@@ -398,7 +365,8 @@ def train_on_nntile(
     epochs: int,
     learning_rate: float,
     hidden_dim: int,
-    axis_group_tiling: dict[str, list[int]] | None = None,
+    ddp: bool = False,
+    ddp_axis: str = "batch",
     print_axis_groups: bool = False,
 ) -> list[float]:
     """Train on preloaded nntile microbatches with gradient accumulation.
@@ -408,9 +376,9 @@ def train_on_nntile(
     ``run()`` starts the compiled step. A final ``wait()`` joins the last
     submit. Cumulative record / compile / run / wait times are printed.
 
-    Axis-group naming must run before ``set_axis_group_tiling`` on every
-    microbatch (tiling is applied at ``compile_graph``; unknown names fail).
-    Prefetch seals ingress scatters before the train loop.
+    Axis-group naming must run before ``ddp()`` on every microbatch
+    (DDP splits ``batch`` at ``compile_graph``). Prefetch seals ingress
+    scatters before the train loop.
     """
     import torch_nntile
     from torch_nntile.training import SGD, cross_entropy
@@ -430,12 +398,11 @@ def train_on_nntile(
 
     # Prefetch records ingress scatters for every microbatch; seal them
     # before the train timer so prefetch is outside the wall.
-    if axis_group_tiling is not None:
+    if ddp:
         name_prefetched_mnist_axis_groups(
             model, microbatches, hidden_dim=hidden_dim
         )
-        for name, tile_sizes in axis_group_tiling.items():
-            torch_nntile.set_axis_group_tiling(name, tile_sizes)
+        torch_nntile.ddp(ddp_axis)
     if torch_nntile.has_pending_graph():
         torch_nntile.compile_graph()
         torch_nntile.run()
@@ -471,9 +438,8 @@ def train_on_nntile(
             name_mnist_axis_groups(
                 model, images, labels, logits, hidden_dim=hidden_dim
             )
-            if axis_group_tiling is not None:
-                for name, tile_sizes in axis_group_tiling.items():
-                    torch_nntile.set_axis_group_tiling(name, tile_sizes)
+            if ddp:
+                torch_nntile.ddp(ddp_axis)
             if print_axis_groups and epoch == 0 and is_last_mb:
                 torch_nntile.print_axis_groups()
 
@@ -579,15 +545,17 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--axis-tiling",
-        action="append",
-        default=[],
-        metavar="NAME=SIZES",
+        "--ddp",
+        action="store_true",
         help=(
-            "Axis-group tiling for nntile, e.g. batch=15000,15000,15000,15000 "
-            "or features=392,392 or hidden=128,128. Repeat for multiple "
-            "groups (ignored on --device cpu/cuda)."
+            "Enable data-parallel compile on the named batch axis "
+            "(ignored on --device cpu/cuda)."
         ),
+    )
+    parser.add_argument(
+        "--ddp-axis",
+        default="batch",
+        help="Named axis for --ddp (default: batch).",
     )
     parser.add_argument(
         "--print-axis-groups",
@@ -636,8 +604,10 @@ def _nntile_only_args_set(args: argparse.Namespace) -> list[str]:
         ignored.append("--restrict-cuda")
     if args.restrict_cpu:
         ignored.append("--restrict-cpu")
-    if args.axis_tiling:
-        ignored.append("--axis-tiling")
+    if args.ddp:
+        ignored.append("--ddp")
+    if args.ddp_axis != "batch":
+        ignored.append(f"--ddp-axis={args.ddp_axis}")
     if args.print_axis_groups:
         ignored.append("--print-axis-groups")
     if args.compare_torch:
@@ -647,7 +617,6 @@ def _nntile_only_args_set(args: argparse.Namespace) -> list[str]:
 
 def main() -> None:
     args = _build_parser().parse_args()
-    axis_group_tiling = build_axis_group_tiling(args.axis_tiling)
     compare_torch = bool(args.compare_torch)
     use_nntile = args.device == "nntile"
 
@@ -664,8 +633,8 @@ def main() -> None:
 
     if use_nntile:
         print(f"StarPU workers: ncpu={args.ncpu} ncuda={args.ncuda}")
-        if axis_group_tiling:
-            print(f"Axis-group tiling: {axis_group_tiling}")
+        if args.ddp:
+            print(f"DDP axis={args.ddp_axis}")
     else:
         # Accept nntile-only flags on torch paths; report and ignore them.
         ignored = _nntile_only_args_set(args)
@@ -675,7 +644,6 @@ def main() -> None:
                 f"--device {args.device}: {', '.join(ignored)}"
             )
         compare_torch = False
-        axis_group_tiling = {}
 
     print(
         f"DeepReLU hidden_dim={args.hidden_dim} depth={args.depth} "
@@ -769,11 +737,11 @@ def main() -> None:
                 f"(MNIST images {n_image_elems}, "
                 f"labels {n_label_elems}, + model)"
             )
-            # Do not .cpu() / clone_model_weights before the first tiled
+            # Do not .cpu() / clone_model_weights before the first DDP
             # compile: that seals untiled layouts into the TileGraph and
-            # later --axis-tiling hits layout_fingerprint mismatch.
+            # later ddp() hits layout_fingerprint mismatch.
             # With --grad-accum-steps > 1, train_on_nntile also names every
-            # prefetched microbatch before that first tiled compile (pending
+            # prefetched microbatch before that first DDP compile (pending
             # ingress scatters are sealed together).
 
             print("\nTraining on nntile...")
@@ -783,12 +751,13 @@ def main() -> None:
                 epochs=args.epochs,
                 learning_rate=args.lr,
                 hidden_dim=args.hidden_dim,
-                axis_group_tiling=axis_group_tiling or None,
+                ddp=args.ddp,
+                ddp_axis=args.ddp_axis,
                 print_axis_groups=args.print_axis_groups,
             )
 
             nnt_path = output_dir / "deep_relu_mnist_nntile.pt"
-            # Host gather only after training (safe with --axis-tiling).
+            # Host gather only after training (safe with --ddp).
             final_nnt = clone_model_weights(model_nnt)
             torch.save(final_nnt, nnt_path)
             print(f"\nSaved nntile model (CPU tensors) to {nnt_path}")

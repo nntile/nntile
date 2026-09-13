@@ -16,4 +16,5 @@
 
 #include <nntile/tile/graph.hh>
 #include <nntile/runtime.hh>
+#include <nntile/tile/ddp.hh>
 #include <nntile/tile/graph_ops.hh>

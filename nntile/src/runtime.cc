@@ -15,7 +15,6 @@
 
 #include "nntile/runtime.hh"
 
-#include "nntile/core/execution_schedule.hh"
 #include "nntile/core/execution_worker.hh"
 #include "nntile/starpu/sync_defer.hh"
 
@@ -179,8 +178,6 @@ void Runtime::compile()
     last_compile_alloc_s_ = std::chrono::duration<double>(
         std::chrono::steady_clock::now() - t_alloc).count();
     tile_adoption_.clear();
-
-    execution_schedule_ = ExecutionSchedule{};
 
     compiled_ = true;
 }
@@ -499,173 +496,6 @@ void Runtime::restore_persisted_init_state(
     }
 }
 
-ExecutionSchedule Runtime::generate_round_robin_execution_schedule() const
-{
-    if (!compiled_)
-    {
-        throw std::runtime_error(
-            "Runtime::generate_round_robin_execution_schedule: "
-            "call compile() first");
-    }
-    return nntile::generate_round_robin_execution_schedule(
-        graph_, execution_order_);
-}
-
-ExecutionSchedule Runtime::generate_affinity_batch_execution_schedule() const
-{
-    if (!compiled_)
-    {
-        throw std::runtime_error(
-            "Runtime::generate_affinity_batch_execution_schedule: "
-            "call compile() first");
-    }
-    return nntile::generate_affinity_batch_execution_schedule(
-        graph_, execution_order_);
-}
-
-void Runtime::set_execution_schedule(ExecutionSchedule schedule)
-{
-    if (!compiled_)
-    {
-        throw std::runtime_error(
-            "Runtime::set_execution_schedule: call compile() first");
-    }
-    if (schedule.fingerprint.op_count != 0 ||
-        !schedule.fingerprint.op_names.empty())
-    {
-        validate_execution_schedule_fingerprint(
-            schedule.fingerprint, execution_order_);
-    }
-    else if (schedule.ops.size() == execution_order_.size())
-    {
-        schedule.fingerprint =
-            make_execution_schedule_fingerprint(execution_order_);
-    }
-
-    if (schedule.ops.size() != execution_order_.size())
-    {
-        throw std::runtime_error(
-            "Runtime::set_execution_schedule: ops size (" +
-            std::to_string(schedule.ops.size()) +
-            ") != compiled execution order (" +
-            std::to_string(execution_order_.size()) + ")");
-    }
-    int const num_workers = sched::count_execution_workers();
-    bool const cuda_workers = starpu_is_initialized() &&
-        starpu_worker_get_count_by_type(STARPU_CUDA_WORKER) > 0;
-    if (schedule.num_workers <= 0)
-    {
-        schedule.num_workers = num_workers;
-    }
-    if (schedule.num_workers != num_workers)
-    {
-        throw std::runtime_error(
-            "Runtime::set_execution_schedule: num_workers mismatch (json '" +
-            std::to_string(schedule.num_workers) +
-            "' vs runtime '" + std::to_string(num_workers) + "')");
-    }
-    if (schedule.use_cuda_workers != cuda_workers)
-    {
-        throw std::runtime_error(
-            "Runtime::set_execution_schedule: worker_kind mismatch (json '" +
-            std::string(schedule.use_cuda_workers ? "cuda" : "cpu") +
-            "' vs runtime '" + (cuda_workers ? "cuda" : "cpu") + "')");
-    }
-    for (size_t i = 0; i < schedule.ops.size(); ++i)
-    {
-        if (schedule.ops[i].execution_index != i)
-        {
-            throw std::runtime_error(
-                "Runtime::set_execution_schedule: ops[" +
-                std::to_string(i) + "].index mismatch");
-        }
-        if (schedule.ops[i].op_name != execution_order_[i]->op_name())
-        {
-            throw std::runtime_error(
-                "Runtime::set_execution_schedule: ops[" +
-                std::to_string(i) + "] op_name mismatch (json '" +
-                schedule.ops[i].op_name + "' vs graph '" +
-                execution_order_[i]->op_name() + "')");
-        }
-        int const w = schedule.ops[i].worker;
-        if (w < 0 || w >= num_workers)
-        {
-            throw std::runtime_error(
-                "Runtime::set_execution_schedule: ops[" +
-                std::to_string(i) + "] worker " + std::to_string(w) +
-                " out of range [0, " + std::to_string(num_workers) + ")");
-        }
-    }
-    for (auto const &[tile, worker] : schedule.tile_virtual_worker)
-    {
-        if (worker < 0 || worker >= num_workers)
-        {
-            throw std::runtime_error(
-                "Runtime::set_execution_schedule: tile '" + tile +
-                "' virtual_worker " + std::to_string(worker) +
-                " out of range [0, " + std::to_string(num_workers) + ")");
-        }
-    }
-    execution_schedule_ = std::move(schedule);
-}
-
-void Runtime::load_execution_schedule(std::string const &path)
-{
-    set_execution_schedule(load_execution_schedule_json(path));
-}
-
-void Runtime::apply_execution_schedule_from_file(std::string const &path)
-{
-    if (!compiled_)
-    {
-        throw std::runtime_error(
-            "Runtime::apply_execution_schedule_from_file: call compile() "
-            "first");
-    }
-    if (!execution_schedule_file_cache_ ||
-        execution_schedule_file_cache_path_ != path)
-    {
-        execution_schedule_file_cache_ = load_execution_schedule_json(path);
-        execution_schedule_file_cache_path_ = path;
-    }
-    try
-    {
-        set_execution_schedule(*execution_schedule_file_cache_);
-    }
-    catch (...)
-    {
-        clear_execution_schedule_file_cache();
-        throw;
-    }
-}
-
-void Runtime::clear_execution_schedule_file_cache()
-{
-    execution_schedule_file_cache_.reset();
-    execution_schedule_file_cache_path_.clear();
-}
-
-void Runtime::compile_with_round_robin_schedule()
-{
-    compile();
-    set_execution_schedule(generate_round_robin_execution_schedule());
-}
-
-void Runtime::write_execution_schedule_json(std::string const &path) const
-{
-    if (!compiled_)
-    {
-        throw std::runtime_error(
-            "Runtime::write_execution_schedule_json: graph not compiled");
-    }
-    if (!has_execution_schedule())
-    {
-        throw std::runtime_error(
-            "Runtime::write_execution_schedule_json: no schedule set");
-    }
-    nntile::write_execution_schedule_json(execution_schedule_, path);
-}
-
 void Runtime::require_compiled() const
 {
     if (!compiled_)
@@ -812,18 +642,20 @@ void Runtime::execute_range(
     // Unmarked-temp reclaim is ordinary TILE_INVALIDATE ops in this stream
     // (appended at compile), not a side-channel flush.
     StarpuSyncDefer defer_waits;
-    bool const use_static_schedule =
-        submit_tasks && has_execution_schedule();
+    bool const use_cuda_workers =
+        starpu_is_initialized() &&
+        starpu_worker_get_count_by_type(STARPU_CUDA_WORKER) > 0;
     for (size_t i = op_begin; i < op_end; ++i)
     {
         if (submit_tasks)
         {
-            if (use_static_schedule)
+            int const logical = execution_order_[i]->device_hint();
+            if (logical >= 0)
             {
                 starpu_worker_hint_ =
                     sched::starpu_worker_id_for_scheduled_op(
-                        execution_schedule_.worker_for_op(i),
-                        execution_schedule_.use_cuda_workers,
+                        logical,
+                        use_cuda_workers,
                         execution_order_[i]->op_name());
             }
             else
@@ -1249,7 +1081,6 @@ bool Runtime::drop_fully_executed_history()
     executed_op_end_ = 0;
     compiled_graph_op_count_ = 0;
     live_tile_nodes_.clear();
-    execution_schedule_ = ExecutionSchedule{};
     // Keep compiled_tile_node_count_: tile node slots persist (GC leaves
     // holes; new nodes still append). Dead TileNode IR is destroyed from
     // torch_nntile after wait + drop_fully_executed_history.

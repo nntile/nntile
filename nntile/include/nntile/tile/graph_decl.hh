@@ -8,8 +8,8 @@
  *
  * @file include/nntile/tile/graph_decl.hh
  * TileGraph: symbolic tiled graph from a ``TensorGraph`` +
- * ``TensorGraphTiling``. Execution placement hints (device, worker, ...) may
- * attach here later.
+ * ``TensorGraphTiling``. Per-op ``device_hint`` (logical worker) is set by
+ * DDP rewrite and read at Runtime submit.
  *
  * @version 1.1.0
  * */
@@ -33,7 +33,7 @@
 namespace nntile
 {
 
-//! Tile graph from tensor IR + tiling; optional execution hints later.
+//! Tile graph from tensor IR + tiling; per-op device hints on OpNode.
 class TileGraph
 {
   public:
@@ -65,6 +65,10 @@ class TileGraph
     //! Add an operation to the graph
     void add_op(std::shared_ptr<TileGraph::OpNode> op_node,
         const std::string &name = "");
+
+    //! Insert operations at ``index`` (0 = front, ``num_ops()`` = append).
+    void insert_ops(size_t index,
+        std::vector<std::shared_ptr<OpNode>> op_nodes);
 
     //! Register a TensorDescriptor (returns non-owning pointer)
     TensorDescriptor *add_tensor_descriptor(TensorDescriptor desc);

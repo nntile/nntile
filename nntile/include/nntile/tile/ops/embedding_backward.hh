@@ -39,6 +39,24 @@ struct TileEmbeddingBackwardOp : TileGraph::OpNode
     }
     std::string op_name() const override { return "TILE_EMBEDDING_BACKWARD"; }
     void execute(Runtime& runtime) const override;
+    void replace_named_tile(
+        TileGraph::TileNode *from,
+        TileGraph::TileNode *to) override
+    {
+        if (index == from)
+        {
+            index = to;
+        }
+        if (embed == from)
+        {
+            embed = to;
+        }
+        if (vocab == from)
+        {
+            vocab = to;
+        }
+    }
+
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
         return std::make_shared<TileEmbeddingBackwardOp>(*this);

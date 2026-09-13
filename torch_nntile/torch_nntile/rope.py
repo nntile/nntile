@@ -83,7 +83,12 @@ def rope_sin_cos_from_position_ids(
     rope_theta: float = 10000.0,
     identity_pad_head_dim: int | None = None,
 ) -> tuple[Tensor, Tensor]:
-    """Build ``(sin, cos)`` with shape ``[batch, seq, head_dim // 2]``.
+    """Build ``(sin, cos)`` with last dim ``head_dim // 2``.
+
+    ``position_ids`` of rank 1 (``[seq]``) returns ``[seq, half]`` —
+    the Llama / GPT-NeoX table, applied across batch by the RoPE
+    kernel. Rank 2 (``[batch, seq]``) returns ``[batch, seq, half]``
+    for HuggingFace-shaped comparisons.
 
     Mirrors HuggingFace default Llama RoPE
     (``_compute_default_rope_parameters``).
@@ -107,8 +112,15 @@ def rope_sin_cos_from_position_ids(
     )
     if device.type != "cpu":
         inv_freq = inv_freq.to(device)
-    # position_ids: [batch, seq]
-    freqs = position_ids.to(dtype).unsqueeze(-1) * inv_freq.view(1, 1, -1)
+    pos = position_ids.to(dtype)
+    if pos.ndim == 1:
+        freqs = pos.unsqueeze(-1) * inv_freq.view(1, -1)
+    elif pos.ndim == 2:
+        freqs = pos.unsqueeze(-1) * inv_freq.view(1, 1, -1)
+    else:
+        raise ValueError(
+            "position_ids must be 1D [seq] or 2D [batch, seq]"
+        )
     sin, cos = freqs.sin(), freqs.cos()
     if identity_pad_head_dim is None:
         return sin, cos

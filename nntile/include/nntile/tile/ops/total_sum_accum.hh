@@ -38,6 +38,28 @@ struct TileTotalSumAccumOp : TileGraph::OpNode
     }
     std::string op_name() const override { return "TILE_TOTAL_SUM_ACCUM"; }
     void execute(Runtime& runtime) const override;
+    void replace_named_tile(
+        TileGraph::TileNode *from,
+        TileGraph::TileNode *to) override
+    {
+        if (logsumexp == from)
+        {
+            logsumexp = to;
+        }
+        if (src == from)
+        {
+            src = to;
+        }
+        if (class_labels == from)
+        {
+            class_labels = to;
+        }
+        if (val == from)
+        {
+            val = to;
+        }
+    }
+
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
         return std::make_shared<TileTotalSumAccumOp>(*this);

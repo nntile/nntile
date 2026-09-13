@@ -67,7 +67,6 @@ int64_t gptneox_rope_dim(GptNeoXConfig const &cfg, int64_t head_dim)
 }
 
 void rope_sin_cos_host(
-    int64_t batch,
     int64_t seq,
     int64_t rope_dim,
     int64_t head_dim,
@@ -89,34 +88,29 @@ void rope_sin_cos_host(
             / std::pow(base, idx / static_cast<double>(rope_dim)));
     }
     sin_out = torch::empty(
-        {batch, seq, half_full},
+        {seq, half_full},
         torch::TensorOptions()
             .dtype(torch::kFloat32)
             .device(torch::kCPU));
     cos_out = torch::empty_like(sin_out);
-    auto sin_a = sin_out.accessor<float, 3>();
-    auto cos_a = cos_out.accessor<float, 3>();
-    for (int64_t b = 0; b < batch; ++b)
+    auto sin_a = sin_out.accessor<float, 2>();
+    auto cos_a = cos_out.accessor<float, 2>();
+    for (int64_t s = 0; s < seq; ++s)
     {
-        for (int64_t s = 0; s < seq; ++s)
+        for (int64_t h = 0; h < half_full; ++h)
         {
-            for (int64_t h = 0; h < half_full; ++h)
+            if (h < half_rot)
             {
-                if (h < half_rot)
-                {
-                    double angle = static_cast<double>(s)
-                        * static_cast<double>(
-                            inv[static_cast<std::size_t>(h)]);
-                    sin_a[b][s][h] = static_cast<float>(
-                        std::sin(angle));
-                    cos_a[b][s][h] = static_cast<float>(
-                        std::cos(angle));
-                }
-                else
-                {
-                    sin_a[b][s][h] = 0.0f;
-                    cos_a[b][s][h] = 1.0f;
-                }
+                double angle = static_cast<double>(s)
+                    * static_cast<double>(
+                        inv[static_cast<std::size_t>(h)]);
+                sin_a[s][h] = static_cast<float>(std::sin(angle));
+                cos_a[s][h] = static_cast<float>(std::cos(angle));
+            }
+            else
+            {
+                sin_a[s][h] = 0.0f;
+                cos_a[s][h] = 1.0f;
             }
         }
     }
@@ -129,7 +123,7 @@ torch::Tensor apply_partial_rope(
     int64_t rotary_ndims)
 {
     // x: [n_heads, batch, seq, head_dim]; sin/cos padded to
-    // [batch, seq, head_dim/2] (identity on unused pairs).
+    // [seq, head_dim/2] (identity on unused pairs).
     if (rotary_ndims <= 0)
     {
         return x;
@@ -355,6 +349,7 @@ void GptNeoXCausalImpl::warm_rope_cache(
     int64_t seq,
     torch::Device device)
 {
+    (void)batch;
     int64_t const head_dim =
         config.hidden_size / config.num_attention_heads;
     int64_t const rope_dim = gptneox_rope_dim(config, head_dim);
@@ -369,7 +364,6 @@ void GptNeoXCausalImpl::warm_rope_cache(
         torch::Tensor sin_h;
         torch::Tensor cos_h;
         rope_sin_cos_host(
-            batch,
             seq,
             rope_dim,
             head_dim,
@@ -389,7 +383,6 @@ void GptNeoXCausalImpl::warm_rope_cache(
         rope_sin_ = torch::Tensor();
         rope_cos_ = torch::Tensor();
     }
-    rope_cache_batch_ = batch;
     rope_cache_seq_ = seq;
 }
 
@@ -402,7 +395,6 @@ torch::Tensor GptNeoXCausalImpl::forward(torch::Tensor input_ids)
         config.hidden_size / config.num_attention_heads);
     bool const need_rope_refresh =
         !cached_mask_.defined()
-        || rope_cache_batch_ != b
         || rope_cache_seq_ != s
         || cached_mask_.device() != input_ids.device()
         || (rope_dim > 0

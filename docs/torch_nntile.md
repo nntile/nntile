@@ -139,36 +139,43 @@ More context: [dev/graph_compile_perf_mnist.md](dev/graph_compile_perf_mnist.md)
 and the package README
 [Profiling knobs](../torch_nntile/README.md#profiling-knobs-host-vs-starpu).
 
-## Axis-group naming and tiling
+## Axis-group naming and DDP
 
 Tiling in NNTile is defined on **shared axis groups** (`AxisDescriptor` in C++),
-not on individual `torch.Tensor` storage. The workflow mirrors GPT-2 graph
-training (`name_gpt2_training_axis_groups` + `apply_flat_tiling_spec`):
+not on individual `torch.Tensor` storage. Data-parallel compile is a named
+built-in: name the batch axis, then call ``ddp()``. Replica count is the
+execution worker count from ``init_context`` (CUDA workers if ``ncuda > 0``,
+otherwise CPU). Tile sizes are not a user input.
 
 > Stock ``torch.nn`` / ``F.*`` on ``device=nntile`` stay torch-native and
-> **untiled**. Classic ``torch_nntile.nn`` graphs may tile. Mixing
-> ``TORCH_*`` compute with tiling raises. See
+> **untiled**. Classic ``torch_nntile.nn`` graphs may use DDP. Mixing
+> ``TORCH_*`` compute with DDP raises. Autograd fan-in ``aten::add`` on
+> a classic-only graph records classic ``ADD`` (so Llama residuals /
+> QKV can DDP). See
 > [dev/torch_nntile_aten_ops.md](dev/torch_nntile_aten_ops.md) and
 > [dev/torch_nntile_classic_kernels.md](dev/torch_nntile_classic_kernels.md).
 
 1. **Name** selected dimensions of a tensor (partial naming is OK).
 2. Record forward/backward into the pending graph (ops merge related axes).
-3. **Set tiling** by axis group name.
+3. **`ddp()`** — session flag; splits the named axis (default ``batch``) at
+   each ``compile_graph()``.
 4. Optionally **inspect** axis groups before lowering.
-5. **`compile_graph()`** / **`run()`** — tiling is applied, then
-   `TileGraph::from_tensor_graph` and `Runtime::execute()`. Host I/O is only via
+5. **`compile_graph()`** / **`run()`**. Host I/O is only via
    `.to("nntile")` / `.to("cpu")`.
+
+Weights without the DDP axis stay **one tile**. Weight grads that reduce a
+sharded batch into that layout get phase-local full-sized accumulators, then
+``ADD`` into the canonical grad tile. Call ``ddp()`` before the first compile
+that lowers a batched tensor.
 
 ### API
 
 | Function | Description |
 |----------|-------------|
 | `set_axis_group_name(tensor, {dim: name, ...})` | Name axis groups for listed tensor dimensions. Names propagate through merged groups. |
-| `set_axis_group_tiling(name, tile_sizes)` | `tile_sizes` is `int` (uniform) or `list[int]` (heterogeneous; must sum to extent). Stored until `compile_graph()`. |
+| `ddp(axis="batch")` | Enable data-parallel compile for that named axis. Replica count is the StarPU worker count. |
 | `format_axis_groups()` | Return a string summary of pending graph axis groups (like C++ `TensorGraph::to_string`). |
-| `print_axis_groups()` | Print that summary to stdout. Shows `pending_tile=` when tiling is registered but not yet applied. |
-
-**Axis-group tiling** applies across a full training step before ``compile_graph()``.
+| `print_axis_groups()` | Print that summary to stdout. |
 
 ### Minimal example
 
@@ -180,8 +187,7 @@ torch_nntile.set_axis_group_name(x, {0: "batch", 1: "features"})
 
 logits = model(x)  # ops merge axes across the network
 
-torch_nntile.set_axis_group_tiling("batch", [1, 1, 2])
-torch_nntile.set_axis_group_tiling("features", 64)
+torch_nntile.ddp()
 torch_nntile.print_axis_groups()
 torch_nntile.compile_graph()
 torch_nntile.run()
@@ -191,12 +197,26 @@ Example `format_axis_groups()` / `print_axis_groups()` output:
 
 ```text
 Pending TensorGraph: data=24, ops=12, axis_groups=4, tiled=0/4
+DDP axis='batch' replicas=2
 Axis groups:
-  extent=4 name='batch' pending_tile=1,1,2 members=8
-  extent=128 name='features' pending_tile=64 members=6
+  extent=4 name='batch' members=8
+  extent=128 name='features' members=6
   extent=256 members=4
   extent=10 name='classes' members=2
 ```
+
+After compile, a DDP split into ``N`` chunks (or a provided tile size)
+shows both the tile count and the partition of ``extent``:
+
+```text
+  extent=4 name='batch' ntiles=2 tiles=2,2 members=8
+  extent=256 name='hidden' ntiles=4 tiles=64,64,64,64 members=4
+  extent=5 name='batch' ntiles=2 tiles=3,2 members=8
+```
+
+``ntiles`` is the number of chunks. ``tiles=`` is the division of the
+dimension (not a single collapsed tile size). A leftover last tile is
+listed explicitly (``3,2``), not as ``tile=3``.
 
 After `compile_graph()` + `run()`, pending ops are cleared but the compiled
 session may persist for tile reuse. Call `format_axis_groups()` only while a
@@ -219,7 +239,7 @@ loss = train_full_batch_step(
     labels,
     lr=0.1,
     name_axis_groups=name_axis_groups,
-    axis_group_tiling={"batch": [15000, 15000, 15000, 15000, 15000]},
+    ddp=True,
     print_axis_groups=True,  # once, before execute
 )
 ```
@@ -347,25 +367,23 @@ STARPU_NCPU=4 STARPU_NCUDA=0 \
     --epochs 5
 ```
 
-Optional graph tiling and axis-group dump:
+Optional DDP (shards ``batch`` across StarPU workers) and axis-group dump:
 
 ```bash
 STARPU_NCPU=4 STARPU_NCUDA=0 \
   python torch_nntile/examples/train_deep_relu_mnist.py \
     --epochs 5 \
     --print-axis-groups \
-    --axis-tiling batch=15000,15000,15000,15000 \
-    --axis-tiling features=392,392 \
-    --axis-tiling hidden=128,128
+    --ddp
 ```
 
 Do not call ``.cpu()`` / ``clone_model_weights()`` on nntile parameters
-**before** the first ``compile_graph()`` that applies ``--axis-tiling``:
-that seals the default (untiled) layout and later tiling raises
+**before** the first ``compile_graph()`` that applies ``ddp()``:
+that seals the default (untiled) layout and later DDP raises
 ``layout_fingerprint mismatch``. The example gathers weights only after
 training. With ``--grad-accum-steps N>1``, all microbatches are prefetched;
 the first compile also seals every pending ingress scatter, so the example
-names **all** microbatch inputs (and weights) before that first tiled
+names **all** microbatch inputs (and weights) before that first DDP
 compile.
 
 ### CPU torch parity (`--compare-torch`)
@@ -394,7 +412,7 @@ Per-epoch loss diffs at or below **~1e-6** are typical on CPU.
 ### CUDA workers only (nntile-only or with parity)
 
 Pin nntile kernels to CUDA workers (`--restrict-cuda`). Use without
-``--compare-torch`` for larger tiled multi-GPU runs; add ``--compare-torch``
+``--compare-torch`` for larger DDP multi-GPU runs; add ``--compare-torch``
 when you want loss parity against the CPU reference:
 
 ```bash
@@ -403,21 +421,17 @@ STARPU_NCPU=0 STARPU_NCUDA=2 \
   python torch_nntile/examples/train_deep_relu_mnist.py \
     --restrict-cuda \
     --epochs 5 \
-    --axis-tiling batch=15000,15000,15000,15000 \
-    --axis-tiling features=392,392 \
-    --axis-tiling hidden=128,128
+    --ddp
 
 # Same setup + CPU torch parity
 STARPU_NCPU=0 STARPU_NCUDA=2 \
   python torch_nntile/examples/train_deep_relu_mnist.py \
     --restrict-cuda --compare-torch \
     --epochs 5 \
-    --axis-tiling batch=15000,15000,15000,15000 \
-    --axis-tiling features=392,392 \
-    --axis-tiling hidden=128,128
+    --ddp
 ```
 
-**Expected tail with ``--compare-torch`` (CUDA workers, 5 epochs, tiling above):**
+**Expected tail with ``--compare-torch`` (CUDA workers, 5 epochs, ``--ddp``):**
 
 ```
 Loss comparison (torch/cpu vs nntile):
@@ -443,7 +457,8 @@ down StarPU cleanly in a `finally` block.
 | `--restrict-cuda` | `restrict_cuda()` — CUDA workers only |
 | `--verbose` | Verbose StarPU / NNTile logging; also print weight norms under `torch.no_grad()` |
 | `--hidden-dim`, `--depth` | Model size (default 256, 5) |
-| `--axis-tiling NAME=SIZES` | Repeatable; apply named axis-group tiling before `compile_graph()` |
+| `--ddp` | Shard the named batch axis across StarPU workers (`ddp()`) |
+| `--ddp-axis NAME` | Named axis for `--ddp` (default `batch`) |
 | `--print-axis-groups` | Dump axis groups after epoch 1 |
 
 Integration test (downloads MNIST, 3 epochs, CPU workers):
@@ -452,10 +467,31 @@ Integration test (downloads MNIST, 3 epochs, CPU workers):
 pytest -vv -m slow torch_nntile/tests/test_deep_relu_mnist_train.py
 ```
 
+### Classic Llama (DDP)
+
+HuggingFace ``train_llama_hf.py`` uses stock ``torch.nn`` and cannot use
+``ddp()``. Classic ``LlamaCausal`` can. ``--batch-size`` must be at least
+the replica count (``ncuda`` if ``ncuda > 0``, else ``ncpu``):
+
+```bash
+export LD_LIBRARY_PATH=$PWD/build/nntile:$PWD/build/torch_nntile:/opt/starpu/lib
+python torch_nntile/examples/train_llama.py train \
+    --seed 0 --ncpu 2 --batch-size 4 --steps 2 --ddp \
+    --print-axis-groups
+```
+
+The same ``--ddp`` / ``--ddp-axis`` / ``--print-axis-groups`` flags work
+on the other tiny classic trainers that share
+``nntile_tiny_train_common.py`` (BERT, T5, GPT-Neo, GPT-NeoX, RoBERTa,
+DiT). Name dim 0 of the batch (tokens / labels). Llama / GPT-NeoX RoPE
+tables are ``[seq, head_dim // 2]`` and must not be named ``batch`` —
+the kernel applies them across heads and the DDP replicas.
+
 ## Tests
 
 ```bash
 export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib
+pytest -vv torch_nntile/tests/test_ddp.py
 pytest -vv torch_nntile/tests/test_axis_group_tiling.py
 pytest -vv torch_nntile/tests/test_graph_execution.py
 pytest -vv torch_nntile/tests/test_deep_relu_parity.py
@@ -470,8 +506,8 @@ Autograd stays in PyTorch; the graph is the compute IR and StarPU executor.
 | libnntile / C++ | torch_nntile |
 |-----------------|--------------|
 | Axis-group names on tensors | `set_axis_group_name(tensor, {...})` |
-| `apply_flat_tiling_spec` / tiling JSON helpers | `set_axis_group_tiling(name, sizes)` |
-| `TensorGraph` axis / tiling debug | `format_axis_groups()` / `print_axis_groups()` |
+| `TensorGraph::enable_ddp` + tile rewrite | `ddp(axis="batch")` |
+| `TensorGraph` axis / DDP debug | `format_axis_groups()` / `print_axis_groups()` |
 | `Runtime::compile` + `execute` + `wait` | `compile_graph()` / `run()` / `wait()` (legacy `execute()` = compile+run) |
 
 NNGraph and the old `python/nntile` package are removed. Training examples are

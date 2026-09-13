@@ -149,6 +149,7 @@ def pytest_collection_modifyitems(config, items) -> None:
             "test_deep_relu_parity",
             "test_cpp_models_smoke",
             "test_axis_group_tiling",
+            "test_ddp",
             "test_simple_matmul_tiling",
             "test_bmm_tiling",
             "test_gpt2_lm_head_parity",

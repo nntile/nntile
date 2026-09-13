@@ -15,6 +15,7 @@
 #include "nntile/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
+#include <string>
 
 using namespace nntile;
 using namespace nntile;
@@ -267,4 +268,39 @@ TEST_CASE("GC keeps live TensorRefs and prunes axis members",
     REQUIRE(graph.num_data() == 2);
     REQUIRE(live->axis(0)->members.size() == 1);
     REQUIRE(graph.axis_groups().size() == 1);
+}
+
+TEST_CASE("tile_sizes_to_string lists the partition", "[graph][axis]")
+{
+    AxisDescriptor even;
+    even.extent = 4;
+    even.set_tiling(std::vector<Index>{2, 2});
+    REQUIRE(even.num_tiles() == 2);
+    REQUIRE(even.tile_sizes_to_string() == "2,2");
+    REQUIRE(even.tiling_to_string() == "ntiles=2 tiles=2,2");
+
+    AxisDescriptor leftover;
+    leftover.extent = 8;
+    leftover.set_tiling(Index{3});
+    REQUIRE(leftover.tile_sizes_to_string() == "3,3,2");
+    REQUIRE(leftover.tiling_to_string() == "ntiles=3 tiles=3,3,2");
+
+    AxisDescriptor one;
+    one.extent = 7;
+    one.set_tiling(Index{7});
+    REQUIRE(one.tile_sizes_to_string() == "7");
+    REQUIRE(one.tiling_to_string() == "ntiles=1 tiles=7");
+}
+
+TEST_CASE("TensorGraph to_string prints ntiles and tiles", "[graph][axis]")
+{
+    TensorGraph graph("print_tiling");
+    nntile::TensorRef x = graph.data({4, 8});
+    x->set_name("x");
+    x->axis(0)->name = "batch";
+    x->axis(0)->set_tiling(std::vector<Index>{2, 2});
+    std::string s = graph.to_string();
+    REQUIRE(s.find("ntiles=2") != std::string::npos);
+    REQUIRE(s.find("tiles=2,2") != std::string::npos);
+    REQUIRE(s.find(" tile=") == std::string::npos);
 }
