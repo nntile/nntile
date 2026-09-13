@@ -125,6 +125,7 @@ def test_tiled_llama():
         half = cfg.hidden_size // cfg.num_attention_heads // 2
         assert tuple(sin.shape) == (8, half)
         assert tuple(cos.shape) == (8, half)
+        assert not hasattr(model.model, "_position_ids_cache")
         torch_nntile.set_axis_group_name(ids, {0: "batch"})
         torch_nntile.set_axis_group_name(out, {0: "batch"})
         torch_nntile.ddp()
@@ -183,6 +184,7 @@ def test_tiled_gpt_neox():
         half = cfg.hidden_size // cfg.num_attention_heads // 2
         assert tuple(sin.shape) == (8, half)
         assert tuple(cos.shape) == (8, half)
+        assert not hasattr(model.gpt_neox, "_position_ids_cache")
         torch_nntile.set_axis_group_name(ids, {0: "batch"})
         torch_nntile.set_axis_group_name(out, {0: "batch"})
         torch_nntile.ddp()

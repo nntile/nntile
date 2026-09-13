@@ -152,6 +152,7 @@ def test_ddp_llama_train_step():
         half = cfg.hidden_size // cfg.num_attention_heads // 2
         assert tuple(sin.shape) == (8, half)
         assert tuple(cos.shape) == (8, half)
+        assert not hasattr(model.model, "_position_ids_cache")
         torch_nntile.set_axis_group_name(logits, {0: "batch"})
         torch_nntile.ddp()
         info = torch_nntile.format_axis_groups()

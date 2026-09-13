@@ -7,9 +7,9 @@
 """GPT-NeoX stack mirroring ``nntile::model::gptneox``.
 
 Uses RoPE and parallel residual. Activations stay on ``device=nntile``.
-RoPE ``sin``/``cos`` are ``[seq, head_dim // 2]`` host tables (identity
-padded for partial rotary); the kernel applies them across heads and
-batch.
+RoPE uses ``arange(seq)`` for every batch row. ``sin``/``cos`` are
+``[seq, head_dim // 2]`` (identity padded for partial rotary); extra
+leading modes of ``x`` (heads, batch) are the kernel batch ``n``.
 """
 
 from __future__ import annotations
@@ -278,38 +278,19 @@ class GPTNeoXModel(nn.Module):
         self.final_layer_norm = LayerNorm(
             config.hidden_size, eps=config.layer_norm_eps
         )
-        self._position_ids_cache: dict[tuple[int, int], Tensor] = {}
-        # RoPE tables are ``[seq, head_dim // 2]`` (shared across batch).
+        # RoPE is ``[seq, head_dim // 2]``; batch is kernel n, not a table.
         self._rope_cache: dict[int, tuple[Tensor, Tensor]] = {}
 
-    def _cached_position_ids(self, input_ids: Tensor) -> Tensor:
-        batch, seq = int(input_ids.size(0)), int(input_ids.size(-1))
-        key = (batch, seq)
-        cached = self._position_ids_cache.get(key)
-        if cached is not None and cached.device == input_ids.device:
-            return cached
-        position_ids = (
-            torch.arange(seq, dtype=torch.long, device="cpu")
-            .unsqueeze(0)
-            .expand(batch, seq)
-            .contiguous()
-        )
-        if input_ids.device.type != "cpu":
-            position_ids = position_ids.to(input_ids.device)
-        self._position_ids_cache[key] = position_ids
-        return position_ids
-
     def _cached_rope(
-        self, position_ids: Tensor
+        self, seq: int, device: torch.device
     ) -> tuple[Tensor, Tensor]:
         """Return ``[seq, head_dim // 2]`` sin/cos (built once, then reused).
 
-        Shared across batch: the RoPE kernel applies the same table to
-        every batch row. Matches deleted NNGraph bind_data.
+        Built from ``arange(seq)``. The RoPE kernel applies that table
+        across every batch row.
         """
-        seq = int(position_ids.size(-1))
         cached = self._rope_cache.get(seq)
-        if cached is not None and cached[0].device == position_ids.device:
+        if cached is not None and cached[0].device == device:
             return cached
         pos_host = torch.arange(seq, dtype=torch.long, device="cpu")
         sin, cos = rope_sin_cos_from_position_ids(
@@ -318,34 +299,29 @@ class GPTNeoXModel(nn.Module):
             rope_theta=self.config.rotary_emb_base,
             identity_pad_head_dim=self.config.head_dim,
         )
-        if position_ids.device.type != "cpu":
-            sin = sin.to(position_ids.device)
-            cos = cos.to(position_ids.device)
+        if device.type != "cpu":
+            sin = sin.to(device)
+            cos = cos.to(device)
         self._rope_cache[seq] = (sin, cos)
         return sin, cos
 
     def clear_sequence_caches(self) -> None:
-        self._position_ids_cache.clear()
         self._rope_cache.clear()
 
     def warm_sequence_caches(
         self,
         *,
-        batch_sizes: list[int] | tuple[int, ...],
+        batch_sizes: list[int] | tuple[int, ...] | None = None,
         seq_len: int,
         device: torch.device | str,
     ) -> None:
-        """Prepare position_ids / RoPE tables once for training reuse."""
+        """Prepare RoPE tables once for training reuse."""
+        del batch_sizes
         device = torch.device(device)
-        for batch in sorted({int(b) for b in batch_sizes}):
-            if batch < 1:
-                raise ValueError(f"batch size must be >= 1, got {batch}")
-            probe = torch.empty(
-                (batch, seq_len), dtype=torch.long, device=device
-            )
-            pos = self._cached_position_ids(probe)
-            if self.config.rotary_ndims > 0:
-                self._cached_rope(pos)
+        if seq_len < 1:
+            raise ValueError(f"seq_len must be >= 1, got {seq_len}")
+        if self.config.rotary_ndims > 0:
+            self._cached_rope(seq_len, device)
 
     def forward(
         self,
@@ -357,11 +333,16 @@ class GPTNeoXModel(nn.Module):
         *,
         is_causal: bool = True,
     ) -> Tensor:
-        if position_ids is None:
-            position_ids = self._cached_position_ids(input_ids)
+        # Optional ``position_ids`` is HF-shaped leftover. Training is
+        # ``arange(seq)`` for every batch row; B is consumed by RoPE.
+        seq = int(
+            position_ids.size(-1)
+            if position_ids is not None
+            else input_ids.size(-1)
+        )
         rotary_dim = self.config.rotary_ndims
         if (sin is None or cos is None) and rotary_dim > 0:
-            sin, cos = self._cached_rope(position_ids)
+            sin, cos = self._cached_rope(seq, input_ids.device)
         x = self.embed_in(input_ids)
         for layer in self.layers:
             x = layer(x, sin, cos, attn_mask, is_causal=is_causal)

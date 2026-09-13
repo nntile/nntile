@@ -179,7 +179,7 @@ def name_ddp_batch_axis(
 
     RoPE ``sin``/``cos`` are ``[seq, head_dim // 2]`` and must not join
     the DDP batch group: the kernel applies them across heads / batch.
-    Cached ``position_ids`` are unused in compute.
+    Llama / GPT-NeoX do not keep a ``[B, S]`` position_ids table.
     """
     del model
     for tensor in batch.values():
