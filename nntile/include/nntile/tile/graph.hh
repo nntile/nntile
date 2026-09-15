@@ -8,7 +8,9 @@
  *
  * @file include/nntile/tile/graph.hh
  * TileGraph - graph operating on tiles. Purely symbolic; use
- * ``nntile::Runtime`` (``#include <nntile/runtime.hh>``) to run.
+ * ``nntile::Runtime`` / ``nntile::ExecutionDriver``
+ * (``#include <nntile/execution_driver.hh>``) to run. Does not compile
+ * TensorGraph → TileGraph.
  *
  * @version 1.1.0
  * */
