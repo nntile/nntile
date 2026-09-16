@@ -431,6 +431,7 @@ set(GRAPH_TENSOR_LAYER_SRC
 set(GRAPH_RUNTIME_SRC
     "core/execution_schedule.cc"
     "runtime.cc"
+    "remote_execution_driver.cc"
     )
 
 set(GRAPH_TILE_LAYER_SRC

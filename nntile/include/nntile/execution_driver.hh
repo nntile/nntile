@@ -26,6 +26,8 @@ namespace nntile
 {
 
 //! Run a TileGraph on StarPU. Does **not** lower a TensorGraph.
+//! In-process: ``RuntimeExecutionDriver``. Remote daemon:
+//! ``RemoteExecutionDriver`` (``NNTILE_DRIVER_SOCKET``).
 class ExecutionDriver
 {
   public:
