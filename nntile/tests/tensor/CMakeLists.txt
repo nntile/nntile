@@ -97,6 +97,7 @@ set(TESTS_TENSOR_CATCH2
 
 set(TESTS_TENSOR_ROOT_CATCH2
     "axis_descriptor"
+    "phase_codec"
 )
 
 # CUDA-only tests (flash_* operations require n_cuda=1)
