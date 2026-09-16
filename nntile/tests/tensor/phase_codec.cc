@@ -239,7 +239,9 @@ TEST_CASE("encode_phase uses unsealed snapshot", "[graph][tensor][codec]")
     TensorGraph graph("codec_phase");
     TensorRef a = graph.data({2, 2});
     TensorRef b = graph.data({2, 2});
-    TensorRef::adopt(gt::add(1.0, a, 1.0, b));
+    // Keep the output TensorRef so last-drop UNREGISTER is not recorded
+    // into the sealed phase (UNREGISTER is not a v1 Flush op).
+    TensorRef c = TensorRef::adopt(gt::add(1.0, a, 1.0, b));
     auto const sealed = graph.seal_phase();
     REQUIRE_FALSE(sealed.empty());
 
