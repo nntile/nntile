@@ -25,8 +25,13 @@ namespace nntile::tensor
 {
 
 //! Flush PhaseIR v1 ``op_name`` allowlist. Unknown names fail closed
-//! (``UnknownOp``). Wire names: FILL, COPY, SCATTER, GATHER, INVALIDATE,
-//! ADD, MUL, MM, LINEAR, RELU, CROSS_ENTROPY.
+//! (``UnknownOp``). There is no ``LINEAR``: classic linear is ``GEMM``
+//! (wire ``MM``); stock ``torch.nn.Linear`` composites to ``addmm`` /
+//! ``mm`` as ``TORCH_TERNARY`` / ``TORCH_BINARY``.
+//!
+//! Classic TensorGraph names and torch-native names are distinct:
+//! ``ADD`` / ``RELU`` vs ``TORCH_BINARY`` / ``TORCH_UNARY`` (aten kind
+//! in ``attrs.kind``). ``MULTIPLY`` encodes as ``MUL``.
 inline constexpr char const *kV1PhaseOps[] = {
     "FILL",
     "COPY",
@@ -36,9 +41,11 @@ inline constexpr char const *kV1PhaseOps[] = {
     "ADD",
     "MUL",
     "MM",
-    "LINEAR",
     "RELU",
     "CROSS_ENTROPY",
+    "TORCH_UNARY",
+    "TORCH_BINARY",
+    "TORCH_TERNARY",
 };
 
 bool is_v1_phase_op(std::string const &op_name);

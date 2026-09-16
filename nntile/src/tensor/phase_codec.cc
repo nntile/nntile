@@ -14,14 +14,19 @@
 
 #include <nntile/tensor/phase_codec.hh>
 
+#include <nntile/defs.h>
 #include <nntile/dtype.hh>
 #include <nntile/tensor/graph.hh>
 #include <nntile/tensor/ops/add.hh>
 #include <nntile/tensor/ops/fill.hh>
 #include <nntile/tensor/ops/gemm.hh>
 #include <nntile/tensor/ops/multiply.hh>
+#ifdef NNTILE_TORCH_NATIVE_OPS
+#include <nntile/tensor/ops/torch_dispatch.hh>
+#endif
 
 #include <algorithm>
+#include <cstdint>
 #include <stdexcept>
 #include <string>
 #include <unordered_set>
@@ -136,6 +141,23 @@ nlohmann::json encode_op_attrs(TensorGraph::OpNode const &op)
         attrs["batch_ndim"] = gemm->batch_ndim;
         return attrs;
     }
+#ifdef NNTILE_TORCH_NATIVE_OPS
+    if (auto const *u = dynamic_cast<TensorTorchUnaryOp const *>(&op))
+    {
+        attrs["kind"] = static_cast<std::int32_t>(u->kind);
+        return attrs;
+    }
+    if (auto const *b = dynamic_cast<TensorTorchBinaryOp const *>(&op))
+    {
+        attrs["kind"] = static_cast<std::int32_t>(b->kind);
+        return attrs;
+    }
+    if (auto const *t = dynamic_cast<TensorTorchTernaryOp const *>(&op))
+    {
+        attrs["kind"] = static_cast<std::int32_t>(t->kind);
+        return attrs;
+    }
+#endif
     return attrs;
 }
 
