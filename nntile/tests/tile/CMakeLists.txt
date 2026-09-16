@@ -95,6 +95,7 @@ set(TESTS_TILE_ROOT_CATCH2
     "execution_schedule"
     "tile_graph"
     "execution_driver"
+    "remote_execution_driver"
 )
 
 foreach(test IN LISTS TESTS_TILE_CATCH2)

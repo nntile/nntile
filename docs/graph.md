@@ -49,6 +49,12 @@ Python helpers: `torch_nntile.compile_graph()`, `run()`, `wait()`.
 default). Legacy `execute()` is compile + run. Host `.to("cpu")` may
 auto-flush pending work.
 
+`nntile::RemoteExecutionDriver` submits an already-lowered `TileGraph`
+over `NNTILE_DRIVER_SOCKET` (mode 0600). StarPU stays in
+`ExecutionDaemon`. The wire allowlist is `TILE_ADD_INPLACE`,
+`TILE_FILL`, and `TILE_RELU`. Other tile `op_name` values fail closed
+(`UnknownOp`). Kernels must not have that socket path.
+
 Incremental compile aims for **O(work this call)** complexity — see
 [dev/graph_compiler_on_design.md](dev/graph_compiler_on_design.md).
 

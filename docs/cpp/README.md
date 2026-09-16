@@ -73,4 +73,6 @@ Single-tile operations (`Tile<T>`), plus optional execution schedules
 
 Typical flow: record into `TensorGraph` → `seal_phase` +
 `append_tensor_graph_phase` → `Runtime::compile()` → `execute_range()` →
-`wait()`. Design notes: [../dev/README.md](../dev/README.md).
+`wait()`. `ExecutionDriver` is tiles-only `submit` / `wait`:
+`RuntimeExecutionDriver` in-process, or `RemoteExecutionDriver` over
+`NNTILE_DRIVER_SOCKET`. Design notes: [../dev/README.md](../dev/README.md).
