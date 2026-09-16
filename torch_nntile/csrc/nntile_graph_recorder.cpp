@@ -286,7 +286,8 @@ void seal_pending_phase_locked()
     g_graph->seal_phase();
 }
 
-void platform_ingress_locked(
+void platform_ingress_unlocked(
+    std::unique_lock<std::recursive_mutex> &lock,
     nntile::TensorGraph::TensorNode *logical,
     void const *host,
     std::size_t nbytes)
@@ -301,15 +302,19 @@ void platform_ingress_locked(
         throw std::runtime_error(
             "torch_nntile: platform ingress needs a logical node");
     }
-    g_platform_ingress(
-        static_cast<std::int64_t>(logical->id()),
-        host,
-        nbytes,
-        shape_as_i64(logical->shape()),
-        platform_dtype_name(logical->dtype()));
+    std::int64_t const node_id =
+        static_cast<std::int64_t>(logical->id());
+    std::vector<std::int64_t> const shape =
+        shape_as_i64(logical->shape());
+    std::string const dtype =
+        platform_dtype_name(logical->dtype());
+    lock.unlock();
+    g_platform_ingress(node_id, host, nbytes, shape, dtype);
+    lock.lock();
 }
 
-std::string platform_flush_locked(
+std::string platform_flush_unlocked(
+    std::unique_lock<std::recursive_mutex> &lock,
     std::vector<std::int64_t> const &gather_ids,
     bool wait_only)
 {
@@ -319,10 +324,12 @@ std::string platform_flush_locked(
             "torch_nntile: platform flush hook is not set");
     }
     std::string const phase = encode_pending_phase_locked();
+    lock.unlock();
     std::string gathered = g_platform_flush(
         phase,
         gather_ids,
         wait_only);
+    lock.lock();
     seal_pending_phase_locked();
     return gathered;
 }
@@ -1430,10 +1437,10 @@ void run_graph()
 
 void wait_graph_session()
 {
-    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    std::unique_lock<std::recursive_mutex> lock(g_recorder_mutex);
     if (g_platform_mode.load(std::memory_order_acquire))
     {
-        platform_flush_locked({}, true);
+        platform_flush_unlocked(lock, {}, true);
         return;
     }
     // finish_run_locked() already joins StarPU when a run is pending.
@@ -1534,7 +1541,7 @@ void gather_logical_to_staging_and_read_locked(
 
 void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst)
 {
-    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    std::unique_lock<std::recursive_mutex> lock(g_recorder_mutex);
     nntile::TensorRef binding = tensor_ref(src);
     if (!binding)
     {
@@ -1572,7 +1579,8 @@ void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst)
     {
         std::int64_t const gid =
             static_cast<std::int64_t>(logical->id());
-        std::string const gathered = platform_flush_locked(
+        std::string const gathered = platform_flush_unlocked(
+            lock,
             {gid},
             false);
         std::size_t const want = count * elem_bytes;
@@ -1702,7 +1710,7 @@ void init_nntile_input_from_cpu(
     const at::Tensor &cpu_src,
     at::Tensor &nntile_dst)
 {
-    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    std::unique_lock<std::recursive_mutex> lock(g_recorder_mutex);
     TORCH_CHECK(cpu_src.is_cpu(), "init_nntile_input_from_cpu: expected CPU src");
     TORCH_CHECK(
         nntile_dst.device().type() == c10::DeviceType::PrivateUse1,
@@ -1755,7 +1763,8 @@ void init_nntile_input_from_cpu(
 
     if (g_platform_mode.load(std::memory_order_acquire))
     {
-        platform_ingress_locked(
+        platform_ingress_unlocked(
+            lock,
             logical,
             cpu_src.data_ptr(),
             static_cast<std::size_t>(cpu_src.numel()) *
@@ -1788,7 +1797,7 @@ void overwrite_bound_nntile_logical_from_cpu(
     const at::Tensor &cpu_src,
     const at::Tensor &nntile_bound)
 {
-    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    std::unique_lock<std::recursive_mutex> lock(g_recorder_mutex);
     TORCH_CHECK(
         cpu_src.is_cpu(),
         "overwrite_bound_nntile_logical_from_cpu: expected CPU src");
@@ -1825,7 +1834,8 @@ void overwrite_bound_nntile_logical_from_cpu(
 
     if (g_platform_mode.load(std::memory_order_acquire))
     {
-        platform_ingress_locked(
+        platform_ingress_unlocked(
+            lock,
             logical,
             cpu_src.data_ptr(),
             static_cast<std::size_t>(cpu_src.numel()) *
