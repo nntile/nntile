@@ -15,14 +15,22 @@
 #include <nntile/remote_execution_driver.hh>
 
 #include <nntile/dtype.hh>
+#include <nntile/tile/ops/add.hh>
 #include <nntile/tile/ops/add_inplace.hh>
+#include <nntile/tile/ops/add_slice.hh>
+#include <nntile/tile/ops/copy.hh>
+#include <nntile/tile/ops/copy_intersection.hh>
 #include <nntile/tile/ops/fill.hh>
+#include <nntile/tile/ops/gemm.hh>
+#include <nntile/tile/ops/multiply.hh>
 #include <nntile/tile/ops/relu.hh>
 
 #include <arpa/inet.h>
+#include <grp.h>
 #include <poll.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <sys/un.h>
 #include <unistd.h>
 
@@ -141,7 +149,116 @@ DataType dtype_from_string(std::string const &name)
     {
         return DataType::FP32;
     }
+    if (name == "INT64" || name == "int64")
+    {
+        return DataType::INT64;
+    }
     throw std::runtime_error("UnknownOp: dtype " + name);
+}
+
+void require_min(
+    nlohmann::json const &arr, size_t n, char const *what)
+{
+    if (arr.size() < n)
+    {
+        throw std::runtime_error(std::string("UnknownOp: ") + what);
+    }
+}
+
+nlohmann::json encode_attrs(TileGraph::OpNode const &op)
+{
+    nlohmann::json attrs = nlohmann::json::object();
+    std::string const name = op.op_name();
+    if (name == "TILE_ADD_INPLACE")
+    {
+        auto const *add =
+            dynamic_cast<tile::TileAddInplaceOp const *>(&op);
+        if (add == nullptr)
+        {
+            throw std::runtime_error("UnknownOp: TILE_ADD_INPLACE");
+        }
+        attrs["alpha"] = add->alpha;
+        attrs["beta"] = add->beta;
+        return attrs;
+    }
+    if (name == "TILE_ADD")
+    {
+        auto const *add = dynamic_cast<tile::TileAddOp const *>(&op);
+        if (add == nullptr)
+        {
+            throw std::runtime_error("UnknownOp: TILE_ADD");
+        }
+        attrs["alpha"] = add->alpha;
+        attrs["beta"] = add->beta;
+        return attrs;
+    }
+    if (name == "TILE_MULTIPLY")
+    {
+        auto const *mul =
+            dynamic_cast<tile::TileMultiplyOp const *>(&op);
+        if (mul == nullptr)
+        {
+            throw std::runtime_error("UnknownOp: TILE_MULTIPLY");
+        }
+        attrs["alpha"] = mul->alpha;
+        return attrs;
+    }
+    if (name == "TILE_GEMM")
+    {
+        auto const *gemm = dynamic_cast<tile::TileGemmOp const *>(&op);
+        if (gemm == nullptr)
+        {
+            throw std::runtime_error("UnknownOp: TILE_GEMM");
+        }
+        attrs["alpha"] = gemm->alpha;
+        attrs["beta"] = gemm->beta;
+        attrs["trans_a"] = gemm->trans_a;
+        attrs["trans_b"] = gemm->trans_b;
+        attrs["ndim"] = gemm->ndim;
+        attrs["batch_ndim"] = gemm->batch_ndim;
+        return attrs;
+    }
+    if (name == "TILE_ADD_SLICE")
+    {
+        auto const *slice =
+            dynamic_cast<tile::TileAddSliceOp const *>(&op);
+        if (slice == nullptr)
+        {
+            throw std::runtime_error("UnknownOp: TILE_ADD_SLICE");
+        }
+        attrs["alpha"] = slice->alpha;
+        attrs["beta"] = slice->beta;
+        attrs["axis"] = slice->axis;
+        return attrs;
+    }
+    if (name == "TILE_FILL")
+    {
+        auto const *fill = dynamic_cast<tile::TileFillOp const *>(&op);
+        if (fill == nullptr)
+        {
+            throw std::runtime_error("UnknownOp: TILE_FILL");
+        }
+        attrs["value"] = fill->val;
+        return attrs;
+    }
+    if (name == "TILE_COPY_INTERSECTION")
+    {
+        auto const *copy =
+            dynamic_cast<tile::TileCopyIntersectionOp const *>(&op);
+        if (copy == nullptr)
+        {
+            throw std::runtime_error(
+                "UnknownOp: TILE_COPY_INTERSECTION");
+        }
+        attrs["src_offset"] = copy->src_offset;
+        attrs["dst_offset"] = copy->dst_offset;
+        return attrs;
+    }
+    if (name == "TILE_RELU" || name == "TILE_COPY")
+    {
+        return attrs;
+    }
+    throw std::runtime_error("UnknownOp: " + name);
 }
 
 nlohmann::json encode_graph(
@@ -162,7 +279,7 @@ nlohmann::json encode_graph(
             {"shape", node->shape()},
         };
         auto it = binds.find(node->id());
-        if (it != binds.end())
+        if (it != binds.end() && node->dtype() == DataType::FP32)
         {
             j["data"] = it->second;
         }
@@ -185,44 +302,12 @@ nlohmann::json encode_graph(
         {
             outs.push_back(out->id());
         }
-        nlohmann::json attrs = nlohmann::json::object();
-        std::string const name = op->op_name();
-        if (name == "TILE_ADD_INPLACE")
-        {
-            auto const *add =
-                dynamic_cast<tile::TileAddInplaceOp const *>(
-                    op.get());
-            if (add == nullptr)
-            {
-                throw std::runtime_error("UnknownOp: TILE_ADD_INPLACE");
-            }
-            attrs["alpha"] = add->alpha;
-            attrs["beta"] = add->beta;
-        }
-        else if (name == "TILE_FILL")
-        {
-            auto const *fill =
-                dynamic_cast<tile::TileFillOp const *>(op.get());
-            if (fill == nullptr)
-            {
-                throw std::runtime_error("UnknownOp: TILE_FILL");
-            }
-            attrs["value"] = fill->val;
-        }
-        else if (name == "TILE_RELU")
-        {
-            // no attrs
-        }
-        else
-        {
-            throw std::runtime_error("UnknownOp: " + name);
-        }
         ops.push_back(
             {
-                {"op_name", name},
+                {"op_name", op->op_name()},
                 {"inputs", std::move(ins)},
                 {"outputs", std::move(outs)},
-                {"attrs", std::move(attrs)},
+                {"attrs", encode_attrs(*op)},
             });
     }
     return {
@@ -245,6 +330,18 @@ TileGraph::TileNode *node_by_id(
     throw std::runtime_error("unknown tile node id");
 }
 
+bool has_node(TileGraph const &graph, TileGraph::NodeId id)
+{
+    for (auto const &node : graph.tile_nodes())
+    {
+        if (node && node->id() == id)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 void apply_op(TileGraph &graph, nlohmann::json const &op)
 {
     std::string const name = op.at("op_name").get<std::string>();
@@ -253,12 +350,11 @@ void apply_op(TileGraph &graph, nlohmann::json const &op)
     auto attrs = op.value("attrs", nlohmann::json::object());
     if (name == "TILE_ADD_INPLACE")
     {
-        if (inputs.size() < 2)
-        {
-            throw std::runtime_error("UnknownOp: TILE_ADD_INPLACE inputs");
-        }
-        auto *x = node_by_id(graph, inputs.at(0).get<TileGraph::NodeId>());
-        auto *y = node_by_id(graph, inputs.at(1).get<TileGraph::NodeId>());
+        require_min(inputs, 2, "TILE_ADD_INPLACE inputs");
+        auto *x = node_by_id(
+            graph, inputs.at(0).get<TileGraph::NodeId>());
+        auto *y = node_by_id(
+            graph, inputs.at(1).get<TileGraph::NodeId>());
         tile::add_inplace(
             attrs.value("alpha", 1.0f),
             x,
@@ -266,12 +362,89 @@ void apply_op(TileGraph &graph, nlohmann::json const &op)
             y);
         return;
     }
+    if (name == "TILE_ADD")
+    {
+        require_min(inputs, 2, "TILE_ADD inputs");
+        require_min(outputs, 1, "TILE_ADD outputs");
+        auto *x = node_by_id(
+            graph, inputs.at(0).get<TileGraph::NodeId>());
+        auto *y = node_by_id(
+            graph, inputs.at(1).get<TileGraph::NodeId>());
+        auto *z = node_by_id(
+            graph, outputs.at(0).get<TileGraph::NodeId>());
+        tile::add(
+            attrs.value("alpha", 1.0f),
+            x,
+            attrs.value("beta", 1.0f),
+            y,
+            z);
+        return;
+    }
+    if (name == "TILE_MULTIPLY")
+    {
+        require_min(inputs, 2, "TILE_MULTIPLY inputs");
+        require_min(outputs, 1, "TILE_MULTIPLY outputs");
+        auto *x = node_by_id(
+            graph, inputs.at(0).get<TileGraph::NodeId>());
+        auto *y = node_by_id(
+            graph, inputs.at(1).get<TileGraph::NodeId>());
+        auto *z = node_by_id(
+            graph, outputs.at(0).get<TileGraph::NodeId>());
+        tile::multiply(attrs.value("alpha", 1.0f), x, y, z);
+        return;
+    }
+    if (name == "TILE_GEMM")
+    {
+        require_min(inputs, 2, "TILE_GEMM inputs");
+        TileGraph::NodeId c_id;
+        if (inputs.size() >= 3)
+        {
+            c_id = inputs.at(2).get<TileGraph::NodeId>();
+        }
+        else
+        {
+            require_min(outputs, 1, "TILE_GEMM outputs");
+            c_id = outputs.at(0).get<TileGraph::NodeId>();
+        }
+        auto *a = node_by_id(
+            graph, inputs.at(0).get<TileGraph::NodeId>());
+        auto *b = node_by_id(
+            graph, inputs.at(1).get<TileGraph::NodeId>());
+        auto *c = node_by_id(graph, c_id);
+        tile::gemm(
+            a,
+            b,
+            c,
+            attrs.value("alpha", 1.0f),
+            attrs.value("beta", 0.0f),
+            attrs.value("trans_a", false),
+            attrs.value("trans_b", false),
+            static_cast<Index>(attrs.value("ndim", 1)),
+            static_cast<Index>(attrs.value("batch_ndim", 0)));
+        return;
+    }
+    if (name == "TILE_ADD_SLICE")
+    {
+        require_min(inputs, 2, "TILE_ADD_SLICE inputs");
+        require_min(outputs, 1, "TILE_ADD_SLICE outputs");
+        auto *s1 = node_by_id(
+            graph, inputs.at(0).get<TileGraph::NodeId>());
+        auto *s2 = node_by_id(
+            graph, inputs.at(1).get<TileGraph::NodeId>());
+        auto *dst = node_by_id(
+            graph, outputs.at(0).get<TileGraph::NodeId>());
+        tile::add_slice(
+            attrs.value("alpha", 1.0f),
+            s1,
+            attrs.value("beta", 1.0f),
+            s2,
+            dst,
+            static_cast<Index>(attrs.value("axis", 0)));
+        return;
+    }
     if (name == "TILE_FILL")
     {
-        if (outputs.empty())
-        {
-            throw std::runtime_error("UnknownOp: TILE_FILL outputs");
-        }
+        require_min(outputs, 1, "TILE_FILL outputs");
         auto *x = node_by_id(
             graph, outputs.at(0).get<TileGraph::NodeId>());
         tile::fill(attrs.value("value", 0.0f), x);
@@ -279,10 +452,8 @@ void apply_op(TileGraph &graph, nlohmann::json const &op)
     }
     if (name == "TILE_RELU")
     {
-        if (inputs.empty() || outputs.empty())
-        {
-            throw std::runtime_error("UnknownOp: TILE_RELU arity");
-        }
+        require_min(inputs, 1, "TILE_RELU arity");
+        require_min(outputs, 1, "TILE_RELU arity");
         auto *src = node_by_id(
             graph, inputs.at(0).get<TileGraph::NodeId>());
         auto *dst = node_by_id(
@@ -290,32 +461,73 @@ void apply_op(TileGraph &graph, nlohmann::json const &op)
         tile::relu(src, dst);
         return;
     }
+    if (name == "TILE_COPY")
+    {
+        require_min(inputs, 1, "TILE_COPY inputs");
+        require_min(outputs, 1, "TILE_COPY outputs");
+        auto *src = node_by_id(
+            graph, inputs.at(0).get<TileGraph::NodeId>());
+        auto *dst = node_by_id(
+            graph, outputs.at(0).get<TileGraph::NodeId>());
+        tile::copy(src, dst);
+        return;
+    }
+    if (name == "TILE_COPY_INTERSECTION")
+    {
+        require_min(inputs, 3, "TILE_COPY_INTERSECTION inputs");
+        auto *src = node_by_id(
+            graph, inputs.at(0).get<TileGraph::NodeId>());
+        auto *dst = node_by_id(
+            graph, inputs.at(1).get<TileGraph::NodeId>());
+        auto *scratch = node_by_id(
+            graph, inputs.at(2).get<TileGraph::NodeId>());
+        auto src_off =
+            attrs.value("src_offset", std::vector<Index>{});
+        auto dst_off =
+            attrs.value("dst_offset", std::vector<Index>{});
+        tile::copy_intersection(
+            src, src_off, dst, dst_off, scratch);
+        return;
+    }
     throw std::runtime_error("UnknownOp: " + name);
 }
 
-std::unique_ptr<TileGraph> decode_graph(nlohmann::json const &wire)
+void ingest_nodes(TileGraph &graph, nlohmann::json const &nodes)
 {
-    auto graph = std::make_unique<TileGraph>(
-        wire.value("name", std::string("remote")));
-    for (auto const &jn : wire.at("nodes"))
+    for (auto const &jn : nodes)
     {
-        std::vector<Index> shape = jn.at("shape").get<std::vector<Index>>();
-        auto *node = graph->data(
+        auto const want = jn.at("id").get<TileGraph::NodeId>();
+        if (has_node(graph, want))
+        {
+            continue;
+        }
+        std::vector<Index> shape =
+            jn.at("shape").get<std::vector<Index>>();
+        auto *node = graph.data(
             std::move(shape),
             jn.value("name", std::string()),
-            dtype_from_string(jn.value("dtype", std::string("FP32"))));
-        if (jn.contains("id") &&
-            node->id() != jn["id"].get<TileGraph::NodeId>())
+            dtype_from_string(
+                jn.value("dtype", std::string("FP32"))));
+        if (node->id() != want)
         {
             throw std::runtime_error(
                 "TileGraph node ids must be dense from 0");
         }
     }
-    for (auto const &op : wire.at("ops"))
+}
+
+void ingest_ops(TileGraph &graph, nlohmann::json const &ops)
+{
+    size_t const have = graph.num_ops();
+    if (ops.size() < have)
     {
-        apply_op(*graph, op);
+        throw std::runtime_error(
+            "Submit graph shrank; remote session is append-only");
     }
-    return graph;
+    for (size_t i = have; i < ops.size(); ++i)
+    {
+        apply_op(graph, ops.at(i));
+    }
 }
 
 void bind_node_data(
@@ -331,6 +543,10 @@ void bind_node_data(
         }
         auto *node = node_by_id(
             graph, jn.at("id").get<TileGraph::NodeId>());
+        if (node->dtype() != DataType::FP32)
+        {
+            continue;
+        }
         auto data = jn["data"].get<std::vector<float>>();
         driver.runtime().bind_data(node, data);
     }
@@ -364,6 +580,30 @@ int connect_unix(std::string const &path)
     return fd;
 }
 
+void apply_socket_acl(std::string const &path)
+{
+    if (::chmod(path.c_str(), S_IRUSR | S_IWUSR) != 0)
+    {
+        throw_errno("chmod");
+    }
+    struct group *gr = ::getgrnam(driver_socket_group_name());
+    if (gr == nullptr)
+    {
+        return;
+    }
+    if (::chown(
+            path.c_str(),
+            static_cast<uid_t>(-1),
+            gr->gr_gid) != 0)
+    {
+        if (errno == EPERM || errno == EACCES)
+        {
+            return;
+        }
+        throw_errno("chown");
+    }
+}
+
 int listen_unix(std::string const &path)
 {
     ::unlink(path.c_str());
@@ -390,13 +630,15 @@ int listen_unix(std::string const &path)
         errno = err;
         throw_errno("bind");
     }
-    if (::chmod(path.c_str(), S_IRUSR | S_IWUSR) != 0)
+    try
     {
-        int const err = errno;
+        apply_socket_acl(path);
+    }
+    catch (...)
+    {
         ::close(fd);
         ::unlink(path.c_str());
-        errno = err;
-        throw_errno("chmod");
+        throw;
     }
     if (::listen(fd, 1) != 0)
     {
@@ -438,6 +680,25 @@ void handle_client(int fd)
 
     std::unique_ptr<TileGraph> graph;
     std::unique_ptr<RuntimeExecutionDriver> driver;
+    std::unordered_map<TileGraph::NodeId, std::vector<float>> queued_bind;
+    auto flush_queued_binds = [&]()
+    {
+        if (!driver || !graph)
+        {
+            return;
+        }
+        for (auto it = queued_bind.begin(); it != queued_bind.end();)
+        {
+            if (!has_node(*graph, it->first))
+            {
+                ++it;
+                continue;
+            }
+            driver->runtime().bind_data(
+                node_by_id(*graph, it->first), it->second);
+            it = queued_bind.erase(it);
+        }
+    };
     try
     {
         while (true)
@@ -446,11 +707,22 @@ void handle_client(int fd)
             std::string const type = msg.value("type", "");
             if (type == "Submit")
             {
-                graph = decode_graph(msg.at("graph"));
-                driver =
-                    std::make_unique<RuntimeExecutionDriver>(*graph);
+                auto const &wire = msg.at("graph");
+                if (!graph)
+                {
+                    graph = std::make_unique<TileGraph>(
+                        wire.value("name", std::string("remote")));
+                }
+                ingest_nodes(*graph, wire.at("nodes"));
+                ingest_ops(*graph, wire.at("ops"));
+                if (!driver)
+                {
+                    driver = std::make_unique<RuntimeExecutionDriver>(
+                        *graph);
+                }
                 driver->runtime().compile();
-                bind_node_data(*driver, *graph, msg["graph"]["nodes"]);
+                bind_node_data(*driver, *graph, wire.at("nodes"));
+                flush_queued_binds();
                 driver->submit(*graph);
                 send_json(fd, {{"type", "SubmitOk"}});
             }
@@ -464,15 +736,18 @@ void handle_client(int fd)
             }
             else if (type == "Bind")
             {
-                if (!driver || !graph)
-                {
-                    throw std::runtime_error("bind before submit");
-                }
-                auto *node = node_by_id(
-                    *graph,
-                    msg.at("node_id").get<TileGraph::NodeId>());
+                auto const id =
+                    msg.at("node_id").get<TileGraph::NodeId>();
                 auto data = msg.at("data").get<std::vector<float>>();
-                driver->runtime().bind_data(node, data);
+                if (driver && graph && has_node(*graph, id))
+                {
+                    driver->runtime().bind_data(
+                        node_by_id(*graph, id), data);
+                }
+                else
+                {
+                    queued_bind[id] = std::move(data);
+                }
                 send_json(fd, {{"type", "BindOk"}});
             }
             else if (type == "Gather")
@@ -539,6 +814,11 @@ std::string default_driver_socket_path()
         return env;
     }
     return "/tmp/nntile-driver.sock";
+}
+
+char const *driver_socket_group_name()
+{
+    return "nntile-ops";
 }
 
 RemoteExecutionDriver::RemoteExecutionDriver(std::string socket_path)

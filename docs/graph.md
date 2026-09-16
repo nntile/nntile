@@ -49,10 +49,15 @@ Local lower (`compile_graph()`, legacy `execute()`, host `.to("cpu")`
 auto-flush) requires `NNTILE_ENABLE_LOCAL_COMPILER=1` (off by default).
 
 `nntile::RemoteExecutionDriver` submits an already-lowered `TileGraph`
-over `NNTILE_DRIVER_SOCKET` (mode 0600). StarPU stays in
-`ExecutionDaemon`. The wire allowlist is `TILE_ADD_INPLACE`,
-`TILE_FILL`, and `TILE_RELU`. Other tile `op_name` values fail closed
-(`UnknownOp`). Kernels must not have that socket path.
+over `NNTILE_DRIVER_SOCKET` (mode 0600, group `nntile-ops` when that
+group exists). StarPU stays in `ExecutionDaemon` on one resident
+`RuntimeExecutionDriver` for the connection (tiles survive two
+Flushes). The wire allowlist is the v1 Flush lower:
+`TILE_ADD` / `TILE_ADD_INPLACE`, `TILE_MULTIPLY`, `TILE_GEMM`,
+`TILE_ADD_SLICE`, `TILE_RELU`, `TILE_COPY` /
+`TILE_COPY_INTERSECTION`, and `TILE_FILL`. Other tile `op_name`
+values fail closed (`UnknownOp`). Kernels must not have that socket
+path.
 
 `nntile::tensor::encode_phase` / `decode_phase` emit Flush `PhaseIR`
 JSON (`{nodes, ops}`). v1 allowlist: `TORCH_UNARY`, `TORCH_BINARY`,
