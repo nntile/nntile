@@ -52,6 +52,19 @@ public:
     virtual void execute(Runtime &runtime) const = 0;
     virtual std::shared_ptr<TileGraph::OpNode> clone() const = 0;
 
+    //! Logical worker 0..N-1, or -1 for StarPU dynamic placement.
+    int device_hint() const { return device_hint_; }
+    void set_device_hint(int hint) { device_hint_ = hint; }
+
+    //! Rewire ``from`` to ``to`` in input/output lists and named aliases.
+    void replace_tile(TileNode *from, TileNode *to);
+
+    virtual void replace_named_tile(TileNode *from, TileNode *to)
+    {
+        (void)from;
+        (void)to;
+    }
+
 protected:
     OpNode() = default;
 
@@ -59,8 +72,32 @@ protected:
     std::string name_;
     std::vector<TileGraph::TileNode*> inputs_;
     std::vector<TileGraph::TileNode*> outputs_;
+    int device_hint_ = -1;
 
     friend class TileGraph;
 };
+
+inline void TileGraph::OpNode::replace_tile(TileNode *from, TileNode *to)
+{
+    if (from == nullptr || from == to)
+    {
+        return;
+    }
+    for (TileNode *&p : inputs_)
+    {
+        if (p == from)
+        {
+            p = to;
+        }
+    }
+    for (TileNode *&p : outputs_)
+    {
+        if (p == from)
+        {
+            p = to;
+        }
+    }
+    replace_named_tile(from, to);
+}
 
 } // namespace nntile

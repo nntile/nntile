@@ -92,7 +92,7 @@ Uses ruff, isort, and standard pre-commit hooks. Configuration is in
 - **Design notes index:** [docs/dev/README.md](docs/dev/README.md)
 - **O(N) compiler design:** [docs/dev/graph_compiler_on_design.md](docs/dev/graph_compiler_on_design.md)
 - **Tensor / session semantics:** [docs/dev/torch_nntile_tensor_architecture.md](docs/dev/torch_nntile_tensor_architecture.md)
-- **Optional schedules:** [docs/dev/execution_json_schema.md](docs/dev/execution_json_schema.md)
+- **DDP:** named axes + `torch_nntile.ddp()` (see [docs/torch_nntile.md](docs/torch_nntile.md))
 - **Migration (complete):** [docs/dev/libtorch_nntile_migration.md](docs/dev/libtorch_nntile_migration.md)
 - **Build-and-test CI:** layered jobs in `.github/workflows/build-test.yml`
   (build+install libnntile → ctest against prefix → build+install

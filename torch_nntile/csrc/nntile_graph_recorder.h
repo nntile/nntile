@@ -56,11 +56,19 @@ void set_axis_group_tiling(
     const std::string &name,
     const std::vector<std::int64_t> &tile_sizes);
 
+void ddp(const std::string &axis = "batch");
+
 std::string format_axis_groups();
 
 void print_axis_groups();
 
 std::vector<std::string> pending_op_names();
+
+//! True when aten::add should record classic ADD instead of TORCH_BINARY.
+//! Autograd combines fan-in grads with aten::add. TORCH_BINARY cannot
+//! be DDP-tiled; a classic-only pending graph uses tensor::add instead.
+//! Bare torch.add (no classic compute yet) stays torch-native.
+bool prefer_classic_aten_add();
 
 //! Named TensorGraph data totals (nbytes) for the pending session.
 std::string format_pending_data_sizes();

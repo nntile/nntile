@@ -58,8 +58,8 @@ StarPU codelets wrapping kernel calls.
 
 **Namespace:** `nntile::core`
 
-Single-tile operations (`Tile<T>`), plus optional execution schedules
-(`execution_schedule.hh`).
+Single-tile operations (`Tile<T>`). StarPU worker mapping for
+`OpNode::device_hint` lives in `execution_worker.hh`.
 
 ## tensor / tile / runtime
 
@@ -69,7 +69,7 @@ Single-tile operations (`Tile<T>`), plus optional execution schedules
 |-------|------|
 | **TensorGraph** | Symbolic tensors (`TensorNode`) and ops (`OpNode` with `lower_to_tile`) |
 | **TileGraph** | Tiled IR; tile ops implement `execute(Runtime&)` |
-| **Runtime** | `compile`, `execute` / `execute_range`, `wait`; optional static schedule |
+| **Runtime** | `compile`, `execute` / `execute_range`, `wait`; `device_hint` at submit |
 
 Typical flow: record into `TensorGraph` → `seal_phase` +
 `append_tensor_graph_phase` → `Runtime::compile()` → `execute_range()` →

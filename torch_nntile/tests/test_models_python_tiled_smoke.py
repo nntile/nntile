@@ -4,11 +4,11 @@
 # @file torch_nntile/tests/test_models_python_tiled_smoke.py
 # One tiled classic-kernel smoke per Python model family.
 
-"""Each ``torch_nntile.nn.model`` family must compile with axis-group tiling.
+"""Each ``torch_nntile.nn.model`` family must compile with ``ddp()``.
 
-Cached RoPE / position / token-type tables are independent uploads. Name
-their batch axis too, or the tiled activations disagree with untiled
-tables (``grid_linear`` OOB).
+Name dim 0 of batched compute tensors (tokens, logits). Llama / GPT-NeoX
+RoPE tables are ``[seq, head_dim // 2]`` and must not join the DDP batch
+group; the kernel applies them across heads and batch.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ import torch_nntile
 from classic_graph import assert_classic_graph
 
 torch_nntile.init_context(
-    ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
+    ncpu=2, ncuda=0, verbose=0, cpu_fallback=False
 )
 torch_nntile.restrict_cpu()
 """
@@ -72,7 +72,7 @@ def test_tiled_deep_relu():
         out = model(ids)
         torch_nntile.set_axis_group_name(ids, {0: "batch"})
         torch_nntile.set_axis_group_name(out, {0: "batch"})
-        torch_nntile.set_axis_group_tiling("batch", [2, 2])
+        torch_nntile.ddp()
         torch_nntile.execute()
         assert_classic_graph()
         assert tuple(out.detach().cpu().shape) == (4, 8)
@@ -96,10 +96,11 @@ def test_tiled_gpt2():
         out = model(ids)
         torch_nntile.set_axis_group_name(ids, {0: "batch"})
         torch_nntile.set_axis_group_name(out, {0: "batch"})
-        torch_nntile.set_axis_group_tiling("batch", [1, 1])
+        torch_nntile.ddp()
         info = torch_nntile.format_axis_groups()
         assert "name='batch'" in info
-        assert "pending_tile=1,1" in info
+        assert "DDP axis='batch'" in info
+        assert "replicas=2" in info
         torch_nntile.execute()
         assert_classic_graph()
         _ = out.detach().cpu()
@@ -120,14 +121,18 @@ def test_tiled_llama():
         ids = torch.randint(0, 128, (2, 8), dtype=torch.long)
         ids = ids.contiguous().to("nntile")
         out = model(ids)
-        pos = model.model._position_ids_cache[(2, 8)]
-        sin, cos = model.model._rope_cache[(2, 8)]
-        for t in (ids, out, pos, sin, cos):
-            torch_nntile.set_axis_group_name(t, {0: "batch"})
-        torch_nntile.set_axis_group_tiling("batch", [1, 1])
+        sin, cos = model.model._rope_cache[8]
+        half = cfg.hidden_size // cfg.num_attention_heads // 2
+        assert tuple(sin.shape) == (8, half)
+        assert tuple(cos.shape) == (8, half)
+        assert not hasattr(model.model, "_position_ids_cache")
+        torch_nntile.set_axis_group_name(ids, {0: "batch"})
+        torch_nntile.set_axis_group_name(out, {0: "batch"})
+        torch_nntile.ddp()
         info = torch_nntile.format_axis_groups()
         assert "name='batch'" in info
-        assert "pending_tile=1,1" in info
+        assert "DDP axis='batch'" in info
+        assert "replicas=2" in info
         torch_nntile.execute()
         assert_classic_graph()
         _ = out.detach().cpu()
@@ -150,10 +155,11 @@ def test_tiled_gpt_neo():
         out = model(ids)
         torch_nntile.set_axis_group_name(ids, {0: "batch"})
         torch_nntile.set_axis_group_name(out, {0: "batch"})
-        torch_nntile.set_axis_group_tiling("batch", [1, 1])
+        torch_nntile.ddp()
         info = torch_nntile.format_axis_groups()
         assert "name='batch'" in info
-        assert "pending_tile=1,1" in info
+        assert "DDP axis='batch'" in info
+        assert "replicas=2" in info
         torch_nntile.execute()
         assert_classic_graph()
         _ = out.detach().cpu()
@@ -174,14 +180,18 @@ def test_tiled_gpt_neox():
         ids = torch.randint(0, 128, (2, 8), dtype=torch.long)
         ids = ids.contiguous().to("nntile")
         out = model(ids)
-        pos = model.gpt_neox._position_ids_cache[(2, 8)]
-        sin, cos = model.gpt_neox._rope_cache[(2, 8)]
-        for t in (ids, out, pos, sin, cos):
-            torch_nntile.set_axis_group_name(t, {0: "batch"})
-        torch_nntile.set_axis_group_tiling("batch", [1, 1])
+        sin, cos = model.gpt_neox._rope_cache[8]
+        half = cfg.hidden_size // cfg.num_attention_heads // 2
+        assert tuple(sin.shape) == (8, half)
+        assert tuple(cos.shape) == (8, half)
+        assert not hasattr(model.gpt_neox, "_position_ids_cache")
+        torch_nntile.set_axis_group_name(ids, {0: "batch"})
+        torch_nntile.set_axis_group_name(out, {0: "batch"})
+        torch_nntile.ddp()
         info = torch_nntile.format_axis_groups()
         assert "name='batch'" in info
-        assert "pending_tile=1,1" in info
+        assert "DDP axis='batch'" in info
+        assert "replicas=2" in info
         torch_nntile.execute()
         assert_classic_graph()
         _ = out.detach().cpu()
@@ -212,10 +222,11 @@ def test_tiled_bert():
         out = model(ids, token_type_ids=types, position_ids=pos)
         for t in (ids, types, pos, out):
             torch_nntile.set_axis_group_name(t, {0: "batch"})
-        torch_nntile.set_axis_group_tiling("batch", [1, 1])
+        torch_nntile.ddp()
         info = torch_nntile.format_axis_groups()
         assert "name='batch'" in info
-        assert "pending_tile=1,1" in info
+        assert "DDP axis='batch'" in info
+        assert "replicas=2" in info
         torch_nntile.execute()
         assert_classic_graph()
         _ = out.detach().cpu()
@@ -247,10 +258,11 @@ def test_tiled_roberta():
         out = model(ids, token_type_ids=types, position_ids=pos)
         for t in (ids, types, pos, out):
             torch_nntile.set_axis_group_name(t, {0: "batch"})
-        torch_nntile.set_axis_group_tiling("batch", [1, 1])
+        torch_nntile.ddp()
         info = torch_nntile.format_axis_groups()
         assert "name='batch'" in info
-        assert "pending_tile=1,1" in info
+        assert "DDP axis='batch'" in info
+        assert "replicas=2" in info
         torch_nntile.execute()
         assert_classic_graph()
         _ = out.detach().cpu()
@@ -275,7 +287,7 @@ def test_tiled_t5():
         torch_nntile.set_axis_group_name(ids, {0: "batch"})
         torch_nntile.set_axis_group_name(dec, {0: "batch"})
         torch_nntile.set_axis_group_name(out, {0: "batch"})
-        torch_nntile.set_axis_group_tiling("batch", [1, 1])
+        torch_nntile.ddp()
         torch_nntile.execute()
         assert_classic_graph()
         _ = out.detach().cpu()
@@ -296,7 +308,7 @@ def test_tiled_mlp_mixer():
         out = model(ids)
         torch_nntile.set_axis_group_name(ids, {1: "batch"})
         torch_nntile.set_axis_group_name(out, {0: "batch"})
-        torch_nntile.set_axis_group_tiling("batch", [1, 1])
+        torch_nntile.ddp()
         torch_nntile.execute()
         assert_classic_graph()
         _ = out.detach().cpu()
@@ -323,7 +335,7 @@ def test_tiled_dit():
         out = model(patches, timestep, labels)
         for t in (patches, timestep, labels, out):
             torch_nntile.set_axis_group_name(t, {0: "batch"})
-        torch_nntile.set_axis_group_tiling("batch", [1, 1])
+        torch_nntile.ddp()
         torch_nntile.execute()
         assert_classic_graph()
         _ = out.detach().cpu()

@@ -16,7 +16,6 @@ Start with the product docs if you are new:
 | [torch_nntile_classic_kernels.md](torch_nntile_classic_kernels.md) | Classic kernels; C++ `torch_nntile::models` (not HF ports) |
 | [torch_starpu_kernels.md](torch_starpu_kernels.md) | Untiled torch kernels as StarPU codelets; match-CUDA dispatch guide |
 | [graph_compiler_on_design.md](graph_compiler_on_design.md) | O(N) incremental TensorGraph → TileGraph → Runtime |
-| [execution_json_schema.md](execution_json_schema.md) | Optional static `execution.json` schedule |
 | [graph_compile_perf_mnist.md](graph_compile_perf_mnist.md) | Compile-perf measurements (MNIST dry-run) |
 | [hf_tiny_cpu_vs_nntile_showcase.md](hf_tiny_cpu_vs_nntile_showcase.md) | Tiny HF smokes: CPU vs nntile loss/wall table |
 | [cnn_tiny_cpu_vs_nntile_showcase.md](cnn_tiny_cpu_vs_nntile_showcase.md) | Tiny CNN smokes (LeNet / ResNet): CPU vs nntile |

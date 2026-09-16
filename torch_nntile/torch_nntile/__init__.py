@@ -229,23 +229,29 @@ def set_axis_group_name(tensor: torch.Tensor, names: dict[int, str]) -> None:
 
   Only the listed dimensions are named; others stay unnamed. Names propagate
   to merged axis groups when ops combine tensors. Call before
-  :func:`execute` in graph mode.
+  :func:`ddp` / :func:`execute` in graph mode.
   """
     _C.set_axis_group_name(tensor, names)
 
 
-def set_axis_group_tiling(name: str, tile_sizes: int | list[int] | tuple[int, ...]) -> None:
-    """Set tiling for a named axis group before :func:`execute`.
+def ddp(axis: str = "batch") -> None:
+    """Enable data-parallel compile for a named axis (default ``batch``).
 
-    ``tile_sizes`` may be a uniform tile size (``int``) or explicit per-tile
-    sizes (``list``/``tuple``) that sum to the axis extent.
-
-    Temporarily raises if a torch-native (``TORCH_*``) compute op is in
-    the pending graph: stock aten on ``device=nntile`` stays untiled.
-    Classic ``torch_nntile.nn`` graphs may tile. See
-    ``docs/dev/torch_nntile_aten_ops.md``.
+    Replica count is the execution worker count from :func:`init_context`
+    (CUDA workers if ``ncuda > 0``, otherwise CPU). Call before the first
+    compile that lowers a tensor carrying that axis. Parameters without the
+    axis stay one tile; weight grads get phase-local accumulators.
     """
-    _C.set_axis_group_tiling(name, tile_sizes)
+    _C.ddp(axis)
+
+
+def _set_axis_group_tiling(name: str, tile_sizes: int | list[int] | tuple[int, ...]) -> None:
+    """Test-only tiling for a named axis group (M/N/K kernel tests).
+
+    Not part of the product API. DDP uses :func:`ddp` instead of user tile
+    sizes.
+    """
+    _C._set_axis_group_tiling(name, tile_sizes)
 
 
 def format_axis_groups() -> str:
@@ -315,7 +321,7 @@ __all__ = [
     "wait_for_all",
     "shutdown_context",
     "set_axis_group_name",
-    "set_axis_group_tiling",
+    "ddp",
     "format_axis_groups",
     "print_axis_groups",
     "pending_op_names",

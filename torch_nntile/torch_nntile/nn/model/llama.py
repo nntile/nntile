@@ -7,9 +7,10 @@
 """Llama stack mirroring ``nntile::model::llama`` (RMSNorm, RoPE, SiLU MLP).
 
 Forward / backward keep activations on ``device=nntile`` end-to-end.
-``position_ids`` / RoPE ``sin``/``cos`` are one-shot host tables (see
-``warm_sequence_caches``), matching deleted NNGraph ``bind_data`` - prepared
-once for training, not recomputed from activations each step.
+RoPE uses ``arange(seq)`` for every batch row. ``sin``/``cos`` are
+``[seq, head_dim // 2]``; extra leading modes of ``x`` (heads, GQA,
+batch) are the kernel batch ``n``. There is no ``[B, S]`` position
+table.
 """
 
 from __future__ import annotations
@@ -42,10 +43,10 @@ except ImportError:  # pragma: no cover - stub if rope.py missing
         rope_theta: float = 10000.0,
     ) -> tuple[Tensor, Tensor]:
         del rope_theta
-        b, s = position_ids.shape
         half = head_dim // 2
+        shape = (*tuple(position_ids.shape), half)
         z = torch.zeros(
-            b, s, half, dtype=torch.float32, device=position_ids.device
+            shape, dtype=torch.float32, device=position_ids.device
         )
         return z, torch.ones_like(z)
 
@@ -198,8 +199,8 @@ class LlamaAttention(nn.Module):
         return gemm(attn_t, self.o_weight, ndim=out_ndim, batch_ndim=0)
 
     def _apply_rope(self, x: Tensor, sin: Tensor, cos: Tensor) -> Tensor:
-        # sin/cos stay ``[B, S, head_dim // 2]``. The RoPE kernel folds
-        # extra leading modes of ``x`` (heads, GQA n_rep) into batch.
+        # sin/cos are ``[S, head_dim // 2]``. Extra leading modes of
+        # ``x`` (heads, GQA n_rep, batch) are the kernel batch ``n``.
         if sin.device != x.device:
             sin = sin.to(x.device)
             cos = cos.to(x.device)
@@ -284,93 +285,63 @@ class LlamaModel(nn.Module):
             [LlamaDecoder(config) for _ in range(config.num_hidden_layers)]
         )
         self.norm = LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-        # Host-built index / RoPE / causal-mask tables (NNGraph bind_data).
-        self._position_ids_cache: dict[tuple[int, int], Tensor] = {}
-        self._rope_cache: dict[tuple[int, int], tuple[Tensor, Tensor]] = {}
+        # Host-built RoPE / causal-mask tables (NNGraph bind_data).
+        # RoPE is ``[seq, head_dim // 2]``; batch is kernel n, not a table.
+        self._rope_cache: dict[int, tuple[Tensor, Tensor]] = {}
         self._causal_mask_cache: dict[int, Tensor] = {}
 
-    def _cached_position_ids(self, input_ids: Tensor) -> Tensor:
-        batch, seq = int(input_ids.size(0)), int(input_ids.size(-1))
-        key = (batch, seq)
-        cached = self._position_ids_cache.get(key)
-        if cached is not None and cached.device == input_ids.device:
-            return cached
-        # Host arange + upload once (cache); nntile aten::arange exists.
-        position_ids = (
-            torch.arange(seq, dtype=torch.long, device="cpu")
-            .unsqueeze(0)
-            .expand(batch, seq)
-            .contiguous()
-        )
-        if input_ids.device.type != "cpu":
-            position_ids = position_ids.to(input_ids.device)
-        self._position_ids_cache[key] = position_ids
-        return position_ids
-
     def _cached_rope(
-        self, position_ids: Tensor
+        self, seq: int, device: torch.device
     ) -> tuple[Tensor, Tensor]:
-        """Return sin/cos on ``position_ids.device`` (built once, then reused).
+        """Return ``[seq, head_dim // 2]`` sin/cos (built once, then reused).
 
-        Matches deleted NNGraph: RoPE tables are prepared on the host and
-        bound once for training - never recomputed from activations.
+        Built from ``arange(seq)``. The RoPE kernel applies that table
+        across every batch row.
         """
-        batch, seq = int(position_ids.size(0)), int(position_ids.size(-1))
-        key = (batch, seq)
-        cached = self._rope_cache.get(key)
-        if cached is not None and cached[0].device == position_ids.device:
+        cached = self._rope_cache.get(seq)
+        if cached is not None and cached[0].device == device:
             return cached
-        # One-shot host table from arange (do not gather nntile position_ids).
-        pos_host = (
-            torch.arange(seq, dtype=torch.long, device="cpu")
-            .unsqueeze(0)
-            .expand(batch, seq)
-            .contiguous()
-        )
+        pos_host = torch.arange(seq, dtype=torch.long, device="cpu")
         sin, cos = rope_sin_cos_from_position_ids(
             pos_host,
             self.config.head_dim,
             rope_theta=self.config.rope_theta,
         )
-        if position_ids.device.type != "cpu":
-            sin = sin.to(position_ids.device)
-            cos = cos.to(position_ids.device)
-        self._rope_cache[key] = (sin, cos)
+        if device.type != "cpu":
+            sin = sin.to(device)
+            cos = cos.to(device)
+        self._rope_cache[seq] = (sin, cos)
         return sin, cos
 
-    def _cached_causal_mask(self, input_ids: Tensor) -> Tensor:
+    def _cached_causal_mask(
+        self, seq: int, device: torch.device
+    ) -> Tensor:
         """Return ``[seq, seq]`` BOOL causal mask (cached, like GPT-2)."""
-        seq = int(input_ids.size(-1))
         cached = self._causal_mask_cache.get(seq)
-        if cached is not None and cached.device == input_ids.device:
+        if cached is not None and cached.device == device:
             return cached
-        causal_mask = make_causal_sdpa_mask(seq, device=input_ids.device)
+        causal_mask = make_causal_sdpa_mask(seq, device=device)
         self._causal_mask_cache[seq] = causal_mask
         return causal_mask
 
     def clear_sequence_caches(self) -> None:
-        self._position_ids_cache.clear()
         self._rope_cache.clear()
         self._causal_mask_cache.clear()
 
     def warm_sequence_caches(
         self,
         *,
-        batch_sizes: list[int] | tuple[int, ...],
+        batch_sizes: list[int] | tuple[int, ...] | None = None,
         seq_len: int,
         device: torch.device | str,
     ) -> None:
-        """Prepare position_ids / RoPE tables once for training reuse."""
+        """Prepare RoPE / causal-mask tables once for training reuse."""
+        del batch_sizes
         device = torch.device(device)
-        for batch in sorted({int(b) for b in batch_sizes}):
-            if batch < 1:
-                raise ValueError(f"batch size must be >= 1, got {batch}")
-            probe = torch.empty(
-                (batch, seq_len), dtype=torch.long, device=device
-            )
-            pos = self._cached_position_ids(probe)
-            self._cached_rope(pos)
-            self._cached_causal_mask(probe)
+        if seq_len < 1:
+            raise ValueError(f"seq_len must be >= 1, got {seq_len}")
+        self._cached_rope(seq_len, device)
+        self._cached_causal_mask(seq_len, device)
 
     def forward(
         self,
@@ -382,12 +353,17 @@ class LlamaModel(nn.Module):
         *,
         is_causal: bool = True,
     ) -> Tensor:
-        if position_ids is None:
-            position_ids = self._cached_position_ids(input_ids)
+        # Optional ``position_ids`` is HF-shaped leftover. Training is
+        # ``arange(seq)`` for every batch row; B is consumed by RoPE.
+        seq = int(
+            position_ids.size(-1)
+            if position_ids is not None
+            else input_ids.size(-1)
+        )
         if sin is None or cos is None:
-            sin, cos = self._cached_rope(position_ids)
+            sin, cos = self._cached_rope(seq, input_ids.device)
         if attn_mask is None and is_causal:
-            attn_mask = self._cached_causal_mask(input_ids)
+            attn_mask = self._cached_causal_mask(seq, input_ids.device)
         x = self.embed_tokens(input_ids)
         for layer in self.layers:
             x = layer(x, sin, cos, attn_mask, is_causal=is_causal)

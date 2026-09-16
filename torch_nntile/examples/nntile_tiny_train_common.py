@@ -8,6 +8,10 @@
 
 Mirrors the ``train`` / ``compare`` UX of ``train_gpt2_hf.py`` for the
 hand-written ``torch_nntile.nn.model.*`` stacks (Llama, BERT, …).
+
+Pass ``--ddp`` (and ``--ncpu`` / ``--ncuda``) to shard the named batch
+axis. ``--batch-size`` must be at least the replica count. HuggingFace
+``train_*_hf.py`` scripts cannot use DDP (stock aten stays untiled).
 """
 
 from __future__ import annotations
@@ -136,6 +140,27 @@ def add_nntile_train_compare_subparsers(
     )
     train.add_argument("--lr", type=float, default=1e-3)
     train.add_argument("--ncpu", type=int, default=1)
+    train.add_argument(
+        "--ncuda",
+        type=int,
+        default=0,
+        help="StarPU CUDA workers (replica count when > 0)",
+    )
+    train.add_argument(
+        "--ddp",
+        action="store_true",
+        help="Shard the named batch axis across StarPU workers",
+    )
+    train.add_argument(
+        "--ddp-axis",
+        default="batch",
+        help="Named axis for --ddp (default: batch)",
+    )
+    train.add_argument(
+        "--print-axis-groups",
+        action="store_true",
+        help="Print pending axis groups after ddp() (before compile)",
+    )
 
     compare = sub.add_parser(
         "compare",
@@ -143,6 +168,23 @@ def add_nntile_train_compare_subparsers(
     )
     compare.add_argument("--checkpoint-a", required=True)
     compare.add_argument("--checkpoint-b", required=True)
+
+
+def name_ddp_batch_axis(
+    model: torch.nn.Module,
+    batch: dict[str, torch.Tensor],
+    axis: str = "batch",
+) -> None:
+    """Name dim 0 of batched compute inputs (tokens, labels, ...).
+
+    RoPE ``sin``/``cos`` are ``[seq, head_dim // 2]`` and must not join
+    the DDP batch group: the kernel applies them across heads / batch.
+    Llama / GPT-NeoX do not keep a ``[B, S]`` position_ids table.
+    """
+    del model
+    for tensor in batch.values():
+        if tensor.ndim >= 1:
+            torch_nntile.set_axis_group_name(tensor, {0: axis})
 
 
 def _load_train_state(
@@ -192,15 +234,40 @@ def run_tiny_nntile_train(
 ) -> int:
     print(f"=== {name} tiny nntile smoke  seed={seed} ===")
     batch_cpu = build_batch(config, args)
+    ddp = bool(getattr(args, "ddp", False))
+    ddp_axis = str(getattr(args, "ddp_axis", "batch"))
+    print_groups = bool(getattr(args, "print_axis_groups", False))
+    ncuda = int(getattr(args, "ncuda", 0))
+
+    replicas = ncuda if ncuda > 0 else int(args.ncpu)
+    if ddp and replicas > 1 and int(args.batch_size) < replicas:
+        raise SystemExit(
+            f"--ddp needs --batch-size >= replica count "
+            f"({replicas} = ncuda if ncuda>0 else ncpu)"
+        )
 
     torch_nntile.init_context(
-        ncpu=args.ncpu, ncuda=0, cpu_fallback=False
+        ncpu=args.ncpu, ncuda=ncuda, cpu_fallback=False
     )
     try:
         with torch.no_grad():
             batch = {k: v.to("nntile") for k, v in batch_cpu.items()}
             model = model_cpu.to("nntile")
         del model_cpu, batch_cpu
+
+        printed_groups = 0
+
+        def apply_ddp() -> None:
+            nonlocal printed_groups
+            if not ddp:
+                return
+            name_ddp_batch_axis(model, batch, ddp_axis)
+            torch_nntile.ddp(ddp_axis)
+            if print_groups and printed_groups < 2:
+                torch_nntile.print_axis_groups()
+                printed_groups += 1
+
+        apply_ddp()
         torch_nntile.compile_graph()
         torch_nntile.run()
         torch_nntile.wait()
@@ -219,6 +286,7 @@ def run_tiny_nntile_train(
             steps=args.steps,
             opt=opt,
             torch_nntile=torch_nntile,
+            before_compile=apply_ddp if ddp else None,
         )
         if code == 0 and args.output_dir:
             save_nntile_checkpoint(
@@ -286,6 +354,7 @@ __all__ = [
     "compare_checkpoints",
     "load_checkpoint",
     "load_dataclass_config",
+    "name_ddp_batch_axis",
     "run_tiny_nntile_main",
     "save_nntile_checkpoint",
 ]

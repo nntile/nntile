@@ -78,36 +78,26 @@ std::string AxisDescriptor::tile_sizes_to_string() const
     {
         return "";
     }
-    if(tile_sizes.size() == 1)
-    {
-        return std::to_string(tile_sizes[0]);
-    }
-    // Base+leftover pattern (from set_tiling(Index)): all except last equal
-    // base; last tile may be smaller. Treat as uniform "N" like
-    // compute_basetile_shape.
-    Index base = tile_sizes[0];
-    bool base_plus_leftover = true;
-    for(size_t t = 1; t < tile_sizes.size() - 1; ++t)
-    {
-        if(tile_sizes[t] != base)
-        {
-            base_plus_leftover = false;
-            break;
-        }
-    }
-    Index last = tile_sizes.back();
-    if(base_plus_leftover && last > 0 && last <= base)
-    {
-        return std::to_string(base);
-    }
-    std::string result = "{";
+    std::string result;
     for(size_t t = 0; t < tile_sizes.size(); ++t)
     {
-        if(t > 0) result += ",";
+        if(t > 0)
+        {
+            result += ",";
+        }
         result += std::to_string(tile_sizes[t]);
     }
-    result += "}";
     return result;
+}
+
+std::string AxisDescriptor::tiling_to_string() const
+{
+    if(tile_sizes.empty())
+    {
+        return "";
+    }
+    return "ntiles=" + std::to_string(num_tiles()) +
+        " tiles=" + tile_sizes_to_string();
 }
 
 void merge_axis(std::shared_ptr<AxisDescriptor>& lhs,
@@ -188,6 +178,35 @@ void merge_axis(std::shared_ptr<AxisDescriptor>& lhs,
         g->drop_axis_group(old_desc.get());
         g->note_axis_group(keep.get());
     }
+}
+
+void apply_tiling_to_axis(
+    AxisDescriptor *ad,
+    std::vector<Index> const &sizes)
+{
+    if (ad == nullptr)
+    {
+        throw std::invalid_argument(
+            "apply_tiling_to_axis: axis descriptor is null");
+    }
+    if (sizes.size() == 1)
+    {
+        ad->set_tiling(sizes[0]);
+        return;
+    }
+    Index total = 0;
+    for (Index s : sizes)
+    {
+        total += s;
+    }
+    if (total != ad->extent)
+    {
+        throw std::runtime_error(
+            "tiling: sum of tile sizes for axis '" + ad->name +
+            "' (" + std::to_string(total) + ") != extent (" +
+            std::to_string(ad->extent) + ")");
+    }
+    ad->set_tiling(sizes);
 }
 
 } // namespace nntile

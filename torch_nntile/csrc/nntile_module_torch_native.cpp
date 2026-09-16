@@ -138,6 +138,11 @@ void set_axis_group_tiling_py(
     set_axis_group_tiling(name, parse_tile_sizes_py(tile_sizes));
 }
 
+void ddp_py(const std::string &axis)
+{
+    ddp(axis);
+}
+
 } // namespace torch_nntile
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
@@ -219,9 +224,14 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("tensor"),
         py::arg("names"));
     m.def(
-        "set_axis_group_tiling",
+        "ddp",
+        &torch_nntile::ddp_py,
+        "Enable data-parallel compile for a named axis (default batch)",
+        py::arg("axis") = "batch");
+    m.def(
+        "_set_axis_group_tiling",
         &torch_nntile::set_axis_group_tiling_py,
-        "Set tiling for a named axis group before compile/run",
+        "Test-only: set tiling for a named axis group before compile/run",
         py::arg("name"),
         py::arg("tile_sizes"));
     m.def(

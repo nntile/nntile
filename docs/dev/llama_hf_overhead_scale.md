@@ -175,8 +175,8 @@ nntile(nntile) Llama **fits** on the A40 on every size (D2H **0**), unlike
 the old 5760 / T=2880 XL. Isolated XL 2.232 ± 0.012 s is slightly under
 HF(cuda) isolated 2.281 ± 0.013 s and HF(nntile) 2.253 ± 0.013 s.
 
-Llama `_apply_rope` already keeps `sin`/`cos` as `[B, S, 64]` (no
-`scale_slice` expand to heads). Remaining extra footprint vs T5 is
+Llama `_apply_rope` keeps `sin`/`cos` as `[S, 64]` (kernel batch `n`
+covers heads / GQA / batch). Remaining extra footprint vs T5 is
 mostly **SwiGLU** (`gate`+`SiLU`+`up`+`mul`: four `[B, S, 20480]`
 activations × 6 ≈ **4.7 GiB/step**) vs T5 ReLU FF.
 
