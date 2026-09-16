@@ -56,13 +56,12 @@ over `NNTILE_DRIVER_SOCKET` (mode 0600). StarPU stays in
 (`UnknownOp`). Kernels must not have that socket path.
 
 `nntile::tensor::encode_phase` / `decode_phase` emit Flush `PhaseIR`
-JSON (`{nodes, ops}`). Classic v1 names: `FILL`, `COPY`, `SCATTER`,
-`GATHER`, `UNREGISTER`, `ADD`, `MUL`, `MM`, `RELU`, `CROSS_ENTROPY`.
-Torch-native ops keep `TORCH_UNARY` / `TORCH_BINARY` / `TORCH_TERNARY`
-plus `attrs.kind` (they are not aliased to `ADD` / `RELU`). There is
-no `LINEAR` and no `INVALIDATE` (last `TensorRef` drop records
-`UNREGISTER`). Unknown `op_name` fails closed (`UnknownOp`).
-TensorGraph `MULTIPLY` encodes as `MUL`; `GEMM` encodes as `MM`.
+JSON (`{nodes, ops}`). v1 allowlist: `GATHER`, `SCATTER`,
+`UNREGISTER`, `TORCH_UNARY`, `TORCH_BINARY`, `TORCH_TERNARY`.
+Torch-native ops keep `TORCH_*` plus `attrs.kind`. Classic
+`torch_nntile.nn` names (`ADD`, `RELU`, `FILL`, `COPY`, `MUL`,
+`MM`, `CROSS_ENTROPY`, `LINEAR`, `INVALIDATE`) fail closed
+(`UnknownOp`). Last `TensorRef` drop records `UNREGISTER`.
 
 Incremental compile aims for **O(work this call)** complexity — see
 [dev/graph_compiler_on_design.md](dev/graph_compiler_on_design.md).

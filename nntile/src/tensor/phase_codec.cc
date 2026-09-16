@@ -17,10 +17,6 @@
 #include <nntile/defs.h>
 #include <nntile/dtype.hh>
 #include <nntile/tensor/graph.hh>
-#include <nntile/tensor/ops/add.hh>
-#include <nntile/tensor/ops/fill.hh>
-#include <nntile/tensor/ops/gemm.hh>
-#include <nntile/tensor/ops/multiply.hh>
 #ifdef NNTILE_TORCH_NATIVE_OPS
 #include <nntile/tensor/ops/torch_dispatch.hh>
 #endif
@@ -41,19 +37,6 @@ namespace
 void throw_unknown_op(std::string const &name)
 {
     throw std::runtime_error("UnknownOp:" + name);
-}
-
-std::string wire_op_name(std::string const &tensor_name)
-{
-    if (tensor_name == "MULTIPLY")
-    {
-        return "MUL";
-    }
-    if (tensor_name == "GEMM")
-    {
-        return "MM";
-    }
-    return tensor_name;
 }
 
 std::string phase_dtype_name(DataType dtype)
@@ -112,35 +95,10 @@ nlohmann::json encode_node(TensorGraph::TensorNode const &node)
     };
 }
 
-nlohmann::json encode_op_attrs(TensorGraph::OpNode const &op)
+nlohmann::json encode_op_attrs(
+    [[maybe_unused]] TensorGraph::OpNode const &op)
 {
     nlohmann::json attrs = nlohmann::json::object();
-    if (auto const *fill = dynamic_cast<TensorFillOp const *>(&op))
-    {
-        attrs["value"] = fill->val;
-        return attrs;
-    }
-    if (auto const *add = dynamic_cast<TensorAddOp const *>(&op))
-    {
-        attrs["alpha"] = add->alpha;
-        attrs["beta"] = add->beta;
-        return attrs;
-    }
-    if (auto const *mul = dynamic_cast<TensorMultiplyOp const *>(&op))
-    {
-        attrs["alpha"] = mul->alpha;
-        return attrs;
-    }
-    if (auto const *gemm = dynamic_cast<TensorGemmOp const *>(&op))
-    {
-        attrs["alpha"] = gemm->alpha;
-        attrs["beta"] = gemm->beta;
-        attrs["trans_a"] = gemm->trans_a;
-        attrs["trans_b"] = gemm->trans_b;
-        attrs["ndim"] = gemm->ndim;
-        attrs["batch_ndim"] = gemm->batch_ndim;
-        return attrs;
-    }
 #ifdef NNTILE_TORCH_NATIVE_OPS
     if (auto const *u = dynamic_cast<TensorTorchUnaryOp const *>(&op))
     {
@@ -163,7 +121,7 @@ nlohmann::json encode_op_attrs(TensorGraph::OpNode const &op)
 
 nlohmann::json encode_op(TensorGraph::OpNode const &op)
 {
-    std::string const wire = wire_op_name(op.op_name());
+    std::string const wire = op.op_name();
     if (!is_v1_phase_op(wire))
     {
         throw_unknown_op(wire);

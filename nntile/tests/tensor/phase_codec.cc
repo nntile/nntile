@@ -45,20 +45,34 @@ namespace gt = nntile::tensor;
 namespace
 {
 
-nlohmann::json add_fixture()
+nlohmann::json unknown_op_blob(char const *name)
+{
+    nlohmann::json blob;
+    blob["nodes"] = nlohmann::json::array();
+    nlohmann::json ops = nlohmann::json::array();
+    ops.push_back(
+        {
+            {"op_name", name},
+            {"inputs", nlohmann::json::array()},
+            {"outputs", nlohmann::json::array()},
+        });
+    blob["ops"] = std::move(ops);
+    return blob;
+}
+
+nlohmann::json torch_unary_fixture()
 {
     return nlohmann::json::parse(R"({
         "nodes": [
-            {"id": 1, "shape": [2, 2], "dtype": "float32", "name": "a"},
-            {"id": 2, "shape": [2, 2], "dtype": "float32", "name": "b"},
-            {"id": 3, "shape": [2, 2], "dtype": "float32", "name": "c"}
+            {"id": 1, "shape": [2], "dtype": "float32", "name": "x"},
+            {"id": 2, "shape": [2], "dtype": "float32", "name": "y"}
         ],
         "ops": [
             {
-                "op_name": "ADD",
-                "inputs": [1, 2],
-                "outputs": [3],
-                "attrs": {}
+                "op_name": "TORCH_UNARY",
+                "inputs": [1],
+                "outputs": [2],
+                "attrs": {"kind": 10}
             }
         ]
     })");
@@ -66,31 +80,23 @@ nlohmann::json add_fixture()
 
 } // namespace
 
-TEST_CASE("decode_phase allowlists ADD fixture", "[graph][tensor][codec]")
+TEST_CASE(
+    "decode_phase allowlists TORCH_UNARY fixture",
+    "[graph][tensor][codec]")
 {
-    auto const blob = add_fixture();
+    auto const blob = torch_unary_fixture();
     auto const decoded = gt::decode_phase(blob);
     REQUIRE(decoded.second.size() == 1);
-    REQUIRE(decoded.second.at(0).at("op_name") == "ADD");
+    REQUIRE(decoded.second.at(0).at("op_name") == "TORCH_UNARY");
     auto const encoded = gt::encode_phase(decoded.first, decoded.second);
-    REQUIRE(encoded.at("ops").at(0).at("op_name") == "ADD");
-    REQUIRE(encoded.at("nodes").size() == 3);
+    REQUIRE(encoded.at("ops").at(0).at("op_name") == "TORCH_UNARY");
+    REQUIRE(encoded.at("nodes").size() == 2);
 }
 
 TEST_CASE("decode_phase fails closed on unknown op", "[graph][tensor][codec]")
 {
-    nlohmann::json blob;
-    blob["nodes"] = nlohmann::json::array();
-    nlohmann::json ops = nlohmann::json::array();
-    ops.push_back(
-        {
-            {"op_name", "CONV3D"},
-            {"inputs", nlohmann::json::array()},
-            {"outputs", nlohmann::json::array()},
-        });
-    blob["ops"] = std::move(ops);
     REQUIRE_THROWS_WITH(
-        gt::decode_phase(blob),
+        gt::decode_phase(unknown_op_blob("CONV3D")),
         Catch::Matchers::ContainsSubstring("UnknownOp"));
 }
 
@@ -114,107 +120,52 @@ TEST_CASE("v1 allowlist names round-trip", "[graph][tensor][codec]")
     for (char const *name : gt::kV1PhaseOps)
     {
         REQUIRE(gt::is_v1_phase_op(name));
-        nlohmann::json op = {
-            {"op_name", name},
-            {"inputs", nlohmann::json::array()},
-            {"outputs", nlohmann::json::array()},
-            {"attrs", nlohmann::json::object()},
-        };
-        if (std::string(name) == "FILL")
-        {
-            op["attrs"] = {{"shape", "2,2"}, {"value", "1"}};
-            op["outputs"] = {9};
-        }
-        ops.push_back(std::move(op));
+        ops.push_back(
+            {
+                {"op_name", name},
+                {"inputs", nlohmann::json::array()},
+                {"outputs", nlohmann::json::array()},
+                {"attrs", nlohmann::json::object()},
+            });
     }
     auto const blob = gt::encode_phase(nlohmann::json::array(), ops);
     auto const decoded = gt::decode_phase(blob);
     constexpr std::size_t n_ops =
         sizeof(gt::kV1PhaseOps) / sizeof(gt::kV1PhaseOps[0]);
     REQUIRE(decoded.second.size() == n_ops);
-    REQUIRE(n_ops == 13);
-    REQUIRE(decoded.second.at(0).at("op_name") == "FILL");
-    REQUIRE(decoded.second.at(4).at("op_name") == "UNREGISTER");
-    REQUIRE(decoded.second.at(5).at("op_name") == "ADD");
-    REQUIRE(decoded.second.at(6).at("op_name") == "MUL");
-    REQUIRE(decoded.second.at(7).at("op_name") == "MM");
-    REQUIRE(decoded.second.at(8).at("op_name") == "RELU");
-    REQUIRE(decoded.second.at(9).at("op_name") == "CROSS_ENTROPY");
-    REQUIRE(decoded.second.at(10).at("op_name") == "TORCH_UNARY");
-    REQUIRE(decoded.second.at(11).at("op_name") == "TORCH_BINARY");
-    REQUIRE(decoded.second.at(12).at("op_name") == "TORCH_TERNARY");
-    REQUIRE(decoded.second.at(0).at("attrs").at("shape") == "2,2");
-    REQUIRE_FALSE(gt::is_v1_phase_op("LINEAR"));
-    REQUIRE_FALSE(gt::is_v1_phase_op("INVALIDATE"));
-}
-
-TEST_CASE("decode_phase fails closed on LINEAR", "[graph][tensor][codec]")
-{
-    nlohmann::json blob;
-    blob["nodes"] = nlohmann::json::array();
-    nlohmann::json ops = nlohmann::json::array();
-    ops.push_back(
-        {
-            {"op_name", "LINEAR"},
-            {"inputs", nlohmann::json::array()},
-            {"outputs", nlohmann::json::array()},
-        });
-    blob["ops"] = std::move(ops);
-    REQUIRE_THROWS_WITH(
-        gt::decode_phase(blob),
-        Catch::Matchers::ContainsSubstring("UnknownOp"));
+    REQUIRE(n_ops == 6);
+    REQUIRE(decoded.second.at(0).at("op_name") == "GATHER");
+    REQUIRE(decoded.second.at(1).at("op_name") == "SCATTER");
+    REQUIRE(decoded.second.at(2).at("op_name") == "UNREGISTER");
+    REQUIRE(decoded.second.at(3).at("op_name") == "TORCH_UNARY");
+    REQUIRE(decoded.second.at(4).at("op_name") == "TORCH_BINARY");
+    REQUIRE(decoded.second.at(5).at("op_name") == "TORCH_TERNARY");
 }
 
 TEST_CASE(
-    "decode_phase fails closed on INVALIDATE",
+    "decode_phase fails closed on classic names",
     "[graph][tensor][codec]")
 {
-    nlohmann::json blob;
-    blob["nodes"] = nlohmann::json::array();
-    nlohmann::json ops = nlohmann::json::array();
-    ops.push_back(
-        {
-            {"op_name", "INVALIDATE"},
-            {"inputs", nlohmann::json::array()},
-            {"outputs", nlohmann::json::array()},
-        });
-    blob["ops"] = std::move(ops);
-    REQUIRE_THROWS_WITH(
-        gt::decode_phase(blob),
-        Catch::Matchers::ContainsSubstring("UnknownOp"));
-}
-
-TEST_CASE(
-    "decode_phase keeps classic RELU distinct from TORCH_UNARY",
-    "[graph][tensor][codec]")
-{
-    nlohmann::json blob = nlohmann::json::parse(R"({
-        "nodes": [
-            {"id": 1, "shape": [2], "dtype": "float32", "name": "x"},
-            {"id": 2, "shape": [2], "dtype": "float32", "name": "y"},
-            {"id": 3, "shape": [2], "dtype": "float32", "name": "z"}
-        ],
-        "ops": [
-            {
-                "op_name": "RELU",
-                "inputs": [1],
-                "outputs": [2],
-                "attrs": {}
-            },
-            {
-                "op_name": "TORCH_UNARY",
-                "inputs": [1],
-                "outputs": [3],
-                "attrs": {"kind": 10}
-            }
-        ]
-    })");
-    auto const decoded = gt::decode_phase(blob);
-    REQUIRE(decoded.second.size() == 2);
-    REQUIRE(decoded.second.at(0).at("op_name") == "RELU");
-    REQUIRE(decoded.second.at(1).at("op_name") == "TORCH_UNARY");
-    REQUIRE(decoded.second.at(1).at("attrs").at("kind").get<std::int32_t>() ==
-        10);
+    char const *classic[] = {
+        "ADD",
+        "MUL",
+        "MM",
+        "RELU",
+        "FILL",
+        "COPY",
+        "CROSS_ENTROPY",
+        "LINEAR",
+        "INVALIDATE",
+        "GEMM",
+        "MULTIPLY",
+    };
+    for (char const *name : classic)
+    {
+        REQUIRE_FALSE(gt::is_v1_phase_op(name));
+        REQUIRE_THROWS_WITH(
+            gt::decode_phase(unknown_op_blob(name)),
+            Catch::Matchers::ContainsSubstring("UnknownOp"));
+    }
 }
 
 TEST_CASE("empty PhaseIR decodes", "[graph][tensor][codec]")
@@ -227,64 +178,6 @@ TEST_CASE("empty PhaseIR decodes", "[graph][tensor][codec]")
         nlohmann::json());
     REQUIRE(encoded.at("nodes").empty());
     REQUIRE(encoded.at("ops").empty());
-}
-
-TEST_CASE("encode_phase TensorGraph ADD", "[graph][tensor][codec]")
-{
-    TensorGraph graph("codec_add");
-    TensorRef a = graph.data({2, 2});
-    a->set_name("a");
-    TensorRef b = graph.data({2, 2});
-    b->set_name("b");
-    TensorRef c = TensorRef::adopt(gt::add(1.0, a, 1.0, b));
-    c->set_name("c");
-
-    auto const blob = gt::encode_phase(graph);
-    REQUIRE(blob.at("ops").size() == 1);
-    REQUIRE(blob.at("ops").at(0).at("op_name") == "ADD");
-    REQUIRE(blob.at("ops").at(0).at("inputs").size() == 2);
-    REQUIRE(blob.at("ops").at(0).at("outputs").size() == 1);
-    REQUIRE(blob.at("nodes").size() == 3);
-    REQUIRE(blob.at("nodes").at(0).at("dtype") == "float32");
-
-    auto const decoded = gt::decode_phase(blob);
-    REQUIRE(decoded.second.at(0).at("op_name") == "ADD");
-}
-
-TEST_CASE(
-    "encode_phase maps MULTIPLY to MUL and GEMM to MM",
-    "[graph][tensor][codec]")
-{
-    TensorGraph graph("codec_mul_mm");
-    TensorRef a = graph.data({2, 2});
-    TensorRef b = graph.data({2, 2});
-    gt::multiply(a, b, 1.0);
-    gt::gemm(a, b, 1.0, false, false, 1, 0);
-
-    auto const blob = gt::encode_phase(graph);
-    REQUIRE(blob.at("ops").size() == 2);
-    REQUIRE(blob.at("ops").at(0).at("op_name") == "MUL");
-    REQUIRE(blob.at("ops").at(1).at("op_name") == "MM");
-}
-
-TEST_CASE("encode_phase TensorGraph FILL COPY RELU", "[graph][tensor][codec]")
-{
-    TensorGraph graph("codec_fill");
-    TensorRef x = graph.data({2, 2});
-    x->set_name("x");
-    gt::fill(1.5, x);
-    TensorRef y = TensorRef::adopt(gt::copy(x));
-    TensorRef z = TensorRef::adopt(gt::relu(y));
-
-    auto const blob = gt::encode_phase(graph);
-    REQUIRE(blob.at("ops").size() == 3);
-    REQUIRE(blob.at("nodes").size() == 3);
-    REQUIRE(blob.at("ops").at(0).at("op_name") == "FILL");
-    REQUIRE(blob.at("ops").at(0).at("attrs").at("value").get<float>() ==
-        1.5f);
-    REQUIRE(blob.at("ops").at(1).at("op_name") == "COPY");
-    REQUIRE(blob.at("ops").at(2).at("op_name") == "RELU");
-    REQUIRE(z->id() == blob.at("ops").at(2).at("outputs").at(0));
 }
 
 TEST_CASE(
@@ -343,37 +236,61 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "encode_phase TensorGraph INVALIDATE fails closed",
+    "encode_phase TensorGraph classic ops fail closed",
     "[graph][tensor][codec]")
 {
-    TensorGraph graph("codec_inv");
-    TensorRef x = graph.data({2, 2});
-    gt::invalidate(x);
+    TensorGraph add_graph("codec_add");
+    TensorRef a = add_graph.data({2, 2});
+    TensorRef b = add_graph.data({2, 2});
+    TensorRef c = TensorRef::adopt(gt::add(1.0, a, 1.0, b));
     REQUIRE_THROWS_WITH(
-        gt::encode_phase(graph),
+        gt::encode_phase(add_graph),
         Catch::Matchers::ContainsSubstring("UnknownOp"));
-}
 
-TEST_CASE(
-    "encode_phase TensorGraph unknown op fails closed",
-    "[graph][tensor][codec]")
-{
-    TensorGraph graph("codec_gelu");
-    TensorRef x = graph.data({2, 2});
-    gt::gelu(x);
+    TensorGraph fill_graph("codec_fill");
+    TensorRef x = fill_graph.data({2, 2});
+    gt::fill(1.5, x);
+    TensorRef y = TensorRef::adopt(gt::copy(x));
+    TensorRef z = TensorRef::adopt(gt::relu(y));
     REQUIRE_THROWS_WITH(
-        gt::encode_phase(graph),
+        gt::encode_phase(fill_graph),
+        Catch::Matchers::ContainsSubstring("UnknownOp"));
+
+    TensorGraph mul_graph("codec_mul_mm");
+    TensorRef p = mul_graph.data({2, 2});
+    TensorRef q = mul_graph.data({2, 2});
+    gt::multiply(p, q, 1.0);
+    REQUIRE_THROWS_WITH(
+        gt::encode_phase(mul_graph),
+        Catch::Matchers::ContainsSubstring("UnknownOp"));
+    gt::gemm(p, q, 1.0, false, false, 1, 0);
+    REQUIRE_THROWS_WITH(
+        gt::encode_phase(mul_graph),
+        Catch::Matchers::ContainsSubstring("UnknownOp"));
+
+    TensorGraph inv_graph("codec_inv");
+    TensorRef inv = inv_graph.data({2, 2});
+    gt::invalidate(inv);
+    REQUIRE_THROWS_WITH(
+        gt::encode_phase(inv_graph),
+        Catch::Matchers::ContainsSubstring("UnknownOp"));
+
+    TensorGraph gelu_graph("codec_gelu");
+    TensorRef g = gelu_graph.data({2, 2});
+    gt::gelu(g);
+    REQUIRE_THROWS_WITH(
+        gt::encode_phase(gelu_graph),
         Catch::Matchers::ContainsSubstring("UnknownOp"));
 }
 
 TEST_CASE("encode_phase uses unsealed snapshot", "[graph][tensor][codec]")
 {
     TensorGraph graph("codec_phase");
-    TensorRef a = graph.data({2, 2});
-    TensorRef b = graph.data({2, 2});
-    // Keep the output TensorRef so last-drop UNREGISTER is not mixed
-    // into the sealed ADD phase.
-    TensorRef c = TensorRef::adopt(gt::add(1.0, a, 1.0, b));
+    TensorRef src = graph.data({4});
+    TensorRef dst = graph.data({4});
+    gt::scatter(src, dst);
+    // Keep TensorRefs so last-drop UNREGISTER is not mixed into the
+    // sealed SCATTER phase.
     auto const sealed = graph.seal_phase();
     REQUIRE_FALSE(sealed.empty());
 
@@ -382,48 +299,42 @@ TEST_CASE("encode_phase uses unsealed snapshot", "[graph][tensor][codec]")
 
     auto const encoded = gt::encode_phase(graph, sealed);
     REQUIRE(encoded.at("ops").size() == 1);
-    REQUIRE(encoded.at("ops").at(0).at("op_name") == "ADD");
+    REQUIRE(encoded.at("ops").at(0).at("op_name") == "SCATTER");
 }
 
 #ifdef NNTILE_TORCH_NATIVE_OPS
 TEST_CASE(
-    "encode_phase TensorGraph torch Relu stays TORCH_UNARY",
+    "encode_phase TensorGraph torch Relu is TORCH_UNARY",
     "[graph][tensor][codec]")
 {
     TensorGraph graph("codec_torch_relu");
     TensorRef x = graph.data({2, 2});
     TensorRef y = TensorRef::adopt(
         gt::torch_unary(starpu::TorchKind::Relu, x, {2, 2}));
-    TensorRef z = TensorRef::adopt(gt::relu(x));
 
     auto const blob = gt::encode_phase(graph);
-    REQUIRE(blob.at("ops").size() == 2);
+    REQUIRE(blob.at("ops").size() == 1);
     REQUIRE(blob.at("ops").at(0).at("op_name") == "TORCH_UNARY");
     REQUIRE(blob.at("ops").at(0).at("attrs").at("kind").get<std::int32_t>() ==
         static_cast<std::int32_t>(starpu::TorchKind::Relu));
-    REQUIRE(blob.at("ops").at(1).at("op_name") == "RELU");
     REQUIRE(y->id() == blob.at("ops").at(0).at("outputs").at(0));
-    REQUIRE(z->id() == blob.at("ops").at(1).at("outputs").at(0));
 }
 
 TEST_CASE(
-    "encode_phase TensorGraph torch Add stays TORCH_BINARY",
+    "encode_phase TensorGraph torch Add is TORCH_BINARY",
     "[graph][tensor][codec]")
 {
     TensorGraph graph("codec_torch_add");
     TensorRef a = graph.data({2, 2});
     TensorRef b = graph.data({2, 2});
-    TensorRef classic = TensorRef::adopt(gt::add(1.0, a, 1.0, b));
     TensorRef torch_out = TensorRef::adopt(
         gt::torch_binary(starpu::TorchKind::Add, a, b, {2, 2}));
 
     auto const blob = gt::encode_phase(graph);
-    REQUIRE(blob.at("ops").size() == 2);
-    REQUIRE(blob.at("ops").at(0).at("op_name") == "ADD");
-    REQUIRE(blob.at("ops").at(1).at("op_name") == "TORCH_BINARY");
-    REQUIRE(blob.at("ops").at(1).at("attrs").at("kind").get<std::int32_t>() ==
+    REQUIRE(blob.at("ops").size() == 1);
+    REQUIRE(blob.at("ops").at(0).at("op_name") == "TORCH_BINARY");
+    REQUIRE(blob.at("ops").at(0).at("attrs").at("kind").get<std::int32_t>() ==
         static_cast<std::int32_t>(starpu::TorchKind::Add));
-    REQUIRE(classic->id() == blob.at("ops").at(0).at("outputs").at(0));
-    REQUIRE(torch_out->id() == blob.at("ops").at(1).at("outputs").at(0));
+    REQUIRE(torch_out->id() == blob.at("ops").at(0).at("outputs").at(0));
 }
 #endif

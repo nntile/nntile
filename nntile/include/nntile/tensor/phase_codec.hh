@@ -24,28 +24,19 @@
 namespace nntile::tensor
 {
 
-//! Flush PhaseIR v1 ``op_name`` allowlist. Unknown names fail closed
-//! (``UnknownOp``). There is no ``LINEAR``: classic linear is ``GEMM``
-//! (wire ``MM``); stock ``torch.nn.Linear`` composites to ``addmm`` /
-//! ``mm`` as ``TORCH_TERNARY`` / ``TORCH_BINARY``.
+//! Flush PhaseIR v1 ``op_name`` allowlist: torch-native TensorGraph
+//! names plus system ``GATHER`` / ``SCATTER`` / ``UNREGISTER``.
+//! Unknown names fail closed (``UnknownOp``), including classic
+//! ``torch_nntile.nn`` names (``ADD``, ``RELU``, ``FILL``, ``COPY``,
+//! ``MUL``, ``MM``, ``CROSS_ENTROPY``, ``LINEAR``, ``INVALIDATE``).
 //!
-//! There is no ``INVALIDATE`` on the ``TensorRef`` path: last drop
-//! records ``UNREGISTER`` (``TensorUnregisterOp``).
-//!
-//! Classic TensorGraph names and torch-native names are distinct:
-//! ``ADD`` / ``RELU`` vs ``TORCH_BINARY`` / ``TORCH_UNARY`` (aten kind
-//! in ``attrs.kind``). ``MULTIPLY`` encodes as ``MUL``.
+//! Last ``TensorRef`` drop records ``UNREGISTER``. Torch-native
+//! ``ADD`` / ``RELU`` stay ``TORCH_BINARY`` / ``TORCH_UNARY`` (aten
+//! kind in ``attrs.kind``).
 inline constexpr char const *kV1PhaseOps[] = {
-    "FILL",
-    "COPY",
-    "SCATTER",
     "GATHER",
+    "SCATTER",
     "UNREGISTER",
-    "ADD",
-    "MUL",
-    "MM",
-    "RELU",
-    "CROSS_ENTROPY",
     "TORCH_UNARY",
     "TORCH_BINARY",
     "TORCH_TERNARY",
@@ -60,8 +51,8 @@ nlohmann::json encode_phase(
     nlohmann::json const &ops);
 
 //! Encode unsealed ops ``[phase_seal_cursor, num_ops)`` and the nodes
-//! those ops reference. Does not seal. TensorGraph ``MULTIPLY`` becomes
-//! wire ``MUL``; ``GEMM`` becomes ``MM``.
+//! those ops reference. Does not seal. Classic TensorGraph names fail
+//! closed.
 nlohmann::json encode_phase(TensorGraph const &graph);
 
 //! Encode one snapshot slice of ``graph.ops()``.
