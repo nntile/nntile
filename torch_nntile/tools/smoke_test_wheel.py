@@ -1,9 +1,14 @@
+import os
+
 import torch
 
 import torch_nntile
 from torch_nntile import _C
 from torch_nntile.nn import functional, module
 from torch_nntile.nn.model import DeepReLU
+
+# Wheel smoke compiles a tiny graph; opt in to the public compiler.
+os.environ.setdefault("NNTILE_ENABLE_LOCAL_COMPILER", "1")
 
 # Smoke runs on CPU CI and CUDA wheels with ncuda=0; flag must be readable.
 _ = torch_nntile.built_with_cuda()

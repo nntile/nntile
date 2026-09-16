@@ -463,6 +463,8 @@ jobs:
           assert t.TORCH_NATIVE_OPS, "CI wheel must be NNTILE_TORCH_NATIVE_OPS"
           print(f"TORCH_NATIVE_OPS={t.TORCH_NATIVE_OPS} BUILT_WITH_CUDA={t.built_with_cuda()}")
           PY
+          # Public compile_graph() is off unless this is exactly "1".
+          export NNTILE_ENABLE_LOCAL_COMPILER=1
           # Aten fwd+bwd parity is C++ ctest (test-libtorch-nntile).
           # Python: device smoke + torch-native HF models + classic models.
           pytest -vv --override-ini='pythonpath=' \
@@ -474,4 +476,50 @@ jobs:
             torch_nntile/tests/test_hf_stock_models_on_nntile.py \
             torch_nntile/tests/test_nn_classic.py \
             torch_nntile/tests/test_models_classic_graph.py \
-            torch_nntile/tests/test_models_python_classic_graph.py
+            torch_nntile/tests/test_models_python_classic_graph.py \
+            torch_nntile/tests/test_local_compiler.py
+
+  test-torch-nntile-compiler-off:
+    name: test torch_nntile compiler off
+    needs: build-torch-nntile
+    runs-on: ubuntu-24.04
+    container: {image: ubuntu:24.04}
+    defaults:
+      run:
+        shell: bash
+        working-directory: /__w/nntile/nntile
+    steps:
+      - run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates git python3 python3-dev python3-pip \
+            pkg-config
+        working-directory: /
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/nntile-starpu-setup
+      - uses: actions/download-artifact@v4
+        with:
+          name: nntile-torch-prefix
+          path: prefix
+      - uses: actions/download-artifact@v4
+        with:
+          name: torch-nntile-ci-wheel
+          path: wheelhouse
+      - name: compile_graph raises without NNTILE_ENABLE_LOCAL_COMPILER
+        run: |
+          set -euo pipefail
+          unset NNTILE_ENABLE_LOCAL_COMPILER
+          export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
+          export LD_LIBRARY_PATH="${PWD}/prefix/lib:/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
+          export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
+          export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 GOTO_NUM_THREADS=1
+          pip3 install --break-system-packages \
+            'torch==2.9.1' 'torchvision==0.24.1' \
+            --index-url "${TORCH_PIP_INDEX}"
+          pip3 install --break-system-packages \
+            pytest 'numpy>=1.21' 'transformers<4.53'
+          pip3 install --break-system-packages \
+            --force-reinstall --no-deps wheelhouse/*.whl
+          pytest -vv --override-ini='pythonpath=' \
+            torch_nntile/tests/test_local_compiler.py \
+            -k 'raises_when_process_flag_is_off or disabled_unless_one'

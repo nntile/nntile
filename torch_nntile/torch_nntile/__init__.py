@@ -14,6 +14,7 @@ Classic nntile kernels live under :mod:`torch_nntile.nn` (``functional``,
 from __future__ import annotations
 
 import atexit
+import os
 
 import torch
 
@@ -100,6 +101,19 @@ _register_backend()
 
 device = torch.device("nntile")
 
+# Opt-in local TensorGraph → TileGraph compiler (Dana). Platform kernels
+# leave this unset so public compile_graph() fails by default.
+_LOCAL_COMPILER_ENV = "NNTILE_ENABLE_LOCAL_COMPILER"
+
+
+def local_compiler_enabled() -> bool:
+    """Return whether public :func:`compile_graph` may lower a TensorGraph.
+
+    Requires ``NNTILE_ENABLE_LOCAL_COMPILER=1``. Any other value, including
+    unset, keeps the local compiler off.
+    """
+    return os.environ.get(_LOCAL_COMPILER_ENV, "") == "1"
+
 
 def init_context(
     ncpu: int = -1,
@@ -115,7 +129,8 @@ def init_context(
     """Configure StarPU workers before the first libnntile-backed op.
 
     Records ops into a shared TensorGraph; call :func:`compile_graph`
-    and :func:`run` to compile and execute the pending graph.
+    (requires ``NNTILE_ENABLE_LOCAL_COMPILER=1``) and :func:`run` to
+    compile and execute the pending graph.
 
     ``cpu_fallback`` defaults to False: unregistered aten ops raise
     instead of silently copying nntile tensors to CPU. Move data only
@@ -146,10 +161,21 @@ def execute() -> None:
 def compile_graph() -> None:
     """Lower and compile the pending TensorGraph into the session Runtime.
 
+    Off by default. Set ``NNTILE_ENABLE_LOCAL_COMPILER=1`` to compile
+    locally (researcher on their own box). Without that exact value this
+    raises ``RuntimeError``; use the NNTile platform to compile on a
+    shared node.
+
     Does **not** wait for a prior :func:`run`. The next phase may be sealed
     and submitted while StarPU is still executing an earlier phase; call
     :func:`wait` when host-side results or reclaim are required.
     """
+    if not local_compiler_enabled():
+        raise RuntimeError(
+            "TensorGraph compilation is disabled by default. "
+            "Set NNTILE_ENABLE_LOCAL_COMPILER=1 or use the NNTile "
+            "platform."
+        )
     _C.compile_graph()
 
 
@@ -302,6 +328,7 @@ __all__ = [
     "NNTILE_NATIVE_OPS",
     "init_context",
     "execute",
+    "local_compiler_enabled",
     "compile_graph",
     "run",
     "reset_graph_session",

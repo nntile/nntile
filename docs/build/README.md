@@ -483,12 +483,14 @@ Layout and fixtures: [`torch_nntile/tests/conftest.py`](../../torch_nntile/tests
 
 ```bash
 # Requires libnntile + libtorch_nntile + StarPU (+ CUDA libs on GPU builds).
+# Public compile_graph() needs NNTILE_ENABLE_LOCAL_COMPILER=1.
 export TORCH_LIB_DIR="$(python3 -c 'import os, torch; print(os.path.join(os.path.dirname(torch.__file__), "lib"))')"
 export NNTILE_BUILD_DIR=$PWD/build
 export TORCH_NNTILE_BUILD_DIR=$PWD/build
 export NNTILE_SOURCE_DIR=$PWD
 export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${TORCH_LIB_DIR}:$PWD/build/nntile:$PWD/build/torch_nntile:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
+export NNTILE_ENABLE_LOCAL_COMPILER=1
 pytest -vv torch_nntile/tests/
 pytest -vv torch_nntile/tests/test_add_inplace_parity.py
 pytest -vv torch_nntile/tests/test_add_inplace_parity.py::test_add_inplace_matches_cpu
@@ -500,6 +502,7 @@ pytest -vv torch_nntile/tests/test_add_inplace_parity.py::test_add_inplace_match
 pip install build/wheelhouse/torch_nntile-*.whl
 export TORCH_LIB_DIR="$(python3 -c 'import os, torch; print(os.path.join(os.path.dirname(torch.__file__), "lib"))')"
 export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${TORCH_LIB_DIR}:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export NNTILE_ENABLE_LOCAL_COMPILER=1
 pytest -vv torch_nntile/tests/
 ```
 
@@ -511,6 +514,7 @@ dependencies supply math libs instead of ``${CONDA_PREFIX}/lib``.
 From repository root with a venv and built or installed `torch_nntile`:
 
 ```bash
+export NNTILE_ENABLE_LOCAL_COMPILER=1
 pytest -vv --cov=torch_nntile torch_nntile/tests/
 ```
 

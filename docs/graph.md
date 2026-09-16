@@ -44,8 +44,10 @@ libnntile holds the compute IR and executor.
 4. **Wait** — `Runtime::wait()` (or host readout such as `.to("cpu")`) joins
    workers.
 
-Python helpers: `torch_nntile.compile_graph()`, `run()`, `wait()`. Legacy
-`execute()` is compile + run. Host `.to("cpu")` may auto-flush pending work.
+Python helpers: `torch_nntile.compile_graph()`, `run()`, `wait()`.
+`compile_graph()` requires `NNTILE_ENABLE_LOCAL_COMPILER=1` (off by
+default). Legacy `execute()` is compile + run. Host `.to("cpu")` may
+auto-flush pending work.
 
 Incremental compile aims for **O(work this call)** complexity — see
 [dev/graph_compiler_on_design.md](dev/graph_compiler_on_design.md).

@@ -60,6 +60,7 @@ export TORCH_LIB_DIR="$(python3 -c 'import os, torch; print(os.path.join(os.path
 export NNTILE_BUILD_DIR=$PWD/build TORCH_NNTILE_BUILD_DIR=$PWD/build
 export NNTILE_SOURCE_DIR=$PWD
 export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${TORCH_LIB_DIR}:$PWD/build/nntile:$PWD/build/torch_nntile:/opt/starpu/lib:$LD_LIBRARY_PATH
+export NNTILE_ENABLE_LOCAL_COMPILER=1
 pytest -vv torch_nntile/tests/
 ```
 

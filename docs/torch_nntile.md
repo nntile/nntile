@@ -92,10 +92,17 @@ on ``LD_LIBRARY_PATH`` together with ``TORCH_LIB_DIR``; see
 Ops append to one shared ``TensorGraph``. Flush with ``compile_graph()`` and
 ``run()`` (or legacy ``execute()``) before host readout.
 
+Public ``compile_graph()`` is **off by default**. Set
+``NNTILE_ENABLE_LOCAL_COMPILER=1`` to lower TensorGraph → TileGraph on your
+own machine. Without that exact value, ``compile_graph()`` raises. Shared-node
+kernels leave the variable unset and compile on the NNTile platform.
+
 ```python
+import os
 import torch
 import torch_nntile
 
+os.environ["NNTILE_ENABLE_LOCAL_COMPILER"] = "1"
 torch_nntile.init_context(ncpu=4, ncuda=0, cpu_fallback=False)
 x = torch.randn(32, 128).to("nntile")
 y = model(x)
@@ -125,6 +132,7 @@ host-readout timing (and record-path sub-buckets).
 
 | Env | Purpose |
 |-----|---------|
+| `NNTILE_ENABLE_LOCAL_COMPILER=1` | Opt in to public `compile_graph()` (TensorGraph → TileGraph on this process). Unset or any other value raises. |
 | `STARPU_DISABLE_KERNELS=1` | StarPU submits tasks but skips kernel bodies. Shows submit overhead; often inflates `run`. |
 | `TORCH_NNTILE_SKIP_STARPU=1` | Dry-run in torch_nntile: no StarPU task insert, no staging acquire/memcpy. Still advances the `Runtime` execute watermark and last-consumer reclaim so incremental compile stays O(pending). Isolates record + compile cost. **Results are not numerically meaningful.** |
 | `TORCH_NNTILE_SKIP_KERNELS=1` | Intercept still runs (shapes, TensorRefs, pack layout). No compute-op insert. Last-drop `UNREGISTER` still compiles/submits StarPU unregister tasks. **Results are not numerically meaningful.** |
@@ -472,7 +480,7 @@ Autograd stays in PyTorch; the graph is the compute IR and StarPU executor.
 | Axis-group names on tensors | `set_axis_group_name(tensor, {...})` |
 | `apply_flat_tiling_spec` / tiling JSON helpers | `set_axis_group_tiling(name, sizes)` |
 | `TensorGraph` axis / tiling debug | `format_axis_groups()` / `print_axis_groups()` |
-| `Runtime::compile` + `execute` + `wait` | `compile_graph()` / `run()` / `wait()` (legacy `execute()` = compile+run) |
+| `Runtime::compile` + `execute` + `wait` | `compile_graph()` / `run()` / `wait()` (legacy `execute()` = compile+run). `compile_graph()` needs `NNTILE_ENABLE_LOCAL_COMPILER=1`. |
 
 NNGraph and the old `python/nntile` package are removed. Training examples are
 under `torch_nntile/examples/`.
