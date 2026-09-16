@@ -245,7 +245,8 @@ effects other than host readout. ``compile_graph()`` / ``run()`` /
 ``execute()`` do **not** wait; call ``wait()`` before host readout or the next
 dependent phase (``.to("cpu")`` also waits).
 
-Public ``compile_graph()`` raises unless ``NNTILE_ENABLE_LOCAL_COMPILER=1``.
+Public ``compile_graph()``, legacy ``execute()``, and host ``.to("cpu")``
+auto-flush raise unless ``NNTILE_ENABLE_LOCAL_COMPILER=1``.
 That opt-in is for a researcher compiling on their own box; leave it unset
 on a shared node (the NNTile platform compiles instead).
 
@@ -350,7 +351,7 @@ kernels or submits are disabled.
 
 | Env | Effect |
 |-----|--------|
-| `NNTILE_ENABLE_LOCAL_COMPILER=1` | Opt in to public `compile_graph()` (local TensorGraph → TileGraph). Unset or any other value raises. |
+| `NNTILE_ENABLE_LOCAL_COMPILER=1` | Opt in to local TensorGraph → TileGraph (`compile_graph()`, `execute()`, `.to("cpu")` auto-flush). Unset or any other value raises. |
 | `STARPU_DISABLE_KERNELS=1` | StarPU still **submits** tasks but skips kernel bodies. Often makes `run` *slower* (queue overhead without useful work). |
 | `TORCH_NNTILE_SKIP_STARPU=1` | torch_nntile dry-run: skip StarPU **task insert** and staging **acquire/memcpy**. Still calls `Runtime::execute_range(..., submit_tasks=false)` so the executed watermark and last-consumer tile reclaim advance — incremental `compile()` stays O(pending). `print_info()` prints a NOTE when this is set. |
 | `TORCH_NNTILE_SKIP_KERNELS=1` | PrivateUse1 intercept still runs (output shapes, TensorRefs, pack layout). TensorGraph **compute** ops are not inserted. Last-drop `UNREGISTER` is still recorded, compiled, and submitted as StarPU unregister tasks. Isolates Torch + intercept without compute kernels. `print_info()` prints a NOTE. **Results are not numerically meaningful.** |
