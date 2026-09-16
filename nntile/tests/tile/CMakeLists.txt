@@ -94,6 +94,7 @@ set(TESTS_TILE_ROOT_CATCH2
     "add_mixed_tile"
     "execution_schedule"
     "tile_graph"
+    "execution_driver"
 )
 
 foreach(test IN LISTS TESTS_TILE_CATCH2)
