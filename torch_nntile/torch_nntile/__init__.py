@@ -125,17 +125,30 @@ def init_context(
     verbose: int = 0,
     *,
     cpu_fallback: bool = False,
+    account_id: str | None = None,
 ) -> None:
-    """Configure StarPU workers before the first libnntile-backed op.
+    """Configure StarPU workers, or connect to nntile-server.
 
-    Records ops into a shared TensorGraph; call :func:`compile_graph`
-    (requires ``NNTILE_ENABLE_LOCAL_COMPILER=1``) and :func:`run` to
-    compile and execute the pending graph.
+    When ``NNTILE_SERVER_SOCKET`` is set, this process is a platform
+    kernel: no local StarPU, no hardware knobs. ``.to("nntile")``
+    Ingresses bytes and ``.to("cpu")`` Flushes the recorded TensorGraph.
+
+    Otherwise records ops into a shared TensorGraph; call
+    :func:`compile_graph` (requires ``NNTILE_ENABLE_LOCAL_COMPILER=1``)
+    and :func:`run` to compile and execute the pending graph.
 
     ``cpu_fallback`` defaults to False: unregistered aten ops raise
     instead of silently copying nntile tensors to CPU. Move data only
     with ``.to("nntile")`` / ``.to("cpu")``.
     """
+    socket = os.environ.get("NNTILE_SERVER_SOCKET", "").strip()
+    if socket:
+        from . import _platform
+
+        _platform.connect(account_id=account_id)
+        _register_shutdown_atexit()
+        return
+    del account_id
     _C.init_context(
         ncpu,
         ncuda,
@@ -155,6 +168,11 @@ def execute() -> None:
     Equivalent to :func:`compile_graph` then :func:`run`. Call :func:`wait`
     to synchronize and reclaim. Prefer the split API in training loops.
     """
+    if _C.platform_session_active():
+        raise RuntimeError(
+            "the server compiles; use .to('cpu') or torch_nntile.wait() "
+            "(local compile is disabled on the platform)"
+        )
     _C.execute()
 
 
@@ -170,6 +188,11 @@ def compile_graph() -> None:
     and submitted while StarPU is still executing an earlier phase; call
     :func:`wait` when host-side results or reclaim are required.
     """
+    if _C.platform_session_active():
+        raise RuntimeError(
+            "the server compiles; use .to('cpu') or torch_nntile.wait() "
+            "(local compile is disabled on the platform)"
+        )
     if not local_compiler_enabled():
         raise RuntimeError(
             "TensorGraph compilation is disabled by default. "
@@ -247,6 +270,10 @@ def shutdown_context() -> None:
     calls ``Context::shutdown``. Safe to call multiple times. An ``atexit`` hook
     registered by :func:`init_context` runs the same teardown automatically.
     """
+    if _C.platform_session_active():
+        from . import _platform
+
+        _platform.teardown()
     _C.shutdown_context()
 
 

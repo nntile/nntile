@@ -18,6 +18,7 @@
 
 #include "nntile_context.h"
 #include "nntile_graph_recorder.h"
+#include "nntile_platform_bind.h"
 
 namespace torch_nntile
 {
@@ -212,6 +213,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         "has_pending_graph",
         &torch_nntile::has_pending_graph,
         "Whether a deferred TensorGraph is waiting for compile/run");
+    torch_nntile::bind_platform_hooks(m);
     m.def(
         "set_axis_group_name",
         &torch_nntile::set_axis_group_name_py,

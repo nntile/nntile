@@ -37,6 +37,8 @@
 
 #include "nntile_module_to.h"
 
+#include "nntile_platform_bind.h"
+
 #include <torch_nntile/models/bert.hh>
 #include <torch_nntile/models/deep_relu.hh>
 #include <torch_nntile/models/gpt2.hh>
@@ -260,6 +262,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         "has_pending_graph",
         &torch_nntile::has_pending_graph,
         "Whether a deferred TensorGraph is waiting for compile/run");
+    torch_nntile::bind_platform_hooks(m);
     m.def(
         "set_axis_group_name",
         &torch_nntile::set_axis_group_name_py,

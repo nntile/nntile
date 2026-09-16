@@ -948,7 +948,7 @@ void TileTorchNativeBatchNormBackwardOp::execute(Runtime &runtime) const
     core::Tile<fp32_t> *rm_ptr = nullptr;
     core::Tile<fp32_t> *rv_ptr = nullptr;
     core::Tile<fp32_t> *sm_ptr = nullptr;
-    core::Tile<fp32_t> *si_ptr = nullptr;
+    core::Tile<fp32_t> *invstd_ptr = nullptr;
     core::Tile<fp32_t> *gi_ptr = nullptr;
     core::Tile<fp32_t> *gw_ptr = nullptr;
     core::Tile<fp32_t> *gb_ptr = nullptr;
@@ -986,7 +986,7 @@ void TileTorchNativeBatchNormBackwardOp::execute(Runtime &runtime) const
     }
     if (save_invstd != nullptr)
     {
-        si_ptr = &runtime.get_tile<fp32_t>(save_invstd);
+        invstd_ptr = &runtime.get_tile<fp32_t>(save_invstd);
         si_meta = core::meta_from_args_or_contiguous(
             extra, 6, false, save_invstd->shape());
     }
@@ -1022,8 +1022,8 @@ void TileTorchNativeBatchNormBackwardOp::execute(Runtime &runtime) const
         rv_ptr != nullptr ? &rv_meta : nullptr,
         sm_ptr,
         sm_ptr != nullptr ? &sm_meta : nullptr,
-        si_ptr,
-        si_ptr != nullptr ? &si_meta : nullptr,
+        invstd_ptr,
+        invstd_ptr != nullptr ? &si_meta : nullptr,
         gi_ptr,
         gi_ptr != nullptr ? &gi_meta : nullptr,
         gw_ptr,
