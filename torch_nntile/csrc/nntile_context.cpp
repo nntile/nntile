@@ -113,17 +113,25 @@ bool is_cpu_fallback_enabled()
 bool is_context_initialized()
 {
     std::lock_guard<std::mutex> lock(g_context_mutex);
-    return g_context != nullptr;
+    return g_context != nullptr || platform_session_active();
 }
 
 void ensure_nntile_context()
 {
+    if (platform_session_active())
+    {
+        return;
+    }
     std::lock_guard<std::mutex> lock(g_context_mutex);
     create_context_locked();
 }
 
 void restrict_cpu()
 {
+    if (platform_session_active())
+    {
+        return;
+    }
     std::lock_guard<std::mutex> lock(g_context_mutex);
     create_context_locked();
     g_context->restrict_cpu();
@@ -131,6 +139,10 @@ void restrict_cpu()
 
 void restrict_cuda()
 {
+    if (platform_session_active())
+    {
+        return;
+    }
     std::lock_guard<std::mutex> lock(g_context_mutex);
     create_context_locked();
     g_context->restrict_cuda();
@@ -138,6 +150,10 @@ void restrict_cuda()
 
 void restore_where()
 {
+    if (platform_session_active())
+    {
+        return;
+    }
     std::lock_guard<std::mutex> lock(g_context_mutex);
     create_context_locked();
     g_context->restore_where();

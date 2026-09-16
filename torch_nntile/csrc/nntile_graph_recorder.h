@@ -9,6 +9,7 @@
 #include "nntile_tensor_gc.h"
 
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -78,6 +79,29 @@ double record_nntile_seconds();
 //! to StarPU unregister tasks. Payload copies / compute kernels do not
 //! run. Results are not numerically meaningful.
 bool skip_nntile_kernels();
+
+//! Platform kernel: Ingress / Flush instead of local StarPU.
+//! When hooks are set, ``.to("nntile")`` sends host bytes and
+//! ``.to("cpu")`` encodes the pending TensorGraph as PhaseIR.
+using PlatformIngressHook = std::function<void(
+    std::int64_t node_id,
+    void const *host,
+    std::size_t nbytes,
+    std::vector<std::int64_t> const &shape,
+    std::string const &dtype)>;
+
+using PlatformFlushHook = std::function<std::string(
+    std::string const &phase_json,
+    std::vector<std::int64_t> const &gather_ids,
+    bool wait_only)>;
+
+void set_platform_hooks(
+    PlatformIngressHook ingress,
+    PlatformFlushHook flush);
+
+void clear_platform_hooks();
+
+bool platform_session_active();
 
 void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst);
 

@@ -33,6 +33,7 @@
 #include <nntile/tile/append_tensor_graph_phase.hh>
 #include <nntile/tile/graph.hh>
 #include <nntile/tile/lower_staging_tensor.hh>
+#include <nntile/tensor/phase_codec.hh>
 
 #include <starpu.h>
 
@@ -47,6 +48,7 @@ std::vector<Index> tile_sizes_for_axis_extent(
 } // namespace nntile
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
@@ -113,6 +115,9 @@ namespace
 
 std::recursive_mutex g_recorder_mutex;
 std::unique_ptr<nntile::TensorGraph> g_graph;
+std::atomic<bool> g_platform_mode{false};
+PlatformIngressHook g_platform_ingress;
+PlatformFlushHook g_platform_flush;
 struct ParamGradEntry
 {
     nntile::TensorGraph::TensorNode *grad_node = nullptr;
@@ -217,6 +222,117 @@ void run_graph_locked();
 void finish_run_locked();
 
 void gc_dead_data_nodes_locked();
+
+void throw_if_platform_compile_locked()
+{
+    if (!g_platform_mode.load(std::memory_order_acquire))
+    {
+        return;
+    }
+    throw std::runtime_error(
+        "torch_nntile: local compile is disabled on the platform; "
+        "use .to('cpu') or wait()");
+}
+
+std::string platform_dtype_name(nntile::DataType dtype)
+{
+    switch (dtype)
+    {
+    case nntile::DataType::FP32:
+        return "float32";
+    case nntile::DataType::FP64:
+        return "float64";
+    case nntile::DataType::FP16:
+        return "float16";
+    case nntile::DataType::BF16:
+        return "bfloat16";
+    case nntile::DataType::INT64:
+        return "int64";
+    case nntile::DataType::BOOL:
+        return "bool";
+    default:
+        return nntile::dtype_to_string(dtype);
+    }
+}
+
+std::vector<std::int64_t> shape_as_i64(
+    std::vector<nntile::Index> const &shape)
+{
+    std::vector<std::int64_t> out;
+    out.reserve(shape.size());
+    for (nntile::Index dim : shape)
+    {
+        out.push_back(static_cast<std::int64_t>(dim));
+    }
+    return out;
+}
+
+std::string encode_pending_phase_locked()
+{
+    if (g_graph == nullptr)
+    {
+        return "{\"nodes\":[],\"ops\":[]}";
+    }
+    return nntile::tensor::encode_phase(*g_graph).dump();
+}
+
+void seal_pending_phase_locked()
+{
+    if (g_graph == nullptr ||
+        g_graph->num_ops() <= g_graph->phase_seal_cursor())
+    {
+        return;
+    }
+    g_graph->seal_phase();
+}
+
+void platform_ingress_unlocked(
+    std::unique_lock<std::recursive_mutex> &lock,
+    nntile::TensorGraph::TensorNode *logical,
+    void const *host,
+    std::size_t nbytes)
+{
+    if (!g_platform_ingress)
+    {
+        throw std::runtime_error(
+            "torch_nntile: platform ingress hook is not set");
+    }
+    if (logical == nullptr)
+    {
+        throw std::runtime_error(
+            "torch_nntile: platform ingress needs a logical node");
+    }
+    std::int64_t const node_id =
+        static_cast<std::int64_t>(logical->id());
+    std::vector<std::int64_t> const shape =
+        shape_as_i64(logical->shape());
+    std::string const dtype =
+        platform_dtype_name(logical->dtype());
+    lock.unlock();
+    g_platform_ingress(node_id, host, nbytes, shape, dtype);
+    lock.lock();
+}
+
+std::string platform_flush_unlocked(
+    std::unique_lock<std::recursive_mutex> &lock,
+    std::vector<std::int64_t> const &gather_ids,
+    bool wait_only)
+{
+    if (!g_platform_flush)
+    {
+        throw std::runtime_error(
+            "torch_nntile: platform flush hook is not set");
+    }
+    std::string const phase = encode_pending_phase_locked();
+    lock.unlock();
+    std::string gathered = g_platform_flush(
+        phase,
+        gather_ids,
+        wait_only);
+    lock.lock();
+    seal_pending_phase_locked();
+    return gathered;
+}
 
 void register_grad_alias_for_host_copy_locked(
     at::Tensor &grad,
@@ -1050,6 +1166,7 @@ void gc_dead_data_nodes_locked()
 
 void compile_graph_locked()
 {
+    throw_if_platform_compile_locked();
     // Do not wait for a prior async run(): sealing / lowering the next
     // phase while StarPU still executes the previous one is allowed.
     // Unmarked phase temps become TensorGraph INVALIDATE ops (async submit).
@@ -1265,6 +1382,7 @@ void sync_param_grad_aliases_locked()
 
 void execute_pending_graph_locked()
 {
+    throw_if_platform_compile_locked();
     // compile + run only. Never wait here - callers must use wait() /
     // wait_graph_session() (same contract as compile_graph + run).
     compile_graph_locked();
@@ -1319,7 +1437,12 @@ void run_graph()
 
 void wait_graph_session()
 {
-    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    std::unique_lock<std::recursive_mutex> lock(g_recorder_mutex);
+    if (g_platform_mode.load(std::memory_order_acquire))
+    {
+        platform_flush_unlocked(lock, {}, true);
+        return;
+    }
     // finish_run_locked() already joins StarPU when a run is pending.
     finish_run_locked();
 }
@@ -1334,6 +1457,29 @@ void shutdown_recorder()
 {
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     shutdown_recorder_locked();
+}
+
+bool platform_session_active()
+{
+    return g_platform_mode.load(std::memory_order_acquire);
+}
+
+void set_platform_hooks(
+    PlatformIngressHook ingress,
+    PlatformFlushHook flush)
+{
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    g_platform_ingress = std::move(ingress);
+    g_platform_flush = std::move(flush);
+    g_platform_mode.store(true, std::memory_order_release);
+}
+
+void clear_platform_hooks()
+{
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    g_platform_ingress = {};
+    g_platform_flush = {};
+    g_platform_mode.store(false, std::memory_order_release);
 }
 
 bool has_graph_session()
@@ -1395,7 +1541,7 @@ void gather_logical_to_staging_and_read_locked(
 
 void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst)
 {
-    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    std::unique_lock<std::recursive_mutex> lock(g_recorder_mutex);
     nntile::TensorRef binding = tensor_ref(src);
     if (!binding)
     {
@@ -1428,6 +1574,28 @@ void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst)
         "torch_nntile: host readout dtype mismatch");
     // Respect dst storage_offset (matches CPU->nntile ingress via data_ptr()).
     void *host_ptr = dst.data_ptr();
+
+    if (g_platform_mode.load(std::memory_order_acquire))
+    {
+        std::int64_t const gid =
+            static_cast<std::int64_t>(logical->id());
+        std::string const gathered = platform_flush_unlocked(
+            lock,
+            {gid},
+            false);
+        std::size_t const want = count * elem_bytes;
+        if (gathered.size() < want)
+        {
+            throw std::runtime_error(
+                "torch_nntile: platform flush gathered fewer bytes "
+                "than the host tensor");
+        }
+        if (want > 0)
+        {
+            std::memcpy(host_ptr, gathered.data(), want);
+        }
+        return;
+    }
 
     // Sync a prior async execute()/run() even when no ops are pending so
     // subsequent gather recording is not wiped by wait-side drop_all_ops().
@@ -1542,7 +1710,7 @@ void init_nntile_input_from_cpu(
     const at::Tensor &cpu_src,
     at::Tensor &nntile_dst)
 {
-    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    std::unique_lock<std::recursive_mutex> lock(g_recorder_mutex);
     TORCH_CHECK(cpu_src.is_cpu(), "init_nntile_input_from_cpu: expected CPU src");
     TORCH_CHECK(
         nntile_dst.device().type() == c10::DeviceType::PrivateUse1,
@@ -1593,6 +1761,17 @@ void init_nntile_input_from_cpu(
         return;
     }
 
+    if (g_platform_mode.load(std::memory_order_acquire))
+    {
+        platform_ingress_unlocked(
+            lock,
+            logical,
+            cpu_src.data_ptr(),
+            static_cast<std::size_t>(cpu_src.numel()) *
+                nntile::dtype_size(dtype));
+        return;
+    }
+
     auto *staging = new_ephemeral_staging_node_locked(logical, "ingress");
     if (staging == nullptr)
     {
@@ -1618,7 +1797,7 @@ void overwrite_bound_nntile_logical_from_cpu(
     const at::Tensor &cpu_src,
     const at::Tensor &nntile_bound)
 {
-    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    std::unique_lock<std::recursive_mutex> lock(g_recorder_mutex);
     TORCH_CHECK(
         cpu_src.is_cpu(),
         "overwrite_bound_nntile_logical_from_cpu: expected CPU src");
@@ -1650,6 +1829,17 @@ void overwrite_bound_nntile_logical_from_cpu(
 
     if (skip_nntile_kernels())
     {
+        return;
+    }
+
+    if (g_platform_mode.load(std::memory_order_acquire))
+    {
+        platform_ingress_unlocked(
+            lock,
+            logical,
+            cpu_src.data_ptr(),
+            static_cast<std::size_t>(cpu_src.numel()) *
+                nntile::dtype_size(dtype));
         return;
     }
 
