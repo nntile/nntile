@@ -29,6 +29,9 @@ namespace nntile::tensor
 //! (wire ``MM``); stock ``torch.nn.Linear`` composites to ``addmm`` /
 //! ``mm`` as ``TORCH_TERNARY`` / ``TORCH_BINARY``.
 //!
+//! There is no ``INVALIDATE`` on the ``TensorRef`` path: last drop
+//! records ``UNREGISTER`` (``TensorUnregisterOp``).
+//!
 //! Classic TensorGraph names and torch-native names are distinct:
 //! ``ADD`` / ``RELU`` vs ``TORCH_BINARY`` / ``TORCH_UNARY`` (aten kind
 //! in ``attrs.kind``). ``MULTIPLY`` encodes as ``MUL``.
@@ -37,7 +40,7 @@ inline constexpr char const *kV1PhaseOps[] = {
     "COPY",
     "SCATTER",
     "GATHER",
-    "INVALIDATE",
+    "UNREGISTER",
     "ADD",
     "MUL",
     "MM",

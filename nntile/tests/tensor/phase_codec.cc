@@ -24,6 +24,7 @@
 #include <nntile/tensor/ops/multiply.hh>
 #include <nntile/tensor/ops/relu.hh>
 #include <nntile/tensor/ops/scatter.hh>
+#include <nntile/tensor/ops/unregister.hh>
 #include <nntile/tensor/phase_codec.hh>
 #ifdef NNTILE_TORCH_NATIVE_OPS
 #include <nntile/tensor/ops/torch_dispatch.hh>
@@ -133,6 +134,7 @@ TEST_CASE("v1 allowlist names round-trip", "[graph][tensor][codec]")
     REQUIRE(decoded.second.size() == n_ops);
     REQUIRE(n_ops == 13);
     REQUIRE(decoded.second.at(0).at("op_name") == "FILL");
+    REQUIRE(decoded.second.at(4).at("op_name") == "UNREGISTER");
     REQUIRE(decoded.second.at(5).at("op_name") == "ADD");
     REQUIRE(decoded.second.at(6).at("op_name") == "MUL");
     REQUIRE(decoded.second.at(7).at("op_name") == "MM");
@@ -143,6 +145,7 @@ TEST_CASE("v1 allowlist names round-trip", "[graph][tensor][codec]")
     REQUIRE(decoded.second.at(12).at("op_name") == "TORCH_TERNARY");
     REQUIRE(decoded.second.at(0).at("attrs").at("shape") == "2,2");
     REQUIRE_FALSE(gt::is_v1_phase_op("LINEAR"));
+    REQUIRE_FALSE(gt::is_v1_phase_op("INVALIDATE"));
 }
 
 TEST_CASE("decode_phase fails closed on LINEAR", "[graph][tensor][codec]")
@@ -153,6 +156,25 @@ TEST_CASE("decode_phase fails closed on LINEAR", "[graph][tensor][codec]")
     ops.push_back(
         {
             {"op_name", "LINEAR"},
+            {"inputs", nlohmann::json::array()},
+            {"outputs", nlohmann::json::array()},
+        });
+    blob["ops"] = std::move(ops);
+    REQUIRE_THROWS_WITH(
+        gt::decode_phase(blob),
+        Catch::Matchers::ContainsSubstring("UnknownOp"));
+}
+
+TEST_CASE(
+    "decode_phase fails closed on INVALIDATE",
+    "[graph][tensor][codec]")
+{
+    nlohmann::json blob;
+    blob["nodes"] = nlohmann::json::array();
+    nlohmann::json ops = nlohmann::json::array();
+    ops.push_back(
+        {
+            {"op_name", "INVALIDATE"},
             {"inputs", nlohmann::json::array()},
             {"outputs", nlohmann::json::array()},
         });
@@ -266,7 +288,7 @@ TEST_CASE("encode_phase TensorGraph FILL COPY RELU", "[graph][tensor][codec]")
 }
 
 TEST_CASE(
-    "encode_phase TensorGraph SCATTER GATHER INVALIDATE",
+    "encode_phase TensorGraph SCATTER GATHER",
     "[graph][tensor][codec]")
 {
     TensorGraph graph("codec_move");
@@ -276,13 +298,60 @@ TEST_CASE(
     dst->set_name("dst");
     gt::scatter(src, dst);
     TensorRef gathered = TensorRef::adopt(gt::gather(dst));
-    gt::invalidate(gathered);
 
     auto const blob = gt::encode_phase(graph);
-    REQUIRE(blob.at("ops").size() == 3);
+    REQUIRE(blob.at("ops").size() == 2);
     REQUIRE(blob.at("ops").at(0).at("op_name") == "SCATTER");
     REQUIRE(blob.at("ops").at(1).at("op_name") == "GATHER");
-    REQUIRE(blob.at("ops").at(2).at("op_name") == "INVALIDATE");
+    REQUIRE(gathered->id() == blob.at("ops").at(1).at("outputs").at(0));
+}
+
+TEST_CASE(
+    "encode_phase TensorGraph UNREGISTER",
+    "[graph][tensor][codec]")
+{
+    TensorGraph graph("codec_unreg");
+    TensorRef x = graph.data({2, 2});
+    x->set_name("x");
+    gt::unregister(x);
+
+    auto const blob = gt::encode_phase(graph);
+    REQUIRE(blob.at("ops").size() == 1);
+    REQUIRE(blob.at("ops").at(0).at("op_name") == "UNREGISTER");
+    REQUIRE(blob.at("ops").at(0).at("inputs").size() == 1);
+    REQUIRE(blob.at("ops").at(0).at("outputs").empty());
+    REQUIRE(blob.at("ops").at(0).at("inputs").at(0) == x->id());
+
+    auto const decoded = gt::decode_phase(blob);
+    REQUIRE(decoded.second.at(0).at("op_name") == "UNREGISTER");
+    REQUIRE(decoded.second.at(0).at("outputs").empty());
+}
+
+TEST_CASE(
+    "encode_phase TensorRef last-drop UNREGISTER",
+    "[graph][tensor][codec]")
+{
+    TensorGraph graph("codec_drop");
+    {
+        TensorRef x = graph.data({2, 2});
+        x->set_name("x");
+    }
+    auto const blob = gt::encode_phase(graph);
+    REQUIRE(blob.at("ops").size() == 1);
+    REQUIRE(blob.at("ops").at(0).at("op_name") == "UNREGISTER");
+    REQUIRE(blob.at("ops").at(0).at("outputs").empty());
+}
+
+TEST_CASE(
+    "encode_phase TensorGraph INVALIDATE fails closed",
+    "[graph][tensor][codec]")
+{
+    TensorGraph graph("codec_inv");
+    TensorRef x = graph.data({2, 2});
+    gt::invalidate(x);
+    REQUIRE_THROWS_WITH(
+        gt::encode_phase(graph),
+        Catch::Matchers::ContainsSubstring("UnknownOp"));
 }
 
 TEST_CASE(
@@ -302,8 +371,8 @@ TEST_CASE("encode_phase uses unsealed snapshot", "[graph][tensor][codec]")
     TensorGraph graph("codec_phase");
     TensorRef a = graph.data({2, 2});
     TensorRef b = graph.data({2, 2});
-    // Keep the output TensorRef so last-drop UNREGISTER is not recorded
-    // into the sealed phase (UNREGISTER is not a v1 Flush op).
+    // Keep the output TensorRef so last-drop UNREGISTER is not mixed
+    // into the sealed ADD phase.
     TensorRef c = TensorRef::adopt(gt::add(1.0, a, 1.0, b));
     auto const sealed = graph.seal_phase();
     REQUIRE_FALSE(sealed.empty());

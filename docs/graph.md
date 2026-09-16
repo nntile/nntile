@@ -57,10 +57,11 @@ over `NNTILE_DRIVER_SOCKET` (mode 0600). StarPU stays in
 
 `nntile::tensor::encode_phase` / `decode_phase` emit Flush `PhaseIR`
 JSON (`{nodes, ops}`). Classic v1 names: `FILL`, `COPY`, `SCATTER`,
-`GATHER`, `INVALIDATE`, `ADD`, `MUL`, `MM`, `RELU`, `CROSS_ENTROPY`.
+`GATHER`, `UNREGISTER`, `ADD`, `MUL`, `MM`, `RELU`, `CROSS_ENTROPY`.
 Torch-native ops keep `TORCH_UNARY` / `TORCH_BINARY` / `TORCH_TERNARY`
 plus `attrs.kind` (they are not aliased to `ADD` / `RELU`). There is
-no `LINEAR`. Unknown `op_name` fails closed (`UnknownOp`).
+no `LINEAR` and no `INVALIDATE` (last `TensorRef` drop records
+`UNREGISTER`). Unknown `op_name` fails closed (`UnknownOp`).
 TensorGraph `MULTIPLY` encodes as `MUL`; `GEMM` encodes as `MM`.
 
 Incremental compile aims for **O(work this call)** complexity — see
