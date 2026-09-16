@@ -13,6 +13,7 @@
 
 TEST_CASE("libtorch_nntile smoke add on PrivateUse1", "[smoke]")
 {
+    torch_nntile::test::enable_local_compiler_for_tests();
     // Omit cpu_fallback: the C++ default must stay false (explicit opt-in).
     torch_nntile::init_context(
         /*ncpu=*/1,

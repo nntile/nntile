@@ -11,6 +11,7 @@
 #include <torch_nntile/runtime.hh>
 
 #include <cmath>
+#include <cstdlib>
 #include <functional>
 #include <stdexcept>
 #include <string>
@@ -24,8 +25,15 @@ inline c10::Device nntile_device()
     return c10::Device(c10::DeviceType::PrivateUse1, 0);
 }
 
+//! C++ tests lower locally (Dana). Kernel / pytest flag-off jobs stay unset.
+inline void enable_local_compiler_for_tests()
+{
+    setenv("NNTILE_ENABLE_LOCAL_COMPILER", "1", 1);
+}
+
 inline void flush_pending_graph()
 {
+    enable_local_compiler_for_tests();
     if (torch_nntile::has_pending_graph())
     {
         torch_nntile::compile_graph();

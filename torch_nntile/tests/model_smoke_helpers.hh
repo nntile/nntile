@@ -26,6 +26,7 @@ struct ContextGuard
 {
     ContextGuard()
     {
+        enable_local_compiler_for_tests();
         if (!torch_nntile::is_context_initialized())
         {
             torch_nntile::init_context(
