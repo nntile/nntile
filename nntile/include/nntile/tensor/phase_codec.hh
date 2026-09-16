@@ -24,22 +24,18 @@
 namespace nntile::tensor
 {
 
-//! Flush PhaseIR v1 ``op_name`` allowlist: torch-native TensorGraph
-//! names plus system ``GATHER`` / ``SCATTER`` / ``UNREGISTER``.
-//! Unknown names fail closed (``UnknownOp``), including classic
-//! ``torch_nntile.nn`` names (``ADD``, ``RELU``, ``FILL``, ``COPY``,
-//! ``MUL``, ``MM``, ``CROSS_ENTROPY``, ``LINEAR``, ``INVALIDATE``).
-//!
-//! Last ``TensorRef`` drop records ``UNREGISTER``. Torch-native
-//! ``ADD`` / ``RELU`` stay ``TORCH_BINARY`` / ``TORCH_UNARY`` (aten
-//! kind in ``attrs.kind``).
+//! Flush PhaseIR v1 ``op_name`` allowlist:
+//! ``TORCH_UNARY``, ``TORCH_BINARY``, ``TORCH_TERNARY``,
+//! ``GATHER``, ``SCATTER``, ``UNREGISTER``. Unknown names fail
+//! closed (``UnknownOp``). Last ``TensorRef`` drop records
+//! ``UNREGISTER``. Torch-native aten kind is ``attrs.kind``.
 inline constexpr char const *kV1PhaseOps[] = {
-    "GATHER",
-    "SCATTER",
-    "UNREGISTER",
     "TORCH_UNARY",
     "TORCH_BINARY",
     "TORCH_TERNARY",
+    "GATHER",
+    "SCATTER",
+    "UNREGISTER",
 };
 
 bool is_v1_phase_op(std::string const &op_name);
@@ -51,8 +47,7 @@ nlohmann::json encode_phase(
     nlohmann::json const &ops);
 
 //! Encode unsealed ops ``[phase_seal_cursor, num_ops)`` and the nodes
-//! those ops reference. Does not seal. Classic TensorGraph names fail
-//! closed.
+//! those ops reference. Does not seal.
 nlohmann::json encode_phase(TensorGraph const &graph);
 
 //! Encode one snapshot slice of ``graph.ops()``.

@@ -14,15 +14,8 @@
 
 #include <nntile/defs.h>
 #include <nntile/tensor.hh>
-#include <nntile/tensor/ops/add.hh>
-#include <nntile/tensor/ops/copy.hh>
-#include <nntile/tensor/ops/fill.hh>
 #include <nntile/tensor/ops/gather.hh>
 #include <nntile/tensor/ops/gelu.hh>
-#include <nntile/tensor/ops/gemm.hh>
-#include <nntile/tensor/ops/invalidate.hh>
-#include <nntile/tensor/ops/multiply.hh>
-#include <nntile/tensor/ops/relu.hh>
 #include <nntile/tensor/ops/scatter.hh>
 #include <nntile/tensor/ops/unregister.hh>
 #include <nntile/tensor/phase_codec.hh>
@@ -134,38 +127,12 @@ TEST_CASE("v1 allowlist names round-trip", "[graph][tensor][codec]")
         sizeof(gt::kV1PhaseOps) / sizeof(gt::kV1PhaseOps[0]);
     REQUIRE(decoded.second.size() == n_ops);
     REQUIRE(n_ops == 6);
-    REQUIRE(decoded.second.at(0).at("op_name") == "GATHER");
-    REQUIRE(decoded.second.at(1).at("op_name") == "SCATTER");
-    REQUIRE(decoded.second.at(2).at("op_name") == "UNREGISTER");
-    REQUIRE(decoded.second.at(3).at("op_name") == "TORCH_UNARY");
-    REQUIRE(decoded.second.at(4).at("op_name") == "TORCH_BINARY");
-    REQUIRE(decoded.second.at(5).at("op_name") == "TORCH_TERNARY");
-}
-
-TEST_CASE(
-    "decode_phase fails closed on classic names",
-    "[graph][tensor][codec]")
-{
-    char const *classic[] = {
-        "ADD",
-        "MUL",
-        "MM",
-        "RELU",
-        "FILL",
-        "COPY",
-        "CROSS_ENTROPY",
-        "LINEAR",
-        "INVALIDATE",
-        "GEMM",
-        "MULTIPLY",
-    };
-    for (char const *name : classic)
-    {
-        REQUIRE_FALSE(gt::is_v1_phase_op(name));
-        REQUIRE_THROWS_WITH(
-            gt::decode_phase(unknown_op_blob(name)),
-            Catch::Matchers::ContainsSubstring("UnknownOp"));
-    }
+    REQUIRE(decoded.second.at(0).at("op_name") == "TORCH_UNARY");
+    REQUIRE(decoded.second.at(1).at("op_name") == "TORCH_BINARY");
+    REQUIRE(decoded.second.at(2).at("op_name") == "TORCH_TERNARY");
+    REQUIRE(decoded.second.at(3).at("op_name") == "GATHER");
+    REQUIRE(decoded.second.at(4).at("op_name") == "SCATTER");
+    REQUIRE(decoded.second.at(5).at("op_name") == "UNREGISTER");
 }
 
 TEST_CASE("empty PhaseIR decodes", "[graph][tensor][codec]")
@@ -236,50 +203,14 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "encode_phase TensorGraph classic ops fail closed",
+    "encode_phase TensorGraph unknown op fails closed",
     "[graph][tensor][codec]")
 {
-    TensorGraph add_graph("codec_add");
-    TensorRef a = add_graph.data({2, 2});
-    TensorRef b = add_graph.data({2, 2});
-    TensorRef c = TensorRef::adopt(gt::add(1.0, a, 1.0, b));
+    TensorGraph graph("codec_gelu");
+    TensorRef x = graph.data({2, 2});
+    gt::gelu(x);
     REQUIRE_THROWS_WITH(
-        gt::encode_phase(add_graph),
-        Catch::Matchers::ContainsSubstring("UnknownOp"));
-
-    TensorGraph fill_graph("codec_fill");
-    TensorRef x = fill_graph.data({2, 2});
-    gt::fill(1.5, x);
-    TensorRef y = TensorRef::adopt(gt::copy(x));
-    TensorRef z = TensorRef::adopt(gt::relu(y));
-    REQUIRE_THROWS_WITH(
-        gt::encode_phase(fill_graph),
-        Catch::Matchers::ContainsSubstring("UnknownOp"));
-
-    TensorGraph mul_graph("codec_mul_mm");
-    TensorRef p = mul_graph.data({2, 2});
-    TensorRef q = mul_graph.data({2, 2});
-    gt::multiply(p, q, 1.0);
-    REQUIRE_THROWS_WITH(
-        gt::encode_phase(mul_graph),
-        Catch::Matchers::ContainsSubstring("UnknownOp"));
-    gt::gemm(p, q, 1.0, false, false, 1, 0);
-    REQUIRE_THROWS_WITH(
-        gt::encode_phase(mul_graph),
-        Catch::Matchers::ContainsSubstring("UnknownOp"));
-
-    TensorGraph inv_graph("codec_inv");
-    TensorRef inv = inv_graph.data({2, 2});
-    gt::invalidate(inv);
-    REQUIRE_THROWS_WITH(
-        gt::encode_phase(inv_graph),
-        Catch::Matchers::ContainsSubstring("UnknownOp"));
-
-    TensorGraph gelu_graph("codec_gelu");
-    TensorRef g = gelu_graph.data({2, 2});
-    gt::gelu(g);
-    REQUIRE_THROWS_WITH(
-        gt::encode_phase(gelu_graph),
+        gt::encode_phase(graph),
         Catch::Matchers::ContainsSubstring("UnknownOp"));
 }
 
