@@ -75,4 +75,6 @@ Typical flow: record into `TensorGraph` → `seal_phase` +
 `append_tensor_graph_phase` → `Runtime::compile()` → `execute_range()` →
 `wait()`. `ExecutionDriver` is tiles-only `submit` / `wait`:
 `RuntimeExecutionDriver` in-process, or `RemoteExecutionDriver` over
-`NNTILE_DRIVER_SOCKET`. Design notes: [../dev/README.md](../dev/README.md).
+`NNTILE_DRIVER_SOCKET`. Flush `PhaseIR` is
+`nntile::tensor::encode_phase` / `decode_phase` (v1 allowlist; unknown
+ops fail closed). Design notes: [../dev/README.md](../dev/README.md).

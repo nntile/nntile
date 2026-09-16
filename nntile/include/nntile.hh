@@ -17,6 +17,7 @@
 #include <nntile/context.hh>
 #include <nntile/core.hh>
 #include <nntile/tensor.hh>
+#include <nntile/tensor/phase_codec.hh>
 #include <nntile/tile.hh>
 #include <nntile/runtime.hh>
 #include <nntile/execution_driver.hh>

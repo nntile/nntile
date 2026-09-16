@@ -348,6 +348,7 @@ set(GRAPH_TENSOR_LAYER_SRC
     "tensor/tensor_graph_tiling.cc"
     "tensor/graph_data_node.cc"
     "tensor/graph_op_node.cc"
+    "tensor/phase_codec.cc"
     "tensor/tensor_ref.cc"
     "tensor/tile_lowering_helpers.cc"
     "tensor/ops/add.cc"
