@@ -230,18 +230,25 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto *y = graph.data({2, 2}, "y", DataType::FP32);
     auto *add_out = graph.data({2, 2}, "add", DataType::FP32);
     auto *relu_out = graph.data({2, 2}, "relu", DataType::FP32);
+    auto *bias = graph.data({2}, "bias", DataType::FP32);
+    auto *lin_out = graph.data({2, 2}, "lin", DataType::FP32);
     tg::torch_binary(
         starpu::TorchKind::Add, x, y, add_out);
     tg::torch_unary(
         starpu::TorchKind::Relu, x, relu_out);
+    tg::torch_ternary(
+        starpu::TorchKind::Linear, x, y, bias, lin_out);
 
     driver.bind(x->id(), {1, -2, 3, -4});
     driver.bind(y->id(), {1, 1, 1, 1});
+    driver.bind(bias->id(), {0.5f, -0.5f});
     driver.submit(graph);
     driver.wait();
     nntile::test::require_relative_element_error(
         driver.gather(add_out->id()), {2.f, -1.f, 4.f, -3.f});
     nntile::test::require_relative_element_error(
         driver.gather(relu_out->id()), {1.f, 0.f, 3.f, 0.f});
+    auto const lin = driver.gather(lin_out->id());
+    REQUIRE(lin.size() == 4);
 }
 #endif
