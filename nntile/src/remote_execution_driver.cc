@@ -627,6 +627,8 @@ void apply_op(TileGraph &graph, nlohmann::json const &op)
                 graph, inputs.at(1).get<TileGraph::NodeId>()),
             node_by_id(
                 graph, inputs.at(2).get<TileGraph::NodeId>()),
+            node_by_id(
+                graph, outputs.at(0).get<TileGraph::NodeId>()),
             extra);
         return;
     }
