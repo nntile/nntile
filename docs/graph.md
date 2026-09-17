@@ -55,9 +55,11 @@ group exists). StarPU stays in `ExecutionDaemon` on one resident
 Flushes). The wire allowlist is the v1 Flush lower:
 `TILE_ADD` / `TILE_ADD_INPLACE`, `TILE_MULTIPLY`, `TILE_GEMM`,
 `TILE_ADD_SLICE`, `TILE_RELU`, `TILE_COPY` /
-`TILE_COPY_INTERSECTION`, and `TILE_FILL`. Other tile `op_name`
-values fail closed (`UnknownOp`). Kernels must not have that socket
-path.
+`TILE_COPY_INTERSECTION`, `TILE_FILL`, and (when built with
+`NNTILE_TORCH_NATIVE_OPS`) `TILE_TORCH_UNARY` /
+`TILE_TORCH_BINARY` / `TILE_TORCH_TERNARY` (`attrs.kind` is the
+aten TorchKind). Other tile `op_name` values fail closed
+(`UnknownOp`). Kernels must not have that socket path.
 
 `nntile::tensor::encode_phase` / `decode_phase` emit Flush `PhaseIR`
 JSON (`{nodes, ops}`). v1 allowlist: `TORCH_UNARY`, `TORCH_BINARY`,
