@@ -26,6 +26,7 @@
 #include <nntile/tile/ops/gemm.hh>
 #include <nntile/tile/ops/multiply.hh>
 #include <nntile/tile/ops/relu.hh>
+#include <nntile/tile/ops/unregister.hh>
 #ifdef NNTILE_TORCH_NATIVE_OPS
 #include <nntile/tile/ops/torch_dispatch.hh>
 #endif
@@ -252,3 +253,48 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(lin.size() == 4);
 }
 #endif
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "RemoteExecutionDriver TILE_UNREGISTER",
+    "[graph][tile][driver][remote]")
+{
+    std::string const path = test_socket_path("unreg");
+    ExecutionDaemon daemon(path);
+    daemon.start();
+
+    TileGraph graph("driver_remote_unreg");
+    auto *x = graph.data({4}, "x", DataType::FP32);
+    auto *y = graph.data({4}, "y", DataType::FP32);
+    tg::fill(Scalar(1.0), x);
+    tg::copy(x, y);
+    tg::unregister(x);
+
+    RemoteExecutionDriver driver(path);
+    driver.bind(x->id(), {0, 0, 0, 0});
+    driver.bind(y->id(), {0, 0, 0, 0});
+    driver.submit(graph);
+    driver.wait();
+    nntile::test::require_relative_element_error(
+        driver.gather(y->id()), {1.f, 1.f, 1.f, 1.f});
+}
+
+TEST_CASE(
+    "ExecutionDaemon inits StarPU when none exists",
+    "[graph][tile][driver][remote]")
+{
+    std::string const path = test_socket_path("nocontext");
+    ExecutionDaemon daemon(path);
+    daemon.start();
+    require_socket_acl(path);
+
+    TileGraph graph("driver_remote_nocontext");
+    auto *x = graph.data({4}, "x", DataType::FP32);
+    tg::fill(Scalar(2.0), x);
+
+    RemoteExecutionDriver driver(path);
+    driver.bind(x->id(), {0, 0, 0, 0});
+    driver.submit(graph);
+    driver.wait();
+    nntile::test::require_relative_element_error(
+        driver.gather(x->id()), {2.f, 2.f, 2.f, 2.f});
+}

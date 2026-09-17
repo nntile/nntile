@@ -14,6 +14,7 @@
 
 #include <nntile/remote_execution_driver.hh>
 
+#include <nntile/context.hh>
 #include <nntile/dtype.hh>
 #include <nntile/tile/ops/add.hh>
 #include <nntile/tile/ops/add_inplace.hh>
@@ -24,6 +25,7 @@
 #include <nntile/tile/ops/gemm.hh>
 #include <nntile/tile/ops/multiply.hh>
 #include <nntile/tile/ops/relu.hh>
+#include <nntile/tile/ops/unregister.hh>
 #ifdef NNTILE_TORCH_NATIVE_OPS
 #include <nntile/tile/ops/torch_dispatch.hh>
 #endif
@@ -310,7 +312,8 @@ nlohmann::json encode_attrs(TileGraph::OpNode const &op)
         attrs["dst_offset"] = copy->dst_offset;
         return attrs;
     }
-    if (name == "TILE_RELU" || name == "TILE_COPY")
+    if (name == "TILE_RELU" || name == "TILE_COPY" ||
+        name == "TILE_UNREGISTER")
     {
         return attrs;
     }
@@ -575,6 +578,14 @@ void apply_op(TileGraph &graph, nlohmann::json const &op)
             attrs.value("dst_offset", std::vector<Index>{});
         tile::copy_intersection(
             src, src_off, dst, dst_off, scratch);
+        return;
+    }
+    if (name == "TILE_UNREGISTER")
+    {
+        require_min(inputs, 1, "TILE_UNREGISTER inputs");
+        tile::unregister(
+            node_by_id(
+                graph, inputs.at(0).get<TileGraph::NodeId>()));
         return;
     }
 #ifdef NNTILE_TORCH_NATIVE_OPS
@@ -1075,6 +1086,12 @@ void ExecutionDaemon::start()
     {
         throw std::runtime_error("ExecutionDaemon already started");
     }
+    // Production ``executiond`` has no ContextFixture. Skip if this
+    // process already inited StarPU (C++ tests).
+    if (!starpu_is_initialized())
+    {
+        ctx_ = std::make_unique<Context>(-1, -1, 0);
+    }
     stop_ = false;
     listen_fd_ = listen_unix(path_);
     thread_ = std::thread([this]() { run(); });
@@ -1094,6 +1111,7 @@ void ExecutionDaemon::stop()
         thread_.join();
     }
     ::unlink(path_.c_str());
+    ctx_.reset();
 }
 
 void ExecutionDaemon::run()
