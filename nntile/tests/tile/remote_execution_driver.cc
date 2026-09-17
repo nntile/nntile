@@ -15,17 +15,24 @@
 #include "context_fixture.hh"
 #include "test_frobenius.hh"
 
+#include <nntile/execution_driver.hh>
 #include <nntile/remote_execution_driver.hh>
 #include <nntile/tile.hh>
 #include <nntile/tile/ops/add.hh>
 #include <nntile/tile/ops/add_inplace.hh>
 #include <nntile/tile/ops/add_slice.hh>
+#include <nntile/tile/ops/clear.hh>
+#include <nntile/tile/ops/conv2d_inplace.hh>
 #include <nntile/tile/ops/copy.hh>
+#include <nntile/tile/ops/embedding.hh>
 #include <nntile/tile/ops/fill.hh>
 #include <nntile/tile/ops/gelu.hh>
 #include <nntile/tile/ops/gemm.hh>
 #include <nntile/tile/ops/multiply.hh>
 #include <nntile/tile/ops/relu.hh>
+#include <nntile/tile/ops/scale.hh>
+#include <nntile/tile/ops/sum_slice.hh>
+#include <nntile/tile/ops/transpose.hh>
 #include <nntile/tile/ops/unregister.hh>
 #ifdef NNTILE_TORCH_NATIVE_OPS
 #include <nntile/tile/ops/torch_dispatch.hh>
@@ -34,11 +41,14 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
+#include <cstdint>
 #include <grp.h>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <vector>
 
 using namespace nntile;
 namespace tg = nntile::tile;
@@ -101,15 +111,72 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     ExecutionDaemon daemon(path);
     daemon.start();
 
+    struct FakeFftOp : TileGraph::OpNode
+    {
+        explicit FakeFftOp(TileGraph::TileNode *x)
+        {
+            inputs_ = {x};
+            outputs_ = {x};
+        }
+
+        std::string op_name() const override
+        {
+            return "TILE_FFT";
+        }
+
+        void execute(Runtime &) const override
+        {
+        }
+
+        std::shared_ptr<OpNode> clone() const override
+        {
+            return std::make_shared<FakeFftOp>(*this);
+        }
+    };
+
     TileGraph graph("driver_remote_unknown");
     auto *a = graph.data({2}, "a", DataType::FP32);
-    auto *b = graph.data({2}, "b", DataType::FP32);
-    tg::gelu(a, b);
+    graph.add_op(std::make_shared<FakeFftOp>(a));
 
     RemoteExecutionDriver driver(path);
     REQUIRE_THROWS_WITH(
         driver.submit(graph),
         Catch::Matchers::ContainsSubstring("UnknownOp"));
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "RemoteExecutionDriver TILE_GELU family",
+    "[graph][tile][driver][remote]")
+{
+    std::string const path = test_socket_path("gelu");
+    ExecutionDaemon daemon(path);
+    daemon.start();
+
+    TileGraph local_g("driver_local_gelu");
+    auto *lx = local_g.data({4}, "x", DataType::FP32);
+    auto *ly = local_g.data({4}, "y", DataType::FP32);
+    tg::gelu(lx, ly);
+    RuntimeExecutionDriver local(local_g);
+    local.runtime().compile();
+    local.runtime().bind_data(
+        lx, std::vector<float>{-1.f, 0.f, 1.f, 2.f});
+    local.runtime().bind_data(
+        ly, std::vector<float>{0.f, 0.f, 0.f, 0.f});
+    local.submit(local_g);
+    local.wait();
+    auto const expect = local.runtime().get_output<float>(ly);
+
+    TileGraph graph("driver_remote_gelu");
+    auto *x = graph.data({4}, "x", DataType::FP32);
+    auto *y = graph.data({4}, "y", DataType::FP32);
+    tg::gelu(x, y);
+    RemoteExecutionDriver driver(path);
+    driver.bind(x->id(), {-1.f, 0.f, 1.f, 2.f});
+    driver.bind(y->id(), {0.f, 0.f, 0.f, 0.f});
+    driver.submit(graph);
+    driver.wait();
+    nntile::test::require_relative_element_error(
+        driver.gather(y->id()), expect);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -276,6 +343,117 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     driver.wait();
     nntile::test::require_relative_element_error(
         driver.gather(y->id()), {1.f, 1.f, 1.f, 1.f});
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "RemoteExecutionDriver classic TILE families",
+    "[graph][tile][driver][remote]")
+{
+    std::string const path = test_socket_path("families");
+    ExecutionDaemon daemon(path);
+    daemon.start();
+    RemoteExecutionDriver driver(path);
+
+    TileGraph graph("driver_remote_families");
+    auto *src = graph.data({4}, "src", DataType::FP32);
+    auto *scaled = graph.data({4}, "scaled", DataType::FP32);
+    auto *cleared = graph.data({4}, "cleared", DataType::FP32);
+    auto *view = graph.data({2, 2}, "view", DataType::FP32);
+    auto *sum_src = graph.data({2, 3}, "sum_src", DataType::FP32);
+    auto *sum_dst = graph.data({3}, "sum_dst", DataType::FP32);
+    auto *tr_src = graph.data({2, 3}, "tr_src", DataType::FP32);
+    auto *tr_dst = graph.data({3, 2}, "tr_dst", DataType::FP32);
+    tg::scale(Scalar(2.0), src, scaled);
+    tg::clear(cleared);
+    tg::copy_same_numel(src, view);
+    tg::sum_slice(Scalar(1.0), sum_src, Scalar(0.0), sum_dst, 0, 0);
+    tg::transpose(Scalar(1.0), tr_src, tr_dst, 1);
+
+    driver.bind(src->id(), {1, 2, 3, 4});
+    driver.bind(scaled->id(), {0, 0, 0, 0});
+    driver.bind(cleared->id(), {9, 9, 9, 9});
+    driver.bind(view->id(), {0, 0, 0, 0});
+    driver.bind(sum_src->id(), {1, 2, 3, 4, 5, 6});
+    driver.bind(sum_dst->id(), {0, 0, 0});
+    driver.bind(tr_src->id(), {1, 2, 3, 4, 5, 6});
+    driver.bind(tr_dst->id(), {0, 0, 0, 0, 0, 0});
+    driver.submit(graph);
+    driver.wait();
+    nntile::test::require_relative_element_error(
+        driver.gather(scaled->id()), {2.f, 4.f, 6.f, 8.f});
+    nntile::test::require_relative_element_error(
+        driver.gather(cleared->id()), {0.f, 0.f, 0.f, 0.f});
+    nntile::test::require_relative_element_error(
+        driver.gather(view->id()), {1.f, 2.f, 3.f, 4.f});
+    nntile::test::require_relative_element_error(
+        driver.gather(sum_dst->id()), {5.f, 7.f, 9.f});
+    auto const tr = driver.gather(tr_dst->id());
+    REQUIRE(tr.size() == 6);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "RemoteExecutionDriver TILE_EMBEDDING INT64",
+    "[graph][tile][driver][remote]")
+{
+    std::string const path = test_socket_path("emb");
+    ExecutionDaemon daemon(path);
+    daemon.start();
+
+    Index const m = 2, n = 2, k = 3, k0 = 0, ks = 3;
+    TileGraph graph("driver_remote_emb");
+    auto *index = graph.data({m, n}, "index", DataType::INT64);
+    auto *vocab = graph.data({ks, 5}, "vocab", DataType::FP32);
+    auto *embed = graph.data({m, k, n}, "embed", DataType::FP32);
+    tg::embedding(m, n, k, k0, ks, index, vocab, embed);
+
+    std::vector<float> voc(15);
+    for (int i = 0; i < 15; ++i)
+    {
+        voc[static_cast<size_t>(i)] = static_cast<float>(i + 1);
+    }
+    RemoteExecutionDriver driver(path);
+    driver.bind_int64(index->id(), {0, 2, 4, 1});
+    driver.bind(vocab->id(), voc);
+    driver.bind(embed->id(), std::vector<float>(12, 0.f));
+    driver.submit(graph);
+    driver.wait();
+    auto const out = driver.gather(embed->id());
+    REQUIRE(out.size() == 12);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "RemoteExecutionDriver TILE_CONV2D_INPLACE",
+    "[graph][tile][driver][remote]")
+{
+    std::string const path = test_socket_path("conv");
+    ExecutionDaemon daemon(path);
+    daemon.start();
+
+    TileGraph graph("driver_remote_conv");
+    auto *X = graph.data({3, 3, 1, 1}, "X", DataType::FP32);
+    auto *C = graph.data({2, 2, 1, 1}, "C", DataType::FP32);
+    auto *Y = graph.data({2, 2, 1, 1}, "Y", DataType::FP32);
+    tg::conv2d_inplace(
+        3, 3, 1, 1, 2, 2, 1, 1, 1, 0, 0, Scalar(1.0), X, C, 2, 2, 1, 1,
+        Scalar(0.0), Y);
+
+    std::vector<float> xv(9), cv(4), yv(4, 0.f);
+    for (Index i = 0; i < 9; ++i)
+    {
+        xv[static_cast<size_t>(i)] = static_cast<float>(i + 1);
+    }
+    for (Index i = 0; i < 4; ++i)
+    {
+        cv[static_cast<size_t>(i)] = static_cast<float>(i + 1);
+    }
+    RemoteExecutionDriver driver(path);
+    driver.bind(X->id(), xv);
+    driver.bind(C->id(), cv);
+    driver.bind(Y->id(), yv);
+    driver.submit(graph);
+    driver.wait();
+    auto const out = driver.gather(Y->id());
+    REQUIRE(out.size() == 4);
 }
 
 TEST_CASE(
