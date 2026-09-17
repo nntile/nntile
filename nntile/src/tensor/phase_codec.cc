@@ -16,12 +16,14 @@
 
 #include <nntile/defs.h>
 #include <nntile/dtype.hh>
+#include <nntile/tensor.hh>
 #include <nntile/tensor/graph.hh>
 #ifdef NNTILE_TORCH_NATIVE_OPS
 #include <nntile/tensor/ops/torch_dispatch.hh>
 #endif
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <stdexcept>
 #include <string>
@@ -95,6 +97,11 @@ nlohmann::json encode_node(TensorGraph::TensorNode const &node)
     };
 }
 
+nlohmann::json encode_index_pair(std::array<Index, 2> const &v)
+{
+    return nlohmann::json::array({v[0], v[1]});
+}
+
 nlohmann::json encode_op_attrs(
     [[maybe_unused]] TensorGraph::OpNode const &op)
 {
@@ -116,6 +123,389 @@ nlohmann::json encode_op_attrs(
         return attrs;
     }
 #endif
+    if (auto const *o = dynamic_cast<TensorAddOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["beta"] = o->beta;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorAddInplaceOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["beta"] = o->beta;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorAddFiberOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["beta"] = o->beta;
+        attrs["axis"] = o->axis;
+        attrs["batch_ndim"] = o->batch_ndim;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorAddFiberInplaceOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["beta"] = o->beta;
+        attrs["axis"] = o->axis;
+        attrs["batch_ndim"] = o->batch_ndim;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorAddSliceOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["beta"] = o->beta;
+        attrs["axis"] = o->axis;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorAddSliceInplaceOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["beta"] = o->beta;
+        attrs["axis"] = o->axis;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorAdamStepOp const *>(&op))
+    {
+        attrs["num_iter"] = o->num_iter;
+        attrs["beta_1"] = o->beta_1;
+        attrs["beta_2"] = o->beta_2;
+        attrs["eps"] = o->eps;
+        attrs["lr"] = o->lr;
+        attrs["weight_decay"] = o->weight_decay;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorAdamwStepOp const *>(&op))
+    {
+        attrs["num_iter"] = o->num_iter;
+        attrs["beta_1"] = o->beta_1;
+        attrs["beta_2"] = o->beta_2;
+        attrs["eps"] = o->eps;
+        attrs["lr"] = o->lr;
+        attrs["weight_decay"] = o->weight_decay;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorSgdStepOp const *>(&op))
+    {
+        attrs["num_iter"] = o->num_iter;
+        attrs["momentum"] = o->momentum;
+        attrs["lr"] = o->lr;
+        attrs["weight_decay"] = o->weight_decay;
+        attrs["dampening"] = o->dampening;
+        attrs["nesterov"] = o->nesterov;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorConcatOp const *>(&op))
+    {
+        attrs["axis"] = o->axis;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorConv2dInplaceOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["beta"] = o->beta;
+        attrs["padding"] = encode_index_pair(o->padding);
+        attrs["stride"] = encode_index_pair(o->stride);
+        attrs["dilation"] = encode_index_pair(o->dilation);
+        return attrs;
+    }
+    if (auto const *o =
+            dynamic_cast<TensorConv2dBwdInputInplaceOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["beta"] = o->beta;
+        attrs["padding"] = encode_index_pair(o->padding);
+        attrs["stride"] = encode_index_pair(o->stride);
+        attrs["dilation"] = encode_index_pair(o->dilation);
+        return attrs;
+    }
+    if (auto const *o =
+            dynamic_cast<TensorConv2dBwdWeightInplaceOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["beta"] = o->beta;
+        attrs["padding"] = encode_index_pair(o->padding);
+        attrs["stride"] = encode_index_pair(o->stride);
+        attrs["dilation"] = encode_index_pair(o->dilation);
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorCopyIntersectionOp const *>(&op))
+    {
+        attrs["src_offset"] = o->src_offset;
+        attrs["dst_offset"] = o->dst_offset;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorEmbeddingOp const *>(&op))
+    {
+        attrs["axis"] = o->axis;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorEmbeddingBackwardOp const *>(&op))
+    {
+        attrs["axis"] = o->axis;
+        attrs["alpha"] = o->alpha;
+        attrs["beta"] = o->beta;
+        attrs["redux"] = o->redux;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorFillOp const *>(&op))
+    {
+        attrs["val"] = o->val;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorGeluBackwardOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["beta"] = o->beta;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorGelutanhBackwardOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["beta"] = o->beta;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorReluBackwardOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["beta"] = o->beta;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorSiluBackwardOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["beta"] = o->beta;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorGemmOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["beta"] = o->beta;
+        attrs["trans_a"] = o->trans_a;
+        attrs["trans_b"] = o->trans_b;
+        attrs["ndim"] = o->ndim;
+        attrs["batch_ndim"] = o->batch_ndim;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorHypotOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["beta"] = o->beta;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorHypotInplaceOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["beta"] = o->beta;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorHypotScalarInverseOp const *>(&op))
+    {
+        attrs["eps"] = o->eps;
+        attrs["alpha"] = o->alpha;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorLogScalarOp const *>(&op))
+    {
+        attrs["name"] = o->name;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorMaskScalarOp const *>(&op))
+    {
+        attrs["val"] = o->val;
+        attrs["batch_ndim"] = o->batch_ndim;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorMaxsumexpOp const *>(&op))
+    {
+        attrs["axis"] = o->axis;
+        attrs["beta"] = o->beta;
+        attrs["redux"] = o->redux;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorMultiplyOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorMultiplyInplaceOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorMultiplyFiberOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["axis"] = o->axis;
+        return attrs;
+    }
+    if (auto const *o =
+            dynamic_cast<TensorMultiplyFiberInplaceOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["axis"] = o->axis;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorMultiplySliceOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["axis"] = o->axis;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorNormOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["beta"] = o->beta;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorNormFiberOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["beta"] = o->beta;
+        attrs["axis"] = o->axis;
+        attrs["batch_ndim"] = o->batch_ndim;
+        attrs["redux"] = o->redux;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorNormFiberInplaceOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["beta"] = o->beta;
+        attrs["axis"] = o->axis;
+        attrs["batch_ndim"] = o->batch_ndim;
+        attrs["redux"] = o->redux;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorNormSliceOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["beta"] = o->beta;
+        attrs["axis"] = o->axis;
+        attrs["redux"] = o->redux;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorNormSliceInplaceOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["beta"] = o->beta;
+        attrs["axis"] = o->axis;
+        attrs["redux"] = o->redux;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorPowOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["exp"] = o->exp;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorRandnOp const *>(&op))
+    {
+        attrs["start"] = o->start;
+        attrs["underlying_shape"] = o->underlying_shape;
+        attrs["seed"] = o->seed;
+        attrs["mean"] = o->mean;
+        attrs["stddev"] = o->stddev;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorScaleOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorScaleInplaceOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorScaleFiberOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["axis"] = o->axis;
+        attrs["batch_ndim"] = o->batch_ndim;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorScaleSliceOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["axis"] = o->axis;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorSoftmaxOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["axis"] = o->axis;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorSoftmaxInplaceOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["axis"] = o->axis;
+        return attrs;
+    }
+    if (auto const *o =
+            dynamic_cast<TensorSubtractIndexedOutputsOp const *>(&op))
+    {
+        attrs["val"] = o->val;
+        attrs["ignore_index"] = o->ignore_index;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorSumOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["beta"] = o->beta;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorSumFiberOp const *>(&op))
+    {
+        attrs["axis"] = o->axis;
+        attrs["batch_ndim"] = o->batch_ndim;
+        attrs["redux"] = o->redux;
+        attrs["alpha"] = o->alpha;
+        attrs["beta"] = o->beta;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorSumSliceOp const *>(&op))
+    {
+        attrs["axis"] = o->axis;
+        attrs["redux"] = o->redux;
+        attrs["alpha"] = o->alpha;
+        attrs["beta"] = o->beta;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorSumprodFiberOp const *>(&op))
+    {
+        attrs["axis"] = o->axis;
+        attrs["redux"] = o->redux;
+        attrs["alpha"] = o->alpha;
+        attrs["beta"] = o->beta;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorSumprodSliceOp const *>(&op))
+    {
+        attrs["axis"] = o->axis;
+        attrs["redux"] = o->redux;
+        attrs["alpha"] = o->alpha;
+        attrs["beta"] = o->beta;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorSwapTwoAxesOp const *>(&op))
+    {
+        attrs["dim0"] = o->dim0;
+        attrs["dim1"] = o->dim1;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorTotalSumAccumOp const *>(&op))
+    {
+        attrs["alpha"] = o->alpha;
+        attrs["ignore_index"] = o->ignore_index;
+        return attrs;
+    }
+    if (auto const *o = dynamic_cast<TensorTransposeOp const *>(&op))
+    {
+        attrs["ndim"] = o->ndim;
+        attrs["alpha"] = o->alpha;
+        return attrs;
+    }
     return attrs;
 }
 
