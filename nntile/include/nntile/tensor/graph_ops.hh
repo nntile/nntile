@@ -30,6 +30,7 @@
 #include <nntile/tensor/ops/conv2d_bwd_weight_inplace.hh>
 #include <nntile/tensor/ops/conv2d_inplace.hh>
 #include <nntile/tensor/ops/concat.hh>
+#include <nntile/tensor/ops/contiguous_view.hh>
 #include <nntile/tensor/ops/copy.hh>
 #include <nntile/tensor/ops/copy_intersection.hh>
 #include <nntile/tensor/ops/embedding.hh>
@@ -92,5 +93,6 @@
 #include <nntile/tensor/ops/subtract_indexed_outputs.hh>
 #include <nntile/tensor/ops/sumprod_fiber.hh>
 #include <nntile/tensor/ops/sumprod_slice.hh>
+#include <nntile/tensor/ops/swap_two_axes.hh>
 #include <nntile/tensor/ops/total_sum_accum.hh>
 #include <nntile/tensor/ops/transpose.hh>
