@@ -19,10 +19,14 @@
 #include <nntile/tile.hh>
 #include <nntile/tile/ops/add.hh>
 #include <nntile/tile/ops/add_inplace.hh>
+#include <nntile/tile/ops/copy.hh>
+#include <nntile/tile/ops/embedding.hh>
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <cstdint>
 #include <stdexcept>
+#include <vector>
 
 using namespace nntile;
 namespace tg = nntile::tile;
@@ -86,4 +90,64 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph b("driver_b");
     RuntimeExecutionDriver driver(a);
     REQUIRE_THROWS_AS(driver.submit(b), std::invalid_argument);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "RuntimeExecutionDriver INT64 bind and gather",
+    "[graph][tile][driver]")
+{
+    TileGraph graph("driver_int64");
+    auto *src = graph.data({4}, "src", DataType::INT64);
+    auto *dst = graph.data({4}, "dst", DataType::INT64);
+    tg::copy(src, dst);
+
+    RuntimeExecutionDriver driver(graph);
+    driver.runtime().compile();
+    driver.runtime().bind_data(
+        src, std::vector<std::int64_t>{1, 2, 3, 4});
+    driver.runtime().bind_data(
+        dst, std::vector<std::int64_t>{0, 0, 0, 0});
+    driver.submit(graph);
+    driver.wait();
+    auto const out = driver.runtime().get_output<std::int64_t>(dst);
+    REQUIRE(out == std::vector<std::int64_t>{1, 2, 3, 4});
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "RuntimeExecutionDriver EMBEDDING mixed INT64/FP32",
+    "[graph][tile][driver]")
+{
+    Index const m = 2, n = 2, k = 3, k0 = 0, ks = 3;
+    TileGraph graph("driver_emb");
+    auto *index = graph.data({m, n}, "index", DataType::INT64);
+    auto *vocab = graph.data({ks, 5}, "vocab", DataType::FP32);
+    auto *embed = graph.data({m, k, n}, "embed", DataType::FP32);
+    tg::embedding(m, n, k, k0, ks, index, vocab, embed);
+
+    std::vector<float> voc(15);
+    for (int i = 0; i < 15; ++i)
+    {
+        voc[static_cast<size_t>(i)] = static_cast<float>(i + 1);
+    }
+    RuntimeExecutionDriver driver(graph);
+    driver.runtime().compile();
+    driver.runtime().bind_data(
+        index, std::vector<std::int64_t>{0, 2, 4, 1});
+    driver.runtime().bind_data(vocab, voc);
+    driver.runtime().bind_data(
+        embed, std::vector<float>(12, 0.f));
+    driver.submit(graph);
+    driver.wait();
+    auto const out = driver.runtime().get_output<float>(embed);
+    REQUIRE(out.size() == 12);
+    bool nonzero = false;
+    for (float v : out)
+    {
+        if (v != 0.f)
+        {
+            nonzero = true;
+            break;
+        }
+    }
+    REQUIRE(nonzero);
 }
