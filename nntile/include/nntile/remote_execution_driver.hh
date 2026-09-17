@@ -30,6 +30,9 @@ namespace nntile
 //! Socket path: ``NNTILE_DRIVER_SOCKET`` or ``/tmp/nntile-driver.sock``.
 std::string default_driver_socket_path();
 
+//! Unix-socket group (``nntile-ops``). Mode stays 0600.
+char const *driver_socket_group_name();
+
 //! Client of ``nntile-executiond``. bind() before submit() is queued
 //! into the Submit payload; bind() after submit() is a Bind message.
 //! StarPU stays in the daemon process.
@@ -60,7 +63,8 @@ class RemoteExecutionDriver : public ExecutionDriver
     std::unordered_map<TileGraph::NodeId, std::vector<float>> pending_bind_;
 };
 
-//! Listen on a Unix socket (mode 0600) and run RuntimeExecutionDriver.
+//! Listen on a Unix socket (mode 0600, group ``nntile-ops`` when
+//! present) and keep one RuntimeExecutionDriver for the connection.
 class ExecutionDaemon
 {
   public:
