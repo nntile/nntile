@@ -57,13 +57,28 @@ class RemoteExecutionDriver : public ExecutionDriver
     void bind(
         TileGraph::NodeId id, std::vector<float> const &data);
 
+    void bind_int64(
+        TileGraph::NodeId id, std::vector<std::int64_t> const &data);
+
+    void bind_bool(
+        TileGraph::NodeId id, std::vector<std::uint8_t> const &data);
+
     std::vector<float> gather(TileGraph::NodeId id);
+
+    std::vector<std::int64_t> gather_int64(TileGraph::NodeId id);
+
+    std::vector<std::uint8_t> gather_bool(TileGraph::NodeId id);
 
   private:
     std::string path_;
     int fd_ = -1;
     bool submitted_ = false;
-    std::unordered_map<TileGraph::NodeId, std::vector<float>> pending_bind_;
+    std::unordered_map<TileGraph::NodeId, std::vector<float>>
+        pending_bind_;
+    std::unordered_map<TileGraph::NodeId, std::vector<std::int64_t>>
+        pending_bind_i64_;
+    std::unordered_map<TileGraph::NodeId, std::vector<std::uint8_t>>
+        pending_bind_bool_;
 };
 
 //! Listen on a Unix socket (mode 0600, group ``nntile-ops`` when
