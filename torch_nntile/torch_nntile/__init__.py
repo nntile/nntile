@@ -102,17 +102,34 @@ _register_backend()
 device = torch.device("nntile")
 
 # Opt-in local TensorGraph → TileGraph compiler (Dana). Platform kernels
-# leave this unset so public compile_graph() fails by default.
+# leave this unset so compile_graph(), execute(), and .to("cpu") auto-flush
+# fail by default.
 _LOCAL_COMPILER_ENV = "NNTILE_ENABLE_LOCAL_COMPILER"
+_LOCAL_COMPILER_DISABLED_MSG = (
+    "TensorGraph compilation is disabled by default. "
+    "Set NNTILE_ENABLE_LOCAL_COMPILER=1 or use the NNTile "
+    "platform."
+)
 
 
 def local_compiler_enabled() -> bool:
-    """Return whether public :func:`compile_graph` may lower a TensorGraph.
+    """Return whether this process may lower a TensorGraph locally.
 
     Requires ``NNTILE_ENABLE_LOCAL_COMPILER=1``. Any other value, including
-    unset, keeps the local compiler off.
+    unset, keeps the local compiler off. Gates public :func:`compile_graph`,
+    legacy :func:`execute`, and C++ ``.to("cpu")`` auto-flush.
     """
     return os.environ.get(_LOCAL_COMPILER_ENV, "") == "1"
+
+
+def _require_local_compiler() -> None:
+    if _C.platform_session_active():
+        raise RuntimeError(
+            "the server compiles; use .to('cpu') or torch_nntile.wait() "
+            "(local compile is disabled on the platform)"
+        )
+    if not local_compiler_enabled():
+        raise RuntimeError(_LOCAL_COMPILER_DISABLED_MSG)
 
 
 def init_context(
@@ -134,8 +151,8 @@ def init_context(
     Ingresses bytes and ``.to("cpu")`` Flushes the recorded TensorGraph.
 
     Otherwise records ops into a shared TensorGraph; call
-    :func:`compile_graph` (requires ``NNTILE_ENABLE_LOCAL_COMPILER=1``)
-    and :func:`run` to compile and execute the pending graph.
+    :func:`compile_graph` or :func:`execute` (both require
+    ``NNTILE_ENABLE_LOCAL_COMPILER=1``) to compile on this process.
 
     ``cpu_fallback`` defaults to False: unregistered aten ops raise
     instead of silently copying nntile tensors to CPU. Move data only
@@ -167,12 +184,11 @@ def execute() -> None:
 
     Equivalent to :func:`compile_graph` then :func:`run`. Call :func:`wait`
     to synchronize and reclaim. Prefer the split API in training loops.
+
+    Off by default: same ``NNTILE_ENABLE_LOCAL_COMPILER=1`` gate as
+    :func:`compile_graph`.
     """
-    if _C.platform_session_active():
-        raise RuntimeError(
-            "the server compiles; use .to('cpu') or torch_nntile.wait() "
-            "(local compile is disabled on the platform)"
-        )
+    _require_local_compiler()
     _C.execute()
 
 
@@ -182,23 +198,14 @@ def compile_graph() -> None:
     Off by default. Set ``NNTILE_ENABLE_LOCAL_COMPILER=1`` to compile
     locally (researcher on their own box). Without that exact value this
     raises ``RuntimeError``; use the NNTile platform to compile on a
-    shared node.
+    shared node. Legacy :func:`execute` and host ``.to("cpu")`` auto-flush
+    use the same gate so a shared-node kernel cannot lower locally.
 
     Does **not** wait for a prior :func:`run`. The next phase may be sealed
     and submitted while StarPU is still executing an earlier phase; call
     :func:`wait` when host-side results or reclaim are required.
     """
-    if _C.platform_session_active():
-        raise RuntimeError(
-            "the server compiles; use .to('cpu') or torch_nntile.wait() "
-            "(local compile is disabled on the platform)"
-        )
-    if not local_compiler_enabled():
-        raise RuntimeError(
-            "TensorGraph compilation is disabled by default. "
-            "Set NNTILE_ENABLE_LOCAL_COMPILER=1 or use the NNTile "
-            "platform."
-        )
+    _require_local_compiler()
     _C.compile_graph()
 
 

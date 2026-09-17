@@ -234,6 +234,26 @@ void throw_if_platform_compile_locked()
         "use .to('cpu') or wait()");
 }
 
+//! Read each time: tests monkeypatch the env; do not cache.
+bool local_compiler_enabled()
+{
+    char const *env = std::getenv("NNTILE_ENABLE_LOCAL_COMPILER");
+    return env != nullptr && std::strcmp(env, "1") == 0;
+}
+
+void throw_if_local_compiler_disabled_locked()
+{
+    throw_if_platform_compile_locked();
+    if (local_compiler_enabled())
+    {
+        return;
+    }
+    throw std::runtime_error(
+        "TensorGraph compilation is disabled by default. "
+        "Set NNTILE_ENABLE_LOCAL_COMPILER=1 or use the NNTile "
+        "platform.");
+}
+
 std::string platform_dtype_name(nntile::DataType dtype)
 {
     switch (dtype)
@@ -1166,7 +1186,7 @@ void gc_dead_data_nodes_locked()
 
 void compile_graph_locked()
 {
-    throw_if_platform_compile_locked();
+    throw_if_local_compiler_disabled_locked();
     // Do not wait for a prior async run(): sealing / lowering the next
     // phase while StarPU still executes the previous one is allowed.
     // Unmarked phase temps become TensorGraph INVALIDATE ops (async submit).
@@ -1382,7 +1402,7 @@ void sync_param_grad_aliases_locked()
 
 void execute_pending_graph_locked()
 {
-    throw_if_platform_compile_locked();
+    throw_if_local_compiler_disabled_locked();
     // compile + run only. Never wait here - callers must use wait() /
     // wait_graph_session() (same contract as compile_graph + run).
     compile_graph_locked();

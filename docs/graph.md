@@ -45,9 +45,8 @@ libnntile holds the compute IR and executor.
    workers.
 
 Python helpers: `torch_nntile.compile_graph()`, `run()`, `wait()`.
-`compile_graph()` requires `NNTILE_ENABLE_LOCAL_COMPILER=1` (off by
-default). Legacy `execute()` is compile + run. Host `.to("cpu")` may
-auto-flush pending work.
+Local lower (`compile_graph()`, legacy `execute()`, host `.to("cpu")`
+auto-flush) requires `NNTILE_ENABLE_LOCAL_COMPILER=1` (off by default).
 
 `nntile::RemoteExecutionDriver` submits an already-lowered `TileGraph`
 over `NNTILE_DRIVER_SOCKET` (mode 0600). StarPU stays in
