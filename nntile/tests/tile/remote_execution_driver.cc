@@ -26,6 +26,10 @@
 #include <nntile/tile/ops/gemm.hh>
 #include <nntile/tile/ops/multiply.hh>
 #include <nntile/tile/ops/relu.hh>
+#include <nntile/tile/ops/unregister.hh>
+#ifdef NNTILE_TORCH_NATIVE_OPS
+#include <nntile/tile/ops/torch_dispatch.hh>
+#endif
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
@@ -210,4 +214,87 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         driver.gather(y->id()), {4.f, 6.f});
     nntile::test::require_relative_element_error(
         driver.gather(z->id()), {4.f, 6.f});
+}
+
+#ifdef NNTILE_TORCH_NATIVE_OPS
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "RemoteExecutionDriver TILE_TORCH v1 kinds",
+    "[graph][tile][driver][remote]")
+{
+    std::string const path = test_socket_path("torch");
+    ExecutionDaemon daemon(path);
+    daemon.start();
+    RemoteExecutionDriver driver(path);
+
+    TileGraph graph("driver_remote_torch");
+    auto *x = graph.data({2, 2}, "x", DataType::FP32);
+    auto *y = graph.data({2, 2}, "y", DataType::FP32);
+    auto *add_out = graph.data({2, 2}, "add", DataType::FP32);
+    auto *relu_out = graph.data({2, 2}, "relu", DataType::FP32);
+    auto *bias = graph.data({2}, "bias", DataType::FP32);
+    auto *lin_out = graph.data({2, 2}, "lin", DataType::FP32);
+    tg::torch_binary(
+        starpu::TorchKind::Add, x, y, add_out);
+    tg::torch_unary(
+        starpu::TorchKind::Relu, x, relu_out);
+    tg::torch_ternary(
+        starpu::TorchKind::Linear, x, y, bias, lin_out);
+
+    driver.bind(x->id(), {1, -2, 3, -4});
+    driver.bind(y->id(), {1, 1, 1, 1});
+    driver.bind(bias->id(), {0.5f, -0.5f});
+    driver.submit(graph);
+    driver.wait();
+    nntile::test::require_relative_element_error(
+        driver.gather(add_out->id()), {2.f, -1.f, 4.f, -3.f});
+    nntile::test::require_relative_element_error(
+        driver.gather(relu_out->id()), {1.f, 0.f, 3.f, 0.f});
+    auto const lin = driver.gather(lin_out->id());
+    REQUIRE(lin.size() == 4);
+}
+#endif
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "RemoteExecutionDriver TILE_UNREGISTER",
+    "[graph][tile][driver][remote]")
+{
+    std::string const path = test_socket_path("unreg");
+    ExecutionDaemon daemon(path);
+    daemon.start();
+
+    TileGraph graph("driver_remote_unreg");
+    auto *x = graph.data({4}, "x", DataType::FP32);
+    auto *y = graph.data({4}, "y", DataType::FP32);
+    tg::fill(Scalar(1.0), x);
+    tg::copy(x, y);
+    tg::unregister(x);
+
+    RemoteExecutionDriver driver(path);
+    driver.bind(x->id(), {0, 0, 0, 0});
+    driver.bind(y->id(), {0, 0, 0, 0});
+    driver.submit(graph);
+    driver.wait();
+    nntile::test::require_relative_element_error(
+        driver.gather(y->id()), {1.f, 1.f, 1.f, 1.f});
+}
+
+TEST_CASE(
+    "ExecutionDaemon inits StarPU when none exists",
+    "[graph][tile][driver][remote]")
+{
+    std::string const path = test_socket_path("nocontext");
+    ExecutionDaemon daemon(path);
+    daemon.start();
+    require_socket_acl(path);
+
+    TileGraph graph("driver_remote_nocontext");
+    auto *x = graph.data({4}, "x", DataType::FP32);
+    tg::fill(Scalar(2.0), x);
+
+    RemoteExecutionDriver driver(path);
+    driver.bind(x->id(), {0, 0, 0, 0});
+    driver.submit(graph);
+    driver.wait();
+    nntile::test::require_relative_element_error(
+        driver.gather(x->id()), {2.f, 2.f, 2.f, 2.f});
 }

@@ -19,6 +19,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -26,6 +27,8 @@
 
 namespace nntile
 {
+
+class Context;
 
 //! Socket path: ``NNTILE_DRIVER_SOCKET`` or ``/tmp/nntile-driver.sock``.
 std::string default_driver_socket_path();
@@ -91,6 +94,9 @@ class ExecutionDaemon
     int listen_fd_ = -1;
     std::atomic<bool> stop_{false};
     std::thread thread_;
+    //! Owned only when this process had no Context yet (production
+    //! ``executiond``). C++ tests use ContextFixture and leave this null.
+    std::unique_ptr<Context> ctx_;
 };
 
 } // namespace nntile

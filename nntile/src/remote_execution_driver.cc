@@ -14,6 +14,7 @@
 
 #include <nntile/remote_execution_driver.hh>
 
+#include <nntile/context.hh>
 #include <nntile/dtype.hh>
 #include <nntile/tile/ops/add.hh>
 #include <nntile/tile/ops/add_inplace.hh>
@@ -24,6 +25,10 @@
 #include <nntile/tile/ops/gemm.hh>
 #include <nntile/tile/ops/multiply.hh>
 #include <nntile/tile/ops/relu.hh>
+#include <nntile/tile/ops/unregister.hh>
+#ifdef NNTILE_TORCH_NATIVE_OPS
+#include <nntile/tile/ops/torch_dispatch.hh>
+#endif
 
 #include <arpa/inet.h>
 #include <grp.h>
@@ -36,6 +41,7 @@
 
 #include <cerrno>
 #include <chrono>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <memory>
@@ -165,6 +171,58 @@ void require_min(
     }
 }
 
+#ifdef NNTILE_TORCH_NATIVE_OPS
+nlohmann::json encode_torch_extra(
+    starpu::TorchKind kind,
+    starpu::TorchDispatchArgs const &extra)
+{
+    nlohmann::json attrs = nlohmann::json::object();
+    attrs["kind"] = static_cast<std::int32_t>(kind);
+    attrs["n_in"] = extra.n_in;
+    attrs["n_out"] = extra.n_out;
+    nlohmann::json scalars = nlohmann::json::array();
+    for (int i = 0; i < 4; ++i)
+    {
+        scalars.push_back(extra.scalars[i]);
+    }
+    attrs["scalars"] = std::move(scalars);
+    nlohmann::json iargs = nlohmann::json::array();
+    for (int i = 0; i < 16; ++i)
+    {
+        iargs.push_back(extra.iargs[i]);
+    }
+    attrs["iargs"] = std::move(iargs);
+    return attrs;
+}
+
+starpu::TorchDispatchArgs decode_torch_extra(
+    nlohmann::json const &attrs)
+{
+    starpu::TorchDispatchArgs extra{};
+    extra.kind = static_cast<starpu::TorchKind>(
+        attrs.value("kind", 0));
+    extra.n_in = static_cast<Index>(attrs.value("n_in", 0));
+    extra.n_out = static_cast<Index>(attrs.value("n_out", 1));
+    if (attrs.contains("scalars") && attrs["scalars"].is_array())
+    {
+        auto const &s = attrs["scalars"];
+        for (size_t i = 0; i < s.size() && i < 4; ++i)
+        {
+            extra.scalars[i] = s.at(i).get<Scalar>();
+        }
+    }
+    if (attrs.contains("iargs") && attrs["iargs"].is_array())
+    {
+        auto const &a = attrs["iargs"];
+        for (size_t i = 0; i < a.size() && i < 16; ++i)
+        {
+            extra.iargs[i] = a.at(i).get<Index>();
+        }
+    }
+    return extra;
+}
+#endif
+
 nlohmann::json encode_attrs(TileGraph::OpNode const &op)
 {
     nlohmann::json attrs = nlohmann::json::object();
@@ -254,10 +312,43 @@ nlohmann::json encode_attrs(TileGraph::OpNode const &op)
         attrs["dst_offset"] = copy->dst_offset;
         return attrs;
     }
-    if (name == "TILE_RELU" || name == "TILE_COPY")
+    if (name == "TILE_RELU" || name == "TILE_COPY" ||
+        name == "TILE_UNREGISTER")
     {
         return attrs;
     }
+#ifdef NNTILE_TORCH_NATIVE_OPS
+    if (name == "TILE_TORCH_UNARY")
+    {
+        auto const *u =
+            dynamic_cast<tile::TileTorchUnaryOp const *>(&op);
+        if (u == nullptr)
+        {
+            throw std::runtime_error("UnknownOp: TILE_TORCH_UNARY");
+        }
+        return encode_torch_extra(u->kind, u->extra);
+    }
+    if (name == "TILE_TORCH_BINARY")
+    {
+        auto const *b =
+            dynamic_cast<tile::TileTorchBinaryOp const *>(&op);
+        if (b == nullptr)
+        {
+            throw std::runtime_error("UnknownOp: TILE_TORCH_BINARY");
+        }
+        return encode_torch_extra(b->kind, b->extra);
+    }
+    if (name == "TILE_TORCH_TERNARY")
+    {
+        auto const *t =
+            dynamic_cast<tile::TileTorchTernaryOp const *>(&op);
+        if (t == nullptr)
+        {
+            throw std::runtime_error("UnknownOp: TILE_TORCH_TERNARY");
+        }
+        return encode_torch_extra(t->kind, t->extra);
+    }
+#endif
     throw std::runtime_error("UnknownOp: " + name);
 }
 
@@ -489,6 +580,70 @@ void apply_op(TileGraph &graph, nlohmann::json const &op)
             src, src_off, dst, dst_off, scratch);
         return;
     }
+    if (name == "TILE_UNREGISTER")
+    {
+        require_min(inputs, 1, "TILE_UNREGISTER inputs");
+        tile::unregister(
+            node_by_id(
+                graph, inputs.at(0).get<TileGraph::NodeId>()));
+        return;
+    }
+#ifdef NNTILE_TORCH_NATIVE_OPS
+    if (name == "TILE_TORCH_UNARY")
+    {
+        require_min(inputs, 1, "TILE_TORCH_UNARY inputs");
+        require_min(outputs, 1, "TILE_TORCH_UNARY outputs");
+        auto extra = decode_torch_extra(attrs);
+        extra.kind = static_cast<starpu::TorchKind>(
+            attrs.value("kind", 0));
+        tile::torch_unary(
+            extra.kind,
+            node_by_id(
+                graph, inputs.at(0).get<TileGraph::NodeId>()),
+            node_by_id(
+                graph, outputs.at(0).get<TileGraph::NodeId>()),
+            extra);
+        return;
+    }
+    if (name == "TILE_TORCH_BINARY")
+    {
+        require_min(inputs, 2, "TILE_TORCH_BINARY inputs");
+        require_min(outputs, 1, "TILE_TORCH_BINARY outputs");
+        auto extra = decode_torch_extra(attrs);
+        extra.kind = static_cast<starpu::TorchKind>(
+            attrs.value("kind", 0));
+        tile::torch_binary(
+            extra.kind,
+            node_by_id(
+                graph, inputs.at(0).get<TileGraph::NodeId>()),
+            node_by_id(
+                graph, inputs.at(1).get<TileGraph::NodeId>()),
+            node_by_id(
+                graph, outputs.at(0).get<TileGraph::NodeId>()),
+            extra);
+        return;
+    }
+    if (name == "TILE_TORCH_TERNARY")
+    {
+        require_min(inputs, 3, "TILE_TORCH_TERNARY inputs");
+        require_min(outputs, 1, "TILE_TORCH_TERNARY outputs");
+        auto extra = decode_torch_extra(attrs);
+        extra.kind = static_cast<starpu::TorchKind>(
+            attrs.value("kind", 0));
+        tile::torch_ternary(
+            extra.kind,
+            node_by_id(
+                graph, inputs.at(0).get<TileGraph::NodeId>()),
+            node_by_id(
+                graph, inputs.at(1).get<TileGraph::NodeId>()),
+            node_by_id(
+                graph, inputs.at(2).get<TileGraph::NodeId>()),
+            node_by_id(
+                graph, outputs.at(0).get<TileGraph::NodeId>()),
+            extra);
+        return;
+    }
+#endif
     throw std::runtime_error("UnknownOp: " + name);
 }
 
@@ -931,6 +1086,12 @@ void ExecutionDaemon::start()
     {
         throw std::runtime_error("ExecutionDaemon already started");
     }
+    // Production ``executiond`` has no ContextFixture. Skip if this
+    // process already inited StarPU (C++ tests).
+    if (!starpu_is_initialized())
+    {
+        ctx_ = std::make_unique<Context>(-1, -1, 0);
+    }
     stop_ = false;
     listen_fd_ = listen_unix(path_);
     thread_ = std::thread([this]() { run(); });
@@ -950,6 +1111,7 @@ void ExecutionDaemon::stop()
         thread_.join();
     }
     ::unlink(path_.c_str());
+    ctx_.reset();
 }
 
 void ExecutionDaemon::run()
