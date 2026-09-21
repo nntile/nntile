@@ -6,24 +6,33 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/randn.hh
- * Randn low-level kernels
+ * @file include/nntile/kernel/randn/cuda.hh
+ * Randn operation on CUDA
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-#include <nntile/kernel/randn/cpu.hh>
-#include <nntile/defs.h>
-#ifdef NNTILE_USE_CUDA
-#include <nntile/kernel/randn/cuda.hh>
-#endif // NNTILE_USE_CUDA
+#include <nntile/base_types.hh>
+#include <cuda_runtime.h>
 
-//! @namespace nntile::kernel::randn
-/*! Low-level implementations of Randn operation
- * */
 namespace nntile::kernel::randn
 {
+
+template<typename T>
+void cuda(
+    cudaStream_t stream,
+    Index ndim,
+    Index nelems,
+    unsigned long long seed,
+    Scalar mean,
+    Scalar stddev,
+    const Index *start,
+    const Index *shape,
+    const Index *underlying_shape,
+    T *data,
+    const Index *stride
+) noexcept;
 
 } // namespace nntile::kernel::randn
