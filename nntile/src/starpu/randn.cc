@@ -23,6 +23,10 @@
 #include "nntile/kernel/randn.hh"
 #include "nntile/starpu/config.hh"
 
+#ifdef NNTILE_USE_CUDA
+#include <starpu_cuda.h>
+#endif
+
 namespace nntile::starpu
 {
 
@@ -68,6 +72,61 @@ void Randn<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     );
 #endif // STARPU_SIMGRID
 }
+
+#ifdef NNTILE_USE_CUDA
+//! StarPU wrapper for kernel::randn::cuda<T>
+template<typename T>
+void Randn<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+#ifndef STARPU_SIMGRID
+    const Index *ndim_ptr, *nelems_ptr, *start, *shape, *stride,
+          *underlying_shape;
+    const unsigned long long *seed_ptr;
+    const Scalar *mean_ptr, *stddev_ptr;
+    Config::unpack_args_ptr(cl_args, ndim_ptr, nelems_ptr, seed_ptr, mean_ptr,
+            stddev_ptr, start, shape, stride, underlying_shape);
+    Index ndim = *ndim_ptr;
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+    T *data = interfaces[0]->get_ptr<T>();
+    cudaStream_t stream = starpu_cuda_get_local_stream();
+    kernel::randn::cuda<T>(
+        stream,
+        ndim,
+        *nelems_ptr,
+        *seed_ptr,
+        *mean_ptr,
+        *stddev_ptr,
+        start,
+        shape,
+        underlying_shape,
+        data,
+        stride
+    );
+#endif // STARPU_SIMGRID
+}
+
+template<>
+void Randn<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    Randn<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Randn<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    Randn<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Randn<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    Randn<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for randn tasks that depend on shape
 template<typename T>

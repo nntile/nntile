@@ -31,14 +31,12 @@
 // Other NNTile headers
 #include "nntile/logger.hh"
 #include "nntile/starpu/handle.hh"
+#include "nntile/starpu.hh"
+#include "nntile/starpu/norm.hh"
+#include "nntile/starpu/sgd_step.hh"
+#include "nntile/starpu/swap_two_axes.hh"
 #ifdef NNTILE_TORCH_NATIVE_OPS
-#   include "nntile/starpu/clear.hh"
-#   include "nntile/starpu/copy.hh"
-#   include "nntile/starpu/fill.hh"
-#   include "nntile/starpu/subcopy.hh"
 #   include "nntile/starpu/torch_dispatch.hh"
-#else
-#   include "nntile/starpu.hh"
 #endif
 
 namespace nntile
@@ -337,32 +335,6 @@ void Context::shutdown()
 void Context::restrict_cpu()
 {
     using namespace nntile::starpu;
-#ifdef NNTILE_TORCH_NATIVE_OPS
-    clear.codelet.restrict_where(STARPU_CPU);
-    copy.codelet.restrict_where(STARPU_CPU);
-    fill.restrict_where(STARPU_CPU);
-    subcopy.restrict_where(STARPU_CPU);
-    torch_unary.restrict_where(STARPU_CPU);
-    torch_binary.restrict_where(STARPU_CPU);
-    torch_ternary.restrict_where(STARPU_CPU);
-    torch_embedding.codelet.restrict_where(STARPU_CPU);
-    torch_embedding_dense_backward.codelet.restrict_where(STARPU_CPU);
-    torch_convolution.codelet.restrict_where(STARPU_CPU);
-    torch_convolution_backward.codelet.restrict_where(STARPU_CPU);
-    torch_max_pool2d_with_indices.codelet.restrict_where(STARPU_CPU);
-    torch_max_pool2d_with_indices_backward.codelet.restrict_where(STARPU_CPU);
-    torch_native_batch_norm.codelet.restrict_where(STARPU_CPU);
-    torch_native_batch_norm_backward.codelet.restrict_where(STARPU_CPU);
-    torch_sdpa_backward.codelet.restrict_where(STARPU_CPU);
-    torch_nll_loss_forward.codelet.restrict_where(STARPU_CPU);
-    torch_nll_loss_backward.codelet.restrict_where(STARPU_CPU);
-    torch_cat.codelet.restrict_where(STARPU_CPU);
-    torch_where.codelet.restrict_where(STARPU_CPU);
-    torch_arange.codelet.restrict_where(STARPU_CPU);
-    torch_gt.codelet.restrict_where(STARPU_CPU);
-    torch_i64_unary.codelet.restrict_where(STARPU_CPU);
-    torch_cast.codelet.restrict_where(STARPU_CPU);
-#else
     accumulate.restrict_where(STARPU_CPU);
     accumulate_hypot.restrict_where(STARPU_CPU);
     accumulate_maxsumexp.restrict_where(STARPU_CPU);
@@ -426,6 +398,37 @@ void Context::restrict_cpu()
     total_sum_accum.restrict_where(STARPU_CPU);
     transpose.restrict_where(STARPU_CPU);
     isfinite.restrict_where(STARPU_CPU);
+    gelu.restrict_where(STARPU_CPU);
+    hypot.restrict_where(STARPU_CPU);
+    scale_fiber.restrict_where(STARPU_CPU);
+    scale_slice.restrict_where(STARPU_CPU);
+    sum.restrict_where(STARPU_CPU);
+    norm.restrict_where(STARPU_CPU);
+    norm_fiber_inplace.restrict_where(STARPU_CPU);
+    norm_slice.restrict_where(STARPU_CPU);
+    sgd_step.restrict_where(STARPU_CPU);
+    swap_two_axes.restrict_where(STARPU_CPU);
+#ifdef NNTILE_TORCH_NATIVE_OPS
+    torch_unary.restrict_where(STARPU_CPU);
+    torch_binary.restrict_where(STARPU_CPU);
+    torch_ternary.restrict_where(STARPU_CPU);
+    torch_embedding.codelet.restrict_where(STARPU_CPU);
+    torch_embedding_dense_backward.codelet.restrict_where(STARPU_CPU);
+    torch_convolution.codelet.restrict_where(STARPU_CPU);
+    torch_convolution_backward.codelet.restrict_where(STARPU_CPU);
+    torch_max_pool2d_with_indices.codelet.restrict_where(STARPU_CPU);
+    torch_max_pool2d_with_indices_backward.codelet.restrict_where(STARPU_CPU);
+    torch_native_batch_norm.codelet.restrict_where(STARPU_CPU);
+    torch_native_batch_norm_backward.codelet.restrict_where(STARPU_CPU);
+    torch_sdpa_backward.codelet.restrict_where(STARPU_CPU);
+    torch_nll_loss_forward.codelet.restrict_where(STARPU_CPU);
+    torch_nll_loss_backward.codelet.restrict_where(STARPU_CPU);
+    torch_cat.codelet.restrict_where(STARPU_CPU);
+    torch_where.codelet.restrict_where(STARPU_CPU);
+    torch_arange.codelet.restrict_where(STARPU_CPU);
+    torch_gt.codelet.restrict_where(STARPU_CPU);
+    torch_i64_unary.codelet.restrict_where(STARPU_CPU);
+    torch_cast.codelet.restrict_where(STARPU_CPU);
 #endif
 }
 
@@ -433,32 +436,6 @@ void Context::restrict_cpu()
 void Context::restrict_cuda()
 {
     using namespace nntile::starpu;
-#ifdef NNTILE_TORCH_NATIVE_OPS
-    clear.codelet.restrict_where(STARPU_CUDA);
-    copy.codelet.restrict_where(STARPU_CUDA);
-    fill.restrict_where(STARPU_CUDA);
-    subcopy.restrict_where(STARPU_CUDA);
-    torch_unary.restrict_where(STARPU_CUDA);
-    torch_binary.restrict_where(STARPU_CUDA);
-    torch_ternary.restrict_where(STARPU_CUDA);
-    torch_embedding.codelet.restrict_where(STARPU_CUDA);
-    torch_embedding_dense_backward.codelet.restrict_where(STARPU_CUDA);
-    torch_convolution.codelet.restrict_where(STARPU_CUDA);
-    torch_convolution_backward.codelet.restrict_where(STARPU_CUDA);
-    torch_max_pool2d_with_indices.codelet.restrict_where(STARPU_CUDA);
-    torch_max_pool2d_with_indices_backward.codelet.restrict_where(STARPU_CUDA);
-    torch_native_batch_norm.codelet.restrict_where(STARPU_CUDA);
-    torch_native_batch_norm_backward.codelet.restrict_where(STARPU_CUDA);
-    torch_sdpa_backward.codelet.restrict_where(STARPU_CUDA);
-    torch_nll_loss_forward.codelet.restrict_where(STARPU_CUDA);
-    torch_nll_loss_backward.codelet.restrict_where(STARPU_CUDA);
-    torch_cat.codelet.restrict_where(STARPU_CUDA);
-    torch_where.codelet.restrict_where(STARPU_CUDA);
-    torch_arange.codelet.restrict_where(STARPU_CUDA);
-    torch_gt.codelet.restrict_where(STARPU_CUDA);
-    torch_i64_unary.codelet.restrict_where(STARPU_CUDA);
-    torch_cast.codelet.restrict_where(STARPU_CUDA);
-#else
     accumulate.restrict_where(STARPU_CUDA);
     accumulate_hypot.restrict_where(STARPU_CUDA);
     accumulate_maxsumexp.restrict_where(STARPU_CUDA);
@@ -522,6 +499,37 @@ void Context::restrict_cuda()
     total_sum_accum.restrict_where(STARPU_CUDA);
     transpose.restrict_where(STARPU_CUDA);
     isfinite.restrict_where(STARPU_CUDA);
+    gelu.restrict_where(STARPU_CUDA);
+    hypot.restrict_where(STARPU_CUDA);
+    scale_fiber.restrict_where(STARPU_CUDA);
+    scale_slice.restrict_where(STARPU_CUDA);
+    sum.restrict_where(STARPU_CUDA);
+    norm.restrict_where(STARPU_CUDA);
+    norm_fiber_inplace.restrict_where(STARPU_CUDA);
+    norm_slice.restrict_where(STARPU_CUDA);
+    sgd_step.restrict_where(STARPU_CUDA);
+    swap_two_axes.restrict_where(STARPU_CUDA);
+#ifdef NNTILE_TORCH_NATIVE_OPS
+    torch_unary.restrict_where(STARPU_CUDA);
+    torch_binary.restrict_where(STARPU_CUDA);
+    torch_ternary.restrict_where(STARPU_CUDA);
+    torch_embedding.codelet.restrict_where(STARPU_CUDA);
+    torch_embedding_dense_backward.codelet.restrict_where(STARPU_CUDA);
+    torch_convolution.codelet.restrict_where(STARPU_CUDA);
+    torch_convolution_backward.codelet.restrict_where(STARPU_CUDA);
+    torch_max_pool2d_with_indices.codelet.restrict_where(STARPU_CUDA);
+    torch_max_pool2d_with_indices_backward.codelet.restrict_where(STARPU_CUDA);
+    torch_native_batch_norm.codelet.restrict_where(STARPU_CUDA);
+    torch_native_batch_norm_backward.codelet.restrict_where(STARPU_CUDA);
+    torch_sdpa_backward.codelet.restrict_where(STARPU_CUDA);
+    torch_nll_loss_forward.codelet.restrict_where(STARPU_CUDA);
+    torch_nll_loss_backward.codelet.restrict_where(STARPU_CUDA);
+    torch_cat.codelet.restrict_where(STARPU_CUDA);
+    torch_where.codelet.restrict_where(STARPU_CUDA);
+    torch_arange.codelet.restrict_where(STARPU_CUDA);
+    torch_gt.codelet.restrict_where(STARPU_CUDA);
+    torch_i64_unary.codelet.restrict_where(STARPU_CUDA);
+    torch_cast.codelet.restrict_where(STARPU_CUDA);
 #endif
 }
 
@@ -529,32 +537,6 @@ void Context::restrict_cuda()
 void Context::restore_where()
 {
     using namespace nntile::starpu;
-#ifdef NNTILE_TORCH_NATIVE_OPS
-    clear.codelet.restore_where();
-    copy.codelet.restore_where();
-    fill.restore_where();
-    subcopy.restore_where();
-    torch_unary.restore_where();
-    torch_binary.restore_where();
-    torch_ternary.restore_where();
-    torch_embedding.codelet.restore_where();
-    torch_embedding_dense_backward.codelet.restore_where();
-    torch_convolution.codelet.restore_where();
-    torch_convolution_backward.codelet.restore_where();
-    torch_max_pool2d_with_indices.codelet.restore_where();
-    torch_max_pool2d_with_indices_backward.codelet.restore_where();
-    torch_native_batch_norm.codelet.restore_where();
-    torch_native_batch_norm_backward.codelet.restore_where();
-    torch_sdpa_backward.codelet.restore_where();
-    torch_nll_loss_forward.codelet.restore_where();
-    torch_nll_loss_backward.codelet.restore_where();
-    torch_cat.codelet.restore_where();
-    torch_where.codelet.restore_where();
-    torch_arange.codelet.restore_where();
-    torch_gt.codelet.restore_where();
-    torch_i64_unary.codelet.restore_where();
-    torch_cast.codelet.restore_where();
-#else
     accumulate.restore_where();
     accumulate_hypot.restore_where();
     accumulate_maxsumexp.restore_where();
@@ -618,6 +600,37 @@ void Context::restore_where()
     total_sum_accum.restore_where();
     transpose.restore_where();
     isfinite.restore_where();
+    gelu.restore_where();
+    hypot.restore_where();
+    scale_fiber.restore_where();
+    scale_slice.restore_where();
+    sum.restore_where();
+    norm.restore_where();
+    norm_fiber_inplace.restore_where();
+    norm_slice.restore_where();
+    sgd_step.restore_where();
+    swap_two_axes.restore_where();
+#ifdef NNTILE_TORCH_NATIVE_OPS
+    torch_unary.restore_where();
+    torch_binary.restore_where();
+    torch_ternary.restore_where();
+    torch_embedding.codelet.restore_where();
+    torch_embedding_dense_backward.codelet.restore_where();
+    torch_convolution.codelet.restore_where();
+    torch_convolution_backward.codelet.restore_where();
+    torch_max_pool2d_with_indices.codelet.restore_where();
+    torch_max_pool2d_with_indices_backward.codelet.restore_where();
+    torch_native_batch_norm.codelet.restore_where();
+    torch_native_batch_norm_backward.codelet.restore_where();
+    torch_sdpa_backward.codelet.restore_where();
+    torch_nll_loss_forward.codelet.restore_where();
+    torch_nll_loss_backward.codelet.restore_where();
+    torch_cat.codelet.restore_where();
+    torch_where.codelet.restore_where();
+    torch_arange.codelet.restore_where();
+    torch_gt.codelet.restore_where();
+    torch_i64_unary.codelet.restore_where();
+    torch_cast.codelet.restore_where();
 #endif
 }
 

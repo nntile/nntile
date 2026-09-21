@@ -139,6 +139,7 @@ if(NOT HAVE_STARPU_SIMGRID)
             "kernel/multiply_slice/cuda.cu"
             "kernel/relu_inplace/cuda.cu"
             "kernel/relu_backward/cuda.cu"
+            "kernel/randn/cuda.cu"
             "kernel/relu/cuda.cu"
             "kernel/rope/cuda.cu"
             "kernel/rope_backward/cuda.cu"
