@@ -13,8 +13,16 @@
  * */
 
 #include "nntile/core/gelutanh.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/gelutanh.hh"
+#else
 #include "nntile/starpu/gelutanh.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
 
 namespace nntile::core
 {
@@ -25,13 +33,28 @@ namespace nntile::core
 template<typename T>
 void gelutanh_async(int starpu_worker_hint, const Tile<T> &src, const Tile<T> &dst)
 {
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int dst_rank = 0;
+    #else
     int dst_rank = dst.mpi_get_rank();
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     src.mpi_transfer(dst_rank, mpi_rank);
+    #endif
     if(mpi_rank == dst_rank)
     {
         // Submit task without any arguments checked
+        #ifdef NNTILE_USE_NNHAUL
+        haul::gelutanh.submit<std::tuple<T>>(starpu_worker_hint, src.nelems, src, dst);
+        #else
         starpu::gelutanh.submit<std::tuple<T>>(starpu_worker_hint, src.nelems, src, dst);
+        #endif
+
     }
 }
 
@@ -42,7 +65,11 @@ template<typename T>
 void gelutanh(int starpu_worker_hint, const Tile<T> &src, const Tile<T> &dst)
 {
     gelutanh_async<T>(starpu_worker_hint, src, dst);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 // Explicit instantiation

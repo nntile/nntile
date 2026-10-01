@@ -15,7 +15,7 @@
 # @version 1.1.0
 
 # Base of the NNTile sources
-set(BASE_SRC "context.cc")
+set(BASE_SRC "context.cc" "context_nnhaul.cc")
 
 # Ignore low-level kernel functions in case of SimGrid simulation
 if(NOT HAVE_STARPU_SIMGRID)
@@ -569,11 +569,17 @@ if(NNTILE_TORCH_NATIVE_OPS)
     )
 endif()
 
+if(NNTILE_USE_NNHAUL)
+    include("${CMAKE_CURRENT_SOURCE_DIR}/nnhaul/sources.cmake")
+    set(BACKEND_SRC ${NNHAUL_CODELET_SRC})
+else()
+    set(BACKEND_SRC ${STARPU_BASE_SRC} ${STARPU_CODELET_SRC})
+endif()
+
 set(NNTILE_CORE_SRC
     ${BASE_SRC}
     ${KERNEL_CUDA_SRC}
-    ${STARPU_BASE_SRC}
-    ${STARPU_CODELET_SRC}
+    ${BACKEND_SRC}
     ${CORE_BASE_SRC}
     ${CORE_OPERATION_SRC}
     ${LOGGER_SRC}
@@ -603,7 +609,7 @@ if(KERNEL_CPU_SRC)
         ${KERNEL_CPU_SRC} ${KERNEL_CUDA_SRC})
 endif()
 nntile_add_objs(nntile_objs_starpu nntile
-    ${STARPU_BASE_SRC} ${STARPU_CODELET_SRC})
+    ${BACKEND_SRC})
 nntile_add_objs(nntile_objs_core nntile
     ${CORE_BASE_SRC} ${CORE_OPERATION_SRC})
 nntile_add_objs(nntile_objs_graph_base nntile dtype.cc)
@@ -635,4 +641,7 @@ if(NNTILE_TORCH_NATIVE_OPS)
     endforeach()
 endif()
 target_sources(nntile PRIVATE ${LOGGER_SRC})
-target_sources(nntile PRIVATE context.cc)
+target_sources(nntile PRIVATE context.cc context_nnhaul.cc)
+if(NOT NNTILE_USE_NNHAUL)
+    target_sources(nntile PRIVATE starpu_disk_register.c)
+endif()

@@ -13,8 +13,16 @@
  * */
 
 #include "nntile/core/fill.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/fill.hh"
+#else
 #include "nntile/starpu/fill.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
 
 namespace nntile::core
 {
@@ -25,12 +33,25 @@ namespace nntile::core
 template<typename T>
 void fill_async(int starpu_worker_hint, Scalar val, const Tile<T> &A)
 {
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int a_rank = 0;
+    #else
     int a_rank = A.mpi_get_rank();
+    #endif
     if(mpi_rank == a_rank)
     {
         // Submit task without any arguments checked
+        #ifdef NNTILE_USE_NNHAUL
+        haul::fill.submit<std::tuple<T>>(starpu_worker_hint, A.nelems, val, A);
+        #else
         starpu::fill.submit<std::tuple<T>>(starpu_worker_hint, A.nelems, val, A);
+        #endif
+
     }
 }
 
@@ -41,7 +62,11 @@ template<typename T>
 void fill(int starpu_worker_hint, Scalar val, const Tile<T> &A)
 {
     fill_async<T>(starpu_worker_hint, val, A);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 // Explicit instantiation

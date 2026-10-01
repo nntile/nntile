@@ -14,7 +14,9 @@
 #include <nntile/context.hh>
 #include <nntile/defs.h>
 
+#ifndef NNTILE_USE_NNHAUL
 #include <starpu.h>
+#endif
 
 #include <memory>
 
@@ -43,6 +45,8 @@ struct ContextConfig
     int logger = 0;
     int verbose = 0;
     bool cpu_fallback = false;
+    std::size_t cpu_cap_bytes = 0;
+    std::size_t cuda_cap_bytes_each = 0;
 };
 
 std::mutex g_context_mutex;
@@ -66,7 +70,9 @@ void create_context_locked()
         g_context_config.logger,
         "localhost",
         5001,
-        g_context_config.verbose);
+        g_context_config.verbose,
+        g_context_config.cpu_cap_bytes,
+        g_context_config.cuda_cap_bytes_each);
 }
 
 } // namespace
@@ -79,7 +85,9 @@ void init_context(
     std::size_t ooc_size,
     int logger,
     int verbose,
-    bool cpu_fallback)
+    bool cpu_fallback,
+    std::size_t cpu_cap_bytes,
+    std::size_t cuda_cap_bytes_each)
 {
     std::lock_guard<std::mutex> lock(g_context_mutex);
     if (g_context != nullptr)
@@ -101,6 +109,8 @@ void init_context(
     g_context_config.logger = logger;
     g_context_config.verbose = verbose;
     g_context_config.cpu_fallback = cpu_fallback;
+    g_context_config.cpu_cap_bytes = cpu_cap_bytes;
+    g_context_config.cuda_cap_bytes_each = cuda_cap_bytes_each;
     g_context_config_locked = true;
 }
 

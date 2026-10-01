@@ -13,8 +13,16 @@
  * */
 
 #include "nntile/core/multiply.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/multiply.hh"
+#else
 #include "nntile/starpu/multiply.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
 
 namespace nntile::core
 {
@@ -33,14 +41,32 @@ void multiply_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src1, c
     {
         throw std::runtime_error("src1.shape != dst.shape");
     }
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int dst_rank = 0;
+    #else
     int dst_rank = dst.mpi_get_rank();
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     src1.mpi_transfer(dst_rank, mpi_rank);
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     src2.mpi_transfer(dst_rank, mpi_rank);
+    #endif
     if(mpi_rank == dst_rank)
     {
+        #ifdef NNTILE_USE_NNHAUL
+        haul::multiply.submit<std::tuple<T>>(starpu_worker_hint, src1.nelems, alpha, src1, src2,
+                dst);
+        #else
         starpu::multiply.submit<std::tuple<T>>(starpu_worker_hint, src1.nelems, alpha, src1, src2,
                 dst);
+        #endif
+
     }
 }
 
@@ -50,7 +76,11 @@ void multiply(int starpu_worker_hint, Scalar alpha, const Tile<T> &src1, const T
         const Tile<T> &dst)
 {
     multiply_async<T>(starpu_worker_hint, alpha, src1, src2, dst);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 // Explicit instantiation

@@ -15,6 +15,9 @@
 #pragma once
 
 #cmakedefine NNTILE_USE_CBLAS
+#ifndef NNTILE_USE_NNHAUL
+#cmakedefine NNTILE_USE_NNHAUL
+#endif
 #cmakedefine NNTILE_USE_CUDA
 #cmakedefine NNTILE_USE_FLASH_SDPA
 #cmakedefine NNTILE_USE_CUDA_TF32

@@ -13,8 +13,16 @@
  * */
 
 #include "nntile/core/sum.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/sum.hh"
+#else
 #include "nntile/starpu/sum.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
 
 namespace nntile::core
 {
@@ -31,13 +39,28 @@ void sum_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, Scalar 
     {
         throw std::runtime_error("src.nelems == 0");
     }
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int dst_rank = 0;
+    #else
     int dst_rank = dst.mpi_get_rank();
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     src.mpi_transfer(dst_rank, mpi_rank);
+    #endif
     if(mpi_rank == dst_rank)
     {
         // Insert task
+        #ifdef NNTILE_USE_NNHAUL
+        haul::sum.submit<std::tuple<T>>(starpu_worker_hint, src.nelems, alpha, src, beta, dst);
+        #else
         starpu::sum.submit<std::tuple<T>>(starpu_worker_hint, src.nelems, alpha, src, beta, dst);
+        #endif
+
     }
 }
 
@@ -45,7 +68,11 @@ template<typename T>
 void sum(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst)
 {
     sum_async<T>(starpu_worker_hint, alpha, src, beta, dst);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 // Explicit instantiation

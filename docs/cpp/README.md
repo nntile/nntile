@@ -52,7 +52,17 @@ Raw numerical kernels on contiguous buffers (CPU and CUDA translation units unde
 
 **Namespace:** `nntile::starpu`
 
-StarPU codelets wrapping kernel calls.
+StarPU codelets wrapping kernel calls. This layer is compiled only when
+`NNTILE_USE_NNHAUL` is `OFF` (the default). That build links `StarPU::starpu`.
+
+## nnhaul
+
+**Namespace:** `nntile::haul` (wrappers) over `nnhaul` (`libnnhaul`)
+
+Compiled only when `NNTILE_USE_NNHAUL` is `ON`. That build links `libnnhaul`
+and does not link StarPU. `nntile::core` submit implementations select the
+backend with `#ifdef NNTILE_USE_NNHAUL`. TensorGraph, the torch session, and
+`nntile/src/kernel/` stay backend-agnostic. One backend per binary.
 
 ## core
 

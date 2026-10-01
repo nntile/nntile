@@ -35,7 +35,10 @@
 #include <nntile/tile/lower_staging_tensor.hh>
 #include <nntile/tensor/phase_codec.hh>
 
+#include <nntile/defs.h>
+#ifndef NNTILE_USE_NNHAUL
 #include <starpu.h>
+#endif
 
 namespace nntile
 {
@@ -1025,12 +1028,19 @@ void clear_pending_recorder_state_locked()
 
 void drain_starpu_after_session_teardown()
 {
+#ifndef NNTILE_USE_NNHAUL
     if (!starpu_is_initialized())
     {
         return;
     }
     starpu_task_wait_for_all();
     starpu_task_wait_for_all();
+#else
+    if (g_exec != nullptr && g_exec->runtime != nullptr)
+    {
+        g_exec->runtime->wait();
+    }
+#endif
 }
 
 void compact_tensor_graph_session_locked()
@@ -1294,6 +1304,11 @@ void run_graph_locked()
         bool const submit = !skip_starpu_submit_and_acquire();
         // Always call execute_range so Runtime::executed_op_end_ advances.
         // SKIP_STARPU only disables OpNode::execute (StarPU task insert).
+        if (!g_exec->runtime->has_execution_schedule())
+        {
+            g_exec->runtime
+                ->install_default_execution_schedule_if_missing();
+        }
         g_exec->runtime->execute_range(
             g_exec->pending_exec_op_begin,
             g_exec->pending_exec_op_end,

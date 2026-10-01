@@ -90,6 +90,37 @@ Round-robin rule: tile grid index `lin` → `worker = lin % num_workers`.
 }
 ```
 
+## NNHaul build (`NNTILE_USE_NNHAUL=ON`)
+
+The StarPU shape above stays the contract for the default build. The NNHaul
+build writes and reads a `hardware.workers` array instead of
+`hardware.worker_kind`. `ops[].worker` is that worker `id`, not a logical
+index inside one kind. `op_count` and `op_names` stay the fingerprint.
+
+```json
+"hardware": {
+  "num_workers": 2,
+  "workers": [
+    {"id": 0, "kind": "cuda", "device": 0},
+    {"id": 1, "kind": "cpu", "device": -1}
+  ]
+}
+```
+
+`num_workers` equals `ncuda + ncpu` (minimum 1) and equals `workers.length`.
+Load checks:
+
+- `ops.size()` matches the compiled execution order (via fingerprint and
+  `set_execution_schedule`)
+- each `ops[].worker` is a live id in `hardware.workers`
+- that worker’s `kind` has a kernel for `op` (`TILE_LOG_SCALAR` is CPU-only;
+  `TILE_RANDN` is CUDA-capable on this build when CUDA kernels are compiled)
+- a file that has `worker_kind` and no `workers` array fails with
+  “regenerate execution.json”
+
+CUDA ids are `0 .. ncuda-1`. CPU ids are `ncuda .. ncuda+ncpu-1`. With
+`ncuda == 0`, CPU ids are `0 .. ncpu-1`.
+
 ## Related
 
 - Overview: [../graph.md](../graph.md)

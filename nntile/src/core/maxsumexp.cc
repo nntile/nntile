@@ -13,8 +13,16 @@
  * */
 
 #include "nntile/core/maxsumexp.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/maxsumexp.hh"
+#else
 #include "nntile/starpu/maxsumexp.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
 
 namespace nntile::core
 {
@@ -24,6 +32,12 @@ template<typename T>
 void maxsumexp_async(int starpu_worker_hint, const Tile<T> &src,
         const Tile<T> &dst, Index axis, Scalar beta, int redux)
 {
+#ifdef NNTILE_USE_NNHAUL
+    if(redux != 0)
+    {
+        throw std::runtime_error("redux != 0 is not supported");
+    }
+#endif
     // Check dimensions
     if(src.ndim != dst.ndim)
     {
@@ -69,13 +83,29 @@ void maxsumexp_async(int starpu_worker_hint, const Tile<T> &src,
     n = src.matrix_shape[axis][0];
     k = src.shape[axis];
     // Insert task
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int dst_rank = 0;
+    #else
     int dst_rank = dst.mpi_get_rank();
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     src.mpi_transfer(dst_rank, mpi_rank);
+    #endif
     if(mpi_rank == dst_rank)
     {
+        #ifdef NNTILE_USE_NNHAUL
+        haul::maxsumexp.submit<std::tuple<T>>(starpu_worker_hint, m, n, k,
+                src, dst, beta, redux);
+        #else
         starpu::maxsumexp.submit<std::tuple<T>>(starpu_worker_hint, m, n, k,
                 src, dst, beta, redux);
+        #endif
+
     }
 }
 
@@ -84,8 +114,18 @@ template<typename T>
 void maxsumexp(int starpu_worker_hint, const Tile<T> &src, const Tile<T> &dst,
         Index axis, Scalar beta, int redux)
 {
+#ifdef NNTILE_USE_NNHAUL
+    if(redux != 0)
+    {
+        throw std::runtime_error("redux != 0 is not supported");
+    }
+#endif
     maxsumexp_async<T>(starpu_worker_hint, src, dst, axis, beta, redux);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 // Explicit instantiation

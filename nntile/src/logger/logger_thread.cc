@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/logger/logger_thread.hh"
+#include "nntile/defs.h"
 #include <iostream>
 #include <sstream>
 #include <thread>
@@ -22,7 +23,9 @@
 #include <mutex>
 #include <unistd.h>
 #include <sys/socket.h>
+#ifndef NNTILE_USE_NNHAUL
 #include <starpu.h>
+#endif
 #include "nntile/logger/websocket_client.hh"
 
 namespace nntile::logger
@@ -43,10 +46,17 @@ void logger_main()
     // At first get worker count, bus count and check if starpu is initialized
     int workerid;
     int busid;
+#ifndef NNTILE_USE_NNHAUL
     int worker_cnt = starpu_worker_get_count();
     int bus_cnt = starpu_bus_get_count();
     int is_initialized = starpu_is_initialized();
     unsigned memnodes_cnt = starpu_memory_nodes_get_count();
+#else
+    int worker_cnt = 0;
+    int bus_cnt = 0;
+    int is_initialized = 1;
+    unsigned memnodes_cnt = 0;
+#endif
     std::cout << "WORKER COUNT: " << worker_cnt << std::endl;
     std::cout << "BUS COUNT: " << bus_cnt << std::endl;
     std::cout << "MEMNODES COUNT: " << memnodes_cnt << std::endl;
@@ -61,6 +71,7 @@ void logger_main()
         // Loop through all workers to get their activities
         for (workerid = 0; workerid < worker_cnt; workerid++)
         {
+#ifndef NNTILE_USE_NNHAUL
             // Profiling info is read from StarPU
             struct starpu_profiling_worker_info info;
             int ret = starpu_profiling_worker_get_info(workerid, &info);
@@ -86,6 +97,7 @@ void logger_main()
             ss << "\"total_time\":" << total_time << ",";
             ss << "\"flops\":" << flops;
             ss << "}";
+#endif
         }
         ss << "],";
 
@@ -94,6 +106,7 @@ void logger_main()
         bool first_bus = true;
         for (busid = 0; busid < bus_cnt; busid++)
         {
+#ifndef NNTILE_USE_NNHAUL
             int src, dst;
             char src_name[128], dst_name[128];
             // Profiling info is read from StarPU
@@ -119,6 +132,7 @@ void logger_main()
             ss << "\"src_name\":\"" << src_name << "\",";
             ss << "\"dst_name\":\"" << dst_name << "\"";
             ss << "}";
+#endif
         }
         ss << "],";
 
@@ -127,6 +141,7 @@ void logger_main()
         bool first_memory_node = true;
         for (unsigned memory_node = 0; memory_node < memnodes_cnt; memory_node++)
         {
+#ifndef NNTILE_USE_NNHAUL
             if (!first_memory_node)
                 ss << ",";
             first_memory_node = false;
@@ -138,6 +153,7 @@ void logger_main()
             ss << "\"name\":\"" << memory_node_name << "\",";
             ss << "\"size\":" << node;
             ss << "}";
+#endif
         }
         ss << "]";
 

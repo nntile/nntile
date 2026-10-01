@@ -20,6 +20,8 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 option(BUILD_SHARED_LIBS "Build shared libraries instead of static" ON)
 option(BUILD_LIBNNTILE "Build the core C++ libnntile library" ON)
+option(NNTILE_USE_NNHAUL
+    "Link libnnhaul instead of StarPU (one backend per build)" OFF)
 option(USE_CUDA "Use CUDA toolkit (cuBLAS and cuDNN are required)" ON)
 option(USE_CUDA_FP16 "Enable FP16 CUDA support" ON)
 option(USE_CUDA_TF32 "Enable TF32 CUDA support" ON)
@@ -96,7 +98,15 @@ macro(nntile_apply_common_includes target)
     target_include_directories(${target} PRIVATE
         "${PROJECT_SOURCE_DIR}/external"
     )
-    target_link_libraries(${target} PUBLIC StarPU::starpu)
+    if(NNTILE_USE_NNHAUL)
+        # Visible before any include. defs.h also #defines it, but headers
+        # branch on the macro before they include defs.h.
+        target_compile_definitions(${target} PUBLIC NNTILE_USE_NNHAUL)
+        target_link_libraries(${target} PUBLIC
+            "$<BUILD_INTERFACE:nnhaul>")
+    else()
+        target_link_libraries(${target} PUBLIC StarPU::starpu)
+    endif()
 endmacro()
 
 macro(nntile_propagation_scope target out_var)
@@ -137,14 +147,55 @@ find_package(PkgConfig REQUIRED)
 set(JSON_Install ON CACHE BOOL "Install nlohmann_json with NNTile" FORCE)
 add_subdirectory("external")
 
+include(CheckSymbolExists)
+if(NNTILE_USE_NNHAUL)
+    if(NNTILE_TORCH_NATIVE_OPS)
+        message(FATAL_ERROR
+            "NNTILE_USE_NNHAUL does not build torch-native dispatch. "
+            "Pass -DNNTILE_TORCH_NATIVE_OPS=OFF.")
+    endif()
+    if(USE_FLASH_SDPA)
+        message(FATAL_ERROR
+            "NNTILE_USE_NNHAUL does not build flash SDPA. "
+            "Leave USE_FLASH_SDPA OFF.")
+    endif()
+    set(NNHAUL_ROOT "" CACHE PATH
+        "nnhaul build directory or prefix that contains libnnhaul")
+    find_path(NNHAUL_INCLUDE_DIR nnhaul/nnhaul.hh
+        HINTS "${NNHAUL_ROOT}/include" "${NNHAUL_ROOT}/../include")
+    find_library(NNHAUL_LIBRARY nnhaul
+        HINTS "${NNHAUL_ROOT}" "${NNHAUL_ROOT}/lib")
+    if(NOT NNHAUL_INCLUDE_DIR OR NOT NNHAUL_LIBRARY)
+        message(FATAL_ERROR
+            "NNTILE_USE_NNHAUL=ON but libnnhaul was not found. "
+            "Set NNHAUL_ROOT to the nnhaul build directory.")
+    endif()
+    find_package(CUDAToolkit REQUIRED)
+    find_path(CUDNN_INCLUDE_DIR cudnn.h REQUIRED)
+    find_library(CUDNN_LIBRARY cudnn REQUIRED)
+    # libnnhaul is a static archive in the in-tree build. UNKNOWN accepts
+    # either that archive or a shared library from a later install.
+    add_library(nnhaul UNKNOWN IMPORTED)
+    set_target_properties(nnhaul PROPERTIES
+        IMPORTED_LOCATION "${NNHAUL_LIBRARY}")
+    target_include_directories(nnhaul INTERFACE
+        "${NNHAUL_INCLUDE_DIR}"
+        ${CUDAToolkit_INCLUDE_DIRS}
+        "${CUDNN_INCLUDE_DIR}")
+    target_link_libraries(nnhaul INTERFACE
+        CUDA::cudart
+        CUDA::cublas
+        "${CUDNN_LIBRARY}")
+    set(HAVE_STARPU_SIMGRID OFF)
+else()
 # StarPU::starpu (pkg-config); shared with installed nntileConfig.cmake.
 include("${PROJECT_SOURCE_DIR}/cmake/NNTileFindStarPU.cmake")
 
-include(CheckSymbolExists)
 set(CMAKE_REQUIRED_INCLUDES ${StarPU_INCLUDE_DIRS})
 check_symbol_exists(STARPU_SIMGRID "starpu_config.h" HAVE_STARPU_SIMGRID)
 if(HAVE_STARPU_SIMGRID)
     message(STATUS "StarPU is compiled in SIMGRID mode")
+endif()
 endif()
 
 set(NNTILE_USE_CUDA OFF)

@@ -13,8 +13,16 @@
  * */
 
 #include "nntile/core/embedding.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/embedding.hh"
+#else
 #include "nntile/starpu/embedding.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
 
 namespace nntile::core
 {
@@ -24,14 +32,32 @@ void embedding_async(int starpu_worker_hint, Index m, Index n, Index k, Index k_
         const Tile<int64_t> &index, const Tile<T> &vocab,
         const Tile<T> &embed)
 {
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int embed_rank = 0;
+    #else
     int embed_rank = embed.mpi_get_rank();
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     index.mpi_transfer(embed_rank, mpi_rank);
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     vocab.mpi_transfer(embed_rank, mpi_rank);
+    #endif
     if(mpi_rank == embed_rank)
     {
+        #ifdef NNTILE_USE_NNHAUL
+        haul::embedding.submit<std::tuple<T>>(starpu_worker_hint, m, n, k, k_start, k_size,
+                index, vocab, embed);
+        #else
         starpu::embedding.submit<std::tuple<T>>(starpu_worker_hint, m, n, k, k_start, k_size,
                 index, vocab, embed);
+        #endif
+
     }
 }
 
@@ -41,7 +67,11 @@ void embedding(int starpu_worker_hint, Index m, Index n, Index k, Index k_start,
         const Tile<T> &embed)
 {
     embedding_async<T>(starpu_worker_hint, m, n, k, k_start, k_size, index, vocab, embed);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 // Explicit instantiation

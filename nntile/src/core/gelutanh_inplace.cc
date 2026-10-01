@@ -13,8 +13,16 @@
  * */
 
 #include "nntile/core/gelutanh_inplace.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/gelutanh_inplace.hh"
+#else
 #include "nntile/starpu/gelutanh_inplace.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
 
 namespace nntile::core
 {
@@ -25,12 +33,25 @@ namespace nntile::core
 template<typename T>
 void gelutanh_inplace_async(int starpu_worker_hint, const Tile<T> &A)
 {
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int a_rank = 0;
+    #else
     int a_rank = A.mpi_get_rank();
+    #endif
     if(mpi_rank == a_rank)
     {
         // Submit task without any arguments checked
+        #ifdef NNTILE_USE_NNHAUL
+        haul::gelutanh_inplace.submit<std::tuple<T>>(starpu_worker_hint, A.nelems, A);
+        #else
         starpu::gelutanh_inplace.submit<std::tuple<T>>(starpu_worker_hint, A.nelems, A);
+        #endif
+
     }
 }
 
@@ -41,7 +62,11 @@ template<typename T>
 void gelutanh_inplace(int starpu_worker_hint, const Tile<T> &A)
 {
     gelutanh_inplace_async<T>(starpu_worker_hint, A);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 // Explicit instantiation

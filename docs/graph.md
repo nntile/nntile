@@ -77,10 +77,27 @@ Incremental compile aims for **O(work this call)** complexity — see
 | Axis-group tiling / `tiling.json` | Tile geometry (`AxisDescriptor`, `tiling_spec_json.hh`) |
 | `execution.json` | Optional static worker assignment for tile ops |
 
-`Runtime::compile()` does **not** invent a schedule. If no schedule is set,
-StarPU picks workers (`starpu_worker_hint = -1`). Round-robin and affinity-batch
+`Runtime::compile()` does **not** invent a schedule. If no schedule is set
+before `execute_range`, `run_graph_locked` installs one:
+`generate_affinity_batch_execution_schedule()` when any CUDA worker exists,
+otherwise `generate_round_robin_execution_schedule()`. An explicit
+`set_execution_schedule` or a loaded file wins and skips that step. The
 generators live in `nntile/include/nntile/core/execution_schedule.hh`. Schema:
 [dev/execution_json_schema.md](dev/execution_json_schema.md).
+
+### NNHaul backend
+
+`-DNNTILE_USE_NNHAUL=ON` builds the same TensorGraph → TileGraph → Runtime
+path against `libnnhaul` instead of StarPU. There is no runtime switch and
+no binary that links both libraries. The default (`OFF`) stays the StarPU
+build described above.
+
+On that build, `Context` calls `nnhaul::init` / `nnhaul::shutdown`, and
+`Runtime::wait` calls `nnhaul::wait`. `ooc` other than 0 throws. `redux`
+other than 0 throws before insert. MPI rank checks and `mpi_transfer` stay
+on the StarPU arm; the NNHaul arm submits as rank 0. `execution.json` uses
+`hardware.workers` (see the schema doc). A StarPU file with only
+`hardware.worker_kind` fails load with “regenerate execution.json”.
 
 ## Where to read next
 

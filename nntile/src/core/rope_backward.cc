@@ -13,8 +13,16 @@
  * */
 
 #include "nntile/core/rope_backward.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/rope_backward.hh"
+#else
 #include "nntile/starpu/rope_backward.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
 
 namespace nntile::core
 {
@@ -67,11 +75,25 @@ void rope_backward_async(int starpu_worker_hint, const Tile<T> &sin, const Tile<
         }
     }
 
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int dx_rank = 0;
+    #else
     int dx_rank = dx.mpi_get_rank();
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     sin.mpi_transfer(dx_rank, mpi_rank);
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     cos.mpi_transfer(dx_rank, mpi_rank);
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     dy.mpi_transfer(dx_rank, mpi_rank);
+    #endif
     if(mpi_rank == dx_rank)
     {
         Index nrows = 1;
@@ -85,8 +107,14 @@ void rope_backward_async(int starpu_worker_hint, const Tile<T> &sin, const Tile<
             throw std::runtime_error(
                 "rope_backward: sin_pair0 != 0 is not supported");
         }
+        #ifdef NNTILE_USE_NNHAUL
+        haul::rope_backward.submit<std::tuple<T>>(starpu_worker_hint, ncols,
+            nrows, sin, cos, dy, dx);
+        #else
         starpu::rope_backward.submit<std::tuple<T>>(starpu_worker_hint, ncols,
             nrows, sin, cos, dy, dx);
+        #endif
+
     }
 }
 
@@ -95,7 +123,11 @@ void rope_backward(int starpu_worker_hint, const Tile<T> &sin, const Tile<T> &co
         const Tile<T> &dx, Index sin_pair0)
 {
     rope_backward_async<T>(starpu_worker_hint, sin, cos, dy, dx, sin_pair0);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 // Explicit instantiation of template

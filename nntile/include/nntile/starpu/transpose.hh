@@ -1,3 +1,12 @@
+#pragma once
+
+#ifdef NNTILE_USE_NNHAUL
+#include <nntile/nnhaul/ops/transpose.hh>
+namespace nntile::starpu
+{
+using namespace nntile::haul;
+}
+#else
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -103,3 +112,4 @@ using transpose_pack_t = OperationPack<
 extern transpose_pack_t transpose;
 
 } // namespace nntile::starpu
+#endif

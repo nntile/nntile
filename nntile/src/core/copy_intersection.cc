@@ -14,9 +14,21 @@
 
 #include "nntile/core/copy_intersection.hh"
 #include "nntile/shape_utils.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/copy.hh"
+#else
 #include "nntile/starpu/copy.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/subcopy.hh"
+#else
 #include "nntile/starpu/subcopy.hh"
+#endif
 
 namespace nntile::core
 {
@@ -59,25 +71,47 @@ void copy_intersection_async(int starpu_worker_hint, const Tile<T> &src,
         throw std::runtime_error("scratch.shape[0] < 2*src.ndim");
     }
     Index ndim = src.ndim;
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int dst_rank = 0;
+    #else
     int dst_rank = dst.mpi_get_rank();
+    #endif
     // Treat special case of ndim=0
     if(ndim == 0)
     {
+        #ifndef NNTILE_USE_NNHAUL
         src.mpi_transfer(dst_rank, mpi_rank);
+        #endif
         if(mpi_rank == dst_rank)
         {
+            #ifdef NNTILE_USE_NNHAUL
+            haul::copy.submit(starpu_worker_hint, src, dst);
+            #else
             starpu::copy.submit(starpu_worker_hint, src, dst);
+            #endif
+
         }
         return;
     }
     // Treat easy case of full copy
     if(src_offset == dst_offset and src.shape == dst.shape)
     {
+        #ifndef NNTILE_USE_NNHAUL
         src.mpi_transfer(dst_rank, mpi_rank);
+        #endif
         if(mpi_rank == dst_rank)
         {
+            #ifdef NNTILE_USE_NNHAUL
+            haul::copy.submit(starpu_worker_hint, src, dst);
+            #else
             starpu::copy.submit(starpu_worker_hint, src, dst);
+            #endif
+
         }
         return;
     }
@@ -119,7 +153,9 @@ void copy_intersection_async(int starpu_worker_hint, const Tile<T> &src,
             dst_tile_mode = STARPU_RW;
         }
     }
+    #ifndef NNTILE_USE_NNHAUL
     src.mpi_transfer(dst_rank, mpi_rank);
+    #endif
     if(mpi_rank == dst_rank)
     {
         for(Index i = 0; i < ndim; ++i)
@@ -137,10 +173,18 @@ void copy_intersection_async(int starpu_worker_hint, const Tile<T> &src,
                 throw std::runtime_error("copy_intersection: destination region out of bounds");
             }
         }
+        #ifdef NNTILE_USE_NNHAUL
+        haul::subcopy.submit<std::tuple<T>>(starpu_worker_hint, ndim,
+            reverse_shape(src_start), reverse_shape(src.stride),
+            reverse_shape(dst_start), reverse_shape(dst.stride),
+            reverse_shape(copy_shape), src, dst, scratch, dst_tile_mode);
+        #else
         starpu::subcopy.submit<std::tuple<T>>(starpu_worker_hint, ndim,
             reverse_shape(src_start), reverse_shape(src.stride),
             reverse_shape(dst_start), reverse_shape(dst.stride),
             reverse_shape(copy_shape), src, dst, scratch, dst_tile_mode);
+        #endif
+
     }
 }
 
@@ -161,7 +205,11 @@ void copy_intersection(int starpu_worker_hint, const Tile<T> &src,
         const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch)
 {
     copy_intersection_async<T>(starpu_worker_hint, src, src_offset, dst, dst_offset, scratch);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 // Explicit instantiation

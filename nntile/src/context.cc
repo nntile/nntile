@@ -23,6 +23,7 @@
 #include <sstream>
 #include <stdexcept>
 
+#ifndef NNTILE_USE_NNHAUL
 // Third-party headers
 #ifdef NNTILE_USE_CUDA
 #   include <cudnn_frontend.h>
@@ -35,6 +36,11 @@
 #include "nntile/starpu/norm.hh"
 #include "nntile/starpu/sgd_step.hh"
 #include "nntile/starpu/swap_two_axes.hh"
+extern "C" int nntile_starpu_disk_register(
+    struct starpu_disk_ops *ops,
+    void *parameter,
+    starpu_ssize_t size);
+
 #ifdef NNTILE_TORCH_NATIVE_OPS
 #   include "nntile/starpu/torch_dispatch.hh"
 #endif
@@ -96,7 +102,9 @@ Context::Context(
     int logger,
     const char *logger_addr,
     int logger_port,
-    int verbose
+    int verbose,
+    std::size_t cpu_cap_bytes [[maybe_unused]],
+    std::size_t cuda_cap_bytes_each [[maybe_unused]]
 ):
     initialized(0),
     ooc_disk_node_id(-1),
@@ -236,8 +244,10 @@ Context::Context(
     // Initialize Out-of-Core if enabled
     if(ooc != 0)
     {
-        ooc_disk_node_id = starpu_disk_register(
-            &starpu_disk_unistd_ops, // Use unistd operations
+        // Ubuntu StarPU 1.4.3 includes starpu_disk.h before extern "C",
+        // so a direct call mangles. The C wrapper binds the C symbol.
+        ooc_disk_node_id = nntile_starpu_disk_register(
+            &starpu_disk_unistd_ops,
             reinterpret_cast<void *>(const_cast<char *>(ooc_path)),
             ooc_size
         );
@@ -635,3 +645,4 @@ void Context::restore_where()
 }
 
 } // namespace nntile
+#endif // NNTILE_USE_NNHAUL

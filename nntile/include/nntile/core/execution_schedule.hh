@@ -31,6 +31,14 @@ namespace nntile
 class Runtime;
 class TileGraph;
 
+//! One worker row in an NNHaul ``hardware.workers`` array.
+struct ScheduleWorkerInfo
+{
+    int id = 0;
+    std::string kind;
+    int device = -1;
+};
+
 //! One scheduled tile-graph op after compile-time DCE.
 struct ScheduledOpEntry
 {
@@ -55,6 +63,7 @@ struct ExecutionSchedule
     std::string policy;
     int num_workers = 1;
     bool use_cuda_workers = false;
+    std::vector<ScheduleWorkerInfo> workers;
     ExecutionScheduleFingerprint fingerprint;
     std::map<std::string, int> tile_virtual_worker;
     std::vector<ScheduledOpEntry> ops;

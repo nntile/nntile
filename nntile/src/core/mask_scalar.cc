@@ -13,8 +13,16 @@
  * */
 
 #include "nntile/core/mask_scalar.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/mask_scalar.hh"
+#else
 #include "nntile/starpu/mask_scalar.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
 
 namespace nntile::core
 {
@@ -46,9 +54,19 @@ void mask_scalar_async(int starpu_worker_hint, const Tile<bool_t> &mask, Scalar 
                     "A.shape[effective_batch_ndim+i]");
         }
     }
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int a_rank = 0;
+    #else
     int a_rank = A.mpi_get_rank();
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     mask.mpi_transfer(a_rank, mpi_rank);
+    #endif
     if(mpi_rank != a_rank)
     {
         return;
@@ -65,8 +83,14 @@ void mask_scalar_async(int starpu_worker_hint, const Tile<bool_t> &mask, Scalar 
         nfast = A.matrix_shape[effective_batch_ndim][0];
     }
     // Submit task without any arguments checked
+    #ifdef NNTILE_USE_NNHAUL
+    haul::mask_scalar.submit<std::tuple<T>>(starpu_worker_hint,
+            nslow, nfast, mask, val, A);
+    #else
     starpu::mask_scalar.submit<std::tuple<T>>(starpu_worker_hint,
             nslow, nfast, mask, val, A);
+    #endif
+
 }
 
 //! Blocking version of tile-wise mask scalar operation
@@ -77,7 +101,11 @@ void mask_scalar(int starpu_worker_hint, const Tile<bool_t> &mask, Scalar val, c
         Index batch_ndim)
 {
     mask_scalar_async<T>(starpu_worker_hint, mask, val, A, batch_ndim);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 // Explicit instantiation

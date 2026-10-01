@@ -15,13 +15,18 @@ endif()
 
 include(CMakeFindDependencyMacro)
 
+set(NNTILE_BUILT_WITH_NNHAUL "@NNTILE_USE_NNHAUL@")
 set(NNTILE_BUILT_WITH_CUDA "@NNTILE_LINK_CUDA@")
 set(NNTILE_BUILT_WITH_CBLAS "@NNTILE_LINK_CBLAS@")
 set(NNTILE_BUILT_WITH_TORCH_NATIVE_OPS "@NNTILE_TORCH_NATIVE_OPS@")
 set(NNTILE_BUILT_WITH_NNTILE_NATIVE_OPS "@NNTILE_NNTILE_NATIVE_OPS@")
 
+if(NNTILE_BUILT_WITH_NNHAUL)
+    # Consumers of an NNHaul build must supply libnnhaul themselves.
+else()
 # StarPU (same helper used at build time).
 include("${CMAKE_CURRENT_LIST_DIR}/NNTileFindStarPU.cmake")
+endif()
 
 find_dependency(nlohmann_json)
 

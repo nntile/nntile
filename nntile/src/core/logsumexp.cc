@@ -13,8 +13,16 @@
  * */
 
 #include "nntile/core/logsumexp.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/logsumexp.hh"
+#else
 #include "nntile/starpu/logsumexp.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
 
 namespace nntile::core
 {
@@ -45,13 +53,28 @@ void logsumexp_async(int starpu_worker_hint, const Tile<T> &src, const Tile<T> &
             throw std::runtime_error("src.shape[i] != dst.shape[i]");
         }
     }
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int dst_rank = 0;
+    #else
     int dst_rank = dst.mpi_get_rank();
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     src.mpi_transfer(dst_rank, mpi_rank);
+    #endif
     if(mpi_rank == dst_rank)
     {
         // Insert task
+        #ifdef NNTILE_USE_NNHAUL
+        haul::logsumexp.submit<std::tuple<T>>(starpu_worker_hint, dst.nelems, src, dst);
+        #else
         starpu::logsumexp.submit<std::tuple<T>>(starpu_worker_hint, dst.nelems, src, dst);
+        #endif
+
     }
 }
 
@@ -60,7 +83,11 @@ template<typename T>
 void logsumexp(int starpu_worker_hint, const Tile<T> &src, const Tile<T> &dst)
 {
     logsumexp_async<T>(starpu_worker_hint, src, dst);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 // Explicit instantiation

@@ -13,8 +13,16 @@
  * */
 
 #include "nntile/core/norm_slice.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/norm_slice.hh"
+#else
 #include "nntile/starpu/norm_slice.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
 
 namespace nntile::core
 {
@@ -23,6 +31,12 @@ template<typename T>
 void norm_slice_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<T> &src2,
         const Tile<T> &dst, Index axis, int redux)
 {
+#ifdef NNTILE_USE_NNHAUL
+    if(redux != 0)
+    {
+        throw std::runtime_error("redux != 0 is not supported");
+    }
+#endif
     // Check dimensions
     if(src1.ndim-1 != src2.ndim)
     {
@@ -76,14 +90,32 @@ void norm_slice_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src1,
     n = src1.matrix_shape[axis][0];
     k = src1.shape[axis];
     // Insert task
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int dst_rank = 0;
+    #else
     int dst_rank = dst.mpi_get_rank();
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     src1.mpi_transfer(dst_rank, mpi_rank);
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     src2.mpi_transfer(dst_rank, mpi_rank);
+    #endif
     if(mpi_rank == dst_rank)
     {
+        #ifdef NNTILE_USE_NNHAUL
+        haul::norm_slice.submit<std::tuple<T>>(starpu_worker_hint, m, n, k, alpha, src1, beta,
+                src2, dst, 0);
+        #else
         starpu::norm_slice.submit<std::tuple<T>>(starpu_worker_hint, m, n, k, alpha, src1, beta,
-                src2, dst, 0);  // redux ignored for now
+                src2, dst, 0);
+        #endif
+  // redux ignored for now
     }
 }
 
@@ -91,8 +123,18 @@ template<typename T>
 void norm_slice(int starpu_worker_hint, Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<T> &src2,
         const Tile<T> &dst, Index axis, int redux)
 {
+#ifdef NNTILE_USE_NNHAUL
+    if(redux != 0)
+    {
+        throw std::runtime_error("redux != 0 is not supported");
+    }
+#endif
     norm_slice_async<T>(starpu_worker_hint, alpha, src1, beta, src2, dst, axis, redux);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 // Explicit instantiation

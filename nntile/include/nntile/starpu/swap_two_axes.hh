@@ -1,3 +1,12 @@
+#pragma once
+
+#ifdef NNTILE_USE_NNHAUL
+#include <nntile/nnhaul/ops/swap_two_axes.hh>
+namespace nntile::starpu
+{
+using namespace nntile::haul;
+}
+#else
 /*! @copyright (c) 2026-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *
@@ -82,3 +91,4 @@ using swap_two_axes_pack_t = OperationPack<
 extern swap_two_axes_pack_t swap_two_axes;
 
 } // namespace nntile::starpu
+#endif

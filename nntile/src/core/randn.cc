@@ -13,8 +13,16 @@
  * */
 
 #include "nntile/core/randn.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/randn.hh"
+#else
 #include "nntile/starpu/randn.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
 
 namespace nntile::core
 {
@@ -61,13 +69,38 @@ void randn_async(int starpu_worker_hint, const Tile<T> &dst, const std::vector<I
                     "underlying_shape[i]");
         }
     }
-    // Temporary index
+    // Temporary index. NNHaul keeps this scratch inside the CPU kernel.
+#ifndef NNTILE_USE_NNHAUL
     starpu::VariableHandle tmp_index(sizeof(nntile::int64_t)*2*ndim);
+#endif
+
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int dst_rank = 0;
+    #else
     int dst_rank = dst.mpi_get_rank();
+    #endif
     if(mpi_rank == dst_rank)
     {
         // Insert task
+        #ifdef NNTILE_USE_NNHAUL
+        haul::randn.submit<std::tuple<T>>(starpu_worker_hint, 
+            ndim,
+            dst.nelems,
+            seed,
+            mean,
+            stddev,
+            start,
+            dst.shape,
+            dst.stride,
+            underlying_shape,
+            dst
+        );
+        #else
         starpu::randn.submit<std::tuple<T>>(starpu_worker_hint, 
             ndim,
             dst.nelems,
@@ -81,9 +114,13 @@ void randn_async(int starpu_worker_hint, const Tile<T> &dst, const std::vector<I
             dst,
             tmp_index
         );
+        #endif
+
     }
+#ifndef NNTILE_USE_NNHAUL
     // Unregister temporary index in an async way
     tmp_index.unregister_submit();
+#endif
 }
 
 //! Blocking version of tile-wise random generation operation
@@ -106,7 +143,11 @@ void randn(int starpu_worker_hint, const Tile<T> &dst, const std::vector<Index> 
         Scalar mean, Scalar stddev)
 {
     randn_async<T>(starpu_worker_hint, dst, start, underlying_shape, seed, mean, stddev);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 // Explicit instantiation

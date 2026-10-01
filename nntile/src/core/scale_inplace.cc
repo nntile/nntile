@@ -13,8 +13,16 @@
  * */
 
 #include "nntile/core/scale_inplace.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/scale_inplace.hh"
+#else
 #include "nntile/starpu/scale_inplace.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
 
 namespace nntile::core
 {
@@ -23,12 +31,25 @@ namespace nntile::core
 template<typename T>
 void scale_inplace_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &data)
 {
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int data_rank = 0;
+    #else
     int data_rank = data.mpi_get_rank();
+    #endif
     if(mpi_rank == data_rank)
     {
         // Insert task
+        #ifdef NNTILE_USE_NNHAUL
+        haul::scale_inplace.submit<std::tuple<T>>(starpu_worker_hint, data.nelems, alpha, data);
+        #else
         starpu::scale_inplace.submit<std::tuple<T>>(starpu_worker_hint, data.nelems, alpha, data);
+        #endif
+
     }
 }
 
@@ -37,7 +58,11 @@ template<typename T>
 void scale_inplace(int starpu_worker_hint, Scalar alpha, const Tile<T> &data)
 {
     scale_inplace_async<T>(starpu_worker_hint, alpha, data);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 // Explicit instantiation

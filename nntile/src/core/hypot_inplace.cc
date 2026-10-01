@@ -13,8 +13,16 @@
  * */
 
 #include "nntile/core/hypot_inplace.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/hypot_inplace.hh"
+#else
 #include "nntile/starpu/hypot_inplace.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
 
 namespace nntile::core
 {
@@ -41,14 +49,30 @@ void hypot_inplace_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &sr
     {
         return;
     }
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int dst_rank = 0;
+    #else
     int dst_rank = dst.mpi_get_rank();
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     src.mpi_transfer(dst_rank, mpi_rank);
+    #endif
     if(mpi_rank == dst_rank)
     {
         // Insert corresponding task
+        #ifdef NNTILE_USE_NNHAUL
+        haul::hypot_inplace.submit<std::tuple<T>>(starpu_worker_hint, src.nelems, alpha, src,
+                beta, dst);
+        #else
         starpu::hypot_inplace.submit<std::tuple<T>>(starpu_worker_hint, src.nelems, alpha, src,
                 beta, dst);
+        #endif
+
     }
 }
 
@@ -57,7 +81,11 @@ template<typename T>
 void hypot_inplace(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst)
 {
     hypot_inplace_async<T>(starpu_worker_hint, alpha, src, beta, dst);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 // Explicit instantiation of template

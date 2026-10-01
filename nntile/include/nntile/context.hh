@@ -14,16 +14,20 @@
 
 #pragma once
 
-// Standard library headers
+#include <cstddef>
 
 // NNTile definitions
 #include <nntile/defs.h>
 
 // Third-party headers
+#ifdef NNTILE_USE_NNHAUL
+#include <cstddef>
+#else
 #include <starpu.h>
 #ifdef NNTILE_USE_CUDA
 #include <cudnn.h>
 #endif // NNTILE_USE_CUDA
+#endif // NNTILE_USE_NNHAUL
 
 // Other NNTile headers
 
@@ -42,11 +46,17 @@ public:
     //! Flag if the context is initialized
     int initialized = 0;
 
+#ifndef NNTILE_USE_NNHAUL
     //! StarPU configuration without explicit default value
     starpu_conf starpu_config;
+#endif
 
     //! StarPU memory node id of a disk for OOC
     int ooc_disk_node_id;
+
+    //! Caps chosen at init. Zero on the StarPU build.
+    std::size_t cpu_cap_bytes_chosen = 0;
+    std::size_t cuda_cap_bytes_each_chosen = 0;
 
     //! Verbosity level
     int verbose;
@@ -77,7 +87,9 @@ public:
         int logger=0,
         const char *logger_addr="localhost",
         int logger_port=5001,
-        int verbose=0
+        int verbose=0,
+        std::size_t cpu_cap_bytes=0,
+        std::size_t cuda_cap_bytes_each=0
     );
 
     //! Destructor of the context

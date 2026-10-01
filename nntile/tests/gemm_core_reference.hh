@@ -16,7 +16,9 @@
 
 #include <vector>
 
+#ifndef NNTILE_USE_NNHAUL
 #include <starpu.h>
+#endif
 
 #include <nntile/constants.hh>
 #include <nntile/core/gemm.hh>

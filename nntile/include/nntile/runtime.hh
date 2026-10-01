@@ -25,7 +25,11 @@
 #include <vector>
 
 // Third-party headers
+#ifdef NNTILE_USE_NNHAUL
+#include <nntile/data_access.hh>
+#else
 #include <starpu.h>
+#endif
 
 // NNTile headers
 #include <nntile/base_types.hh>
@@ -204,6 +208,10 @@ class Runtime
     {
         return !execution_schedule_.ops.empty();
     }
+
+    //! After ``compile()``: install affinity-batch when any CUDA worker
+    //! exists, otherwise round-robin. An explicit schedule already set wins.
+    void install_default_execution_schedule_if_missing();
 
     //! After ``compile()``: build round-robin schedule from DCE order (does not
     //! write a file; use ``generate_round_robin_execution_json`` for that).

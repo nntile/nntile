@@ -13,8 +13,16 @@
  * */
 
 #include "nntile/core/scale.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/scale.hh"
+#else
 #include "nntile/starpu/scale.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
 
 namespace nntile::core
 {
@@ -36,13 +44,28 @@ void scale_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const
             throw std::runtime_error("dst.shape[i] != src.shape[i]");
         }
     }
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int dst_rank = 0;
+    #else
     int dst_rank = dst.mpi_get_rank();
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     src.mpi_transfer(dst_rank, mpi_rank);
+    #endif
     if(mpi_rank == dst_rank)
     {
         // Insert corresponding task
+        #ifdef NNTILE_USE_NNHAUL
+        haul::scale.submit<std::tuple<T>>(starpu_worker_hint, src.nelems, alpha, src, dst);
+        #else
         starpu::scale.submit<std::tuple<T>>(starpu_worker_hint, src.nelems, alpha, src, dst);
+        #endif
+
     }
 }
 
@@ -51,7 +74,11 @@ template<typename T>
 void scale(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst)
 {
     scale_async<T>(starpu_worker_hint, alpha, src, dst);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 // Explicit instantiation of template

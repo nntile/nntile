@@ -13,8 +13,16 @@
  * */
 
 #include "nntile/core/relu_backward.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/relu_backward.hh"
+#else
 #include "nntile/starpu/relu_backward.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
 
 namespace nntile::core
 {
@@ -35,14 +43,31 @@ void relu_backward_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &x,
     {
         throw std::runtime_error("x.shape != dx.shape");
     }
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int dx_rank = 0;
+    #else
     int dx_rank = dx.mpi_get_rank();
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     x.mpi_transfer(dx_rank, mpi_rank);
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     dy.mpi_transfer(dx_rank, mpi_rank);
+    #endif
     if(mpi_rank == dx_rank)
     {
         // Submit task without any arguments checked
+        #ifdef NNTILE_USE_NNHAUL
+        haul::relu_backward.submit<std::tuple<T>>(starpu_worker_hint, x.nelems, alpha, x, dy, beta, dx);
+        #else
         starpu::relu_backward.submit<std::tuple<T>>(starpu_worker_hint, x.nelems, alpha, x, dy, beta, dx);
+        #endif
+
     }
 }
 
@@ -54,7 +79,11 @@ void relu_backward(int starpu_worker_hint, Scalar alpha, const Tile<T> &x, const
         Scalar beta, const Tile<T> &dx)
 {
     relu_backward_async<T>(starpu_worker_hint, alpha, x, dy, beta, dx);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 // Explicit instantiation
