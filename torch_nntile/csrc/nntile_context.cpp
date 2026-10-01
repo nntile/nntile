@@ -183,10 +183,12 @@ void shutdown_context()
     {
         return;
     }
+#ifndef NNTILE_USE_NNHAUL
     if (starpu_is_initialized())
     {
         starpu_task_wait_for_all();
     }
+#endif
     g_context->shutdown();
     g_context.reset();
 }
