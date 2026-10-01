@@ -52,7 +52,10 @@ void Randn<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get interfaces
     Index ndim = *ndim_ptr;
     T *data = ::nntile::haul::buf_as<T>(buffers, 0);
-    std::vector<nntile::int64_t> tmp_index_storage(static_cast<std::size_t>(*ndim_ptr > 0 ? *ndim_ptr : 1));
+    // Index walk writes one past ndim; StarPU scratch is 2 * ndim.
+    std::size_t const scratch_n =
+        static_cast<std::size_t>(*ndim_ptr > 0 ? *ndim_ptr : 1);
+    std::vector<nntile::int64_t> tmp_index_storage(scratch_n * 2);
     nntile::int64_t *tmp_index = tmp_index_storage.data();
     // Launch kernel
     kernel::randn::cpu<T>(

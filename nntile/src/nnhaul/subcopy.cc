@@ -49,7 +49,10 @@ void Subcopy<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get interfaces
     const T *src = ::nntile::haul::buf_as<T>(buffers, 0);
     T *dst = ::nntile::haul::buf_as<T>(buffers, 1);
-    std::vector<int64_t> tmp_index_storage(static_cast<std::size_t>(*ndim_ptr > 0 ? *ndim_ptr : 1));
+    // Kernel maps the scratch into src and dst indexes (2 * ndim).
+    std::size_t const scratch_n =
+        static_cast<std::size_t>(*ndim_ptr > 0 ? *ndim_ptr : 1);
+    std::vector<int64_t> tmp_index_storage(scratch_n * 2);
     int64_t *tmp_index = tmp_index_storage.data();
     // Launch kernel
     kernel::subcopy::cpu<T>(*ndim_ptr, src_start, src_stride,

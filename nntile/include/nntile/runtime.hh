@@ -56,6 +56,8 @@ class Runtime
 
     explicit Runtime(const TileGraph &graph);
 
+    ~Runtime();
+
     void compile();
 
     //! Seconds spent in DCE / allocate during the last ``compile()``.
@@ -280,6 +282,11 @@ class Runtime
     //! Scratch for last-consumer tiles; flushed via invalidate_submit during
     //! ``execute_range`` (not deferred to ``wait()``).
     std::vector<const TileNode *> queued_dead_tiles_;
+#ifdef NNTILE_USE_NNHAUL
+    //! Payloads whose handles have an async invalidate in flight.
+    //! ``nnhaul::Handle`` must stay alive until ``wait()`` joins that task.
+    std::vector<std::shared_ptr<void>> nnhaul_retained_payloads_;
+#endif
     //! Highest exclusive op index already run via execute / execute_range.
     size_t executed_op_end_ = 0;
     //! How many ``graph_.ops()`` entries have been appended into

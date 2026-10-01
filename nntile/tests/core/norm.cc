@@ -60,7 +60,12 @@ void validate()
 int main(int argc, char **argv)
 {
     // Init StarPU for testing
-    int ncpu=1, ncuda=1, ooc=0, verbose=0;
+    int ncpu=1, ooc=0, verbose=0;
+#ifdef NNTILE_USE_CUDA
+    int ncuda=1;
+#else
+    int ncuda=0;
+#endif
     const char *ooc_path = "/tmp/nntile_ooc";
     size_t ooc_size = 16777216;
     auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);

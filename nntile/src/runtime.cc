@@ -136,6 +136,17 @@ void enqueue_op_io(
 
 Runtime::Runtime(const TileGraph &graph) : graph_(graph) {}
 
+Runtime::~Runtime()
+{
+#ifdef NNTILE_USE_NNHAUL
+    if (!nnhaul_retained_payloads_.empty())
+    {
+        starpu_task_wait_for_all_counted();
+        nnhaul_retained_payloads_.clear();
+    }
+#endif
+}
+
 DataType Runtime::get_dtype(
     TensorGraph::TensorNode const *tensor) const
 {
@@ -247,6 +258,12 @@ void Runtime::invalidate_logical_tiles(
         }
         auto payload = tile->payload();
         invalidate_tile_buffer(tile, payload);
+#ifdef NNTILE_USE_NNHAUL
+        if (payload)
+        {
+            nnhaul_retained_payloads_.push_back(payload);
+        }
+#endif
         auto *mut = const_cast<TileGraph::TileNode *>(tile);
         mut->clear_payload();
         sync_logical_starpu_flag(mut);
@@ -263,6 +280,12 @@ void Runtime::invalidate_tile(TileGraph::TileNode *tile)
     }
     auto payload = tile->payload();
     invalidate_tile_buffer(tile, payload);
+#ifdef NNTILE_USE_NNHAUL
+    if (payload)
+    {
+        nnhaul_retained_payloads_.push_back(payload);
+    }
+#endif
     tile->clear_payload();
     sync_logical_starpu_flag(tile);
 }
@@ -277,6 +300,12 @@ void Runtime::unregister_tile(TileGraph::TileNode *tile)
     {
         auto payload = tile->payload();
         unregister_tile_buffer(tile, payload);
+#ifdef NNTILE_USE_NNHAUL
+        if (payload)
+        {
+            nnhaul_retained_payloads_.push_back(payload);
+        }
+#endif
     }
     tile->clear_payload();
     sync_logical_starpu_flag(tile);
@@ -1133,6 +1162,12 @@ void Runtime::flush_queued_dead_tiles()
         }
         auto payload = tile->payload();
         invalidate_tile_buffer(tile, payload);
+#ifdef NNTILE_USE_NNHAUL
+        if (payload)
+        {
+            nnhaul_retained_payloads_.push_back(payload);
+        }
+#endif
         auto *mut = const_cast<TileGraph::TileNode *>(tile);
         mut->clear_payload();
         sync_logical_starpu_flag(mut);
@@ -1321,6 +1356,9 @@ std::string Runtime::execution_op_name(size_t i) const
 void Runtime::wait()
 {
     starpu_task_wait_for_all_counted();
+#ifdef NNTILE_USE_NNHAUL
+    nnhaul_retained_payloads_.clear();
+#endif
 }
 
 bool Runtime::drop_fully_executed_history()
