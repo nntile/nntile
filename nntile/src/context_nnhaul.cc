@@ -71,6 +71,13 @@ std::size_t default_cpu_cap()
 
 } // namespace
 
+#ifdef NNTILE_USE_CUDA
+cudnnHandle_t cudnn_get_local_handle()
+{
+    return ::nnhaul::cudnn_handle();
+}
+#endif // NNTILE_USE_CUDA
+
 Context::Context(
     int ncpu,
     int ncuda,
