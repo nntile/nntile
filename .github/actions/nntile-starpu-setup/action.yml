@@ -17,7 +17,63 @@ runs:
       run: |
         set -euo pipefail
         rm -rfv /etc/apt/apt.conf.d/docker*
-        apt update
+
+        # archive.ubuntu.com can exit 100 mid-sync when a translation
+        # index changes size. Those files are optional: apt ignores
+        # them and keeps the package lists. Retry a few times. Once a
+        # retry only reports that leftover, do not fail the job.
+        leftover_index_only() {
+            local log="$1"
+            local line
+            grep -q \
+                "Some index files failed to download. They have been ignored, or old ones used instead." \
+                "${log}" || return 1
+            while IFS= read -r line; do
+                case "${line}" in
+                    "E: Failed to fetch "*"i18n/Translation-"*)
+                        ;;
+                    "E: Some index files failed to download. They have been ignored, or old ones used instead.")
+                        ;;
+                    "E: "*)
+                        return 1
+                        ;;
+                esac
+            done < "${log}"
+            return 0
+        }
+        apt_get_update() {
+            local attempt=1
+            local max_attempts=5
+            local status=0
+            local log
+            while [[ "${attempt}" -le "${max_attempts}" ]]; do
+                log="$(mktemp)"
+                set +e
+                apt-get update >"${log}" 2>&1
+                status=$?
+                set -e
+                cat "${log}"
+                if [[ "${status}" -eq 0 ]]; then
+                    rm -f "${log}"
+                    return 0
+                fi
+                if [[ "${attempt}" -gt 1 ]] && leftover_index_only "${log}"; then
+                    echo "apt-get update exited ${status}; ignored index files only, continuing"
+                    rm -f "${log}"
+                    return 0
+                fi
+                if [[ "${attempt}" -eq "${max_attempts}" ]]; then
+                    rm -f "${log}"
+                    return "${status}"
+                fi
+                echo "apt-get update exited ${status} (attempt ${attempt}/${max_attempts}); retrying in 5s"
+                rm -f "${log}"
+                rm -rf /var/lib/apt/lists/partial
+                sleep 5
+                attempt=$((attempt + 1))
+            done
+        }
+        apt_get_update
         apt install -y --no-install-recommends \
             autoconf automake binutils build-essential ca-certificates \
             ccache clang cmake curl fxt-tools gdb git lcov libfxt-dev \
