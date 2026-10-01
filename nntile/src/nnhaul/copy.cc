@@ -23,7 +23,15 @@ namespace nntile::haul
 
 //! Constructor
 Copy::Copy():
-    codelet("nntile_copy", &Copy::cpu, nullptr, nullptr)
+    codelet(
+        "nntile_copy",
+        &Copy::cpu,
+#ifdef NNTILE_USE_CUDA
+        &Copy::cuda,
+#else
+        nullptr,
+#endif
+        nullptr)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -41,6 +49,22 @@ void Copy::cpu(void *buffers[], void *cl_args)
     std::memcpy(dst, src, args->nbytes);
 }
 
+#ifdef NNTILE_USE_CUDA
+//! Copy NNHaul buffers on CUDA
+void Copy::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    auto args = reinterpret_cast<args_t const *>(cl_args);
+    const void *src = ::nntile::haul::buf_as<void>(buffers, 0);
+    void *dst = ::nntile::haul::buf_as<void>(buffers, 1);
+    cudaMemcpyAsync(
+        dst,
+        src,
+        args->nbytes,
+        cudaMemcpyDeviceToDevice,
+        ::nnhaul::cuda_stream());
+}
+#endif // NNTILE_USE_CUDA
 
 void Copy::submit(int starpu_worker_hint, ::nnhaul::Handle & src, ::nnhaul::Handle & dst)
 //! Insert copy task into StarPU pool of tasks

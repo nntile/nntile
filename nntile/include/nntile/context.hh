@@ -20,14 +20,12 @@
 #include <nntile/defs.h>
 
 // Third-party headers
-#ifdef NNTILE_USE_NNHAUL
-#include <cstddef>
-#else
+#ifndef NNTILE_USE_NNHAUL
 #include <starpu.h>
+#endif // NNTILE_USE_NNHAUL
 #ifdef NNTILE_USE_CUDA
 #include <cudnn.h>
 #endif // NNTILE_USE_CUDA
-#endif // NNTILE_USE_NNHAUL
 
 // Other NNTile headers
 

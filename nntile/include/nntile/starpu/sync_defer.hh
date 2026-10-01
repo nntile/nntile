@@ -11,6 +11,10 @@
 
 #pragma once
 
+#ifdef NNTILE_USE_NNHAUL
+#include <nntile/nnhaul/sync_defer.hh>
+#else
+
 #include <atomic>
 #include <cstdint>
 #include <starpu.h>
@@ -59,3 +63,4 @@ inline void starpu_task_wait_for_all_unless_deferred()
 }
 
 } // namespace nntile
+#endif // NNTILE_USE_NNHAUL

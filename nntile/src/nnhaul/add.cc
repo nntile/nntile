@@ -30,7 +30,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 Add<std::tuple<T>>::Add():
-    codelet("nntile_add", &Add<std::tuple<T>>::cpu, nullptr, &Add<std::tuple<T>>::footprint)
+    codelet(
+        "nntile_add",
+        &Add<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &Add<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &Add<std::tuple<T>>::footprint)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -76,6 +84,53 @@ void Add<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
     Add<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
+#ifdef NNTILE_USE_CUDA
+//! Apply add for NNHaul buffers on CUDA
+template<typename T>
+void Add<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    auto args = reinterpret_cast<args_t const *>(cl_args);
+    const T *src1 = ::nntile::haul::buf_as<T>(buffers, 0);
+    const T *src2 = ::nntile::haul::buf_as<T>(buffers, 1);
+    T *dst = ::nntile::haul::buf_as<T>(buffers, 2);
+    kernel::add::cuda<T>(
+        ::nnhaul::cuda_stream(),
+        args->nelems,
+        args->alpha,
+        src1,
+        args->beta,
+        src2,
+        dst);
+}
+
+template<>
+void Add<std::tuple<fp32_fast_tf32_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    Add<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Add<std::tuple<fp32_fast_fp16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    Add<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Add<std::tuple<fp32_fast_bf16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    Add<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for add tasks that depends only on cl_arg
 template<typename T>

@@ -25,7 +25,15 @@ namespace nntile::haul
 
 //! Constructor
 Clear::Clear():
-    codelet("nntile_clear", &Clear::cpu, nullptr, nullptr)
+    codelet(
+        "nntile_clear",
+        &Clear::cpu,
+#ifdef NNTILE_USE_CUDA
+        &Clear::cuda,
+#else
+        nullptr,
+#endif
+        nullptr)
 {
     // Modes cannot be variable for clear operation
     // Construct modes
@@ -47,6 +55,16 @@ void Clear::cpu(void *buffers[], void *cl_args)
     std::memset(data, 0, nbytes);
 }
 
+#ifdef NNTILE_USE_CUDA
+//! Clear an NNHaul buffer on CUDA
+void Clear::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    std::size_t nbytes = (*reinterpret_cast<std::size_t const *>(cl_args));
+    void *data = ::nntile::haul::buf_as<void>(buffers, 0);
+    cudaMemsetAsync(data, 0, nbytes, ::nnhaul::cuda_stream());
+}
+#endif // NNTILE_USE_CUDA
 
 //! Submit clear task
 void Clear::submit(int starpu_worker_hint, ::nnhaul::Handle & data)
