@@ -1856,6 +1856,14 @@ void apply_tile_op(TileGraph &graph, nlohmann::json const &op)
         auto extra = decode_torch_extra(attrs);
         extra.kind = static_cast<starpu::TorchKind>(
             attrs.value("kind", 0));
+        // aten::add alpha defaults to 1. A missing scalar, or the
+        // zero left by a value-initialized TorchDispatchArgs, copies
+        // the first input (out = a + 0 * b).
+        if (extra.kind == starpu::TorchKind::Add &&
+            extra.scalars[0] == static_cast<Scalar>(0))
+        {
+            extra.scalars[0] = static_cast<Scalar>(1);
+        }
         tile::torch_binary(
             extra.kind,
             arg(graph, inputs, 0, "TILE_TORCH_BINARY inputs"),
