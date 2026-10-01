@@ -30,7 +30,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 Conv2dInplace<std::tuple<T>>::Conv2dInplace():
-    codelet("nntile_conv2d_inplace", &Conv2dInplace<std::tuple<T>>::cpu, nullptr, &Conv2dInplace<std::tuple<T>>::footprint)
+    codelet(
+        "nntile_conv2d_inplace",
+        &Conv2dInplace<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &Conv2dInplace<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &Conv2dInplace<std::tuple<T>>::footprint)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -70,6 +78,46 @@ void Conv2dInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     );
 }
 
+#ifdef NNTILE_USE_CUDA
+//! Apply conv2d_inplace on StarPU buffer on CUDA
+template<typename T>
+void Conv2dInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    args_t const *args = reinterpret_cast<args_t const *>(cl_args);
+    // Get interfaces
+    const T *src1 = ::nntile::haul::buf_as<T>(buffers, 0);
+    const T *src2 = ::nntile::haul::buf_as<T>(buffers, 1);
+    T *dst = ::nntile::haul::buf_as<T>(buffers, 2);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Launch kernel
+    kernel::conv2d_inplace::cuda<T>(
+        stream,
+        args->src1_m,
+        args->src1_n,
+        args->src1_channels,
+        args->batch,
+        args->src2_m,
+        args->src2_n,
+        args->dilation_m,
+        args->dilation_n,
+        args->dst_channels,
+        args->offset_m,
+        args->offset_n,
+        args->alpha,
+        src1,
+        src2,
+        args->dst_m,
+        args->dst_n,
+        args->stride_m,
+        args->stride_n,
+        args->beta,
+        dst
+    );
+}
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for conv2d_inplace tasks
 template<typename T>

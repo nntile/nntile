@@ -28,7 +28,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 AccumulateHypot<std::tuple<T>>::AccumulateHypot():
-    codelet("nntile_accumulate_hypot", &AccumulateHypot<std::tuple<T>>::cpu, nullptr, nullptr)
+    codelet(
+        "nntile_accumulate_hypot",
+        &AccumulateHypot<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &AccumulateHypot<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        nullptr)
 {
     // Modes cannot be variable for accumulate_hypot operation
     // Construct modes
@@ -78,6 +86,55 @@ void AccumulateHypot<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *c
     AccumulateHypot<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
+
+#ifdef NNTILE_USE_CUDA
+//! Apply accumulate_hypot for StarPU buffers on CUDA
+template<typename T>
+void AccumulateHypot<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get interfaces
+    Index nelems =
+        (*reinterpret_cast<std::size_t const *>(cl_args)) / sizeof(T);
+    T *dst = ::nntile::haul::buf_as<T>(buffers, 0);
+    const T *src = ::nntile::haul::buf_as<T>(buffers, 1);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Launch kernel
+    kernel::hypot_inplace::cuda<T>(stream, nelems, 1.0, src, 1.0, dst);
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void AccumulateHypot<std::tuple<fp32_fast_tf32_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AccumulateHypot<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void AccumulateHypot<std::tuple<fp32_fast_fp16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AccumulateHypot<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void AccumulateHypot<std::tuple<fp32_fast_bf16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AccumulateHypot<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
 
 template<typename T>
 void AccumulateHypot<std::tuple<T>>::submit(int starpu_worker_hint, ::nnhaul::Handle & src, ::nnhaul::Handle & dst)

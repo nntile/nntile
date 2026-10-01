@@ -20,7 +20,15 @@ namespace nntile::haul
 
 template<typename T>
 SwapTwoAxes<std::tuple<T>>::SwapTwoAxes():
-    codelet("nntile_swap_two_axes", &SwapTwoAxes<std::tuple<T>>::cpu, nullptr, &SwapTwoAxes<std::tuple<T>>::footprint)
+    codelet(
+        "nntile_swap_two_axes",
+        &SwapTwoAxes<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &SwapTwoAxes<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &SwapTwoAxes<std::tuple<T>>::footprint)
 {
 }
 
@@ -66,6 +74,52 @@ void SwapTwoAxes<std::tuple<fp32_fast_bf16_t>>::cpu(
     SwapTwoAxes<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
+
+#ifdef NNTILE_USE_CUDA
+template<typename T>
+void SwapTwoAxes<std::tuple<T>>::cuda(
+    void *buffers[],
+    void *cl_args) noexcept
+{
+    auto args = reinterpret_cast<args_t const *>(cl_args);
+    const T *src = ::nntile::haul::buf_as<T>(buffers, 0);
+    T *dst = ::nntile::haul::buf_as<T>(buffers, 1);
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    kernel::swap_two_axes::cuda<T>(
+        stream,
+        args->d0,
+        args->d1,
+        args->d2,
+        args->d3,
+        args->d4,
+        src,
+        dst);
+}
+
+template<>
+void SwapTwoAxes<std::tuple<fp32_fast_tf32_t>>::cuda(
+    void *buffers[],
+    void *cl_args) noexcept
+{
+    SwapTwoAxes<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void SwapTwoAxes<std::tuple<fp32_fast_fp16_t>>::cuda(
+    void *buffers[],
+    void *cl_args) noexcept
+{
+    SwapTwoAxes<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void SwapTwoAxes<std::tuple<fp32_fast_bf16_t>>::cuda(
+    void *buffers[],
+    void *cl_args) noexcept
+{
+    SwapTwoAxes<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
 
 template<typename T>
 std::uint64_t SwapTwoAxes<std::tuple<T>>::footprint(void const *cl_args, std::size_t) noexcept

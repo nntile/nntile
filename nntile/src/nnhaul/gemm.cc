@@ -31,7 +31,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 Gemm<std::tuple<T>>::Gemm():
-    codelet("nntile_gemm", &Gemm<std::tuple<T>>::cpu, nullptr, &Gemm<std::tuple<T>>::footprint)
+    codelet(
+        "nntile_gemm",
+        &Gemm<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &Gemm<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &Gemm<std::tuple<T>>::footprint)
 {
     // Modes are not fixed, they are decided during runtime by default.
     // Unsupported types no-op inside the CPU kernel.
@@ -70,6 +78,42 @@ void Gemm<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
 }
 #endif // NNTILE_USE_CBLAS
 
+#ifdef NNTILE_USE_CUDA // CUDA implementation requires cuBLAS
+//! GEMM for contiguous matrices without padding through StarPU buffers
+template<typename T>
+void Gemm<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t const *>(cl_args);
+    // Get interfaces
+    // Launch kernel
+    const T *A = ::nntile::haul::buf_as<T>(buffers, 0);
+    const T *B = ::nntile::haul::buf_as<T>(buffers, 1);
+    T *C = ::nntile::haul::buf_as<T>(buffers, 2);
+    // Get cuBLAS handle and CUDA stream
+    cublasHandle_t handle = ::nnhaul::cublas_handle();
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    cublasSetStream(handle, stream);
+    // alpha and beta parameters of GEMM operation are on CPU host
+    cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_HOST);
+    // Call corresponding cuBLAS routine
+    kernel::cublas::gemm<T>(
+        handle,
+        args->transA,
+        args->transB,
+        args->m,
+        args->n,
+        args->k,
+        args->batch,
+        args->alpha,
+        A,
+        B,
+        args->beta,
+        C
+    );
+}
+#endif //NNTILE_USE_CUDA
 
 //! Footprint for GEMM tasks that depends on transA, transB, M, N, K, batch and alpha
 template<typename T>

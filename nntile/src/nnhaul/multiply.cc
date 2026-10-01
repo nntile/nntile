@@ -29,7 +29,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 Multiply<std::tuple<T>>::Multiply():
-    codelet("nntile_multiply", &Multiply<std::tuple<T>>::cpu, nullptr, &Multiply<std::tuple<T>>::footprint)
+    codelet(
+        "nntile_multiply",
+        &Multiply<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &Multiply<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &Multiply<std::tuple<T>>::footprint)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -76,6 +84,57 @@ void Multiply<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
     Multiply<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
+#ifdef NNTILE_USE_CUDA
+//! Apply multiply on StarPU buffer on CUDA
+template<typename T>
+void Multiply<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t const *>(cl_args);
+    Index nelems = args->nelems;
+    Scalar alpha = args->alpha;
+    // Get interfaces
+    const T *src1 = ::nntile::haul::buf_as<T>(buffers, 0);
+    const T *src2 = ::nntile::haul::buf_as<T>(buffers, 1);
+    T *dst = ::nntile::haul::buf_as<T>(buffers, 2);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Launch kernel
+    kernel::multiply::cuda<T>(stream, nelems, alpha, src1, src2, dst);
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void Multiply<std::tuple<fp32_fast_tf32_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Multiply<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Multiply<std::tuple<fp32_fast_fp16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Multiply<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Multiply<std::tuple<fp32_fast_bf16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Multiply<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for add tasks that depends only on cl_arg
 template<typename T>

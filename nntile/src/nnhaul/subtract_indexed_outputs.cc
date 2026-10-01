@@ -29,7 +29,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 SubtractIndexedOutputs<std::tuple<T>>::SubtractIndexedOutputs():
-    codelet("nntile_subtract_indexed_outputs", &SubtractIndexedOutputs<std::tuple<T>>::cpu, nullptr, &SubtractIndexedOutputs<std::tuple<T>>::footprint)
+    codelet(
+        "nntile_subtract_indexed_outputs",
+        &SubtractIndexedOutputs<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &SubtractIndexedOutputs<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &SubtractIndexedOutputs<std::tuple<T>>::footprint)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -77,6 +85,60 @@ void SubtractIndexedOutputs<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], 
     SubtractIndexedOutputs<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
+#ifdef NNTILE_USE_CUDA
+//! Apply subtract_indexed_outputs operation on StarPU buffer on CUDA
+template<typename T>
+void SubtractIndexedOutputs<std::tuple<T>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t*>(cl_args);
+    Index n_labels = args->n_labels;
+    Index n_outputs = args->n_outputs;
+    Index ignore_index = args->ignore_index;
+    // Get interfaces
+    const int64_t *labels = ::nntile::haul::buf_as<int64_t>(buffers, 0);
+    T *dst = ::nntile::haul::buf_as<T>(buffers, 1);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Launch kernel
+    kernel::subtract_indexed_outputs::cuda<T>(stream, n_labels, n_outputs,
+            ignore_index, args->value, labels, dst);
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void SubtractIndexedOutputs<std::tuple<fp32_fast_tf32_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SubtractIndexedOutputs<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void SubtractIndexedOutputs<std::tuple<fp32_fast_fp16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SubtractIndexedOutputs<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void SubtractIndexedOutputs<std::tuple<fp32_fast_bf16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SubtractIndexedOutputs<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for subtract_indexed_outputs tasks
 template<typename T>

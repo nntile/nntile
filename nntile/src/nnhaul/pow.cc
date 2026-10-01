@@ -29,7 +29,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 Pow<std::tuple<T>>::Pow():
-    codelet("nntile_pow", &Pow<std::tuple<T>>::cpu, nullptr, &Pow<std::tuple<T>>::footprint)
+    codelet(
+        "nntile_pow",
+        &Pow<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &Pow<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &Pow<std::tuple<T>>::footprint)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -72,6 +80,47 @@ void Pow<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
     Pow<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
+#ifdef NNTILE_USE_CUDA
+//! StarPU wrapper for kernel::pow::cuda<T>
+template<typename T>
+void Pow<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    args_t const *args = reinterpret_cast<args_t const *>(cl_args);
+    // Get interfaces
+    T *data = ::nntile::haul::buf_as<T>(buffers, 0);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Launch kernel
+    kernel::pow::cuda<T>(stream, args->nelems, args->alpha, args->exp, data);
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void Pow<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Pow<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Pow<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Pow<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Pow<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Pow<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for add tasks that depends only on cl_arg
 template<typename T>

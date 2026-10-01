@@ -43,6 +43,12 @@ public:
     static void cpu(void *buffers[], void *cl_args) noexcept;
 
 
+#ifdef NNTILE_USE_CUDA
+    //! Wrapper for a generic CUDA implementation
+    static void cuda(void *buffers[], void *cl_args)
+        noexcept;
+#endif // NNTILE_USE_CUDA
+
     void submit(
         int starpu_worker_hint,
         Index d0,

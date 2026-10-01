@@ -28,7 +28,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 GeluTanh<std::tuple<T>>::GeluTanh():
-    codelet("nntile_gelutanh", &GeluTanh<std::tuple<T>>::cpu, nullptr, &GeluTanh<std::tuple<T>>::footprint)
+    codelet(
+        "nntile_gelutanh",
+        &GeluTanh<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &GeluTanh<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &GeluTanh<std::tuple<T>>::footprint)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -72,6 +80,54 @@ void GeluTanh<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
     GeluTanh<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
+#ifdef NNTILE_USE_CUDA
+//! Apply gelutanh on StarPU buffer on CUDA
+template<typename T>
+void GeluTanh<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t const *>(cl_args);
+    // Get interfaces
+    const T *src = ::nntile::haul::buf_as<T>(buffers, 0);
+    T *dst = ::nntile::haul::buf_as<T>(buffers, 1);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Launch kernel
+    kernel::gelutanh::cuda<T>(stream, args->nelems, src, dst);
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void GeluTanh<std::tuple<fp32_fast_tf32_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    GeluTanh<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void GeluTanh<std::tuple<fp32_fast_fp16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    GeluTanh<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void GeluTanh<std::tuple<fp32_fast_bf16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    GeluTanh<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for add tasks that depends only on cl_arg
 template<typename T>

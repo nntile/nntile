@@ -28,7 +28,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 GeluBackward<std::tuple<T>>::GeluBackward():
-    codelet("nntile_gelu_backward", &GeluBackward<std::tuple<T>>::cpu, nullptr, &GeluBackward<std::tuple<T>>::footprint)
+    codelet(
+        "nntile_gelu_backward",
+        &GeluBackward<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &GeluBackward<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &GeluBackward<std::tuple<T>>::footprint)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -73,6 +81,63 @@ void GeluBackward<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_a
     GeluBackward<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
+#ifdef NNTILE_USE_CUDA
+//! Apply gelu_backward on StarPU buffer on CUDA
+template<typename T>
+void GeluBackward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    args_t const *args = reinterpret_cast<args_t const *>(cl_args);
+    // Get interfaces
+    const T *x = ::nntile::haul::buf_as<T>(buffers, 0);
+    const T *dy = ::nntile::haul::buf_as<T>(buffers, 1);
+    T *dx = ::nntile::haul::buf_as<T>(buffers, 2);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Launch kernel
+    kernel::gelu_backward::cuda<T>(
+        stream,
+        args->nelems,
+        args->alpha,
+        x,
+        dy,
+        args->beta,
+        dx
+    );
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void GeluBackward<std::tuple<fp32_fast_tf32_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    GeluBackward<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void GeluBackward<std::tuple<fp32_fast_fp16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    GeluBackward<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void GeluBackward<std::tuple<fp32_fast_bf16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    GeluBackward<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for add tasks that depends only on cl_arg
 template<typename T>

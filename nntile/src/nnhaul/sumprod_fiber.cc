@@ -29,7 +29,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 SumProdFiber<std::tuple<T>>::SumProdFiber():
-    codelet("nntile_sumprod_fiber", &SumProdFiber<std::tuple<T>>::cpu, nullptr, &SumProdFiber<std::tuple<T>>::footprint)
+    codelet(
+        "nntile_sumprod_fiber",
+        &SumProdFiber<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &SumProdFiber<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &SumProdFiber<std::tuple<T>>::footprint)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -74,6 +82,55 @@ void SumProdFiber<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_a
     SumProdFiber<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
+#ifdef NNTILE_USE_CUDA
+//! StarPU wrapper for kernel::sumprod_fiber::cuda<T>
+template<typename T>
+void SumProdFiber<std::tuple<T>>::cuda(void *buffers[], void *cl_args) noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t const *>(cl_args);
+    // Get interfaces
+    const T *src1 = ::nntile::haul::buf_as<T>(buffers, 0);
+    const T *src2 = ::nntile::haul::buf_as<T>(buffers, 1);
+    T *dst = ::nntile::haul::buf_as<T>(buffers, 2);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Launch kernel
+    kernel::sumprod_fiber::cuda<T>(stream, args->m, args->n, args->k,
+            args->alpha, src1, src2, args->beta, dst);
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void SumProdFiber<std::tuple<fp32_fast_tf32_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SumProdFiber<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void SumProdFiber<std::tuple<fp32_fast_fp16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SumProdFiber<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void SumProdFiber<std::tuple<fp32_fast_bf16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SumProdFiber<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for sumprod_fiber tasks
 template<typename T>

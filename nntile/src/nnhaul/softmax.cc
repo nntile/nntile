@@ -29,7 +29,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 Softmax<std::tuple<T>>::Softmax():
-    codelet("nntile_softmax", &Softmax<std::tuple<T>>::cpu, nullptr, &Softmax<std::tuple<T>>::footprint)
+    codelet(
+        "nntile_softmax",
+        &Softmax<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &Softmax<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &Softmax<std::tuple<T>>::footprint)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -75,6 +83,56 @@ void Softmax<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
     Softmax<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
+#ifdef NNTILE_USE_CUDA
+//! StarPU wrapper for kernel::softmax::cuda<T>
+template<typename T>
+void Softmax<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t const *>(cl_args);
+    // Get interfaces
+    const T *maxsumexp = ::nntile::haul::buf_as<T>(buffers, 0);
+    const T *src = ::nntile::haul::buf_as<T>(buffers, 1);
+    T *dst = ::nntile::haul::buf_as<T>(buffers, 2);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Launch kernel
+    kernel::softmax::cuda<T>(stream, args->m, args->n, args->k, maxsumexp,
+            src, args->alpha, dst);
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void Softmax<std::tuple<fp32_fast_tf32_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Softmax<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Softmax<std::tuple<fp32_fast_fp16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Softmax<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Softmax<std::tuple<fp32_fast_bf16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Softmax<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for softmax tasks that depends only on m, n and k
 template<typename T>

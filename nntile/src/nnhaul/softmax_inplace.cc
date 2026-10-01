@@ -29,7 +29,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 SoftmaxInplace<std::tuple<T>>::SoftmaxInplace():
-    codelet("nntile_softmax_inplace", &SoftmaxInplace<std::tuple<T>>::cpu, nullptr, &SoftmaxInplace<std::tuple<T>>::footprint)
+    codelet(
+        "nntile_softmax_inplace",
+        &SoftmaxInplace<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &SoftmaxInplace<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &SoftmaxInplace<std::tuple<T>>::footprint)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -74,6 +82,55 @@ void SoftmaxInplace<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl
     SoftmaxInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
+#ifdef NNTILE_USE_CUDA
+//! StarPU wrapper for kernel::softmax_inplace::cuda<T>
+template<typename T>
+void SoftmaxInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t const *>(cl_args);
+    // Get interfaces
+    const T *maxsumexp = ::nntile::haul::buf_as<T>(buffers, 0);
+    T *dst = ::nntile::haul::buf_as<T>(buffers, 1);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Launch kernel
+    kernel::softmax_inplace::cuda<T>(stream, args->m, args->n, args->k,
+            maxsumexp, args->alpha, dst);
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void SoftmaxInplace<std::tuple<fp32_fast_tf32_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SoftmaxInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void SoftmaxInplace<std::tuple<fp32_fast_fp16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SoftmaxInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void SoftmaxInplace<std::tuple<fp32_fast_bf16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SoftmaxInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for softmax_inplace tasks that depends only on m, n and k
 template<typename T>

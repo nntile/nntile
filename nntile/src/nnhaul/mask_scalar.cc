@@ -29,7 +29,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 MaskScalar<std::tuple<T>>::MaskScalar():
-    codelet("nntile_mask_scalar", &MaskScalar<std::tuple<T>>::cpu, nullptr, &MaskScalar<std::tuple<T>>::footprint)
+    codelet(
+        "nntile_mask_scalar",
+        &MaskScalar<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &MaskScalar<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &MaskScalar<std::tuple<T>>::footprint)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -73,6 +81,54 @@ void MaskScalar<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_arg
     MaskScalar<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
+#ifdef NNTILE_USE_CUDA
+//! Mask scalar StarPU buffer on CUDA
+template<typename T>
+void MaskScalar<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t const *>(cl_args);
+    // Get interfaces
+    T *data = ::nntile::haul::buf_as<T>(buffers, 0);
+    const bool_t *mask = ::nntile::haul::buf_as<bool_t>(buffers, 1);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Launch kernel
+    kernel::mask_scalar::cuda<T>(stream, args->nrows, args->ncols, mask,
+            args->val, data);
+}
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void MaskScalar<std::tuple<fp32_fast_tf32_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    MaskScalar<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void MaskScalar<std::tuple<fp32_fast_fp16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    MaskScalar<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void MaskScalar<std::tuple<fp32_fast_bf16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    MaskScalar<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for mask_scalar tasks
 template<typename T>

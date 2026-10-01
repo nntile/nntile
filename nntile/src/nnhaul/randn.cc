@@ -32,7 +32,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 Randn<std::tuple<T>>::Randn():
-    codelet("nntile_randn", &Randn<std::tuple<T>>::cpu, nullptr, &Randn<std::tuple<T>>::footprint)
+    codelet(
+        "nntile_randn",
+        &Randn<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &Randn<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &Randn<std::tuple<T>>::footprint)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -73,6 +81,67 @@ void Randn<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     );
 }
 
+#ifdef NNTILE_USE_CUDA
+//! StarPU wrapper for kernel::randn::cuda<T>
+template<typename T>
+void Randn<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    const Index *ndim_ptr, *nelems_ptr, *start, *shape, *stride,
+          *underlying_shape;
+    const unsigned long long *seed_ptr;
+    const Scalar *mean_ptr, *stddev_ptr;
+    ::nntile::haul::unpack_args_ptr(
+        cl_args,
+        ndim_ptr,
+        nelems_ptr,
+        seed_ptr,
+        mean_ptr,
+        stddev_ptr,
+        start,
+        shape,
+        stride,
+        underlying_shape
+    );
+    Index ndim = *ndim_ptr;
+    T *data = ::nntile::haul::buf_as<T>(buffers, 0);
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    kernel::randn::cuda<T>(
+        stream,
+        ndim,
+        *nelems_ptr,
+        *seed_ptr,
+        *mean_ptr,
+        *stddev_ptr,
+        start,
+        shape,
+        underlying_shape,
+        data,
+        stride
+    );
+}
+
+template<>
+void Randn<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    Randn<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Randn<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    Randn<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Randn<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    Randn<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for randn tasks that depend on shape
 template<typename T>

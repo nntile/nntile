@@ -29,7 +29,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 ReluBackward<std::tuple<T>>::ReluBackward():
-    codelet("nntile_relu_backward", &ReluBackward<std::tuple<T>>::cpu, nullptr, &ReluBackward<std::tuple<T>>::footprint)
+    codelet(
+        "nntile_relu_backward",
+        &ReluBackward<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &ReluBackward<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &ReluBackward<std::tuple<T>>::footprint)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -76,6 +84,64 @@ void ReluBackward<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_a
 
 
 //! Define codelet pack
+#ifdef NNTILE_USE_CUDA
+//! StarPU wrapper for kernel::relu_backward::cuda<T>
+template<typename T>
+void ReluBackward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t const *>(cl_args);
+    // Get interfaces
+    const T *x = ::nntile::haul::buf_as<T>(buffers, 0);
+    const T *dy = ::nntile::haul::buf_as<T>(buffers, 1);
+    T *dx = ::nntile::haul::buf_as<T>(buffers, 2);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Launch kernel
+    kernel::relu_backward::cuda<T>(
+        stream,
+        args->nelems,
+        args->alpha,
+        x,
+        dy,
+        args->beta,
+        dx
+    );
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void ReluBackward<std::tuple<fp32_fast_tf32_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    ReluBackward<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void ReluBackward<std::tuple<fp32_fast_fp16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    ReluBackward<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void ReluBackward<std::tuple<fp32_fast_bf16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    ReluBackward<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
+
 template<typename T>
 std::uint64_t ReluBackward<std::tuple<T>>::footprint(void const *cl_args, std::size_t) noexcept
 {
