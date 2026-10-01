@@ -316,8 +316,14 @@ void torch_binary(
     starpu::TorchKind kind,
     TileGraph::TileNode *a,
     TileGraph::TileNode *b,
+    TileGraph::TileNode *out);
+
+void torch_binary(
+    starpu::TorchKind kind,
+    TileGraph::TileNode *a,
+    TileGraph::TileNode *b,
     TileGraph::TileNode *out,
-    starpu::TorchDispatchArgs extra = {});
+    starpu::TorchDispatchArgs extra);
 
 void torch_ternary(
     starpu::TorchKind kind,

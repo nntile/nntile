@@ -330,15 +330,27 @@ TensorGraph::TensorNode *torch_binary(
     starpu::TorchKind kind,
     TensorGraph::TensorNode *a,
     TensorGraph::TensorNode *b,
+    const std::vector<Index> &out_shape);
+
+TensorGraph::TensorNode *torch_binary(
+    starpu::TorchKind kind,
+    TensorGraph::TensorNode *a,
+    TensorGraph::TensorNode *b,
     const std::vector<Index> &out_shape,
-    starpu::TorchDispatchArgs extra = {});
+    starpu::TorchDispatchArgs extra);
+
+void torch_binary(
+    starpu::TorchKind kind,
+    TensorGraph::TensorNode *a,
+    TensorGraph::TensorNode *b,
+    TensorGraph::TensorNode *out);
 
 void torch_binary(
     starpu::TorchKind kind,
     TensorGraph::TensorNode *a,
     TensorGraph::TensorNode *b,
     TensorGraph::TensorNode *out,
-    starpu::TorchDispatchArgs extra = {});
+    starpu::TorchDispatchArgs extra);
 
 TensorGraph::TensorNode *torch_ternary(
     starpu::TorchKind kind,

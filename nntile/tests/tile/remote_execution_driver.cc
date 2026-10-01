@@ -319,6 +319,32 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto const lin = driver.gather(lin_out->id());
     REQUIRE(lin.size() == 4);
 }
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "RemoteExecutionDriver TILE_TORCH Add explicit alpha 0",
+    "[graph][tile][driver][remote]")
+{
+    std::string const path = test_socket_path("add0");
+    ExecutionDaemon daemon(path);
+    daemon.start();
+    RemoteExecutionDriver driver(path);
+
+    TileGraph graph("driver_remote_torch_add0");
+    auto *x = graph.data({2, 2}, "x", DataType::FP32);
+    auto *y = graph.data({2, 2}, "y", DataType::FP32);
+    auto *out = graph.data({2, 2}, "out", DataType::FP32);
+    starpu::TorchDispatchArgs extra;
+    extra.scalars[0] = static_cast<Scalar>(0);
+    tg::torch_binary(
+        starpu::TorchKind::Add, x, y, out, extra);
+
+    driver.bind(x->id(), {1, -2, 3, -4});
+    driver.bind(y->id(), {1, 1, 1, 1});
+    driver.submit(graph);
+    driver.wait();
+    nntile::test::require_relative_element_error(
+        driver.gather(out->id()), {1.f, -2.f, 3.f, -4.f});
+}
 #endif
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
