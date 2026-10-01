@@ -30,7 +30,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 SGDStep<std::tuple<T>>::SGDStep():
-    codelet("nntile_sgd_step", &SGDStep<std::tuple<T>>::cpu, nullptr, &SGDStep<std::tuple<T>>::footprint)
+    codelet(
+        "nntile_sgd_step",
+        &SGDStep<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &SGDStep<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &SGDStep<std::tuple<T>>::footprint)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -86,6 +94,67 @@ void SGDStep<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
     SGDStep<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
+#ifdef NNTILE_USE_CUDA
+//! Apply SGD step operation on StarPU buffer on CUDA
+template<typename T>
+void SGDStep<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t const *>(cl_args);
+    // Get interfaces
+    T *grad = ::nntile::haul::buf_as<T>(buffers, 0);
+    T *velocity = ::nntile::haul::buf_as<T>(buffers, 1);
+    T* p = ::nntile::haul::buf_as<T>(buffers, 2);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Launch kernel
+    kernel::sgd_step::cuda<T>(
+        stream,
+        args->num_iter,
+        args->num_elems,
+        args->momentum,
+        args->lr,
+        args->weight_decay,
+        args->dampening,
+        args->nesterov,
+        grad,
+        velocity,
+        p
+    );
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void SGDStep<std::tuple<fp32_fast_tf32_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SGDStep<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void SGDStep<std::tuple<fp32_fast_fp16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SGDStep<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void SGDStep<std::tuple<fp32_fast_bf16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SGDStep<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for sgd_step tasks that depends only on cl_arg
 template<typename T>

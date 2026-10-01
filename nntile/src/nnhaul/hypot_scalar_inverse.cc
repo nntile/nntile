@@ -29,7 +29,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 HypotScalarInverse<std::tuple<T>>::HypotScalarInverse():
-    codelet("nntile_hypot_scalar_inverse", &HypotScalarInverse<std::tuple<T>>::cpu, nullptr, &HypotScalarInverse<std::tuple<T>>::footprint)
+    codelet(
+        "nntile_hypot_scalar_inverse",
+        &HypotScalarInverse<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &HypotScalarInverse<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &HypotScalarInverse<std::tuple<T>>::footprint)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -73,6 +81,54 @@ void HypotScalarInverse<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void
     HypotScalarInverse<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
+#ifdef NNTILE_USE_CUDA
+//! Apply hypot_scalar_inverse for StarPU buffers on CUDA
+template<typename T>
+void HypotScalarInverse<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t const *>(cl_args);
+    // Get interfaces
+    T *dst = ::nntile::haul::buf_as<T>(buffers, 0);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Launch kernel
+    kernel::hypot_scalar_inverse::cuda<T>(stream, args->nelems, args->eps,
+            args->alpha, dst);
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void HypotScalarInverse<std::tuple<fp32_fast_tf32_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    HypotScalarInverse<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void HypotScalarInverse<std::tuple<fp32_fast_fp16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    HypotScalarInverse<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void HypotScalarInverse<std::tuple<fp32_fast_bf16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    HypotScalarInverse<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for add tasks that depends only on cl_arg
 template<typename T>

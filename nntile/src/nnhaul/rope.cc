@@ -29,7 +29,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 Rope<std::tuple<T>>::Rope():
-    codelet("nntile_rope", &Rope<std::tuple<T>>::cpu, nullptr, &Rope<std::tuple<T>>::footprint)
+    codelet(
+        "nntile_rope",
+        &Rope<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &Rope<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &Rope<std::tuple<T>>::footprint)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -75,6 +83,50 @@ void Rope<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
     Rope<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
+#ifdef NNTILE_USE_CUDA
+//! StarPU wrapper for kernel::rope::cuda<T>
+template<typename T>
+void Rope<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t*>(cl_args);
+    // Get interfaces
+    const T *sin = ::nntile::haul::buf_as<T>(buffers, 0);
+    const T *cos = ::nntile::haul::buf_as<T>(buffers, 1);
+    const T *src = ::nntile::haul::buf_as<T>(buffers, 2);
+    T *dst = ::nntile::haul::buf_as<T>(buffers, 3);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Launch kernel
+    kernel::rope::cuda<T>(stream, args->m, args->n, sin, cos, src, dst);
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void Rope<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Rope<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Rope<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Rope<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Rope<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Rope<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for rope tasks
 template<typename T>

@@ -31,7 +31,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 AddSliceInplace<std::tuple<T>>::AddSliceInplace():
-    codelet("nntile_add_slice_inplace", &AddSliceInplace<std::tuple<T>>::cpu, nullptr, &AddSliceInplace<std::tuple<T>>::footprint)
+    codelet(
+        "nntile_add_slice_inplace",
+        &AddSliceInplace<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &AddSliceInplace<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &AddSliceInplace<std::tuple<T>>::footprint)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -76,6 +84,55 @@ void AddSliceInplace<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *c
     AddSliceInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
+#ifdef NNTILE_USE_CUDA
+//! StarPU wrapper for kernel::add_slice_inplace::cuda<T>
+template<typename T>
+void AddSliceInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t*>(cl_args);
+    // Get interfaces
+    const T *src = ::nntile::haul::buf_as<T>(buffers, 0);
+    T *dst = ::nntile::haul::buf_as<T>(buffers, 1);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Launch kernel
+    kernel::add_slice_inplace::cuda<T>(
+        stream, args->m, args->n, args->k, args->alpha, src, args->beta, dst);
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void AddSliceInplace<std::tuple<fp32_fast_tf32_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddSliceInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void AddSliceInplace<std::tuple<fp32_fast_fp16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddSliceInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void AddSliceInplace<std::tuple<fp32_fast_bf16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddSliceInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for add_slice_inplace tasks
 template<typename T>

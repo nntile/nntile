@@ -29,7 +29,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 MultiplyInplace<std::tuple<T>>::MultiplyInplace():
-    codelet("nntile_multiply_inplace", &MultiplyInplace<std::tuple<T>>::cpu, nullptr, &MultiplyInplace<std::tuple<T>>::footprint)
+    codelet(
+        "nntile_multiply_inplace",
+        &MultiplyInplace<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &MultiplyInplace<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &MultiplyInplace<std::tuple<T>>::footprint)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -75,6 +83,56 @@ void MultiplyInplace<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *c
     MultiplyInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
+#ifdef NNTILE_USE_CUDA
+//! Apply multiply on StarPU buffer on CUDA
+template<typename T>
+void MultiplyInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t const *>(cl_args);
+    Index nelems = args->nelems;
+    Scalar alpha = args->alpha;
+    // Get interfaces
+    const T *src = ::nntile::haul::buf_as<T>(buffers, 0);
+    T *dst = ::nntile::haul::buf_as<T>(buffers, 1);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Launch kernel
+    kernel::multiply_inplace::cuda<T>(stream, nelems, alpha, src, dst);
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void MultiplyInplace<std::tuple<fp32_fast_tf32_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    MultiplyInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void MultiplyInplace<std::tuple<fp32_fast_fp16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    MultiplyInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void MultiplyInplace<std::tuple<fp32_fast_bf16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    MultiplyInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for multiply_inplace operation
 template<typename T>

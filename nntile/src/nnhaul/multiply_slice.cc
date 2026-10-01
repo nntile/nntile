@@ -29,7 +29,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 MultiplySlice<std::tuple<T>>::MultiplySlice():
-    codelet("nntile_multiply_slice", &MultiplySlice<std::tuple<T>>::cpu, nullptr, &MultiplySlice<std::tuple<T>>::footprint)
+    codelet(
+        "nntile_multiply_slice",
+        &MultiplySlice<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &MultiplySlice<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &MultiplySlice<std::tuple<T>>::footprint)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -74,6 +82,62 @@ void MultiplySlice<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_
     MultiplySlice<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
+#ifdef NNTILE_USE_CUDA
+//! StarPU wrapper for kernel::multiply_slice::cuda<T>
+template<typename T>
+void MultiplySlice<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t const *>(cl_args);
+    // Get interfaces
+    const T *src = ::nntile::haul::buf_as<T>(buffers, 0);
+    T *dst = ::nntile::haul::buf_as<T>(buffers, 1);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Launch kernel
+    kernel::multiply_slice::cuda<T>(
+        stream,
+        args->m,
+        args->n,
+        args->k,
+        args->alpha,
+        src,
+        dst
+    );
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void MultiplySlice<std::tuple<fp32_fast_tf32_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    MultiplySlice<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void MultiplySlice<std::tuple<fp32_fast_fp16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    MultiplySlice<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void MultiplySlice<std::tuple<fp32_fast_bf16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    MultiplySlice<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for multiply_slice tasks
 template<typename T>

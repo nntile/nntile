@@ -58,6 +58,12 @@ public:
     //! Array of all wrappers for CPU implementations
 
 
+#ifdef NNTILE_USE_CUDA
+    //! Wrapper for a generic CUDA implementation
+    static void cuda(void *buffers[], void *cl_args)
+        noexcept;
+#endif // NNTILE_USE_CUDA
+
     //! Submit fill task
     void submit(
         int starpu_worker_hint,

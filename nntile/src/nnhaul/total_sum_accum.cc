@@ -29,7 +29,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 TotalSumAccum<std::tuple<T>>::TotalSumAccum():
-    codelet("nntile_total_sum_accum", &TotalSumAccum<std::tuple<T>>::cpu, nullptr, &TotalSumAccum<std::tuple<T>>::footprint)
+    codelet(
+        "nntile_total_sum_accum",
+        &TotalSumAccum<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &TotalSumAccum<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &TotalSumAccum<std::tuple<T>>::footprint)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -80,6 +88,61 @@ void TotalSumAccum<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_
     TotalSumAccum<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
+#ifdef NNTILE_USE_CUDA
+//! StarPU wrapper for kernel::total_sum_accum::cuda<T>
+template<typename T>
+void TotalSumAccum<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t const *>(cl_args);
+    Scalar alpha = args->alpha;
+    Index n_labels = args->n_labels;
+    Index n_outputs = args->n_outputs;
+    Index ignore_index = args->ignore_index;
+    // Get interfaces
+    const T *logsumexp = ::nntile::haul::buf_as<T>(buffers, 0);
+    const T *src = ::nntile::haul::buf_as<T>(buffers, 1);
+    const int64_t* labels = ::nntile::haul::buf_as<int64_t>(buffers, 2);
+    float *val = ::nntile::haul::buf_as<float>(buffers, 3);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Launch kernel
+    kernel::total_sum_accum::cuda<T>(stream, alpha, n_labels, n_outputs,
+        ignore_index, logsumexp, src, labels, val);
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void TotalSumAccum<std::tuple<fp32_fast_tf32_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    TotalSumAccum<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void TotalSumAccum<std::tuple<fp32_fast_fp16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    TotalSumAccum<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void TotalSumAccum<std::tuple<fp32_fast_bf16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    TotalSumAccum<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for total_sum_accum tasks
 template<typename T>

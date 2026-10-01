@@ -29,7 +29,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 GeluTanhInplace<std::tuple<T>>::GeluTanhInplace():
-    codelet("nntile_gelutanh_inplace", &GeluTanhInplace<std::tuple<T>>::cpu, nullptr, &GeluTanhInplace<std::tuple<T>>::footprint)
+    codelet(
+        "nntile_gelutanh_inplace",
+        &GeluTanhInplace<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &GeluTanhInplace<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &GeluTanhInplace<std::tuple<T>>::footprint)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -72,6 +80,53 @@ void GeluTanhInplace<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *c
     GeluTanhInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
+#ifdef NNTILE_USE_CUDA
+//! Apply approximate gelu on StarPU buffer on CUDA
+template<typename T>
+void GeluTanhInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    args_t const *args = reinterpret_cast<args_t const *>(cl_args);
+    // Get interfaces
+    T *data = ::nntile::haul::buf_as<T>(buffers, 0);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Launch kernel
+    kernel::gelutanh_inplace::cuda<T>(stream, args->nelems, data);
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void GeluTanhInplace<std::tuple<fp32_fast_tf32_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    GeluTanhInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void GeluTanhInplace<std::tuple<fp32_fast_fp16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    GeluTanhInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void GeluTanhInplace<std::tuple<fp32_fast_bf16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    GeluTanhInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for add tasks that depends only on cl_arg
 template<typename T>

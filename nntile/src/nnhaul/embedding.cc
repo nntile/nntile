@@ -29,7 +29,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 Embedding<std::tuple<T>>::Embedding():
-    codelet("nntile_embedding", &Embedding<std::tuple<T>>::cpu, nullptr, &Embedding<std::tuple<T>>::footprint)
+    codelet(
+        "nntile_embedding",
+        &Embedding<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &Embedding<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &Embedding<std::tuple<T>>::footprint)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -83,6 +91,65 @@ void Embedding<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args
     Embedding<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
+#ifdef NNTILE_USE_CUDA
+//! Apply embedding on StarPU buffer on CUDA
+template<typename T>
+void Embedding<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    args_t const *args = reinterpret_cast<args_t const *>(cl_args);
+    // Get interfaces
+    const int64_t *index = ::nntile::haul::buf_as<int64_t>(buffers, 0);
+    const T *vocab = ::nntile::haul::buf_as<T>(buffers, 1);
+    T *embed = ::nntile::haul::buf_as<T>(buffers, 2);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Get embeddings
+    kernel::embedding::cuda<T>(
+        stream,
+        args->m,
+        args->n,
+        args->k,
+        args->k_start,
+        args->k_size,
+        index,
+        vocab,
+        embed
+    );
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void Embedding<std::tuple<fp32_fast_tf32_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Embedding<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Embedding<std::tuple<fp32_fast_fp16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Embedding<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Embedding<std::tuple<fp32_fast_bf16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Embedding<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for embedding tasks that depends only on cl_arg
 template<typename T>

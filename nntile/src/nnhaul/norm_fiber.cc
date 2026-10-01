@@ -29,7 +29,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 NormFiber<std::tuple<T>>::NormFiber():
-    codelet("nntile_norm_fiber", &NormFiber<std::tuple<T>>::cpu, nullptr, &NormFiber<std::tuple<T>>::footprint)
+    codelet(
+        "nntile_norm_fiber",
+        &NormFiber<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &NormFiber<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &NormFiber<std::tuple<T>>::footprint)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -75,6 +83,56 @@ void NormFiber<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args
     NormFiber<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
+#ifdef NNTILE_USE_CUDA
+//! StarPU wrapper for kernel::norm_fiber::cuda<T>
+template<typename T>
+void NormFiber<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t const *>(cl_args);
+    // Get interfaces
+    const T *src1 = ::nntile::haul::buf_as<T>(buffers, 0);
+    const T *src2 = ::nntile::haul::buf_as<T>(buffers, 1);
+    T *dst = ::nntile::haul::buf_as<T>(buffers, 2);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Launch kernel
+    kernel::norm_fiber::cuda<T>(stream, args->m, args->n, args->k, args->batch,
+            args->alpha, src1, args->beta, src2, dst);
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void NormFiber<std::tuple<fp32_fast_tf32_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    NormFiber<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void NormFiber<std::tuple<fp32_fast_fp16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    NormFiber<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void NormFiber<std::tuple<fp32_fast_bf16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    NormFiber<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for norm_fiber tasks
 template<typename T>

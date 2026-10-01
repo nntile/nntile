@@ -29,7 +29,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 SiluInplace<std::tuple<T>>::SiluInplace():
-    codelet("nntile_silu_inplace", &SiluInplace<std::tuple<T>>::cpu, nullptr, &SiluInplace<std::tuple<T>>::footprint)
+    codelet(
+        "nntile_silu_inplace",
+        &SiluInplace<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &SiluInplace<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &SiluInplace<std::tuple<T>>::footprint)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -72,6 +80,54 @@ void SiluInplace<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_ar
     SiluInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
+
+#ifdef NNTILE_USE_CUDA
+//! StarPU wrapper for kernel::silu_inplace::cuda<T>
+template<typename T>
+void SiluInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t const *>(cl_args);
+    // Get interfaces
+    T *data = ::nntile::haul::buf_as<T>(buffers, 0);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Launch kernel
+    kernel::silu_inplace::cuda<T>(stream, args->nelems, data);
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void SiluInplace<std::tuple<fp32_fast_tf32_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SiluInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void SiluInplace<std::tuple<fp32_fast_fp16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SiluInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void SiluInplace<std::tuple<fp32_fast_bf16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SiluInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
 
 template<typename T>
 std::uint64_t SiluInplace<std::tuple<T>>::footprint(void const *cl_args, std::size_t) noexcept

@@ -31,7 +31,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 Hypot<std::tuple<T>>::Hypot():
-    codelet("nntile_hypot", &Hypot<std::tuple<T>>::cpu, nullptr, &Hypot<std::tuple<T>>::footprint)
+    codelet(
+        "nntile_hypot",
+        &Hypot<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &Hypot<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &Hypot<std::tuple<T>>::footprint)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -76,6 +84,50 @@ void Hypot<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
     Hypot<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
+#ifdef NNTILE_USE_CUDA
+//! Apply hypot for StarPU buffers on CUDA
+template<typename T>
+void Hypot<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t const *>(cl_args);
+    // Get interfaces
+    const T *src1 = ::nntile::haul::buf_as<T>(buffers, 0);
+    const T *src2 = ::nntile::haul::buf_as<T>(buffers, 1);
+    T *dst = ::nntile::haul::buf_as<T>(buffers, 2);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Launch kernel
+    kernel::hypot::cuda<T>(stream, args->nelems, args->alpha, src1,
+            args->beta, src2, dst);
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void Hypot<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Hypot<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Hypot<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Hypot<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Hypot<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Hypot<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for hypot tasks that depends only on cl_arg
 template<typename T>

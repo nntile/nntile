@@ -66,6 +66,12 @@ public:
 #endif // NNTILE_USE_CBLAS
 
 
+#ifdef NNTILE_USE_CUDA
+    //! Wrapper for a generic CUDA implementation
+    static void cuda(void *buffers[], void *cl_args)
+        noexcept;
+#endif // NNTILE_USE_CUDA
+
     //! Submit gemm task
     void submit(
         int starpu_worker_hint,

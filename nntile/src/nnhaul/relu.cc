@@ -29,7 +29,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 Relu<std::tuple<T>>::Relu():
-    codelet("nntile_relu", &Relu<std::tuple<T>>::cpu, nullptr, &Relu<std::tuple<T>>::footprint)
+    codelet(
+        "nntile_relu",
+        &Relu<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &Relu<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &Relu<std::tuple<T>>::footprint)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -75,6 +83,49 @@ void Relu<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
 
 
 //! Define codelet pack
+#ifdef NNTILE_USE_CUDA
+//! StarPU wrapper for kernel::relu::cuda<T>
+template<typename T>
+void Relu<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t const *>(cl_args);
+    // Get interfaces
+    const T *src = ::nntile::haul::buf_as<T>(buffers, 0);
+    T *dst = ::nntile::haul::buf_as<T>(buffers, 1);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Launch kernel
+    kernel::relu::cuda<T>(stream, args->nelems, src, dst);
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void Relu<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Relu<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Relu<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Relu<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Relu<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Relu<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
+
 template<typename T>
 std::uint64_t Relu<std::tuple<T>>::footprint(void const *cl_args, std::size_t) noexcept
 {

@@ -28,7 +28,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 AccumulateMaxSumExp<std::tuple<T>>::AccumulateMaxSumExp():
-    codelet("nntile_accumulate_maxsumexp", &AccumulateMaxSumExp<std::tuple<T>>::cpu, nullptr, nullptr)
+    codelet(
+        "nntile_accumulate_maxsumexp",
+        &AccumulateMaxSumExp<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &AccumulateMaxSumExp<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        nullptr)
 {
     // Modes cannot be variable for accumulate_maxsumexp operation
     // Construct modes
@@ -78,6 +86,55 @@ void AccumulateMaxSumExp<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], voi
     AccumulateMaxSumExp<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
+
+#ifdef NNTILE_USE_CUDA
+//! Apply accumulate_maxsumexp for StarPU buffers on CUDA
+template<typename T>
+void AccumulateMaxSumExp<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get interfaces
+    Index nelems =
+        (*reinterpret_cast<std::size_t const *>(cl_args)) / sizeof(T) / 2;
+    T *dst = ::nntile::haul::buf_as<T>(buffers, 0);
+    const T *src = ::nntile::haul::buf_as<T>(buffers, 1);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Launch kernel
+    kernel::accumulate_maxsumexp::cuda<T>(stream, nelems, src, dst);
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void AccumulateMaxSumExp<std::tuple<fp32_fast_tf32_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AccumulateMaxSumExp<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void AccumulateMaxSumExp<std::tuple<fp32_fast_fp16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AccumulateMaxSumExp<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void AccumulateMaxSumExp<std::tuple<fp32_fast_bf16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AccumulateMaxSumExp<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
 
 template<typename T>
 void AccumulateMaxSumExp<std::tuple<T>>::submit(int starpu_worker_hint, ::nnhaul::Handle & src, ::nnhaul::Handle & dst)

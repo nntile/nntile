@@ -29,7 +29,15 @@ namespace nntile::haul
 //! Constructor
 template<typename T>
 Isfinite<std::tuple<T>>::Isfinite():
-    codelet("nntile_isfinite", &Isfinite<std::tuple<T>>::cpu, nullptr, &Isfinite<std::tuple<T>>::footprint)
+    codelet(
+        "nntile_isfinite",
+        &Isfinite<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &Isfinite<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &Isfinite<std::tuple<T>>::footprint)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -73,6 +81,54 @@ void Isfinite<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
     Isfinite<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
+#ifdef NNTILE_USE_CUDA
+//! StarPU wrapper for kernel::isfinite::cuda<T>
+template<typename T>
+void Isfinite<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    args_t const *args = reinterpret_cast<args_t const *>(cl_args);
+    // Get interfaces
+    T *data = ::nntile::haul::buf_as<T>(buffers, 0);
+    bool_t *flag = ::nntile::haul::buf_as<bool_t>(buffers, 1);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Launch kernel
+    kernel::isfinite::cuda<T>(stream, args->nelems, data, flag);
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void Isfinite<std::tuple<fp32_fast_tf32_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Isfinite<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Isfinite<std::tuple<fp32_fast_fp16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Isfinite<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Isfinite<std::tuple<fp32_fast_bf16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Isfinite<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for isfinite tasks that depends only on cl_arg
 template<typename T>
