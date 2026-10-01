@@ -20,8 +20,10 @@
 #include <vector>
 
 #include <nntile/core/torch_meta.hh>
+#ifndef NNTILE_USE_NNHAUL
 #include <nntile/starpu/codelet.hh>
 #include <nntile/starpu/handle.hh>
+#endif
 
 namespace nntile::starpu
 {
@@ -195,6 +197,9 @@ struct TorchDispatchArgs
     Index out_layout_set[torch_dispatch_max_tensors] = {};
 };
 
+// StarPU codelet subclasses. TorchKind and TorchDispatchArgs above stay
+// available in both builds. NNHaul does not compile these classes.
+#ifndef NNTILE_USE_NNHAUL
 template<typename T>
 class TorchUnary;
 
@@ -782,5 +787,6 @@ extern TorchArange torch_arange;
 extern TorchGt torch_gt;
 extern TorchI64Unary torch_i64_unary;
 extern TorchCast torch_cast;
+#endif // NNTILE_USE_NNHAUL
 
 } // namespace nntile::starpu

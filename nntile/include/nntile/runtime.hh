@@ -25,7 +25,11 @@
 #include <vector>
 
 // Third-party headers
+#ifdef NNTILE_USE_NNHAUL
+#include <nntile/data_access.hh>
+#else
 #include <starpu.h>
+#endif
 
 // NNTile headers
 #include <nntile/base_types.hh>
@@ -51,6 +55,8 @@ class Runtime
     using OpNode = TileGraph::OpNode;
 
     explicit Runtime(const TileGraph &graph);
+
+    ~Runtime();
 
     void compile();
 
@@ -205,6 +211,10 @@ class Runtime
         return !execution_schedule_.ops.empty();
     }
 
+    //! After ``compile()``: install affinity-batch when any CUDA worker
+    //! exists, otherwise round-robin. An explicit schedule already set wins.
+    void install_default_execution_schedule_if_missing();
+
     //! After ``compile()``: build round-robin schedule from DCE order (does not
     //! write a file; use ``generate_round_robin_execution_json`` for that).
     ExecutionSchedule generate_round_robin_execution_schedule() const;
@@ -272,6 +282,11 @@ class Runtime
     //! Scratch for last-consumer tiles; flushed via invalidate_submit during
     //! ``execute_range`` (not deferred to ``wait()``).
     std::vector<const TileNode *> queued_dead_tiles_;
+#ifdef NNTILE_USE_NNHAUL
+    //! Payloads whose handles have an async invalidate in flight.
+    //! ``nnhaul::Handle`` must stay alive until ``wait()`` joins that task.
+    std::vector<std::shared_ptr<void>> nnhaul_retained_payloads_;
+#endif
     //! Highest exclusive op index already run via execute / execute_range.
     size_t executed_op_end_ = 0;
     //! How many ``graph_.ops()`` entries have been appended into

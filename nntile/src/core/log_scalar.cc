@@ -13,8 +13,16 @@
  * */
 
 #include "nntile/core/log_scalar.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/log_scalar.hh"
+#else
 #include "nntile/starpu/log_scalar.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
 
 namespace nntile::core
 {
@@ -27,11 +35,24 @@ void log_scalar_async(int starpu_worker_hint, const std::string &name, const Til
     {
         throw std::runtime_error("value must be a scalar tile");
     }
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int value_rank = 0;
+    #else
     int value_rank = value.mpi_get_rank();
+    #endif
     if(mpi_rank == value_rank)
     {
+        #ifdef NNTILE_USE_NNHAUL
+        haul::log_scalar.submit<std::tuple<T>>(starpu_worker_hint, name, value);
+        #else
         starpu::log_scalar.submit<std::tuple<T>>(starpu_worker_hint, name, value);
+        #endif
+
     }
 }
 
@@ -39,7 +60,11 @@ template<typename T>
 void log_scalar(int starpu_worker_hint, const std::string &name, const Tile<T> &value)
 {
     log_scalar_async<T>(starpu_worker_hint, name, value);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 // Explicit instantiation

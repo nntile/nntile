@@ -1,3 +1,12 @@
+#pragma once
+
+#ifdef NNTILE_USE_NNHAUL
+#include <nntile/nnhaul/ops/add_inplace.hh>
+namespace nntile::starpu
+{
+using namespace nntile::haul;
+}
+#else
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -103,3 +112,4 @@ using add_inplace_pack_t = OperationPack<
 extern add_inplace_pack_t add_inplace;
 
 } // namespace nntile::starpu
+#endif

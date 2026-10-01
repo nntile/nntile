@@ -10,8 +10,16 @@
 #include "nntile/core/swap_two_axes.hh"
 
 #include "nntile/core/swap_two_axes_decompose.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/swap_two_axes.hh"
+#else
 #include "nntile/starpu/swap_two_axes.hh"
+#endif
 
 namespace nntile::core
 {
@@ -43,11 +51,32 @@ void swap_two_axes_async(
     {
         throw std::runtime_error("swap_two_axes: dst shape mismatch");
     }
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int dst_rank = 0;
+    #else
     int dst_rank = dst.mpi_get_rank();
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     src.mpi_transfer(dst_rank, mpi_rank);
+    #endif
     if (mpi_rank == dst_rank)
     {
+        #ifdef NNTILE_USE_NNHAUL
+        haul::swap_two_axes.submit<std::tuple<T>>(
+            starpu_worker_hint,
+            d[0],
+            d[1],
+            d[2],
+            d[3],
+            d[4],
+            src,
+            dst);
+        #else
         starpu::swap_two_axes.submit<std::tuple<T>>(
             starpu_worker_hint,
             d[0],
@@ -57,6 +86,8 @@ void swap_two_axes_async(
             d[4],
             src,
             dst);
+        #endif
+
     }
 }
 
@@ -69,7 +100,11 @@ void swap_two_axes(
     Index dim1)
 {
     swap_two_axes_async<T>(starpu_worker_hint, src, dst, dim0, dim1);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 template

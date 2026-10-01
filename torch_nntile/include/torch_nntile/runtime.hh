@@ -24,7 +24,9 @@ void init_context(
     std::size_t ooc_size = 16 * 1024 * 1024,
     int logger = 0,
     int verbose = 0,
-    bool cpu_fallback = false);
+    bool cpu_fallback = false,
+    std::size_t cpu_cap_bytes = 0,
+    std::size_t cuda_cap_bytes_each = 0);
 
 bool is_context_initialized();
 

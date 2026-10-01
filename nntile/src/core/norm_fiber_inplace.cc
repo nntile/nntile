@@ -13,8 +13,16 @@
  * */
 
 #include "nntile/core/norm_fiber_inplace.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/norm_fiber_inplace.hh"
+#else
 #include "nntile/starpu/norm_fiber_inplace.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
 
 namespace nntile::core
 {
@@ -23,6 +31,12 @@ template<typename T>
 void norm_fiber_inplace_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta,
         const Tile<T> &dst, Index axis, Index batch_ndim, int redux)
 {
+#ifdef NNTILE_USE_NNHAUL
+    if(redux != 0)
+    {
+        throw std::runtime_error("redux != 0 is not supported");
+    }
+#endif
     // Check dimensions
     if(dst.ndim != batch_ndim+1)
     {
@@ -65,14 +79,30 @@ void norm_fiber_inplace_async(int starpu_worker_hint, Scalar alpha, const Tile<T
     m = src.matrix_shape[axis+1][1];
     n = src.matrix_shape[axis][0] / batch;
     k = src.shape[axis];
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int dst_rank = 0;
+    #else
     int dst_rank = dst.mpi_get_rank();
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     src.mpi_transfer(dst_rank, mpi_rank);
+    #endif
     if(mpi_rank == dst_rank)
     {
         // Insert task
+        #ifdef NNTILE_USE_NNHAUL
+        haul::norm_fiber_inplace.submit<std::tuple<T>>(starpu_worker_hint, m, n, k, batch,
+                alpha, src, beta, dst, 0);
+        #else
         starpu::norm_fiber_inplace.submit<std::tuple<T>>(starpu_worker_hint, m, n, k, batch,
-                alpha, src, beta, dst, 0);  // redux ignored for now
+                alpha, src, beta, dst, 0);
+        #endif
+  // redux ignored for now
     }
 }
 
@@ -80,8 +110,18 @@ template<typename T>
 void norm_fiber_inplace(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
         Index axis, Index batch_ndim, int redux)
 {
+#ifdef NNTILE_USE_NNHAUL
+    if(redux != 0)
+    {
+        throw std::runtime_error("redux != 0 is not supported");
+    }
+#endif
     norm_fiber_inplace_async<T>(starpu_worker_hint, alpha, src, beta, dst, axis, batch_ndim, redux);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 // Explicit instantiation

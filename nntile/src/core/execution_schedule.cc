@@ -11,8 +11,12 @@
 
 #include "nntile/core/execution_schedule.hh"
 #include "nntile/core/execution_worker.hh"
-
+#include "nntile/defs.h"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/backend_workers.hh"
+#else
 #include <starpu.h>
+#endif
 #include "nntile/tile/graph_data_node.hh"
 #include "nntile/tile/graph_decl.hh"
 #include "nntile/tile/graph_op_node.hh"
@@ -167,9 +171,23 @@ ExecutionSchedule build_execution_schedule(
     ExecutionSchedule schedule;
     schedule.policy = std::move(policy);
     schedule.num_workers = sched::count_execution_workers();
+#ifdef NNTILE_USE_NNHAUL
+    schedule.workers.clear();
+    for (BackendWorker const &worker : backend_worker_list())
+    {
+        ScheduleWorkerInfo info;
+        info.id = worker.id;
+        info.kind = worker.kind;
+        info.device = worker.device;
+        schedule.workers.push_back(std::move(info));
+    }
+    schedule.num_workers = static_cast<int>(schedule.workers.size());
+    schedule.use_cuda_workers = g_backend_ncuda > 0;
+#else
     schedule.use_cuda_workers =
         starpu_is_initialized() &&
         starpu_worker_get_count_by_type(STARPU_CUDA_WORKER) > 0;
+#endif
     if (schedule.num_workers <= 0)
     {
         schedule.num_workers = 1;
@@ -249,6 +267,12 @@ ExecutionSchedule build_execution_schedule(
         {
             entry.worker = 0;
         }
+#ifdef NNTILE_USE_NNHAUL
+        entry.worker = sched::starpu_worker_id_for_scheduled_op(
+            entry.worker,
+            schedule.use_cuda_workers,
+            entry.op_name);
+#endif
 
         for (TileGraph::TileNode const *t : writable)
         {
@@ -343,6 +367,14 @@ namespace sched
 
 int count_execution_workers()
 {
+#ifdef NNTILE_USE_NNHAUL
+    if (!g_backend_ready)
+    {
+        return 1;
+    }
+    int const n = g_backend_ncuda + g_backend_ncpu;
+    return n > 0 ? n : 1;
+#else
     if (!starpu_is_initialized())
     {
         return 1;
@@ -354,10 +386,47 @@ int count_execution_workers()
     }
     int const ncpu = starpu_worker_get_count_by_type(STARPU_CPU_WORKER);
     return ncpu > 0 ? ncpu : 1;
+#endif
+}
+
+int execution_ncuda()
+{
+#ifdef NNTILE_USE_NNHAUL
+    return g_backend_ready ? g_backend_ncuda : 0;
+#else
+    if (!starpu_is_initialized())
+    {
+        return 0;
+    }
+    return starpu_worker_get_count_by_type(STARPU_CUDA_WORKER);
+#endif
+}
+
+bool tile_op_has_cuda_kernel(std::string const &tile_op_name)
+{
+#ifdef NNTILE_USE_CUDA
+    return tile_op_name != "TILE_LOG_SCALAR";
+#else
+    (void)tile_op_name;
+    return false;
+#endif
 }
 
 int logical_worker_to_starpu_id(int logical_worker, bool use_cuda_workers)
 {
+#ifdef NNTILE_USE_NNHAUL
+    (void)use_cuda_workers;
+    if (!g_backend_ready || logical_worker < 0)
+    {
+        return -1;
+    }
+    int const n = g_backend_ncuda + g_backend_ncpu;
+    if (n <= 0)
+    {
+        return -1;
+    }
+    return logical_worker % n;
+#else
     if (!starpu_is_initialized() || logical_worker < 0)
     {
         return -1;
@@ -380,12 +449,17 @@ int logical_worker_to_starpu_id(int logical_worker, bool use_cuda_workers)
     }
     return starpu_worker_get_by_type(
         STARPU_CPU_WORKER, logical_worker % ncpu);
+#endif
 }
 
 bool tile_op_requires_cpu_worker(std::string const &tile_op_name)
 {
+#ifdef NNTILE_USE_NNHAUL
+    return !tile_op_has_cuda_kernel(tile_op_name);
+#else
     return tile_op_name == "TILE_LOG_SCALAR" ||
         tile_op_name == "TILE_RANDN";
+#endif
 }
 
 int starpu_worker_id_for_scheduled_op(
@@ -393,11 +467,40 @@ int starpu_worker_id_for_scheduled_op(
     bool use_cuda_workers,
     std::string const &tile_op_name)
 {
+#ifdef NNTILE_USE_NNHAUL
+    (void)use_cuda_workers;
+    int const ncuda = g_backend_ready ? g_backend_ncuda : 0;
+    int ncpu = g_backend_ready ? g_backend_ncpu : 1;
+    if (ncpu < 1)
+    {
+        ncpu = 1;
+    }
+    bool const cpu_only =
+        !tile_op_has_cuda_kernel(tile_op_name) || ncuda <= 0;
+    if (cpu_only)
+    {
+        if (logical_worker >= ncuda &&
+            logical_worker < ncuda + ncpu)
+        {
+            return logical_worker;
+        }
+        int const slot =
+            logical_worker < 0 ? 0 : logical_worker % ncpu;
+        return ncuda + slot;
+    }
+    if (logical_worker >= 0 && logical_worker < ncuda)
+    {
+        return logical_worker;
+    }
+    int const slot = logical_worker < 0 ? 0 : logical_worker % ncuda;
+    return slot;
+#else
     if (tile_op_requires_cpu_worker(tile_op_name))
     {
         return logical_worker_to_starpu_id(logical_worker, false);
     }
     return logical_worker_to_starpu_id(logical_worker, use_cuda_workers);
+#endif
 }
 
 } // namespace sched
@@ -428,10 +531,26 @@ std::string execution_schedule_to_json(ExecutionSchedule const &schedule)
     j["policy"] = schedule.policy.empty()
         ? "round_robin_virtual_tensor_split"
         : schedule.policy;
+#ifdef NNTILE_USE_NNHAUL
+    nlohmann::json worker_rows = nlohmann::json::array();
+    for (ScheduleWorkerInfo const &worker : schedule.workers)
+    {
+        worker_rows.push_back({
+            {"id", worker.id},
+            {"kind", worker.kind},
+            {"device", worker.device},
+        });
+    }
+    j["hardware"] = {
+        {"num_workers", schedule.num_workers},
+        {"workers", worker_rows},
+    };
+#else
     j["hardware"] = {
         {"num_workers", schedule.num_workers},
         {"worker_kind", schedule.use_cuda_workers ? "cuda" : "cpu"},
     };
+#endif
     nlohmann::json fp = nlohmann::json::object();
     fp["op_count"] = schedule.fingerprint.op_count;
     fp["op_names"] = schedule.fingerprint.op_names;
@@ -494,12 +613,62 @@ ExecutionSchedule load_execution_schedule_json(std::string const &path)
         {
             schedule.num_workers = hw["num_workers"].get<int>();
         }
+#ifdef NNTILE_USE_NNHAUL
+        if (!hw.contains("workers") || !hw["workers"].is_array())
+        {
+            throw std::runtime_error(
+                "regenerate execution.json");
+        }
+        for (auto const &row : hw["workers"])
+        {
+            if (!row.is_object() || !row.contains("id") ||
+                !row.contains("kind"))
+            {
+                throw std::runtime_error(
+                    "regenerate execution.json");
+            }
+            ScheduleWorkerInfo info;
+            info.id = row.at("id").get<int>();
+            info.kind = row.at("kind").get<std::string>();
+            info.device = row.contains("device")
+                ? row.at("device").get<int>()
+                : -1;
+            if (info.kind == "cuda")
+            {
+                schedule.use_cuda_workers = true;
+            }
+            schedule.workers.push_back(std::move(info));
+        }
+        if (schedule.workers.empty())
+        {
+            throw std::runtime_error("regenerate execution.json");
+        }
+        if (schedule.num_workers <= 0)
+        {
+            schedule.num_workers =
+                static_cast<int>(schedule.workers.size());
+        }
+        else if (schedule.num_workers !=
+            static_cast<int>(schedule.workers.size()))
+        {
+            throw std::runtime_error(
+                "execution.json: hardware.num_workers does not match "
+                "hardware.workers");
+        }
+#else
         if (hw.contains("worker_kind") && hw["worker_kind"].is_string())
         {
             schedule.use_cuda_workers =
                 hw["worker_kind"].get<std::string>() == "cuda";
         }
+#endif
     }
+#ifdef NNTILE_USE_NNHAUL
+    else
+    {
+        throw std::runtime_error("regenerate execution.json");
+    }
+#endif
     if (j.contains("schedule_fingerprint") &&
         j["schedule_fingerprint"].is_object())
     {

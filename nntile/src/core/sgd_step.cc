@@ -13,8 +13,16 @@
  * */
 
 #include "nntile/core/sgd_step.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/sgd_step.hh"
+#else
 #include "nntile/starpu/sgd_step.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
 
 namespace nntile::core
 {
@@ -43,15 +51,33 @@ void sgd_step_async(int starpu_worker_hint, Index num_iter, Scalar momentum, Sca
     {
         throw std::runtime_error("Shapes of velocity and parameters are not equal");
     }
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int p_rank = 0;
+    #else
     int p_rank = p.mpi_get_rank();
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     grad.mpi_transfer(p_rank, mpi_rank);
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     velocity.mpi_transfer(p_rank, mpi_rank);
+    #endif
     if(mpi_rank == p_rank)
     {
         // Submit task
+        #ifdef NNTILE_USE_NNHAUL
+        haul::sgd_step.submit<std::tuple<T>>(starpu_worker_hint, num_iter, p.nelems, momentum,
+                lr, weight_decay, dampening, nesterov, grad, velocity, p);
+        #else
         starpu::sgd_step.submit<std::tuple<T>>(starpu_worker_hint, num_iter, p.nelems, momentum,
                 lr, weight_decay, dampening, nesterov, grad, velocity, p);
+        #endif
+
     }
 }
 
@@ -71,7 +97,11 @@ void sgd_step(int starpu_worker_hint, Index num_iter, Scalar momentum, Scalar lr
                const Tile<T> &p)
 {
     sgd_step_async<T>(starpu_worker_hint, num_iter, momentum, lr, weight_decay, dampening, nesterov, grad, velocity, p);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 // Explicit instantiation

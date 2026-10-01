@@ -15,6 +15,9 @@
 #include <nntile/remote_execution_driver.hh>
 
 #include <nntile/context.hh>
+#ifdef NNTILE_USE_NNHAUL
+#include <nntile/backend_workers.hh>
+#endif
 #include <nntile/dtype.hh>
 #include <nntile/remote_tile_codec.hh>
 
@@ -810,7 +813,11 @@ void ExecutionDaemon::start()
     }
     // Production ``executiond`` has no ContextFixture. Skip if this
     // process already inited StarPU (C++ tests).
+#ifdef NNTILE_USE_NNHAUL
+    if (!g_backend_ready)
+#else
     if (!starpu_is_initialized())
+#endif
     {
         ctx_ = std::make_unique<Context>(-1, -1, 0);
     }

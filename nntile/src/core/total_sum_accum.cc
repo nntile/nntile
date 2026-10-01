@@ -13,8 +13,16 @@
  * */
 
 #include "nntile/core/total_sum_accum.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/total_sum_accum.hh"
+#else
 #include "nntile/starpu/total_sum_accum.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
 
 namespace nntile::core
 {
@@ -50,18 +58,39 @@ void total_sum_accum_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &
             throw std::runtime_error("labels.shape[i] != src.shape[i]");
         }
     }
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int val_rank = 0;
+    #else
     int val_rank = val.mpi_get_rank();
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     logsumexp.mpi_transfer(val_rank, mpi_rank);
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     src.mpi_transfer(val_rank, mpi_rank);
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     labels.mpi_transfer(val_rank, mpi_rank);
+    #endif
     if(mpi_rank == val_rank)
     {
         // Insert task
         const Index n_labels = src.shape[src.ndim - 1];
+        #ifdef NNTILE_USE_NNHAUL
+        haul::total_sum_accum.submit<std::tuple<T>>(starpu_worker_hint, alpha,
+                n_labels, logsumexp.nelems, ignore_index,
+                logsumexp, src, labels, val);
+        #else
         starpu::total_sum_accum.submit<std::tuple<T>>(starpu_worker_hint, alpha,
                 n_labels, logsumexp.nelems, ignore_index,
                 logsumexp, src, labels, val);
+        #endif
+
     }
 }
 
@@ -73,7 +102,11 @@ void total_sum_accum(int starpu_worker_hint, Scalar alpha, const Tile<T> &logsum
 {
     total_sum_accum_async<T>(starpu_worker_hint, alpha, logsumexp, src, class_labels, val,
                              ignore_index);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 // Explicit instantiation

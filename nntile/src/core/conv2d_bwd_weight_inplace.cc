@@ -13,8 +13,16 @@
  * */
 
 #include "nntile/core/conv2d_bwd_weight_inplace.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/conv2d_bwd_weight_inplace.hh"
+#else
 #include "nntile/starpu/conv2d_bwd_weight_inplace.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
 
 namespace nntile::core
 {
@@ -27,16 +35,36 @@ void conv2d_bwd_weight_inplace_async(int starpu_worker_hint, Index src1_m, Index
         const Tile<T> &src2, Index dst_m, Index dst_n, Index dilation_m,
         Index dilation_n, Scalar beta, const Tile<T> &dst)
 {
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int dst_rank = 0;
+    #else
     int dst_rank = dst.mpi_get_rank();
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     src1.mpi_transfer(dst_rank, mpi_rank);
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     src2.mpi_transfer(dst_rank, mpi_rank);
+    #endif
     if(mpi_rank == dst_rank)
     {
+        #ifdef NNTILE_USE_NNHAUL
+        haul::conv2d_bwd_weight_inplace.submit<std::tuple<T>>(starpu_worker_hint, src1_m, src1_n,
+                src1_channels, batch, src2_m, src2_n, stride_m, stride_n,
+                src2_channels, offset_m, offset_n, alpha, src1, src2, dst_m,
+                dst_n, dilation_m, dilation_n, beta, dst);
+        #else
         starpu::conv2d_bwd_weight_inplace.submit<std::tuple<T>>(starpu_worker_hint, src1_m, src1_n,
                 src1_channels, batch, src2_m, src2_n, stride_m, stride_n,
                 src2_channels, offset_m, offset_n, alpha, src1, src2, dst_m,
                 dst_n, dilation_m, dilation_n, beta, dst);
+        #endif
+
     }
 }
 
@@ -52,7 +80,11 @@ void conv2d_bwd_weight_inplace(int starpu_worker_hint, Index src1_m, Index src1_
             src2_m, src2_n, stride_m, stride_n, src2_channels, offset_m,
             offset_n, alpha, src1, src2, dst_m, dst_n, dilation_m, dilation_n,
             beta, dst);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 // Explicit instantiation

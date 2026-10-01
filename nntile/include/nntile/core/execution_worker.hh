@@ -11,10 +11,16 @@
 
 #pragma once
 
+#include <string>
+
 namespace nntile::sched
 {
 
 int count_execution_workers();
+
+int execution_ncuda();
+
+bool tile_op_has_cuda_kernel(std::string const &tile_op_name);
 
 int logical_worker_to_starpu_id(int logical_worker, bool use_cuda_workers);
 

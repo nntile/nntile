@@ -17,7 +17,12 @@
 
 #include "nntile/core/execution_schedule.hh"
 #include "nntile/core/execution_worker.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/backend_workers.hh"
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/sync_defer.hh"
+#endif
 
 // TileGraph::get_tensor_descriptor is inline in graph.hh; this TU must see
 // the definition when calling it on const TileGraph&.
@@ -131,6 +136,17 @@ void enqueue_op_io(
 
 Runtime::Runtime(const TileGraph &graph) : graph_(graph) {}
 
+Runtime::~Runtime()
+{
+#ifdef NNTILE_USE_NNHAUL
+    if (!nnhaul_retained_payloads_.empty())
+    {
+        starpu_task_wait_for_all_counted();
+        nnhaul_retained_payloads_.clear();
+    }
+#endif
+}
+
 DataType Runtime::get_dtype(
     TensorGraph::TensorNode const *tensor) const
 {
@@ -242,6 +258,12 @@ void Runtime::invalidate_logical_tiles(
         }
         auto payload = tile->payload();
         invalidate_tile_buffer(tile, payload);
+#ifdef NNTILE_USE_NNHAUL
+        if (payload)
+        {
+            nnhaul_retained_payloads_.push_back(payload);
+        }
+#endif
         auto *mut = const_cast<TileGraph::TileNode *>(tile);
         mut->clear_payload();
         sync_logical_starpu_flag(mut);
@@ -258,6 +280,12 @@ void Runtime::invalidate_tile(TileGraph::TileNode *tile)
     }
     auto payload = tile->payload();
     invalidate_tile_buffer(tile, payload);
+#ifdef NNTILE_USE_NNHAUL
+    if (payload)
+    {
+        nnhaul_retained_payloads_.push_back(payload);
+    }
+#endif
     tile->clear_payload();
     sync_logical_starpu_flag(tile);
 }
@@ -272,6 +300,12 @@ void Runtime::unregister_tile(TileGraph::TileNode *tile)
     {
         auto payload = tile->payload();
         unregister_tile_buffer(tile, payload);
+#ifdef NNTILE_USE_NNHAUL
+        if (payload)
+        {
+            nnhaul_retained_payloads_.push_back(payload);
+        }
+#endif
     }
     tile->clear_payload();
     sync_logical_starpu_flag(tile);
@@ -499,6 +533,29 @@ void Runtime::restore_persisted_init_state(
     }
 }
 
+void Runtime::install_default_execution_schedule_if_missing()
+{
+    if (has_execution_schedule())
+    {
+        return;
+    }
+    if (!compiled_)
+    {
+        throw std::runtime_error(
+            "Runtime::install_default_execution_schedule_if_missing: "
+            "call compile() first");
+    }
+    if (sched::execution_ncuda() > 0)
+    {
+        set_execution_schedule(
+            generate_affinity_batch_execution_schedule());
+    }
+    else
+    {
+        set_execution_schedule(generate_round_robin_execution_schedule());
+    }
+}
+
 ExecutionSchedule Runtime::generate_round_robin_execution_schedule() const
 {
     if (!compiled_)
@@ -551,8 +608,23 @@ void Runtime::set_execution_schedule(ExecutionSchedule schedule)
             std::to_string(execution_order_.size()) + ")");
     }
     int const num_workers = sched::count_execution_workers();
+#ifdef NNTILE_USE_NNHAUL
+    bool const cuda_workers = g_backend_ncuda > 0;
+    if (schedule.workers.empty())
+    {
+        for (BackendWorker const &worker : backend_worker_list())
+        {
+            ScheduleWorkerInfo info;
+            info.id = worker.id;
+            info.kind = worker.kind;
+            info.device = worker.device;
+            schedule.workers.push_back(std::move(info));
+        }
+    }
+#else
     bool const cuda_workers = starpu_is_initialized() &&
         starpu_worker_get_count_by_type(STARPU_CUDA_WORKER) > 0;
+#endif
     if (schedule.num_workers <= 0)
     {
         schedule.num_workers = num_workers;
@@ -564,6 +636,7 @@ void Runtime::set_execution_schedule(ExecutionSchedule schedule)
             std::to_string(schedule.num_workers) +
             "' vs runtime '" + std::to_string(num_workers) + "')");
     }
+#ifndef NNTILE_USE_NNHAUL
     if (schedule.use_cuda_workers != cuda_workers)
     {
         throw std::runtime_error(
@@ -571,6 +644,9 @@ void Runtime::set_execution_schedule(ExecutionSchedule schedule)
             std::string(schedule.use_cuda_workers ? "cuda" : "cpu") +
             "' vs runtime '" + (cuda_workers ? "cuda" : "cpu") + "')");
     }
+#else
+    (void)cuda_workers;
+#endif
     for (size_t i = 0; i < schedule.ops.size(); ++i)
     {
         if (schedule.ops[i].execution_index != i)
@@ -595,6 +671,46 @@ void Runtime::set_execution_schedule(ExecutionSchedule schedule)
                 std::to_string(i) + "] worker " + std::to_string(w) +
                 " out of range [0, " + std::to_string(num_workers) + ")");
         }
+#ifdef NNTILE_USE_NNHAUL
+        ScheduleWorkerInfo const *live = nullptr;
+        for (ScheduleWorkerInfo const &info : schedule.workers)
+        {
+            if (info.id == w)
+            {
+                live = &info;
+                break;
+            }
+        }
+        if (live == nullptr)
+        {
+            throw std::runtime_error(
+                "Runtime::set_execution_schedule: ops[" +
+                std::to_string(i) + "] worker " + std::to_string(w) +
+                " is not a live id");
+        }
+        bool const cuda_kind = live->kind == "cuda";
+        bool const has_cuda =
+            sched::tile_op_has_cuda_kernel(schedule.ops[i].op_name);
+        if (cuda_kind && !has_cuda)
+        {
+            throw std::runtime_error(
+                "Runtime::set_execution_schedule: ops[" +
+                std::to_string(i) + "] worker kind has no kernel for " +
+                schedule.ops[i].op_name);
+        }
+        if (g_schedule_kind_filter == ScheduleKindFilter::Cpu &&
+            cuda_kind)
+        {
+            throw std::runtime_error(
+                "Runtime::set_execution_schedule: CPU restriction");
+        }
+        if (g_schedule_kind_filter == ScheduleKindFilter::Cuda &&
+            !cuda_kind)
+        {
+            throw std::runtime_error(
+                "Runtime::set_execution_schedule: CUDA restriction");
+        }
+#endif
     }
     for (auto const &[tile, worker] : schedule.tile_virtual_worker)
     {
@@ -1046,6 +1162,12 @@ void Runtime::flush_queued_dead_tiles()
         }
         auto payload = tile->payload();
         invalidate_tile_buffer(tile, payload);
+#ifdef NNTILE_USE_NNHAUL
+        if (payload)
+        {
+            nnhaul_retained_payloads_.push_back(payload);
+        }
+#endif
         auto *mut = const_cast<TileGraph::TileNode *>(tile);
         mut->clear_payload();
         sync_logical_starpu_flag(mut);
@@ -1234,6 +1356,9 @@ std::string Runtime::execution_op_name(size_t i) const
 void Runtime::wait()
 {
     starpu_task_wait_for_all_counted();
+#ifdef NNTILE_USE_NNHAUL
+    nnhaul_retained_payloads_.clear();
+#endif
 }
 
 bool Runtime::drop_fully_executed_history()

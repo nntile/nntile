@@ -13,8 +13,16 @@
  * */
 
 #include "nntile/core/pow.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/pow.hh"
+#else
 #include "nntile/starpu/pow.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
 
 namespace nntile::core
 {
@@ -25,12 +33,25 @@ namespace nntile::core
 template<typename T>
 void pow_async(int starpu_worker_hint, Scalar alpha, Scalar exp, const Tile<T> &A)
 {
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int a_rank = 0;
+    #else
     int a_rank = A.mpi_get_rank();
+    #endif
     if(mpi_rank == a_rank)
     {
         // Submit task without any arguments checked
+        #ifdef NNTILE_USE_NNHAUL
+        haul::pow.submit<std::tuple<T>>(starpu_worker_hint, A.nelems, alpha, exp, A);
+        #else
         starpu::pow.submit<std::tuple<T>>(starpu_worker_hint, A.nelems, alpha, exp, A);
+        #endif
+
     }
 }
 
@@ -41,7 +62,11 @@ template<typename T>
 void pow(int starpu_worker_hint, Scalar alpha, Scalar exp, const Tile<T> &A)
 {
     pow_async<T>(starpu_worker_hint, alpha, exp, A);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 // Explicit instantiation

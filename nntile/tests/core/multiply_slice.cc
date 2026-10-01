@@ -27,11 +27,13 @@ void check(Scalar alpha, const Tile<T> &src, Tile<T> &dst, Index axis)
     std::vector<T> dst2_data(dst.nelems);
     Tile<T> dst2(dst, &dst2_data[0], dst.nelems);
     auto dst_local = dst.acquire(STARPU_R);
+    auto dst2_local = dst2.acquire(STARPU_W);
     for(Index i = 0; i < dst.nelems; ++i)
     {
-        dst2_data[i] = dst_local[i];
+        dst2_local[i] = dst_local[i];
     }
     dst_local.release();
+    dst2_local.release();
     multiply_slice<T>(-1, alpha, src, dst, axis);
     Index m = 1;
     for(Index i = axis+1; i < dst.ndim; ++i)
@@ -47,7 +49,7 @@ void check(Scalar alpha, const Tile<T> &src, Tile<T> &dst, Index axis)
     starpu::multiply_slice.submit<std::tuple<T>>(-1, m, n, k, alpha, src, dst2);
     starpu_task_wait_for_all();
     dst_local.acquire(STARPU_R);
-    auto dst2_local = dst2.acquire(STARPU_R);
+    dst2_local.acquire(STARPU_R);
     for(Index i = 0; i < dst.nelems; ++i)
     {
         TEST_ASSERT(Y(dst_local[i]) == Y(dst2_local[i]));

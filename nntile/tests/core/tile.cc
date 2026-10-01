@@ -14,6 +14,8 @@
 
 #include "nntile/context.hh"
 #include "nntile/core/tile.hh"
+#include "nntile/defs.h"
+#include <cstring>
 #include <limits>
 #include "../testing.hh"
 
@@ -42,7 +44,18 @@ void check_tile(const std::vector<Index> &shape)
     TEST_ASSERT(tile3.get() != nullptr);
     TEST_ASSERT(tile2.get() != tile3.get());
     // Check if acquire, release and copy are working together
+#ifdef NNTILE_USE_NNHAUL
+    {
+        auto src_local = tile2.acquire(STARPU_R);
+        auto dst_local = tile3.acquire(STARPU_W);
+        std::memcpy(
+            dst_local.get_ptr(),
+            src_local.get_ptr(),
+            sizeof(T) * static_cast<std::size_t>(tile2.nelems));
+    }
+#else
     starpu_data_cpy(tile3.get(), tile2.get(), 0, nullptr, nullptr);
+#endif
     auto tile3_local = tile3.acquire(STARPU_R);
     for(Index i = 0; i < tile2.nelems; ++i)
     {
@@ -58,7 +71,18 @@ void check_tile(const std::vector<Index> &shape)
     TEST_THROW(Tile<T>(shape, &data[0], tile1.nelems-1));
     Tile<T> tile4(shape, &data[0], tile1.nelems);
     TEST_ASSERT(tile4.get() != nullptr);
+#ifdef NNTILE_USE_NNHAUL
+    {
+        auto src_local = tile4.acquire(STARPU_R);
+        auto dst_local = tile3.acquire(STARPU_W);
+        std::memcpy(
+            dst_local.get_ptr(),
+            src_local.get_ptr(),
+            sizeof(T) * static_cast<std::size_t>(tile4.nelems));
+    }
+#else
     starpu_data_cpy(tile3.get(), tile4.get(), 0, nullptr, nullptr);
+#endif
     tile3_local.acquire(STARPU_R);
     for(Index i = 0; i < tile2.nelems; ++i)
     {
@@ -70,7 +94,18 @@ void check_tile(const std::vector<Index> &shape)
     Tile<T> tile5(tile4, &data[0], tile4.nelems);
     TEST_ASSERT(tile5.get() != nullptr);
     TEST_ASSERT(tile5.get() != tile4.get());
+#ifdef NNTILE_USE_NNHAUL
+    {
+        auto src_local = tile5.acquire(STARPU_R);
+        auto dst_local = tile3.acquire(STARPU_W);
+        std::memcpy(
+            dst_local.get_ptr(),
+            src_local.get_ptr(),
+            sizeof(T) * static_cast<std::size_t>(tile5.nelems));
+    }
+#else
     starpu_data_cpy(tile3.get(), tile5.get(), 0, nullptr, nullptr);
+#endif
     tile3_local.acquire(STARPU_RW);
     for(Index i = 0; i < tile2.nelems; ++i)
     {

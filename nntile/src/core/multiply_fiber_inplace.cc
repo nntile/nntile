@@ -13,8 +13,16 @@
  * */
 
 #include "nntile/core/multiply_fiber_inplace.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/multiply_fiber_inplace.hh"
+#else
 #include "nntile/starpu/multiply_fiber_inplace.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
 
 namespace nntile::core
 {
@@ -56,14 +64,30 @@ void multiply_fiber_inplace_async(int starpu_worker_hint, Scalar alpha, const Ti
     m = dst.matrix_shape[axis+1][1];
     n = dst.matrix_shape[axis][0];
     k = dst.shape[axis];
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int dst_rank = 0;
+    #else
     int dst_rank = dst.mpi_get_rank();
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     src.mpi_transfer(dst_rank, mpi_rank);
+    #endif
     if(mpi_rank == dst_rank)
     {
         // Insert corresponding task
+        #ifdef NNTILE_USE_NNHAUL
+        haul::multiply_fiber_inplace.submit<std::tuple<T>>(starpu_worker_hint, m, n, k, alpha,
+                src, dst);
+        #else
         starpu::multiply_fiber_inplace.submit<std::tuple<T>>(starpu_worker_hint, m, n, k, alpha,
                 src, dst);
+        #endif
+
     }
 }
 
@@ -81,7 +105,11 @@ void multiply_fiber_inplace(int starpu_worker_hint, Scalar alpha, const Tile<T> 
  * */
 {
     multiply_fiber_inplace_async<T>(starpu_worker_hint, alpha, src, dst, axis);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 // Explicit instantiation of template

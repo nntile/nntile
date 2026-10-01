@@ -13,8 +13,16 @@
  * */
 
 #include "nntile/core/adamw_step.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/adamw_step.hh"
+#else
 #include "nntile/starpu/adamw_step.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
 
 namespace nntile::core
 {
@@ -48,17 +56,38 @@ void adamw_step_async(int starpu_worker_hint, Index num_iter, Scalar beta_1, Sca
     {
         throw std::runtime_error("Shapes of first_moment and parameters are not equal");
     }
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int p_rank = 0;
+    #else
     int p_rank = p.mpi_get_rank();
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     grad.mpi_transfer(p_rank, mpi_rank);
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     first_moment.mpi_transfer(p_rank, mpi_rank);
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     second_moment.mpi_transfer(p_rank, mpi_rank);
+    #endif
     if(mpi_rank == p_rank)
     {
         // Submit task
+        #ifdef NNTILE_USE_NNHAUL
+        haul::adamw_step.submit<std::tuple<T>>(starpu_worker_hint, num_iter, p.nelems, beta_1,
+                beta_2, eps, lr, weight_decay, grad, first_moment,
+                second_moment, p);
+        #else
         starpu::adamw_step.submit<std::tuple<T>>(starpu_worker_hint, num_iter, p.nelems, beta_1,
                 beta_2, eps, lr, weight_decay, grad, first_moment,
                 second_moment, p);
+        #endif
+
     }
 }
 
@@ -79,7 +108,11 @@ void adamw_step(int starpu_worker_hint, Index num_iter, Scalar beta_1, Scalar be
                const Tile<T> &p)
 {
     adamw_step_async<T>(starpu_worker_hint, num_iter, beta_1, beta_2, eps, lr, weight_decay, grad, first_moment, second_moment, p);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 // Explicit instantiation

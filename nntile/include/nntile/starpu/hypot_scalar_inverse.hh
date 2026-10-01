@@ -1,3 +1,12 @@
+#pragma once
+
+#ifdef NNTILE_USE_NNHAUL
+#include <nntile/nnhaul/ops/hypot_scalar_inverse.hh>
+namespace nntile::starpu
+{
+using namespace nntile::haul;
+}
+#else
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -102,3 +111,4 @@ using hypot_scalar_inverse_pack_t = OperationPack<
 extern hypot_scalar_inverse_pack_t hypot_scalar_inverse;
 
 } // namespace nntile::starpu
+#endif

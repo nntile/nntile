@@ -1,3 +1,12 @@
+#pragma once
+
+#ifdef NNTILE_USE_NNHAUL
+#include <nntile/nnhaul/ops/embedding.hh>
+namespace nntile::starpu
+{
+using namespace nntile::haul;
+}
+#else
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -108,3 +117,4 @@ using embedding_pack_t = OperationPack<
 extern embedding_pack_t embedding;
 
 } // namespace nntile::starpu
+#endif

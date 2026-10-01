@@ -1,3 +1,12 @@
+#pragma once
+
+#ifdef NNTILE_USE_NNHAUL
+#include <nntile/nnhaul/ops/conv2d_bwd_input_inplace.hh>
+namespace nntile::starpu
+{
+using namespace nntile::haul;
+}
+#else
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -132,3 +141,4 @@ using conv2d_bwd_input_inplace_pack_t = OperationPack<
 extern conv2d_bwd_input_inplace_pack_t conv2d_bwd_input_inplace;
 
 } // namespace nntile::starpu
+#endif

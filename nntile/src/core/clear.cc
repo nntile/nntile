@@ -13,8 +13,16 @@
  * */
 
 #include "nntile/core/clear.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/clear.hh"
+#else
 #include "nntile/starpu/clear.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
 
 namespace nntile::core
 {
@@ -23,11 +31,24 @@ namespace nntile::core
 template<typename T>
 void clear_async(int starpu_worker_hint, const Tile<T> &tile)
 {
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int tile_rank = 0;
+    #else
     int tile_rank = tile.mpi_get_rank();
+    #endif
     if(mpi_rank == tile_rank)
     {
+        #ifdef NNTILE_USE_NNHAUL
+        haul::clear.submit(starpu_worker_hint, tile);
+        #else
         starpu::clear.submit(starpu_worker_hint, tile);
+        #endif
+
     }
 }
 
@@ -36,7 +57,11 @@ template<typename T>
 void clear(int starpu_worker_hint, const Tile<T> &tile)
 {
     clear_async<T>(starpu_worker_hint, tile);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 // Explicit instantiation

@@ -30,9 +30,14 @@ void validate()
     unsigned long long seed = -1;
     Scalar mean = 1, stddev = 2;
     // Check some valid parameters
+#ifdef NNTILE_USE_NNHAUL
+    starpu::randn.submit<std::tuple<T>>(-1, 3, dst.nelems, seed, mean, stddev,
+        start, dst.shape, dst.stride, underlying_shape, dst);
+#else
     starpu::VariableHandle tmp_index(sizeof(nntile::int64_t)*2*3);
     starpu::randn.submit<std::tuple<T>>(-1, 3, dst.nelems, seed, mean, stddev, start,
         dst.shape, dst.stride, underlying_shape, dst, tmp_index);
+#endif
     randn(-1, dst2, start, underlying_shape, seed, mean, stddev);
     auto dst_local = dst.acquire(STARPU_R);
     auto dst2_local = dst.acquire(STARPU_R);

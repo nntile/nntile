@@ -13,8 +13,16 @@
  * */
 
 #include "nntile/core/hypot.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/hypot.hh"
+#else
 #include "nntile/starpu/hypot.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
 
 namespace nntile::core
 {
@@ -36,15 +44,33 @@ void hypot_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src1, Scal
             throw std::runtime_error("dst.shape[i] != src1.shape[i] or dst.shape[i] != src2.shape[i]");
         }
     }
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int dst_rank = 0;
+    #else
     int dst_rank = dst.mpi_get_rank();
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     src1.mpi_transfer(dst_rank, mpi_rank);
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     src2.mpi_transfer(dst_rank, mpi_rank);
+    #endif
     if(mpi_rank == dst_rank)
     {
         // Insert corresponding task
+        #ifdef NNTILE_USE_NNHAUL
+        haul::hypot.submit<std::tuple<T>>(starpu_worker_hint, src1.nelems, alpha, src1, beta,
+                src2, dst);
+        #else
         starpu::hypot.submit<std::tuple<T>>(starpu_worker_hint, src1.nelems, alpha, src1, beta,
                 src2, dst);
+        #endif
+
     }
 }
 
@@ -53,7 +79,11 @@ template<typename T>
 void hypot(int starpu_worker_hint, Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<T> &src2, const Tile<T> &dst)
 {
     hypot_async<T>(starpu_worker_hint, alpha, src1, beta, src2, dst);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 // Explicit instantiation of template

@@ -13,8 +13,16 @@
  * */
 
 #include "nntile/core/rope.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/rope.hh"
+#else
 #include "nntile/starpu/rope.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
 
 namespace nntile::core
 {
@@ -86,19 +94,39 @@ void rope_async(int starpu_worker_hint, const Tile<T> &sin, const Tile<T> &cos, 
         nrows *= src.shape[i];
     }
     const Index ncols = sin.nelems;
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int dst_rank = 0;
+    #else
     int dst_rank = dst.mpi_get_rank();
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     sin.mpi_transfer(dst_rank, mpi_rank);
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     cos.mpi_transfer(dst_rank, mpi_rank);
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     src.mpi_transfer(dst_rank, mpi_rank);
+    #endif
     if(mpi_rank == dst_rank)
     {
         if(sin_pair0 != 0)
         {
             throw std::runtime_error("rope: sin_pair0 != 0 is not supported");
         }
+        #ifdef NNTILE_USE_NNHAUL
+        haul::rope.submit<std::tuple<T>>(starpu_worker_hint, ncols, nrows,
+            sin, cos, src, dst);
+        #else
         starpu::rope.submit<std::tuple<T>>(starpu_worker_hint, ncols, nrows,
             sin, cos, src, dst);
+        #endif
+
     }
 }
 
@@ -115,7 +143,11 @@ void rope(int starpu_worker_hint, const Tile<T> &sin, const Tile<T> &cos, const 
  * */
 {
     rope_async<T>(starpu_worker_hint, sin, cos, src, dst, sin_pair0);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 // Explicit instantiation of template

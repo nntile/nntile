@@ -13,8 +13,16 @@
  * */
 
 #include "nntile/core/gemm.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/gemm.hh"
+#else
 #include "nntile/starpu/gemm.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
 #include "nntile/starpu/config.hh"
+#endif
 
 namespace nntile::core
 {
@@ -360,6 +368,12 @@ void gemm_async(int starpu_worker_hint, Scalar alpha, const TransOp &transA, con
         const TransOp &transB, const Tile<T> &B, Scalar beta, const Tile<T> &C,
         Index ndim, Index batch_ndim, int redux)
 {
+#ifdef NNTILE_USE_NNHAUL
+    if(redux != 0)
+    {
+        throw std::runtime_error("redux != 0 is not supported");
+    }
+#endif
     // Check inputs (throw exception in case of an error)
     gemm_check(transA, A, transB, B, C, ndim, batch_ndim);
     Index m = 0;
@@ -388,14 +402,32 @@ void gemm_async(int starpu_worker_hint, Scalar alpha, const TransOp &transA, con
             break;
     }
     // Insert task
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
     int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int c_rank = 0;
+    #else
     int c_rank = C.mpi_get_rank();
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     A.mpi_transfer(c_rank, mpi_rank);
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
     B.mpi_transfer(c_rank, mpi_rank);
+    #endif
     if(mpi_rank == c_rank)
     {
+        #ifdef NNTILE_USE_NNHAUL
+        haul::gemm.submit<std::tuple<T>>(starpu_worker_hint,
+            transA, transB, m, n, k, batch, alpha, A, B, beta, C, 0);
+        #else
         starpu::gemm.submit<std::tuple<T>>(starpu_worker_hint,
-            transA, transB, m, n, k, batch, alpha, A, B, beta, C, 0);            
+            transA, transB, m, n, k, batch, alpha, A, B, beta, C, 0);
+        #endif
+            
     }
 }
 
@@ -415,9 +447,19 @@ void gemm(int starpu_worker_hint, Scalar alpha, const TransOp &transA, const Til
         const TransOp &transB, const Tile<T> &B, Scalar beta, const Tile<T> &C,
         Index ndim, Index batch_ndim, int redux)
 {
+#ifdef NNTILE_USE_NNHAUL
+    if(redux != 0)
+    {
+        throw std::runtime_error("redux != 0 is not supported");
+    }
+#endif
     gemm_async<T>(starpu_worker_hint, alpha, transA, A, transB, B, beta, C, ndim, batch_ndim,
             redux);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
     nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
 }
 
 // Explicit instantiation

@@ -255,3 +255,61 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                 ab.tile_virtual_worker.at("t2"));
     }
 }
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "missing schedule is installed before execute",
+    "[execution_schedule]")
+{
+    TileGraph tg("default_sched");
+    auto *x = tg.data({4}, "x", DataType::FP32);
+    auto *y = tg.data({4}, "y", DataType::FP32);
+    auto *z = tg.data({4}, "z", DataType::FP32);
+    add(1.0, x, 1.0, y, z);
+
+    Runtime rt(tg);
+    rt.compile();
+    REQUIRE_FALSE(rt.has_execution_schedule());
+    rt.install_default_execution_schedule_if_missing();
+    REQUIRE(rt.has_execution_schedule());
+    std::string const policy = rt.execution_schedule().policy;
+    size_t const nops = rt.execution_schedule().ops.size();
+    rt.install_default_execution_schedule_if_missing();
+    REQUIRE(rt.execution_schedule().policy == policy);
+    REQUIRE(rt.execution_schedule().ops.size() == nops);
+}
+
+#ifdef NNTILE_USE_NNHAUL
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "NNHaul execution.json round-trips hardware.workers",
+    "[execution_schedule]")
+{
+    TileGraph tg("haul_json");
+    auto *x = tg.data({4}, "x", DataType::FP32);
+    auto *y = tg.data({4}, "y", DataType::FP32);
+    auto *z = tg.data({4}, "z", DataType::FP32);
+    std::vector<std::shared_ptr<TileGraph::OpNode>> order;
+    order.push_back(std::make_shared<TileAddOp>(x, y, z, 1.0, 1.0));
+    ExecutionSchedule sched =
+        generate_round_robin_execution_schedule(tg, order);
+    REQUIRE_FALSE(sched.workers.empty());
+    REQUIRE(sched.num_workers == static_cast<int>(sched.workers.size()));
+    char const *const path = "/tmp/nntile_execution_schedule_haul.json";
+    write_execution_schedule_json(sched, path);
+    ExecutionSchedule loaded = load_execution_schedule_json(path);
+    REQUIRE(loaded.workers.size() == sched.workers.size());
+    REQUIRE(loaded.workers[0].id == sched.workers[0].id);
+    REQUIRE(loaded.workers[0].kind == sched.workers[0].kind);
+    REQUIRE(loaded.ops.size() == sched.ops.size());
+
+    char const *const stale_path =
+        "/tmp/nntile_execution_schedule_starpu_shape.json";
+    std::ofstream stale(stale_path);
+    stale << "{\n"
+             "  \"hardware\": {\"num_workers\": 1, \"worker_kind\": \"cpu\"},\n"
+             "  \"ops\": []\n"
+             "}\n";
+    stale.close();
+    REQUIRE_THROWS_AS(
+        load_execution_schedule_json(stale_path), std::runtime_error);
+}
+#endif
