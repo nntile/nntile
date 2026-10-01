@@ -34,6 +34,34 @@ void torch_unary(
     in->graph()->add_op(op);
 }
 
+namespace
+{
+
+starpu::TorchDispatchArgs omitted_binary_extra(
+    starpu::TorchKind kind)
+{
+    starpu::TorchDispatchArgs extra;
+    // aten::add alpha is 1 when TorchDispatchArgs is omitted.
+    // An explicit extra, including alpha 0, is left unchanged.
+    if (kind == starpu::TorchKind::Add)
+    {
+        extra.scalars[0] = static_cast<Scalar>(1);
+    }
+    return extra;
+}
+
+} // namespace
+
+void torch_binary(
+    starpu::TorchKind kind,
+    TileGraph::TileNode *a,
+    TileGraph::TileNode *b,
+    TileGraph::TileNode *out)
+{
+    torch_binary(
+        kind, a, b, out, omitted_binary_extra(kind));
+}
+
 void torch_binary(
     starpu::TorchKind kind,
     TileGraph::TileNode *a,

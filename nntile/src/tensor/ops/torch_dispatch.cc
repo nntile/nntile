@@ -36,6 +36,19 @@ void require_single_tile(
     }
 }
 
+starpu::TorchDispatchArgs omitted_binary_extra(
+    starpu::TorchKind kind)
+{
+    starpu::TorchDispatchArgs extra;
+    // aten::add alpha is 1 when TorchDispatchArgs is omitted.
+    // An explicit extra, including alpha 0, is left unchanged.
+    if (kind == starpu::TorchKind::Add)
+    {
+        extra.scalars[0] = static_cast<Scalar>(1);
+    }
+    return extra;
+}
+
 } // namespace
 
 TensorGraph::TensorNode *torch_unary(
@@ -80,6 +93,20 @@ TensorGraph::TensorNode *torch_binary(
     starpu::TorchKind kind,
     TensorGraph::TensorNode *a,
     TensorGraph::TensorNode *b,
+    const std::vector<Index> &out_shape)
+{
+    return torch_binary(
+        kind,
+        a,
+        b,
+        out_shape,
+        omitted_binary_extra(kind));
+}
+
+TensorGraph::TensorNode *torch_binary(
+    starpu::TorchKind kind,
+    TensorGraph::TensorNode *a,
+    TensorGraph::TensorNode *b,
     const std::vector<Index> &out_shape,
     starpu::TorchDispatchArgs extra)
 {
@@ -95,6 +122,16 @@ TensorGraph::TensorNode *torch_binary(
         a->graph()->emplace_data(out_shape, a->dtype());
     torch_binary(kind, a, b, out, extra);
     return out;
+}
+
+void torch_binary(
+    starpu::TorchKind kind,
+    TensorGraph::TensorNode *a,
+    TensorGraph::TensorNode *b,
+    TensorGraph::TensorNode *out)
+{
+    torch_binary(
+        kind, a, b, out, omitted_binary_extra(kind));
 }
 
 void torch_binary(
