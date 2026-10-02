@@ -18,7 +18,7 @@
 namespace nntile::kernel::add_inplace
 {
 
-template<typename T>
+template<typename T, int BLOCK, int LOOP>
 static __global__
 void cuda_kernel(Index nelems, Scalar alpha_, const T *src, Scalar beta_,
         T *dst)
@@ -26,20 +26,33 @@ void cuda_kernel(Index nelems, Scalar alpha_, const T *src, Scalar beta_,
 /*! @copydoc nntile::kernel::add_inplace::cuda
  * */
 {
+    int i = threadIdx.x + blockIdx.x*BLOCK;
     using Y = typename T::repr_t;
-    Y const alpha{alpha_};
-    Y const beta{beta_};
-    Index const step = static_cast<Index>(blockDim.x) *
-        static_cast<Index>(gridDim.x);
-    for(Index i = static_cast<Index>(threadIdx.x) +
-            static_cast<Index>(blockIdx.x) *
-                static_cast<Index>(blockDim.x);
-        i < nelems;
-        i += step)
+    Y dst_block[LOOP];
+    Y src_block[LOOP];
+    Y alpha = Y{alpha_};
+    Y beta = Y{beta_};
+    constexpr int BLOCK_STEP = BLOCK / LOOP;
+    if((blockIdx.x+1)*BLOCK <= nelems)
     {
-        Y const src_val = static_cast<Y>(src[i]);
-        Y const dst_val = static_cast<Y>(dst[i]);
-        dst[i] = static_cast<T>(alpha * src_val + beta * dst_val);
+        for(int j = 0; j < LOOP; ++j)
+        {
+            dst_block[j] = static_cast<Y>(dst[i+j*BLOCK_STEP]);
+            src_block[j] = static_cast<Y>(src[i+j*BLOCK_STEP]);
+            dst_block[j] = alpha*src_block[j] + beta*dst_block[j];
+            dst[i+j*BLOCK_STEP] = static_cast<T>(dst_block[j]);
+        }
+    }
+    else
+    {
+        int j_max = (nelems-i+BLOCK_STEP-1) / BLOCK_STEP;
+        for(int j = 0; j < j_max; ++j)
+        {
+            dst_block[j] = static_cast<Y>(dst[i+j*BLOCK_STEP]);
+            Y val1 = static_cast<Y>(src[i+j*BLOCK_STEP]);
+            dst_block[j] = alpha*val1 + beta*dst_block[j];
+            dst[i+j*BLOCK_STEP] = static_cast<T>(dst_block[j]);
+        }
     }
 }
 
@@ -71,13 +84,9 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha_, const T *src_,
  * @param[inout] dst_: Destination of the add operation
  * */
 {
-    if(nelems <= 0)
-    {
-        return;
-    }
     dim3 threads(256);
-    dim3 blocks(static_cast<unsigned>((nelems + 255) / 256));
-    cuda_kernel<T><<<blocks, threads, 0, stream>>>(nelems, alpha_,
+    dim3 blocks((nelems+1023)/1024);
+    (cuda_kernel<T, 1024, 4>)<<<blocks, threads, 0, stream>>>(nelems, alpha_,
             src_, beta_, dst_);
 }
 

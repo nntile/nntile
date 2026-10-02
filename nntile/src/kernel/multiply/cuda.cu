@@ -43,24 +43,16 @@ void cuda_kernel(Index nelems, Scalar alpha, const T *src1, const T *src2, T *ds
     }
     else
     {
-        int const limit = static_cast<int>(
-            nelems - blockIdx.x * BLOCK);
-        for(int j = 0; j < limit; j += BLOCK_STEP)
+        for(int j = 0; j < nelems-blockIdx.x*BLOCK; j += BLOCK_STEP)
         {
-            if(threadIdx.x + j < limit)
-            {
-                src1_block[threadIdx.x+j] = src1[i+j];
-                src2_block[threadIdx.x+j] = src2[i+j];
-            }
+            src1_block[threadIdx.x+j] = src1[i+j];
+            src2_block[threadIdx.x+j] = src2[i+j];
         }
-        for(int j = 0; j < limit; j += BLOCK_STEP)
+        for(int j = 0; j < nelems-blockIdx.x*BLOCK; j += BLOCK_STEP)
         {
-            if(threadIdx.x + j < limit)
-            {
-                dst[i+j] = static_cast<T>(
+            dst[i+j] = static_cast<T>(
                     alpha * static_cast<Y>(src1_block[threadIdx.x+j]) *
                     static_cast<Y>(src2_block[threadIdx.x+j]));
-            }
         }
     }
 }

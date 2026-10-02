@@ -111,14 +111,10 @@ void gemm(
         static_cast<long long int>(m) * n;
     scalar_t<T> alpha_=alpha, beta_=beta;
 
-    // Find out cublasGemmEx specific parameters.
-    // TENSOR_OP with no cublasSetWorkspace dereferences a null
-    // workspace on small unaligned shapes (M=2,K=4,N=5).
-    cudaDataType_t typeA = CUDA_R_32F;
-    cudaDataType_t typeB = CUDA_R_32F;
-    cudaDataType_t typeC = CUDA_R_32F;
-    cublasComputeType_t computeType = CUBLAS_COMPUTE_32F;
-    constexpr cublasGemmAlgo_t algo = CUBLAS_GEMM_DEFAULT;
+    // Find out cublasGemmEx specific parameters
+    cudaDataType_t typeA, typeB, typeC;
+    cublasComputeType_t computeType;
+    constexpr cublasGemmAlgo_t algo = CUBLAS_GEMM_DEFAULT_TENSOR_OP;
     if constexpr(std::is_same_v<T, fp64_t>)
     {
         typeA = CUDA_R_64F;
