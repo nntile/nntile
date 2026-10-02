@@ -267,12 +267,6 @@ ExecutionSchedule build_execution_schedule(
         {
             entry.worker = 0;
         }
-#ifdef NNTILE_USE_NNHAUL
-        entry.worker = sched::starpu_worker_id_for_scheduled_op(
-            entry.worker,
-            schedule.use_cuda_workers,
-            entry.op_name);
-#endif
 
         for (TileGraph::TileNode const *t : writable)
         {
