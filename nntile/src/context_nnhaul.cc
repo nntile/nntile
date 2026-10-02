@@ -126,15 +126,13 @@ Context::Context(
     }
     cuda_cap_bytes_each = 0;
 #else
-    if (ncuda < 0)
+    // Worker 0 is the default CUDA worker. Callers that pass ncuda <= 0
+    // still get that worker, otherwise a CUDA codelet with no hint throws.
+    if (ncuda < 1)
     {
-        ncuda = 0;
+        ncuda = 1;
     }
-    if (ncuda == 0)
-    {
-        cuda_cap_bytes_each = 0;
-    }
-    else if (cuda_cap_bytes_each == 0)
+    if (cuda_cap_bytes_each == 0)
     {
         std::size_t free_bytes = 0;
         std::size_t total_bytes = 0;
@@ -162,6 +160,12 @@ Context::Context(
         ncuda,
         cpu_cap_bytes,
         cuda_cap_bytes_each);
+#ifdef NNTILE_USE_CUDA
+    // CUDA codelets take this worker when insert has no worker hint.
+    // The first CPU worker stays the default for CPU-only codelets.
+    ::nnhaul::set_default_cuda_worker(0);
+#endif
+    ::nnhaul::set_default_cpu_worker(ncuda);
     g_backend_ncpu = ncpu;
     g_backend_ncuda = ncuda;
     g_backend_ready = true;
