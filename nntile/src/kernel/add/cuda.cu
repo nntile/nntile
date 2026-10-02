@@ -18,7 +18,7 @@
 namespace nntile::kernel::add
 {
 
-template<typename T, int BLOCK, int LOOP>
+template<typename T>
 static __global__
 void cuda_kernel(
     Index nelems,
@@ -30,49 +30,24 @@ void cuda_kernel(
 )
 //! Generic implementation of the add operation on CUDA
 /* @copydoc nntile::kernel::add::cuda
+ * One element per step. A 1024-wide blocked loop reads past a short
+ * buffer when the partial-tile guard is missed.
  * */
 {
-    int i = threadIdx.x + blockIdx.x*BLOCK;
     using Y = typename T::repr_t;
-    Y dst_block[LOOP];
-    Y src_block[LOOP];
-    const Y alpha_ = alpha;
-    const Y beta_ = beta;
-    constexpr int BLOCK_STEP = BLOCK / LOOP;
-    if((blockIdx.x+1)*BLOCK <= nelems)
+    Y const alpha_{alpha};
+    Y const beta_{beta};
+    Index const step = static_cast<Index>(blockDim.x) *
+        static_cast<Index>(gridDim.x);
+    for(Index i = static_cast<Index>(threadIdx.x) +
+            static_cast<Index>(blockIdx.x) *
+                static_cast<Index>(blockDim.x);
+        i < nelems;
+        i += step)
     {
-        for(int j = 0; j < LOOP; ++j)
-        {
-            src_block[j] = static_cast<Y>(src1[i+j*BLOCK_STEP]);
-            dst_block[j] = static_cast<Y>(src2[i+j*BLOCK_STEP]);
-            dst_block[j] = alpha_ * src_block[j] + beta_ * dst_block[j];
-            dst[i+j*BLOCK_STEP] = static_cast<T>(dst_block[j]);
-        }
-    }
-    else
-    {
-        int j_max = (nelems-i+BLOCK_STEP-1) / BLOCK_STEP;
-        if(j_max > LOOP)
-        {
-            j_max = LOOP;
-        }
-        if(j_max < 0)
-        {
-            j_max = 0;
-        }
-        for(int j = 0; j < j_max; ++j)
-        {
-            Index const elem = static_cast<Index>(i) +
-                static_cast<Index>(j) * BLOCK_STEP;
-            if(elem < 0 || elem >= nelems)
-            {
-                break;
-            }
-            src_block[j] = static_cast<Y>(src1[elem]);
-            dst_block[j] = static_cast<Y>(src2[elem]);
-            dst_block[j] = alpha_ * src_block[j] + beta_ * dst_block[j];
-            dst[elem] = static_cast<T>(dst_block[j]);
-        }
+        Y const src1_val = static_cast<Y>(src1[i]);
+        Y const src2_val = static_cast<Y>(src2[i]);
+        dst[i] = static_cast<T>(alpha_ * src1_val + beta_ * src2_val);
     }
 }
 
@@ -109,9 +84,13 @@ void cuda(
  * @param[out] dst: Destination tensor
  * */
 {
+    if(nelems <= 0)
+    {
+        return;
+    }
     dim3 threads(256);
-    dim3 blocks((nelems+1023)/1024);
-    (cuda_kernel<T, 1024, 4>)<<<blocks, threads, 0, stream>>>(
+    dim3 blocks(static_cast<unsigned>((nelems + 255) / 256));
+    cuda_kernel<T><<<blocks, threads, 0, stream>>>(
         nelems, alpha, src1, beta, src2, dst);
 }
 
