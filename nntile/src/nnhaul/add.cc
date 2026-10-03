@@ -92,16 +92,26 @@ void Add<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     auto args = reinterpret_cast<args_t const *>(cl_args);
-    const T *src1 = ::nntile::haul::buf_as<T>(buffers, 0);
-    const T *src2 = ::nntile::haul::buf_as<T>(buffers, 1);
-    T *dst = ::nntile::haul::buf_as<T>(buffers, 2);
+    auto *b0 = static_cast<::nnhaul::Buffer *>(buffers[0]);
+    auto *b1 = static_cast<::nnhaul::Buffer *>(buffers[1]);
+    auto *b2 = static_cast<::nnhaul::Buffer *>(buffers[2]);
+    const T *src1 = b0->get_ptr<T>();
+    const T *src2 = b1->get_ptr<T>();
+    T *dst = b2->get_ptr<T>();
     cudaStream_t stream = ::nnhaul::cuda_stream();
     std::fprintf(stderr,
-        "nntile_add nelems=%lld src1=%p src2=%p dst=%p\n",
+        "nntile_add nelems=%lld src1=%p capacity=%zu nbytes=%zu "
+        "src2=%p capacity=%zu nbytes=%zu dst=%p capacity=%zu nbytes=%zu\n",
         static_cast<long long>(args->nelems),
         static_cast<void const *>(src1),
+        b0->capacity(),
+        b0->nbytes(),
         static_cast<void const *>(src2),
-        static_cast<void *>(dst));
+        b1->capacity(),
+        b1->nbytes(),
+        static_cast<void *>(dst),
+        b2->capacity(),
+        b2->nbytes());
     std::fflush(stderr);
     kernel::add::cuda<T>(
         stream,

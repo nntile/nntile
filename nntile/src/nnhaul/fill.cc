@@ -90,12 +90,16 @@ void Fill<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get arguments
     args_t const *args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    T *data = ::nntile::haul::buf_as<T>(buffers, 0);
+    auto *raw = static_cast<::nnhaul::Buffer *>(buffers[0]);
+    T *data = raw->get_ptr<T>();
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    std::fprintf(stderr, "nntile_fill nelems=%lld ptr=%p\n",
+    std::fprintf(stderr,
+        "nntile_fill nelems=%lld ptr=%p capacity=%zu nbytes=%zu\n",
         static_cast<long long>(args->nelems),
-        static_cast<void *>(data));
+        static_cast<void *>(data),
+        raw->capacity(),
+        raw->nbytes());
     std::fflush(stderr);
     // Launch kernel
     kernel::fill::cuda<T>(stream, args->nelems, args->value, data);
