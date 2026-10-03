@@ -24,9 +24,6 @@
 // Other NNTile headers
 #include "nntile/kernel/add.hh"
 #include "nntile/nnhaul/ops/scale.hh"
-#ifdef NNTILE_USE_CUDA
-#include <cuda_runtime.h>
-#endif // NNTILE_USE_CUDA
 
 namespace nntile::haul
 {
@@ -89,61 +86,6 @@ void Add<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
 }
 
 #ifdef NNTILE_USE_CUDA
-namespace
-{
-
-struct NotedPtr
-{
-    int type = -1;
-    int device = -1;
-    void const *ptr = nullptr;
-    bool on_device = false;
-};
-
-// Flushed before the query and again with the attribute numbers.
-// A fault in either still leaves nelems and the pointer in the ctest log.
-NotedPtr note_device_ptr(
-    char const *codelet, long long nelems, void const *ptr, int stream_device)
-{
-    std::fprintf(stderr, "%s nelems=%lld ptr=%p\n", codelet, nelems, ptr);
-    std::fflush(stderr);
-    cudaPointerAttributes attr{};
-    cudaError_t const query = cudaPointerGetAttributes(&attr, ptr);
-    NotedPtr noted;
-    noted.ptr = ptr;
-    if (query != cudaSuccess)
-    {
-        cudaGetLastError();
-    }
-    else
-    {
-        noted.type = static_cast<int>(attr.type);
-        noted.device = attr.device;
-        noted.on_device =
-            noted.type == static_cast<int>(cudaMemoryTypeDevice) &&
-            noted.device == stream_device;
-    }
-    std::fprintf(stderr, "%s nelems=%lld type=%d device=%d ptr=%p\n",
-        codelet, nelems, noted.type, noted.device, ptr);
-    std::fflush(stderr);
-    return noted;
-}
-
-void require_device_ptr(
-    char const *codelet, long long nelems, NotedPtr const &noted)
-{
-    if (nelems < 1 || !noted.on_device)
-    {
-        char text[192];
-        std::snprintf(text, sizeof(text),
-            "%s nelems=%lld type=%d device=%d ptr=%p",
-            codelet, nelems, noted.type, noted.device, noted.ptr);
-        throw std::runtime_error(text);
-    }
-}
-
-} // namespace
-
 //! Apply add for NNHaul buffers on CUDA
 template<typename T>
 void Add<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
@@ -154,17 +96,13 @@ void Add<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     const T *src2 = ::nntile::haul::buf_as<T>(buffers, 1);
     T *dst = ::nntile::haul::buf_as<T>(buffers, 2);
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    int const stream_device = ::nnhaul::device_index();
-    long long const nelems = static_cast<long long>(args->nelems);
-    NotedPtr const src1_noted =
-        note_device_ptr("nntile_add", nelems, src1, stream_device);
-    NotedPtr const src2_noted =
-        note_device_ptr("nntile_add", nelems, src2, stream_device);
-    NotedPtr const dst_noted =
-        note_device_ptr("nntile_add", nelems, dst, stream_device);
-    require_device_ptr("nntile_add", nelems, src1_noted);
-    require_device_ptr("nntile_add", nelems, src2_noted);
-    require_device_ptr("nntile_add", nelems, dst_noted);
+    std::fprintf(stderr,
+        "nntile_add nelems=%lld src1=%p src2=%p dst=%p\n",
+        static_cast<long long>(args->nelems),
+        static_cast<void const *>(src1),
+        static_cast<void const *>(src2),
+        static_cast<void *>(dst));
+    std::fflush(stderr);
     kernel::add::cuda<T>(
         stream,
         args->nelems,
