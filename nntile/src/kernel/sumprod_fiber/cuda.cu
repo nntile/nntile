@@ -137,9 +137,14 @@ void cuda_kernel_m1(Index n, Index k, Scalar alpha_, const T *src1,
             const T *src2_fiber = src2 + src_offset + src_block_j*k;
             for(int c = 0; c < BLOCK_COL; c += BLOCK_COL_STEP)
             {
-                Y val1 = static_cast<Y>(src1_fiber[c*k]);
-                Y val2 = static_cast<Y>(src2_fiber[c*k]);
-                dst_val += val1 * val2;
+                // Threads beyond the last column must not read the
+                // source arrays: those elements belong to other data.
+                if(src_block_j + src_j + c < n)
+                {
+                    Y val1 = static_cast<Y>(src1_fiber[c*k]);
+                    Y val2 = static_cast<Y>(src2_fiber[c*k]);
+                    dst_val += val1 * val2;
+                }
             }
         }
         // Pointer to a corresponding fiber of the input arrays
@@ -147,9 +152,13 @@ void cuda_kernel_m1(Index n, Index k, Scalar alpha_, const T *src1,
         const T *src2_fiber = src2 + src_offset + src_block_j_end*k;
         for(Index c = 0; c < n-src_block_j_end; c += BLOCK_COL_STEP)
         {
-            Y val1 = static_cast<Y>(src1_fiber[c*k]);
-            Y val2 = static_cast<Y>(src2_fiber[c*k]);
-            dst_val += val1 * val2;
+            // Same bound as above: src_j offsets this thread's column.
+            if(src_block_j_end + src_j + c < n)
+            {
+                Y val1 = static_cast<Y>(src1_fiber[c*k]);
+                Y val2 = static_cast<Y>(src2_fiber[c*k]);
+                dst_val += val1 * val2;
+            }
         }
     }
     // Put calculated value into shared memory
