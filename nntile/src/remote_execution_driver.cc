@@ -895,23 +895,36 @@ RemoteExecutionDriver::RemoteExecutionDriver(std::string socket_path)
         throw std::runtime_error("RemoteExecutionDriver: connect failed");
     }
     apply_client_socket_timeouts(fd_);
-    nlohmann::json hello = {
-        {"type", "Handshake"},
-        {"protocol_version", kDriverProtocol},
-    };
-    // Cross-user daemons (container uid maps, shared hosts) authenticate
-    // with a shared secret instead of the same-uid check.
-    std::string const secret = driver_token_secret();
-    if (!secret.empty())
+    // A throwing handshake would otherwise leak fd_: the destructor
+    // never runs for a partially constructed object, and with the
+    // connect-retry loop a flapping daemon could drain the fd limit.
+    try
     {
-        hello["token"] = secret;
+        nlohmann::json hello = {
+            {"type", "Handshake"},
+            {"protocol_version", kDriverProtocol},
+        };
+        // Cross-user daemons (container uid maps, shared hosts)
+        // authenticate with a shared secret instead of the same-uid
+        // check.
+        std::string const secret = driver_token_secret();
+        if (!secret.empty())
+        {
+            hello["token"] = secret;
+        }
+        send_json(fd_, hello);
+        auto const ack = require_ok(recv_json(fd_), "handshake");
+        if (ack.value("type", "") != "HandshakeOk")
+        {
+            throw std::runtime_error(
+                "RemoteExecutionDriver handshake: expected HandshakeOk");
+        }
     }
-    send_json(fd_, hello);
-    auto const ack = require_ok(recv_json(fd_), "handshake");
-    if (ack.value("type", "") != "HandshakeOk")
+    catch (...)
     {
-        throw std::runtime_error(
-            "RemoteExecutionDriver handshake: expected HandshakeOk");
+        ::close(fd_);
+        fd_ = -1;
+        throw;
     }
 }
 
