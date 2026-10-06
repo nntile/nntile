@@ -197,9 +197,16 @@ async def handle_client(log_dir, reader, writer):
 async def main():
     log_dir = os.environ.get('LOG_DIR', 'logs')
     split_hours = int(os.environ.get('SPLIT_HOURS', 24))
-    clear_logs = int(os.environ.get('CLEAR_LOGS', 1))
+    # Clearing prior runs is opt-in: the old default (CLEAR_LOGS=1)
+    # silently deleted every existing event file under LOG_DIR on each
+    # start - and deleted whatever tree a mis-set LOG_DIR pointed at.
+    clear_logs = int(os.environ.get('CLEAR_LOGS', 0))
     server_port = int(os.environ.get('SERVER_PORT', 5001))
 
+    # Wipe before creating anything, so the directory is never missing
+    # while writers or the server are already running.
+    if clear_logs and os.path.exists(log_dir):
+        shutil.rmtree(log_dir)
     Path(log_dir).mkdir(parents=True, exist_ok=True)
     print(f"log_dir={log_dir}, split_hours={split_hours}")
 
@@ -213,9 +220,6 @@ async def main():
     async def start_server():
         async with server:
             await server.serve_forever()
-
-    if clear_logs:
-        shutil.rmtree(log_dir)
 
     await asyncio.gather(
         handle_new_logs(log_dir, split_hours),
