@@ -442,8 +442,9 @@ void Context::restrict_cpu()
 #endif
 }
 
-//! Restrict computation to CUDA
-void Context::restrict_cuda()
+//! Restrict every codelet to CUDA workers without constructing a
+//! Context (ExecutionDaemon self-configuration).
+void restrict_codelets_to_cuda()
 {
     using namespace nntile::starpu;
     accumulate.restrict_where(STARPU_CUDA);
@@ -541,6 +542,12 @@ void Context::restrict_cuda()
     torch_i64_unary.codelet.restrict_where(STARPU_CUDA);
     torch_cast.codelet.restrict_where(STARPU_CUDA);
 #endif
+}
+
+//! Restrict computation to CUDA
+void Context::restrict_cuda()
+{
+    restrict_codelets_to_cuda();
 }
 
 //! Restore computation to all devices

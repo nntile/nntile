@@ -118,4 +118,9 @@ public:
 cudnnHandle_t cudnn_get_local_handle();
 #endif // NNTILE_USE_CUDA
 
+
+//! Restrict every codelet to CUDA workers without constructing a
+//! Context (used by ExecutionDaemon self-configuration).
+void restrict_codelets_to_cuda();
+
 } // namespace nntile
