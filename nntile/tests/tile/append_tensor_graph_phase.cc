@@ -10,7 +10,14 @@
 #include "nntile/tile/append_tensor_graph_phase.hh"
 
 #include "context_fixture.hh"
+#include "test_frobenius.hh"
+#include "nntile/tensor/ops/clear.hh"
 #include "nntile/tensor/ops/fill.hh"
+#include "nntile/tensor/ops/logsumexp.hh"
+#include "nntile/tensor/ops/maxsumexp.hh"
+#include "nntile/tensor/ops/softmax.hh"
+#include "nntile/tensor/ops/subtract_indexed_outputs.hh"
+#include "nntile/tensor/ops/total_sum_accum.hh"
 #include <nntile/defs.h>
 #include <nntile/tensor.hh>
 #include <nntile/tile.hh>
@@ -18,6 +25,9 @@
 #include <nntile/tile/append_tensor_graph_phase.hh>
 
 #include <catch2/catch_test_macros.hpp>
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
 #include <memory>
 #include <stdexcept>
 #include <unordered_map>
@@ -356,3 +366,153 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::runtime_error);
 }
 
+
+namespace
+{
+
+//! Mirror the platform tile policy (nntile_server tile_size_for_extent):
+//! every untiled axis gets uniform tiles of (extent + 1) / 2. For a
+//! 2-element axis this yields tiles {1, 1} - two segments - which is
+//! exactly the policy that used to break the CE ops.
+void apply_platform_tile_policy(nntile::TensorRef tensor)
+{
+    if (!tensor)
+    {
+        return;
+    }
+    for (Index d = 0; d < tensor->ndim(); ++d)
+    {
+        nntile::AxisDescriptor *axis = tensor->axis(static_cast<int>(d));
+        if (axis == nullptr || axis->is_tiled())
+        {
+            continue;
+        }
+        Index const extent = tensor->shape()[static_cast<size_t>(d)];
+        if (extent <= 1)
+        {
+            continue;
+        }
+        axis->set_tiling((extent + 1) / 2);
+    }
+}
+
+} // namespace
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "append_tensor_graph_phase cross entropy under tiled axis policy",
+    "[graph][tile]")
+{
+    // CE forward + backward with every axis tiled by the platform
+    // policy. The LOGSUMEXP pair axis, the TOTAL_SUM_ACCUM class axis
+    // and the SUBTRACT_INDEXED_OUTPUTS class axis cannot be segmented
+    // (their kernels index global positions against the local tile
+    // extent); the tiling constraint pass must untile them, or the
+    // LOGSUMEXP lowering failed with "src/dst grid volume mismatch"
+    // and the class-tiled kernels would mis-index memory.
+    TensorGraph tg("ce_tiled");
+    TensorRef logits = tg.data({4, 5}, DataType::FP32);
+    logits->set_name("logits");
+    TensorRef labels = tg.data({4}, DataType::INT64);
+    labels->set_name("labels");
+    TensorRef loss = tg.data({}, DataType::FP32);
+    loss->set_name("loss");
+    apply_platform_tile_policy(logits);
+    apply_platform_tile_policy(labels);
+
+    TensorRef maxsumexp = TensorRef::adopt(gt::maxsumexp(logits, 1, 0));
+    maxsumexp->set_name("maxsumexp");
+    apply_platform_tile_policy(maxsumexp);
+    TensorRef lse = TensorRef::adopt(gt::logsumexp(maxsumexp));
+    lse->set_name("logsumexp");
+    apply_platform_tile_policy(lse);
+    gt::clear(loss);
+    gt::total_sum_accum(0.25, lse, logits, labels, loss, -100);
+
+    std::vector<float> logits_data = {
+        0.5f, -1.25f, 2.0f, 0.25f, -0.5f,
+        1.5f, 0.75f, -2.0f, 1.0f, -1.0f,
+        -0.25f, 0.5f, 0.0f, 1.75f, -1.5f,
+        2.5f, -0.75f, 0.25f, -1.25f, 0.75f};
+    std::vector<std::int64_t> labels_data = {2, 0, 4, 1};
+
+    // Eager reference: mean CE and softmax - onehot, scaled by 0.25.
+    std::vector<float> loss_ref(1);
+    std::vector<float> grad_ref(20);
+    for (Index i = 0; i < 4; ++i)
+    {
+        float mx = logits_data[static_cast<size_t>(i) * 5];
+        for (Index j = 1; j < 5; ++j)
+        {
+            mx = std::max(mx, logits_data[static_cast<size_t>(i) * 5
+                + static_cast<size_t>(j)]);
+        }
+        float sum = 0.f;
+        for (Index j = 0; j < 5; ++j)
+        {
+            sum += std::exp(logits_data[static_cast<size_t>(i) * 5
+                + static_cast<size_t>(j)] - mx);
+        }
+        float const lse_i = mx + std::log(sum);
+        loss_ref[0] += lse_i
+            - logits_data[static_cast<size_t>(i) * 5
+                + static_cast<size_t>(labels_data[static_cast<size_t>(i)])];
+        for (Index j = 0; j < 5; ++j)
+        {
+            grad_ref[static_cast<size_t>(i) * 5 + static_cast<size_t>(j)] =
+                0.25f * std::exp(
+                    logits_data[static_cast<size_t>(i) * 5
+                        + static_cast<size_t>(j)] - lse_i);
+        }
+        grad_ref[static_cast<size_t>(i) * 5
+            + static_cast<size_t>(labels_data[static_cast<size_t>(i)])]
+            -= 0.25f;
+    }
+    loss_ref[0] *= 0.25f;
+
+    TensorGraph::PhaseSnapshot fwd = tg.seal_phase();
+    TileGraph tile("ce_tiled_tiles");
+    TileGraphIncrementalState st;
+    TensorNodeToTileMap tm;
+    append_tensor_graph_phase(
+        tg, fwd, TensorGraphTiling::from_tensor_graph(tg), tile, st, tm);
+    {
+        Runtime rt(tile);
+        rt.compile();
+        rt.bind_data(logits, logits_data);
+        rt.bind_data(labels, labels_data);
+        rt.execute();
+        rt.wait();
+        auto loss_out = rt.get_output<float>(loss);
+        REQUIRE(loss_out.size() == 1);
+        nntile::test::require_relative_element_error(
+            loss_out, loss_ref);
+    }
+
+    // Backward: ones_like(loss) via FILL, softmax into grad_logits,
+    // subtract the labeled outputs in place.
+    TensorRef grad_output = tg.data({}, DataType::FP32);
+    grad_output->set_name("grad_output");
+    apply_platform_tile_policy(grad_output);
+    gt::fill(Scalar(1.0), grad_output);
+    TensorRef grad_logits = tg.data({4, 5}, DataType::FP32);
+    grad_logits->set_name("grad_logits");
+    apply_platform_tile_policy(grad_logits);
+    gt::softmax(maxsumexp, logits, grad_logits, 0.25, 1);
+    gt::subtract_indexed_outputs(0.25, labels, grad_logits, -100);
+
+    TensorGraph::PhaseSnapshot bwd = tg.seal_phase();
+    append_tensor_graph_phase(
+        tg, bwd, TensorGraphTiling::from_tensor_graph(tg), tile, st, tm);
+    {
+        Runtime rt(tile);
+        rt.compile();
+        rt.bind_data(logits, logits_data);
+        rt.bind_data(labels, labels_data);
+        rt.execute();
+        rt.wait();
+        auto grad_out = rt.get_output<float>(grad_logits);
+        REQUIRE(grad_out.size() == 20);
+        nntile::test::require_relative_element_error(
+            grad_out, grad_ref);
+    }
+}
