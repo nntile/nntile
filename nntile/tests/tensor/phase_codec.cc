@@ -490,6 +490,45 @@ TEST_CASE(
     REQUIRE(replay_blob.at("ops").at(0).at("attrs").at("axis") == 2);
 }
 
+TEST_CASE(
+    "decode_torch_dispatch_attrs fails closed on bad layouts",
+    "[graph][tensor][codec]")
+{
+    nlohmann::json attrs = {
+        {"kind", 50},
+        {"layouts", nlohmann::json::array({
+            {
+                {"arg", "sideways"},
+                {"slot", 0},
+                {"sizes", nlohmann::json::array({2, 2})},
+                {"strides", nlohmann::json::array({2, 1})},
+                {"offset", 0},
+            },
+        })},
+    };
+    REQUIRE_THROWS_WITH(
+        gt::decode_torch_dispatch_attrs(attrs),
+        Catch::Matchers::ContainsSubstring("'in' or 'out'"));
+
+    nlohmann::json too_many_dims = {
+        {"kind", 50},
+        {"layouts", nlohmann::json::array({
+            {
+                {"arg", "in"},
+                {"slot", 0},
+                {"sizes", std::vector<Index>(
+                    starpu::torch_dispatch_max_ndim + 1, 1)},
+                {"strides", std::vector<Index>(
+                    starpu::torch_dispatch_max_ndim + 1, 1)},
+                {"offset", 0},
+            },
+        })},
+    };
+    REQUIRE_THROWS_WITH(
+        gt::decode_torch_dispatch_attrs(too_many_dims),
+        Catch::Matchers::ContainsSubstring("out of range"));
+}
+
 TEST_CASE("decode_phase GELU JSON is not UnknownOp", "[graph][tensor][codec]")
 {
     nlohmann::json blob;
