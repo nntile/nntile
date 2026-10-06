@@ -66,14 +66,16 @@ void require_socket_acl(std::string const &path)
 {
     struct stat st{};
     REQUIRE(::stat(path.c_str(), &st) == 0);
-    REQUIRE((st.st_mode & 0777) ==
-        static_cast<mode_t>(S_IRUSR | S_IWUSR));
     REQUIRE(std::string(driver_socket_group_name()) == "nntile-ops");
     struct group *gr = ::getgrnam(driver_socket_group_name());
-    if (gr != nullptr)
+    mode_t expected = static_cast<mode_t>(S_IRUSR | S_IWUSR);
+    if (gr != nullptr && st.st_gid == gr->gr_gid)
     {
-        REQUIRE(st.st_gid == gr->gr_gid);
+        // chown landed: the group grant is real (0660).
+        expected = static_cast<mode_t>(
+            S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
     }
+    REQUIRE((st.st_mode & 0777) == expected);
 }
 
 } // namespace
