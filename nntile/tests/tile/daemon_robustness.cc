@@ -141,14 +141,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         ExecutionDaemon daemon(path, DaemonCudaRestrict::None);
         daemon.start();
         daemon.stop();
-#ifdef NNTILE_USE_CUDA
-        REQUIRE(starpu::fill.codelet.where & STARPU_CPU);
+#if defined(NNTILE_USE_CUDA) && defined(NNTILE_TORCH_NATIVE_OPS)
+        REQUIRE(starpu::torch_arange.codelet.where & STARPU_CPU);
 #endif
     }
     ExecutionDaemon daemon(path, DaemonCudaRestrict::Cuda);
     daemon.start();
     daemon.stop();
-#ifdef NNTILE_USE_CUDA
-    REQUIRE_FALSE(starpu::fill.codelet.where & STARPU_CPU);
+#if defined(NNTILE_USE_CUDA) && defined(NNTILE_TORCH_NATIVE_OPS)
+    REQUIRE_FALSE(starpu::torch_arange.codelet.where & STARPU_CPU);
 #endif
 }
