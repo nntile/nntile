@@ -49,8 +49,12 @@ Local lower (`compile_graph()`, legacy `execute()`, host `.to("cpu")`
 auto-flush) requires `NNTILE_ENABLE_LOCAL_COMPILER=1` (off by default).
 
 `nntile::RemoteExecutionDriver` submits an already-lowered `TileGraph`
-over `NNTILE_DRIVER_SOCKET` (mode 0600, group `nntile-ops` when that
-group exists). StarPU stays in `ExecutionDaemon` on one resident
+over `NNTILE_DRIVER_SOCKET` (same-user only by default: mode 0600, or
+0660 with group `nntile-ops` when that group exists and the daemon can
+chown the node; other local users must present a matching
+`NNTILE_DRIVER_TOKEN` in the handshake - and when the daemon has a
+token configured, every client must present it). StarPU stays in
+`ExecutionDaemon` on one resident
 `RuntimeExecutionDriver` for the connection (tiles survive two
 Flushes). The wire allowlist is the v1 Flush lower:
 `TILE_ADD` / `TILE_ADD_INPLACE`, `TILE_MULTIPLY`, `TILE_GEMM`,

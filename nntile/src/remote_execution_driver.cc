@@ -31,9 +31,11 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <cerrno>
 #include <chrono>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <memory>
@@ -410,8 +412,80 @@ int connect_unix(std::string const &path)
     return fd;
 }
 
-void apply_socket_acl(std::string const &path)
+//! Peer credentials of a connected Unix socket. Returns false when the
+//! platform cannot provide them; callers must then fail closed.
+bool peer_credentials(int fd, uid_t *uid, gid_t *gid)
 {
+#if defined(SO_PEERCRED)
+    ucred cred {};
+    socklen_t len = sizeof(cred);
+    if (::getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &cred, &len) != 0)
+    {
+        return false;
+    }
+    *uid = cred.uid;
+    *gid = cred.gid;
+    return true;
+#elif defined(__APPLE__)
+    return ::getpeereid(fd, uid, gid) == 0;
+#else
+    (void)fd;
+    (void)uid;
+    (void)gid;
+    return false;
+#endif
+}
+
+//! Constant-time string equality for secret comparison.
+bool constant_time_equal(
+    std::string const &a, std::string const &b)
+{
+    unsigned char const *pa =
+        reinterpret_cast<unsigned char const *>(a.data());
+    unsigned char const *pb =
+        reinterpret_cast<unsigned char const *>(b.data());
+    size_t const common = std::min(a.size(), b.size());
+    size_t diff = a.size() ^ b.size();
+    for (size_t i = 0; i < common; ++i)
+    {
+        diff |= static_cast<size_t>(pa[i] ^ pb[i]);
+    }
+    for (size_t i = common; i < a.size(); ++i)
+    {
+        diff |= pa[i];
+    }
+    for (size_t i = common; i < b.size(); ++i)
+    {
+        diff |= pb[i];
+    }
+    return diff == 0;
+}
+
+//! Shared-secret token from the environment (empty when unset).
+std::string driver_token_secret()
+{
+    char const *token = std::getenv("NNTILE_DRIVER_TOKEN");
+    if (token == nullptr || token[0] == '\0')
+    {
+        return {};
+    }
+    return std::string(token);
+}
+
+//! Restrict the socket node to its owner; when the ``nntile-ops``
+//! group exists and the chown succeeds, widen to 0660 so group members
+//! can connect.
+/*! @param[in] path: Socket node path.
+ *  @param[out] group_grant: Set to true only when the node is actually
+ *      readable/writable by the group.
+ *  @param[out] group_gid: Group the node was granted to (meaningful
+ *      only when group_grant is true).
+ * */
+void apply_socket_acl(
+    std::string const &path, bool &group_grant, gid_t &group_gid)
+{
+    group_grant = false;
+    group_gid = 0;
     if (::chmod(path.c_str(), S_IRUSR | S_IWUSR) != 0)
     {
         throw_errno("chmod");
@@ -432,9 +506,19 @@ void apply_socket_acl(std::string const &path)
         }
         throw_errno("chown");
     }
+    // The chown landed: grant the group what the 0660 mode promises.
+    if (::chmod(
+            path.c_str(),
+            S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP) != 0)
+    {
+        throw_errno("chmod");
+    }
+    group_grant = true;
+    group_gid = gr->gr_gid;
 }
 
-int listen_unix(std::string const &path)
+int listen_unix(
+    std::string const &path, bool &group_grant, gid_t &group_gid)
 {
     ::unlink(path.c_str());
     int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
@@ -462,7 +546,7 @@ int listen_unix(std::string const &path)
     }
     try
     {
-        apply_socket_acl(path);
+        apply_socket_acl(path, group_grant, group_gid);
     }
     catch (...)
     {
@@ -500,13 +584,24 @@ void send_error_safely(
     }
 }
 
-void handle_client(int fd)
+void handle_client(
+    int fd, bool group_grant, gid_t group_gid)
 {
     // Everything from the first byte on is per-connection and must be
     // exception-safe: a liveness probe that speaks garbage used to
     // throw out of the accept loop and SIGABRT the whole daemon.
     try
     {
+    // Peer authorization. Same-user peers (and, when the group grant
+    // is active, peers whose effective group is the socket group) may
+    // always connect; any other local user must present the shared
+    // secret, and when the daemon has no secret configured such peers
+    // are rejected outright.
+    uid_t peer_uid = static_cast<uid_t>(-1);
+    gid_t peer_gid = static_cast<gid_t>(-1);
+    bool const uid_trusted = peer_credentials(fd, &peer_uid, &peer_gid)
+        && (peer_uid == ::geteuid()
+            || (group_grant && peer_gid == group_gid));
     auto hello = recv_json(fd);
     if (hello.value("type", "") != "Handshake")
     {
@@ -516,6 +611,28 @@ void handle_client(int fd)
     if (hello.value("protocol_version", 0) != kDriverProtocol)
     {
         send_error_safely(fd, "Protocol", "protocol_version mismatch");
+        return;
+    }
+    std::string const secret = driver_token_secret();
+    if (secret.empty())
+    {
+        if (!uid_trusted)
+        {
+            send_error_safely(
+                fd,
+                "Unauthorized",
+                "peer uid is not trusted and no NNTILE_DRIVER_TOKEN "
+                "is configured on the daemon");
+            return;
+        }
+    }
+    else if (!constant_time_equal(
+                 hello.value("token", std::string()), secret))
+    {
+        send_error_safely(
+            fd,
+            "Unauthorized",
+            "missing or wrong NNTILE_DRIVER_TOKEN in handshake");
         return;
     }
     send_json(fd, {{"type", "HandshakeOk"}});
@@ -724,12 +841,18 @@ RemoteExecutionDriver::RemoteExecutionDriver(std::string socket_path)
         throw std::runtime_error("RemoteExecutionDriver: connect failed");
     }
     apply_client_socket_timeouts(fd_);
-    send_json(
-        fd_,
-        {
-            {"type", "Handshake"},
-            {"protocol_version", kDriverProtocol},
-        });
+    nlohmann::json hello = {
+        {"type", "Handshake"},
+        {"protocol_version", kDriverProtocol},
+    };
+    // Cross-user daemons (container uid maps, shared hosts) authenticate
+    // with a shared secret instead of the same-uid check.
+    std::string const secret = driver_token_secret();
+    if (!secret.empty())
+    {
+        hello["token"] = secret;
+    }
+    send_json(fd_, hello);
     auto const ack = require_ok(recv_json(fd_), "handshake");
     if (ack.value("type", "") != "HandshakeOk")
     {
@@ -908,7 +1031,8 @@ void ExecutionDaemon::start()
         restrict_codelets_to_cuda();
     }
     stop_ = false;
-    listen_fd_ = listen_unix(path_);
+    listen_fd_ = listen_unix(
+        path_, socket_group_grant_, socket_group_gid_);
     thread_ = std::thread([this]() { run(); });
 }
 
@@ -960,7 +1084,8 @@ void ExecutionDaemon::run()
         }
         try
         {
-            handle_client(client);
+            handle_client(
+                client, socket_group_grant_, socket_group_gid_);
         }
         catch (...)
         {

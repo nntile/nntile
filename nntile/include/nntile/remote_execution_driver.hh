@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <sys/types.h>
 #include <thread>
 #include <unordered_map>
 #include <vector>
@@ -33,7 +34,9 @@ class Context;
 //! Socket path: ``NNTILE_DRIVER_SOCKET`` or ``/tmp/nntile-driver.sock``.
 std::string default_driver_socket_path();
 
-//! Unix-socket group (``nntile-ops``). Mode stays 0600.
+//! Unix-socket group (``nntile-ops``). The node is 0600 unless the
+//! group exists and the daemon may chown it, in which case the mode is
+//! widened to 0660 for that group.
 char const *driver_socket_group_name();
 
 //! Client of ``nntile-executiond``. bind() before submit() is queued
@@ -91,8 +94,10 @@ enum class DaemonCudaRestrict
     Cuda,
 };
 
-//! Listen on a Unix socket (mode 0600, group ``nntile-ops`` when
-//! present) and keep one RuntimeExecutionDriver for the connection.
+//! Listen on a Unix socket (same-user only by default; mode 0600, or
+//! 0660 for group ``nntile-ops`` when present) and keep one
+//! RuntimeExecutionDriver for the connection. Other local users must
+//! present ``NNTILE_DRIVER_TOKEN`` in the handshake.
 class ExecutionDaemon
 {
   public:
@@ -120,6 +125,12 @@ class ExecutionDaemon
     std::string path_;
     DaemonCudaRestrict restrict_cuda_ = DaemonCudaRestrict::Auto;
     int listen_fd_ = -1;
+    //! True when the socket node was actually chowned to the group
+    //! (and therefore widened to 0660) at start().
+    bool socket_group_grant_ = false;
+    //! Group the node was granted to; meaningful only when
+    //! socket_group_grant_ is true.
+    gid_t socket_group_gid_ = 0;
     std::atomic<bool> stop_{false};
     std::thread thread_;
     //! Owned only when this process had no Context yet (production

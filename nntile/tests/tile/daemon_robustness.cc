@@ -22,6 +22,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
+#include <arpa/inet.h>
 #include <cerrno>
 #include <cstring>
 #include <string>
@@ -70,6 +71,90 @@ void speak_garbage(std::string const &path)
     ssize_t const n = ::write(fd, garbage, sizeof(garbage) - 1);
     REQUIRE(n > 0);
     ::close(fd);
+}
+
+//! Length-prefixed wire frame used by the driver protocol.
+void send_frame(int fd, std::string const &body)
+{
+    uint32_t const n = htonl(static_cast<uint32_t>(body.size()));
+    size_t off = 0;
+    while (off < sizeof(n))
+    {
+        ssize_t const w = ::write(
+            fd, reinterpret_cast<char const *>(&n) + off,
+            sizeof(n) - off);
+        REQUIRE(w > 0);
+        off += static_cast<size_t>(w);
+    }
+    off = 0;
+    while (off < body.size())
+    {
+        ssize_t const w = ::write(fd, body.data() + off, body.size() - off);
+        REQUIRE(w > 0);
+        off += static_cast<size_t>(w);
+    }
+}
+
+std::string recv_frame(int fd)
+{
+    uint32_t n = 0;
+    size_t off = 0;
+    while (off < sizeof(n))
+    {
+        ssize_t const r = ::read(
+            fd, reinterpret_cast<char *>(&n) + off, sizeof(n) - off);
+        REQUIRE(r > 0);
+        off += static_cast<size_t>(r);
+    }
+    n = ntohl(n);
+    REQUIRE(n > 0);
+    REQUIRE(n < 1024u * 1024u);
+    std::string body(n, '\0');
+    off = 0;
+    while (off < body.size())
+    {
+        ssize_t const r = ::read(
+            fd, body.data() + off, body.size() - off);
+        REQUIRE(r > 0);
+        off += static_cast<size_t>(r);
+    }
+    return body;
+}
+
+//! Raw handshake against a daemon at ``path``; returns the daemon reply.
+std::string raw_handshake(std::string const &path, bool with_token,
+    std::string const &token = {})
+{
+    int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+    REQUIRE(fd >= 0);
+    sockaddr_un addr{};
+    addr.sun_family = AF_UNIX;
+    std::strncpy(addr.sun_path, path.c_str(), sizeof(addr.sun_path) - 1);
+    bool connected = false;
+    for (int attempt = 0; attempt < 10 && !connected; ++attempt)
+    {
+        connected = ::connect(
+            fd, reinterpret_cast<sockaddr const *>(&addr),
+            sizeof(addr)) == 0;
+        if (!connected)
+        {
+            struct timespec pause = {0, 100 * 1000 * 1000};
+            ::nanosleep(&pause, nullptr);
+        }
+    }
+    REQUIRE(connected);
+    std::string body =
+        R"({"type":"Handshake","protocol_version":1})";
+    if (with_token)
+    {
+        body =
+            R"({"type":"Handshake","protocol_version":1,)"
+            R"("token":")" + token + R"("})";
+    }
+    send_frame(fd, body);
+    std::string reply = recv_frame(fd);
+    ::close(fd);
+    return reply;
 }
 
 } // namespace
@@ -151,6 +236,55 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     ::close(listener);
     ::unlink(path.c_str());
 }
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "ExecutionDaemon authorizes peers via uid and token",
+    "[graph][tile][driver][remote]")
+{
+    // Same-user peers always connect; when NNTILE_DRIVER_TOKEN is set
+    // on the daemon, every client must present it in the handshake.
+    // (Cross-uid rejection without a token needs a second account and
+    // is covered by the peer_credentials check itself.)
+    std::string const path = test_socket_path("auth");
+    ::setenv("NNTILE_DRIVER_TOKEN", "s3cret-bucket", 1);
+    ExecutionDaemon daemon(path);
+    daemon.start();
+
+    // No token in the handshake: rejected despite a valid envelope.
+    std::string reply = raw_handshake(path, false);
+    REQUIRE(reply.find("Unauthorized") != std::string::npos);
+
+    // Wrong token: rejected.
+    reply = raw_handshake(path, true, "wrong-token");
+    REQUIRE(reply.find("Unauthorized") != std::string::npos);
+
+    // Right token: accepted.
+    reply = raw_handshake(path, true, "s3cret-bucket");
+    REQUIRE(reply.find("HandshakeOk") != std::string::npos);
+
+#ifndef NNTILE_USE_CUDA
+    // The stock client picks the token up from the environment and
+    // runs a full session.
+    {
+        RemoteExecutionDriver driver(path);
+        TileGraph graph("daemon_auth_survivor");
+        auto *x = graph.data({2, 2}, "x", DataType::FP32);
+        auto *y = graph.data({2, 2}, "y", DataType::FP32);
+        auto *relu_out = graph.data({2, 2}, "relu", DataType::FP32);
+        tg::torch_binary(
+            starpu::TorchKind::Add, x, y, relu_out);
+        driver.bind(x->id(), {1.f, -2.f, 3.f, -4.f});
+        driver.bind(y->id(), {1.f, 1.f, 1.f, 1.f});
+        driver.submit(graph);
+        driver.wait();
+        nntile::test::require_relative_element_error(
+            driver.gather(relu_out->id()), {2.f, -1.f, 4.f, -3.f});
+    }
+#endif // NNTILE_USE_CUDA
+    ::unsetenv("NNTILE_DRIVER_TOKEN");
+    daemon.stop();
+}
+
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "ExecutionDaemon restrict_cuda option pins codelets",
