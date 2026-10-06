@@ -56,7 +56,11 @@ chown the node; other local users must present a matching
 token configured, every client must present it). StarPU stays in
 `ExecutionDaemon` on one resident
 `RuntimeExecutionDriver` for the connection (tiles survive two
-Flushes). The wire allowlist is the v1 Flush lower:
+Flushes). Accepted sockets get receive/send timeouts from
+`NNTILE_DAEMON_RECV_TIMEOUT_MS` / `NNTILE_DAEMON_SEND_TIMEOUT_MS`
+(default 60000 ms, `0` restores blocking I/O), so one silent client
+cannot hold the serial accept loop - or `ExecutionDaemon::stop()` -
+forever. The wire allowlist is the v1 Flush lower:
 `TILE_ADD` / `TILE_ADD_INPLACE`, `TILE_MULTIPLY`, `TILE_GEMM`,
 `TILE_ADD_SLICE`, `TILE_RELU`, `TILE_COPY` /
 `TILE_COPY_INTERSECTION`, `TILE_FILL`, `TILE_UNREGISTER`, and
