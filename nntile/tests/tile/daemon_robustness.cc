@@ -25,6 +25,7 @@
 
 #include <arpa/inet.h>
 #include <cerrno>
+#include <chrono>
 #include <cstring>
 #include <fcntl.h>
 #include <string>
@@ -73,6 +74,30 @@ void speak_garbage(std::string const &path)
     ssize_t const n = ::write(fd, garbage, sizeof(garbage) - 1);
     REQUIRE(n > 0);
     ::close(fd);
+}
+
+//! Connect to a daemon socket (with retries), returning the raw fd.
+int connect_raw(std::string const &path)
+{
+    int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+    REQUIRE(fd >= 0);
+    sockaddr_un addr{};
+    addr.sun_family = AF_UNIX;
+    std::strncpy(addr.sun_path, path.c_str(), sizeof(addr.sun_path) - 1);
+    bool connected = false;
+    for (int attempt = 0; attempt < 10 && !connected; ++attempt)
+    {
+        connected = ::connect(
+            fd, reinterpret_cast<sockaddr const *>(&addr),
+            sizeof(addr)) == 0;
+        if (!connected)
+        {
+            struct timespec pause = {0, 100 * 1000 * 1000};
+            ::nanosleep(&pause, nullptr);
+        }
+    }
+    REQUIRE(connected);
+    return fd;
 }
 
 //! Length-prefixed wire frame used by the driver protocol.
@@ -404,6 +429,42 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     daemon.stop();
 }
 
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "ExecutionDaemon bounds a silent client",
+    "[graph][tile][driver][remote]")
+{
+    // Regression: accepted sockets had no timeouts, so one client that
+    // connected and went silent blocked the serial accept loop forever
+    // - and made ExecutionDaemon::stop() hang in thread_.join().
+    std::string const path = test_socket_path("silent");
+    ::setenv("NNTILE_DAEMON_RECV_TIMEOUT_MS", "300", 1);
+    ExecutionDaemon daemon(path);
+    daemon.start();
+
+    // Client 1 completes the handshake, then stays silent and holds
+    // the (serial) accept loop until the idle timeout fires.
+    int stalled = connect_raw(path);
+    send_frame(stalled, R"({"type":"Handshake","protocol_version":1})");
+    std::string reply = recv_frame(stalled);
+    REQUIRE(reply.find("HandshakeOk") != std::string::npos);
+
+    // Client 2 must be served once the stalled client stalls out.
+    int second = connect_raw(path);
+    send_frame(second, R"({"type":"Handshake","protocol_version":1})");
+    reply = recv_frame(second);
+    REQUIRE(reply.find("HandshakeOk") != std::string::npos);
+    ::close(second);
+    ::close(stalled);
+
+    // stop() must return promptly even with a silent client around.
+    auto const t0 = std::chrono::steady_clock::now();
+    daemon.stop();
+    auto const elapsed = std::chrono::steady_clock::now() - t0;
+    REQUIRE(
+        std::chrono::duration_cast<std::chrono::seconds>(elapsed).count()
+        < 10);
+    ::unsetenv("NNTILE_DAEMON_RECV_TIMEOUT_MS");
+}
 
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,

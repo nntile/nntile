@@ -121,6 +121,21 @@ void suppress_sigpipe(int fd)
 #endif
 }
 
+//! Timeouts for sockets the daemon accepts. The accept loop is serial,
+//! so one silent client must not hold it (and stop()) forever: idle
+//! reads/writes error out after NNTILE_DAEMON_*_TIMEOUT_MS (default
+//! one minute, 0 restores fully blocking I/O) and surface as
+//! "recv: timed out" / "send: timed out".
+void apply_daemon_socket_timeouts(int fd)
+{
+    set_socket_timeout(
+        fd, SO_RCVTIMEO,
+        socket_timeout_ms("NNTILE_DAEMON_RECV_TIMEOUT_MS", 60000));
+    set_socket_timeout(
+        fd, SO_SNDTIMEO,
+        socket_timeout_ms("NNTILE_DAEMON_SEND_TIMEOUT_MS", 60000));
+}
+
 void write_all(int fd, void const *buf, size_t n)
 {
     auto const *p = static_cast<char const *>(buf);
@@ -1150,6 +1165,7 @@ void ExecutionDaemon::run()
             break;
         }
         suppress_sigpipe(client);
+        apply_daemon_socket_timeouts(client);
         try
         {
             handle_client(
