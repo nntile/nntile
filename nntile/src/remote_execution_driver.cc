@@ -106,13 +106,32 @@ void apply_client_socket_timeouts(int fd)
         socket_timeout_ms("NNTILE_DRIVER_SEND_TIMEOUT_MS", 300000));
 }
 
+//! Suppress SIGPIPE per socket: a peer that closes mid-reply must
+//! surface as an EPIPE exception in write_all, not kill the process.
+//! Library code must not flip process-wide signal dispositions, so
+//! Linux uses MSG_NOSIGNAL at the call site and Apple relies on
+//! SO_NOSIGPIPE set here.
+void suppress_sigpipe(int fd)
+{
+#ifdef SO_NOSIGPIPE
+    int one = 1;
+    ::setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
+#else
+    (void)fd;
+#endif
+}
+
 void write_all(int fd, void const *buf, size_t n)
 {
     auto const *p = static_cast<char const *>(buf);
     size_t off = 0;
     while (off < n)
     {
-        ssize_t const w = ::write(fd, p + off, n - off);
+#ifdef MSG_NOSIGNAL
+        ssize_t const w = ::send(fd, p + off, n - off, MSG_NOSIGNAL);
+#else
+        ssize_t const w = ::send(fd, p + off, n - off, 0);
+#endif
         if (w < 0)
         {
             if (errno == EINTR)
@@ -391,6 +410,7 @@ int connect_unix(std::string const &path)
     {
         throw_errno("socket");
     }
+    suppress_sigpipe(fd);
     sockaddr_un addr{};
     addr.sun_family = AF_UNIX;
     if (path.size() >= sizeof(addr.sun_path))
@@ -1082,6 +1102,7 @@ void ExecutionDaemon::run()
             }
             break;
         }
+        suppress_sigpipe(client);
         try
         {
             handle_client(
