@@ -24,12 +24,12 @@ namespace nntile::tile
 //! Embedding operation: embed = vocab[index]
 struct TileEmbeddingOp : TileGraph::OpNode
 {
-    Index m = 0, n = 0, k = 0, k_start = 0, k_size = 0;
+    Index m = 0, n = 0, k = 0, k_start = 0, k_size = 0, index_range = 0;
     TileGraph::TileNode* index = nullptr; // int64
     TileGraph::TileNode* vocab = nullptr;
     TileGraph::TileNode* embed = nullptr;
     TileEmbeddingOp() = default;
-    TileEmbeddingOp(Index a, Index b, Index c, Index ks, Index kz, TileGraph::TileNode* i, TileGraph::TileNode* v, TileGraph::TileNode* e) : m(a), n(b), k(c), k_start(ks), k_size(kz), index(i), vocab(v), embed(e)
+    TileEmbeddingOp(Index a, Index b, Index c, Index ks, Index kz, Index ir, TileGraph::TileNode* i, TileGraph::TileNode* v, TileGraph::TileNode* e) : m(a), n(b), k(c), k_start(ks), k_size(kz), index_range(ir), index(i), vocab(v), embed(e)
     {
         inputs_ = {index, vocab};
         outputs_ = {embed};

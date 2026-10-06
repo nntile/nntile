@@ -49,6 +49,8 @@ public:
         Index k;
         Index k_start;
         Index k_size;
+        //! Number of k_size-sized vectors addressable in the vocab tile
+        Index index_range;
     };
 
     //! Footprint function for the current operation
@@ -75,6 +77,7 @@ public:
         Index k,
         Index k_start,
         Index k_size,
+        Index index_range,
         ::nnhaul::Handle & index,
         ::nnhaul::Handle & vocab,
         ::nnhaul::Handle & embed

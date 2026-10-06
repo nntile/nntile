@@ -22,7 +22,7 @@ namespace nntile::kernel::embedding
 template<typename T>
 static __global__
 void cuda_kernel(Index m, Index n, Index k, Index k_start, Index k_size,
-        const Index *index, const T *vocab, T *embed)
+        Index index_range, const Index *index, const T *vocab, T *embed)
 //! Fill embedding from vocabulary
 /*! Fill provided m-by-k-by-n output tensor embed:
  *      embed[i, k_start:k_start+k_size, j] = vocab[:, index[i, j]]
@@ -43,8 +43,19 @@ void cuda_kernel(Index m, Index n, Index k, Index k_start, Index k_size,
           i2 = threadIdx.z + blockIdx.z*blockDim.z;
     if(i2 < k_size and i1 < n and i0 < m)
     {
+            // The token becomes a raw pointer offset below: validate it
+            // first and trap loudly (like a PyTorch device assert)
+            // instead of corrupting memory.
+            const long long token = static_cast<long long>(index[i1*m+i0]);
+            if(token < 0 or token >= static_cast<long long>(index_range))
+            {
+                printf("nntile embedding: token id %lld is outside the "
+                        "vocabulary range [0, %lld)\n", token,
+                        static_cast<long long>(index_range));
+                __trap();
+            }
             // Input slice of vocabulary
-            const T *vocab_slice = vocab + k_size*index[i1*m+i0];
+            const T *vocab_slice = vocab + k_size*token;
             // Output value to be updated
             embed[(i1*k+k_start+i2)*m + i0] = vocab_slice[i2];
     }
@@ -52,7 +63,8 @@ void cuda_kernel(Index m, Index n, Index k, Index k_start, Index k_size,
 
 template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, Index k_start,
-        Index k_size, const int64_t *index_, const T *vocab, T *embed)
+        Index k_size, Index index_range, const int64_t *index_,
+        const T *vocab, T *embed)
     noexcept
 //! Fill embedding from vocabulary
 /*! Fill provided m-by-k-by-n output tensor embed:
@@ -76,33 +88,33 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index k_start,
             (k_size+threads.z-1)/threads.z);
     using I = typename CUDAComputeType<int64_t>::value;
     auto index = reinterpret_cast<const I *>(index_);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, k_start, k_size,
-            index, vocab, embed);
+    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, k_start,
+            k_size, index_range, index, vocab, embed);
 }
 
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k,
-        Index k_start, Index k_size, const int64_t *index, const fp32_t *vocab,
-        fp32_t *embed)
+        Index k_start, Index k_size, Index index_range,
+        const int64_t *index, const fp32_t *vocab, fp32_t *embed)
     noexcept;
 
 template
 void cuda<bf16_t>(cudaStream_t stream, Index m, Index n, Index k,
-        Index k_start, Index k_size, const int64_t *index, const bf16_t *vocab,
-        bf16_t *embed)
+        Index k_start, Index k_size, Index index_range,
+        const int64_t *index, const bf16_t *vocab, bf16_t *embed)
     noexcept;
 
 template
 void cuda<fp16_t>(cudaStream_t stream, Index m, Index n, Index k,
-        Index k_start, Index k_size, const int64_t *index, const fp16_t *vocab,
-        fp16_t *embed)
+        Index k_start, Index k_size, Index index_range,
+        const int64_t *index, const fp16_t *vocab, fp16_t *embed)
     noexcept;
 
 template
 void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k,
-        Index k_start, Index k_size, const int64_t *index, const fp64_t *vocab,
-        fp64_t *embed)
+        Index k_start, Index k_size, Index index_range,
+        const int64_t *index, const fp64_t *vocab, fp64_t *embed)
     noexcept;
 
 } // namespace nntile::kernel::embedding

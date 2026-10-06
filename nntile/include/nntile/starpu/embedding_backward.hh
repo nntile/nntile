@@ -59,6 +59,8 @@ public:
         Index k;
         Index k_start;
         Index k_size;
+        //! Number of k_size-sized vectors addressable in the vocab tile
+        Index index_range;
         Index vocab_nelems;
         Scalar alpha;
         Scalar beta;
@@ -98,6 +100,7 @@ public:
         Index k,
         Index k_start,
         Index k_size,
+        Index index_range,
         Index vocab_nelems,
         Scalar alpha,
         Scalar beta,
