@@ -183,6 +183,15 @@ Context::Context(
 #else
     // CPU-only libnntile: StarPU may still be CUDA-enabled (conda).
     // Never start CUDA workers.
+    if(ncuda > 0)
+    {
+        // A CUDA build would have honored this request: say loudly
+        // that it silently became a no-op, instead of a verbose-only
+        // note buried in the log.
+        std::cerr << "WARNING: libnntile was built without CUDA, so "
+            "the requested " << ncuda << " CUDA worker(s) will not be "
+            "created" << std::endl;
+    }
     if(getenv("STARPU_NCUDA") != nullptr)
     {
         unsetenv("STARPU_NCUDA");

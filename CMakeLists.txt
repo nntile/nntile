@@ -248,8 +248,15 @@ elseif(USE_CUDA)
             set(NNTILE_USE_CUDA_FP8 OFF)
         endif()
         set(NNTILE_CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}")
+    else()
+        message(WARNING
+            "USE_CUDA=ON but no CUDA compiler was found - continuing "
+            "with a CPU-only build (cuBLAS/cuDNN-dependent features "
+            "are disabled)")
     endif()
 endif()
+
+message(STATUS "NNTILE_USE_CUDA: ${NNTILE_USE_CUDA}")
 
 set(NNTILE_USE_FLASH_SDPA OFF)
 if(USE_FLASH_SDPA AND NNTILE_USE_CUDA)
