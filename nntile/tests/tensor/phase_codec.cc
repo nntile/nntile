@@ -280,6 +280,94 @@ TEST_CASE(
         static_cast<std::int32_t>(starpu::TorchKind::Add));
     REQUIRE(torch_out->id() == blob.at("ops").at(0).at("outputs").at(0));
 }
+
+TEST_CASE(
+    "encode_phase TORCH_BINARY Mm keeps transposed view layout",
+    "[graph][tensor][codec]")
+{
+    // mm(grad.t(), x): the logical input node is grad's [6, 4] storage;
+    // the [4, 6] transpose travels as a packed view layout.
+    TensorGraph src("codec_mm_t");
+    TensorRef grad = src.data({6, 4});
+    TensorRef x = src.data({6, 16});
+    TensorRef out = src.data({4, 16});
+    starpu::TorchDispatchArgs extra{};
+    extra.in_layout_set[0] = 1;
+    extra.in_ndim[0] = 2;
+    extra.in_sizes[0][0] = 4;
+    extra.in_sizes[0][1] = 6;
+    extra.in_strides[0][0] = 1;
+    extra.in_strides[0][1] = 4;
+    extra.in_offset[0] = 0;
+    extra.in_layout_set[1] = 1;
+    extra.in_ndim[1] = 2;
+    extra.in_sizes[1][0] = 6;
+    extra.in_sizes[1][1] = 16;
+    extra.in_strides[1][0] = 16;
+    extra.in_strides[1][1] = 1;
+    extra.out_layout_set[0] = 1;
+    extra.out_ndim[0] = 2;
+    extra.out_sizes[0][0] = 4;
+    extra.out_sizes[0][1] = 16;
+    extra.out_strides[0][0] = 16;
+    extra.out_strides[0][1] = 1;
+    gt::torch_binary(starpu::TorchKind::Mm, grad, x, out, extra);
+
+    auto const blob = gt::encode_phase(src);
+    auto const attrs = blob.at("ops").at(0).at("attrs");
+    REQUIRE(attrs.at("kind").get<std::int32_t>() ==
+        static_cast<std::int32_t>(starpu::TorchKind::Mm));
+    REQUIRE(attrs.contains("layouts"));
+    bool saw_transposed = false;
+    for (auto const &layout : attrs.at("layouts"))
+    {
+        if (layout.at("arg") == "in" && layout.at("slot") == 0)
+        {
+            saw_transposed = true;
+            REQUIRE(layout.at("sizes") ==
+                nlohmann::json::array({4, 6}));
+            REQUIRE(layout.at("strides") ==
+                nlohmann::json::array({1, 4}));
+            REQUIRE(layout.at("offset") == 0);
+        }
+    }
+    REQUIRE(saw_transposed);
+
+    TensorGraph dst("codec_mm_t_replay");
+    gt::PhaseNodeMap refs;
+    gt::apply_phase(dst, blob, refs);
+    auto const replay = gt::encode_phase(dst);
+    REQUIRE(replay.at("ops").at(0).at("op_name") == "TORCH_BINARY");
+    REQUIRE(replay.at("ops").at(0).at("attrs") == attrs);
+}
+
+TEST_CASE(
+    "encode_phase TORCH_BINARY default meta omits wire layouts",
+    "[graph][tensor][codec]")
+{
+    // Old graphs: ops recorded without packed layouts must not grow
+    // attrs keys, so older decoders see byte-identical PhaseIR.
+    TensorGraph src("codec_mm_plain");
+    TensorRef a = src.data({2, 3});
+    TensorRef b = src.data({3, 2});
+    TensorRef out = src.data({2, 2});
+    gt::torch_binary(starpu::TorchKind::Mm, a, b, out);
+
+    auto const blob = gt::encode_phase(src);
+    auto const attrs = blob.at("ops").at(0).at("attrs");
+    REQUIRE(attrs.at("kind").get<std::int32_t>() ==
+        static_cast<std::int32_t>(starpu::TorchKind::Mm));
+    REQUIRE_FALSE(attrs.contains("layouts"));
+    REQUIRE_FALSE(attrs.contains("scalars"));
+    REQUIRE_FALSE(attrs.contains("iargs"));
+
+    TensorGraph dst("codec_mm_plain_replay");
+    gt::PhaseNodeMap refs;
+    gt::apply_phase(dst, blob, refs);
+    auto const replay = gt::encode_phase(dst);
+    REQUIRE(replay.at("ops").at(0).at("attrs") == attrs);
+}
+
 #endif
 
 TEST_CASE(
@@ -400,6 +488,45 @@ TEST_CASE(
     auto const replay_blob = gt::encode_phase(replay);
     REQUIRE(replay_blob.at("ops").at(0).at("op_name") == "EMBEDDING");
     REQUIRE(replay_blob.at("ops").at(0).at("attrs").at("axis") == 2);
+}
+
+TEST_CASE(
+    "decode_torch_dispatch_attrs fails closed on bad layouts",
+    "[graph][tensor][codec]")
+{
+    nlohmann::json attrs = {
+        {"kind", 50},
+        {"layouts", nlohmann::json::array({
+            {
+                {"arg", "sideways"},
+                {"slot", 0},
+                {"sizes", nlohmann::json::array({2, 2})},
+                {"strides", nlohmann::json::array({2, 1})},
+                {"offset", 0},
+            },
+        })},
+    };
+    REQUIRE_THROWS_WITH(
+        gt::decode_torch_dispatch_attrs(attrs),
+        Catch::Matchers::ContainsSubstring("'in' or 'out'"));
+
+    nlohmann::json too_many_dims = {
+        {"kind", 50},
+        {"layouts", nlohmann::json::array({
+            {
+                {"arg", "in"},
+                {"slot", 0},
+                {"sizes", std::vector<Index>(
+                    starpu::torch_dispatch_max_ndim + 1, 1)},
+                {"strides", std::vector<Index>(
+                    starpu::torch_dispatch_max_ndim + 1, 1)},
+                {"offset", 0},
+            },
+        })},
+    };
+    REQUIRE_THROWS_WITH(
+        gt::decode_torch_dispatch_attrs(too_many_dims),
+        Catch::Matchers::ContainsSubstring("out of range"));
 }
 
 TEST_CASE("decode_phase GELU JSON is not UnknownOp", "[graph][tensor][codec]")

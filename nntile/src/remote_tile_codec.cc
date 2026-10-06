@@ -17,6 +17,7 @@
 #include <nntile/defs.h>
 #include <nntile/tile/graph_ops.hh>
 #include <nntile/tile/ops/swap_two_axes.hh>
+#include <nntile/tensor/phase_codec.hh>
 #ifdef NNTILE_TORCH_NATIVE_OPS
 #include <nntile/tile/ops/torch_dispatch.hh>
 #endif
@@ -108,13 +109,23 @@ nlohmann::json encode_torch_extra(
         iargs.push_back(extra.iargs[i]);
     }
     attrs["iargs"] = std::move(iargs);
+    // Packed view layouts ride in the same shape the PhaseIR codec
+    // uses; without them the receiving side falls back to contiguous
+    // full-tile metas and silently mis-executes transposed views.
+    nlohmann::json layout_attrs =
+        tensor::encode_torch_dispatch_attrs(extra);
+    if (layout_attrs.contains("layouts"))
+    {
+        attrs["layouts"] = layout_attrs.at("layouts");
+    }
     return attrs;
 }
 
 starpu::TorchDispatchArgs decode_torch_extra(
     nlohmann::json const &attrs)
 {
-    starpu::TorchDispatchArgs extra{};
+    starpu::TorchDispatchArgs extra =
+        tensor::decode_torch_dispatch_attrs(attrs);
     extra.kind = static_cast<starpu::TorchKind>(
         attrs.value("kind", 0));
     extra.n_in = static_cast<Index>(attrs.value("n_in", 0));

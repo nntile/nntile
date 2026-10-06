@@ -14,9 +14,14 @@
 
 #pragma once
 
+#include <nntile/defs.h>
 #include <nntile/dtype.hh>
 #include <nntile/tensor/graph_decl.hh>
 #include <nntile/tensor/tensor_ref.hh>
+
+#ifdef NNTILE_TORCH_NATIVE_OPS
+#include <nntile/starpu/torch_dispatch.hh>
+#endif
 
 #include <nlohmann/json.hpp>
 
@@ -29,6 +34,20 @@
 
 namespace nntile::tensor
 {
+
+#ifdef NNTILE_TORCH_NATIVE_OPS
+//! Serialize the packed torch dispatch meta (scalars / iargs / per-slot
+//! layouts) that torch-native ops need on a wire. Only fields that
+//! differ from a default ``starpu::TorchDispatchArgs`` are emitted, so
+//! graphs recorded before the layouts existed decode unchanged.
+nlohmann::json encode_torch_dispatch_attrs(
+    starpu::TorchDispatchArgs const &extra);
+
+//! Inverse of ``encode_torch_dispatch_attrs``. Missing keys decode to a
+//! default ``TorchDispatchArgs``; malformed keys fail closed.
+starpu::TorchDispatchArgs decode_torch_dispatch_attrs(
+    nlohmann::json const &attrs);
+#endif
 
 //! Flush PhaseIR allowlist: v1 six names, classic TensorGraph ops,
 //! and CUDA-only FLASH names. Unknown names fail closed
