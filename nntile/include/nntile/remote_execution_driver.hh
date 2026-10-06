@@ -131,6 +131,13 @@ class ExecutionDaemon
     //! Group the node was granted to; meaningful only when
     //! socket_group_grant_ is true.
     gid_t socket_group_gid_ = 0;
+    //! Self-pipe written by stop() so run() wakes up promptly on
+    //! every platform (shutdown() of a listening Unix socket is a
+    //! no-op on macOS).
+    int wakeup_fd_[2] = {-1, -1};
+    //! Client fd currently serviced, so stop() can interrupt a
+    //! blocking read on it.
+    std::atomic<int> client_fd_{-1};
     std::atomic<bool> stop_{false};
     std::thread thread_;
     //! Owned only when this process had no Context yet (production

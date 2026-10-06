@@ -549,6 +549,62 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "ExecutionDaemon::stop is prompt with a silent client",
+    "[graph][tile][driver][remote]")
+{
+    // Regression: stop() relied on shutdown() of the listening Unix
+    // socket - a no-op on macOS (ENOTCONN) - and did nothing about a
+    // client parked in a blocking read, so stop() could hang forever
+    // once a connection went silent.
+    std::string const path = test_socket_path("stopsilent");
+    ExecutionDaemon daemon(path);
+    daemon.start();
+
+    // Connect and complete the handshake, then go silent for good; the
+    // daemon blocks in read_all() on this connection.
+    int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+    REQUIRE(fd >= 0);
+    sockaddr_un addr{};
+    addr.sun_family = AF_UNIX;
+    std::strncpy(addr.sun_path, path.c_str(), sizeof(addr.sun_path) - 1);
+    REQUIRE(::connect(
+        fd, reinterpret_cast<sockaddr const *>(&addr),
+        sizeof(addr)) == 0);
+    char const hello[] = R"({"type":"Handshake","protocol_version":1})";
+    uint32_t const be = htonl(static_cast<uint32_t>(strlen(hello)));
+    REQUIRE(::write(fd, &be, sizeof(be)) == sizeof(be));
+    REQUIRE(::write(fd, hello, strlen(hello))
+        == static_cast<ssize_t>(strlen(hello)));
+    uint32_t rlen = 0;
+    size_t off = 0;
+    while (off < sizeof(rlen))
+    {
+        ssize_t const r = ::read(
+            fd, reinterpret_cast<char *>(&rlen) + off, sizeof(rlen) - off);
+        REQUIRE(r > 0);
+        off += static_cast<size_t>(r);
+    }
+    rlen = ntohl(rlen);
+    std::string reply(rlen, '\0');
+    off = 0;
+    while (off < reply.size())
+    {
+        ssize_t const r = ::read(fd, reply.data() + off, reply.size() - off);
+        REQUIRE(r > 0);
+        off += static_cast<size_t>(r);
+    }
+    REQUIRE(reply.find("HandshakeOk") != std::string::npos);
+
+    auto const t0 = std::chrono::steady_clock::now();
+    daemon.stop();
+    auto const elapsed = std::chrono::steady_clock::now() - t0;
+    REQUIRE(
+        std::chrono::duration_cast<std::chrono::seconds>(elapsed).count()
+        < 10);
+    ::close(fd);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
     "ExecutionDaemon restrict_cuda option pins codelets",
     "[graph][tile][driver][remote]")
 {
