@@ -310,10 +310,13 @@ class LlamaModel(nn.Module):
     def _cached_rope(
         self, position_ids: Tensor
     ) -> tuple[Tensor, Tensor]:
-        """Return sin/cos on ``position_ids.device`` (built once, then reused).
+        """Return sin/cos for the default ``arange`` positions (cached).
 
         Matches deleted NNGraph: RoPE tables are prepared on the host and
         bound once for training - never recomputed from activations.
+        Only valid for ``position_ids`` produced by
+        ``_cached_position_ids``; caller-supplied positions must go
+        through ``_rope_tables_from_position_ids`` instead.
         """
         batch, seq = int(position_ids.size(0)), int(position_ids.size(-1))
         key = (batch, seq)
@@ -336,6 +339,31 @@ class LlamaModel(nn.Module):
             sin = sin.to(position_ids.device)
             cos = cos.to(position_ids.device)
         self._rope_cache[key] = (sin, cos)
+        return sin, cos
+
+    def _rope_tables_from_position_ids(
+        self, position_ids: Tensor
+    ) -> tuple[Tensor, Tensor]:
+        """Build sin/cos from explicit ``position_ids`` contents.
+
+        KV-cache continuation offsets, packed sequences, and custom
+        positions all need the table for the positions actually passed,
+        so this path never consults the ``arange`` cache and rebuilds
+        per call (host table, like the cached default).
+        """
+        pos_host = (
+            position_ids.detach().cpu()
+            if position_ids.device.type != "cpu"
+            else position_ids
+        )
+        sin, cos = rope_sin_cos_from_position_ids(
+            pos_host,
+            self.config.head_dim,
+            rope_theta=self.config.rope_theta,
+        )
+        if position_ids.device.type != "cpu":
+            sin = sin.to(position_ids.device)
+            cos = cos.to(position_ids.device)
         return sin, cos
 
     def _cached_causal_mask(self, input_ids: Tensor) -> Tensor:
@@ -382,10 +410,14 @@ class LlamaModel(nn.Module):
         *,
         is_causal: bool = True,
     ) -> Tensor:
+        explicit_position_ids = position_ids is not None
         if position_ids is None:
             position_ids = self._cached_position_ids(input_ids)
         if sin is None or cos is None:
-            sin, cos = self._cached_rope(position_ids)
+            if explicit_position_ids:
+                sin, cos = self._rope_tables_from_position_ids(position_ids)
+            else:
+                sin, cos = self._cached_rope(position_ids)
         if attn_mask is None and is_causal:
             attn_mask = self._cached_causal_mask(input_ids)
         x = self.embed_tokens(input_ids)
