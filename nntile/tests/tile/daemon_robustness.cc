@@ -202,6 +202,76 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "ExecutionDaemon survives a client that dies mid-reply",
+    "[graph][tile][driver][remote]")
+{
+    // Regression: write_all() used plain ::write(), so replying to a
+    // client that had already closed raised SIGPIPE with the default
+    // disposition and killed the whole daemon; no catch(...) can catch
+    // a signal.
+    std::string const path = test_socket_path("sigpipe");
+    ExecutionDaemon daemon(path);
+    daemon.start();
+
+    // Handshake, then send a Submit the daemon rejects (no graph
+    // member) and close before the Error reply is written. The reply
+    // write then hits EPIPE - fatal as SIGPIPE before the fix.
+    {
+        int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+        REQUIRE(fd >= 0);
+        sockaddr_un addr{};
+        addr.sun_family = AF_UNIX;
+        std::strncpy(
+            addr.sun_path, path.c_str(), sizeof(addr.sun_path) - 1);
+        REQUIRE(::connect(
+            fd, reinterpret_cast<sockaddr const *>(&addr),
+            sizeof(addr)) == 0);
+        send_frame(fd, R"({"type":"Handshake","protocol_version":1})");
+        std::string reply = recv_frame(fd);
+        REQUIRE(reply.find("HandshakeOk") != std::string::npos);
+        send_frame(fd, R"({"type":"Submit"})");
+        ::close(fd);
+    }
+
+    // The daemon must still be alive and serving.
+    {
+        int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+        REQUIRE(fd >= 0);
+        sockaddr_un addr{};
+        addr.sun_family = AF_UNIX;
+        std::strncpy(
+            addr.sun_path, path.c_str(), sizeof(addr.sun_path) - 1);
+        REQUIRE(::connect(
+            fd, reinterpret_cast<sockaddr const *>(&addr),
+            sizeof(addr)) == 0);
+        send_frame(fd, R"({"type":"Handshake","protocol_version":1})");
+        std::string reply = recv_frame(fd);
+        REQUIRE(reply.find("HandshakeOk") != std::string::npos);
+        ::close(fd);
+    }
+
+#ifndef NNTILE_USE_CUDA
+    // And a well-formed client must still get a full session.
+    {
+        RemoteExecutionDriver driver(path);
+        TileGraph graph("daemon_sigpipe_survivor");
+        auto *x = graph.data({2, 2}, "x", DataType::FP32);
+        auto *y = graph.data({2, 2}, "y", DataType::FP32);
+        auto *relu_out = graph.data({2, 2}, "relu", DataType::FP32);
+        tg::torch_binary(
+            starpu::TorchKind::Add, x, y, relu_out);
+        driver.bind(x->id(), {1.f, -2.f, 3.f, -4.f});
+        driver.bind(y->id(), {1.f, 1.f, 1.f, 1.f});
+        driver.submit(graph);
+        driver.wait();
+        nntile::test::require_relative_element_error(
+            driver.gather(relu_out->id()), {2.f, -1.f, 4.f, -3.f});
+    }
+#endif // NNTILE_USE_CUDA
+    daemon.stop();
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
     "RemoteExecutionDriver client socket timeouts",
     "[graph][tile][driver][remote]")
 {
