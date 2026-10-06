@@ -102,6 +102,10 @@ void LogScalar<std::tuple<T>>::submit(int starpu_worker_hint, const std::string 
     // Check submission
     if(ret != 0)
     {
+        // STARPU_CL_ARGS_NFREE leaves the ownership with us when no
+        // task was created, and the kernel that would delete args never
+        // runs - free it before propagating the failure.
+        delete args;
         throw std::runtime_error("Error in log_scalar task submission");
     }
 }
