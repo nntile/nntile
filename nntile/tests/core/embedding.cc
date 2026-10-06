@@ -59,9 +59,10 @@ void validate()
     constexpr Index m = 1;
     constexpr Index n = index_m * index_n;
     constexpr Index k = embed_dim;
-    starpu::embedding.submit<std::tuple<T>>(-1, m, n, k, k_start, k_size, index,
-            vocab, embed_ref);
-    embedding<T>(-1, m, n, k, k_start, k_size, index, vocab, embed);
+    starpu::embedding.submit<std::tuple<T>>(-1, m, n, k, k_start, k_size,
+            vocab.nelems / k_size, index, vocab, embed_ref);
+    embedding<T>(-1, m, n, k, k_start, k_size, vocab.nelems / k_size, index,
+            vocab, embed);
 
     embed_ref_local.acquire(STARPU_R);
     embed_local.acquire(STARPU_R);
