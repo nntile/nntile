@@ -17,6 +17,9 @@
 #include "nntile/kernel/randn.hh"
 #include "../testing.hh"
 #include <array>
+#include <algorithm>
+#include <cmath>
+#include <limits>
 #include <vector>
 #include <stdexcept>
 #include <iostream>
@@ -73,9 +76,31 @@ void validate_cpu(std::array<Index, NDIM> start, std::array<Index, NDIM> shape,
     starpu_task_wait_for_all();
     data2_handle.unregister();
     // Check result
-    for(Index i = 0; i < size; ++i)
+    // A CUDA worker round-trips the whole registered buffer through
+    // device memory, so the gaps between the strided tile elements come
+    // back as device garbage. Compare only the elements the kernel
+    // actually writes (and allow a few ULPs there: the Box-Muller
+    // transcendentals round through the device libm).
+    std::vector<Index> written;
+    for(Index lin = 0; lin < nelems; ++lin)
     {
-        TEST_ASSERT(Y(data[i]) == Y(data2[i]));
+        Index lin2 = lin, offset = 0;
+        for(Index d = 0; d < NDIM; ++d)
+        {
+            offset += (lin2 % shape[d]) * stride[d];
+            lin2 /= shape[d];
+        }
+        written.push_back(offset);
+    }
+    std::sort(written.begin(), written.end());
+    for(Index off : written)
+    {
+        using F = decltype(Y(data[off]));
+        constexpr F ulp_tol = 4 * std::numeric_limits<F>::epsilon();
+        TEST_ASSERT(std::fabs(float(Y(data[off])) - float(Y(data2[off])))
+            <= ulp_tol * std::max(1.0f,
+                std::max(std::fabs(float(Y(data[off]))),
+                    std::fabs(float(Y(data2[off]))))));
     }
     std::cout << "OK: starpu::randn::submit<" << T::short_name << "> restricted to CPU\n";
 }
@@ -141,7 +166,15 @@ void validate_cuda(std::array<Index, NDIM> start, std::array<Index, NDIM> shape,
     TEST_ASSERT(cuda_err == cudaSuccess);
     for(Index i = 0; i < size; ++i)
     {
-        TEST_ASSERT(Y(data[i]) == Y(data_cuda[i]));
+        // The LCG sequence (and its jump-ahead) must match the CPU
+        // exactly, but the Box-Muller transcendentals round through the
+        // device libm, which differs from the host by a few ULPs.
+        using F = decltype(Y(data[i]));
+        constexpr F ulp_tol = 4 * std::numeric_limits<F>::epsilon();
+        TEST_ASSERT(std::fabs(float(Y(data[i])) - float(Y(data_cuda[i])))
+            <= ulp_tol * std::max(1.0f,
+                std::max(std::fabs(float(Y(data[i]))),
+                    std::fabs(float(Y(data_cuda[i]))))));
     }
     VariableHandle data2_handle(&data2[0], sizeof(T)*size),
         tmp_handle(&tmp_index[0], sizeof(Index)*NDIM);
@@ -154,9 +187,31 @@ void validate_cuda(std::array<Index, NDIM> start, std::array<Index, NDIM> shape,
             stride, underlying_shape_, data2_handle, tmp_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
-    for(Index i = 0; i < size; ++i)
+    // A CUDA worker round-trips the whole registered buffer through
+    // device memory, so the gaps between the strided tile elements come
+    // back as device garbage. Compare only the elements the kernel
+    // actually writes (and allow a few ULPs there: the Box-Muller
+    // transcendentals round through the device libm).
+    std::vector<Index> written;
+    for(Index lin = 0; lin < nelems; ++lin)
     {
-        TEST_ASSERT(Y(data[i]) == Y(data2[i]));
+        Index lin2 = lin, offset = 0;
+        for(Index d = 0; d < NDIM; ++d)
+        {
+            offset += (lin2 % shape[d]) * stride[d];
+            lin2 /= shape[d];
+        }
+        written.push_back(offset);
+    }
+    std::sort(written.begin(), written.end());
+    for(Index off : written)
+    {
+        using F = decltype(Y(data[off]));
+        constexpr F ulp_tol = 4 * std::numeric_limits<F>::epsilon();
+        TEST_ASSERT(std::fabs(float(Y(data[off])) - float(Y(data2[off])))
+            <= ulp_tol * std::max(1.0f,
+                std::max(std::fabs(float(Y(data[off]))),
+                    std::fabs(float(Y(data2[off]))))));
     }
     std::cout << "OK: starpu::randn::submit<" << T::short_name << "> restricted to CUDA\n";
 }
