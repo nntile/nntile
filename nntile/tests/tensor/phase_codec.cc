@@ -491,6 +491,50 @@ TEST_CASE(
 }
 
 TEST_CASE(
+    "encode_phase TORCH_UNARY Sum keeps reduction dims",
+    "[graph][tensor][codec]")
+{
+    // x.sum(dim=1): the recorded op carries n_dims/keepdim/dim in iargs
+    // and the reduced output layout; dropping them used to force the
+    // receiver to guess the reduction dims from output shapes.
+    TensorGraph src("codec_sum_dims");
+    TensorRef x = src.data({6, 8});
+    TensorRef out = src.data({6});
+    starpu::TorchDispatchArgs extra{};
+    extra.iargs[0] = 1; // n_dims
+    extra.iargs[1] = 0; // keepdim = false
+    extra.iargs[2] = 1; // dim = 1
+    extra.in_layout_set[0] = 1;
+    extra.in_ndim[0] = 2;
+    extra.in_sizes[0][0] = 6;
+    extra.in_sizes[0][1] = 8;
+    extra.in_strides[0][0] = 8;
+    extra.in_strides[0][1] = 1;
+    extra.out_layout_set[0] = 1;
+    extra.out_ndim[0] = 1;
+    extra.out_sizes[0][0] = 6;
+    extra.out_strides[0][0] = 1;
+    gt::torch_unary(starpu::TorchKind::Sum, x, out, extra);
+
+    auto const blob = gt::encode_phase(src);
+    auto const attrs = blob.at("ops").at(0).at("attrs");
+    REQUIRE(attrs.at("kind").get<std::int32_t>() ==
+        static_cast<std::int32_t>(starpu::TorchKind::Sum));
+    REQUIRE(attrs.at("iargs") ==
+        nlohmann::json::array({1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0}));
+    REQUIRE(attrs.contains("layouts"));
+    REQUIRE_FALSE(attrs.contains("scalars"));
+
+    TensorGraph dst("codec_sum_dims_replay");
+    gt::PhaseNodeMap refs;
+    gt::apply_phase(dst, blob, refs);
+    auto const replay = gt::encode_phase(dst);
+    REQUIRE(replay.at("ops").at(0).at("op_name") == "TORCH_UNARY");
+    REQUIRE(replay.at("ops").at(0).at("attrs") == attrs);
+}
+
+TEST_CASE(
     "decode_torch_dispatch_attrs fails closed on bad layouts",
     "[graph][tensor][codec]")
 {

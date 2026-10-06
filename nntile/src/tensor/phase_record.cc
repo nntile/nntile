@@ -1457,13 +1457,20 @@ void record_phase_op(
             {
                 shape = spec->second.shape;
             }
+            auto const extra = decode_torch_dispatch_attrs(a);
             if (rec.has_out(0))
             {
-                torch_unary(kind, rec.in_at(0), rec.need(rec.outputs[0]));
+                torch_unary(
+                    kind,
+                    rec.in_at(0),
+                    rec.need(rec.outputs[0]),
+                    extra);
             }
             else
             {
-                rec.set_out(0, torch_unary(kind, rec.in_at(0), shape));
+                rec.set_out(
+                    0,
+                    torch_unary(kind, rec.in_at(0), shape, extra));
             }
             return;
         }

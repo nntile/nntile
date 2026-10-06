@@ -277,6 +277,7 @@ nlohmann::json encode_op_attrs(
     if (auto const *u = dynamic_cast<TensorTorchUnaryOp const *>(&op))
     {
         attrs["kind"] = static_cast<std::int32_t>(u->kind);
+        attrs.update(encode_torch_dispatch_attrs(u->extra));
         return attrs;
     }
     if (auto const *b = dynamic_cast<TensorTorchBinaryOp const *>(&op))
