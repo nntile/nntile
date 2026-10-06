@@ -25,6 +25,7 @@
 #include <arpa/inet.h>
 #include <cerrno>
 #include <cstring>
+#include <fcntl.h>
 #include <string>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -232,6 +233,53 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::string(ex.what()),
             Catch::Matchers::ContainsSubstring("timed out"));
     }
+
+    // Each failed handshake must close its socket: the constructor runs
+    // before the destructor exists, so a throwing handshake used to
+    // leak one fd per attempt (a flapping daemon could drain the fd
+    // limit through the connect-retry loop).
+    auto count_open_fds = []()
+    {
+        int n = 0;
+        int const max_fd = static_cast<int>(::sysconf(_SC_OPEN_MAX));
+        for (int fd = 0; fd < max_fd; ++fd)
+        {
+            if (::fcntl(fd, F_GETFD) != -1 || errno != EBADF)
+            {
+                ++n;
+            }
+        }
+        return n;
+    };
+    // Drain the connection each attempt leaves in the backlog, or the
+    // next connect is refused instead of timing out.
+    auto drain_backlog = [&listener]()
+    {
+        int queued = ::accept(listener, nullptr, nullptr);
+        if (queued >= 0)
+        {
+            ::close(queued);
+        }
+    };
+    drain_backlog();
+    int const fds_before = count_open_fds();
+    for (int attempt = 0; attempt < 10; ++attempt)
+    {
+        try
+        {
+            RemoteExecutionDriver driver(path);
+            FAIL("handshake against a silent socket should time out");
+        }
+        catch (std::exception const &ex)
+        {
+            REQUIRE_THAT(
+                std::string(ex.what()),
+                Catch::Matchers::ContainsSubstring("timed out"));
+        }
+        drain_backlog();
+    }
+    REQUIRE(count_open_fds() <= fds_before + 1);
+
     ::setenv("NNTILE_DRIVER_RECV_TIMEOUT_MS", "0", 1);
     ::close(listener);
     ::unlink(path.c_str());
