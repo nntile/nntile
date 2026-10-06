@@ -555,7 +555,13 @@ void apply_socket_acl(
 int listen_unix(
     std::string const &path, bool &group_grant, gid_t &group_gid)
 {
-    ::unlink(path.c_str());
+    // A stale node we cannot remove (sticky-bit directory, node owned
+    // by another user) must fail loudly here, not mysteriously at
+    // bind() with EADDRINUSE.
+    if (::unlink(path.c_str()) != 0 && errno != ENOENT)
+    {
+        throw_errno("unlink stale NNTILE_DRIVER_SOCKET");
+    }
     int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0)
     {
@@ -569,10 +575,16 @@ int listen_unix(
         throw std::runtime_error("NNTILE_DRIVER_SOCKET path too long");
     }
     std::strncpy(addr.sun_path, path.c_str(), sizeof(addr.sun_path) - 1);
-    if (::bind(
-            fd,
-            reinterpret_cast<sockaddr *>(&addr),
-            sizeof(addr)) != 0)
+    // Create the node private from the first byte: between bind() and
+    // the later chmod() the node carries the process umask, and a
+    // world-connectable window is one an attacker can win.
+    mode_t const old_umask = ::umask(077);
+    int const rc = ::bind(
+        fd,
+        reinterpret_cast<sockaddr *>(&addr),
+        sizeof(addr));
+    ::umask(old_umask);
+    if (rc != 0)
     {
         int const err = errno;
         ::close(fd);
@@ -908,6 +920,27 @@ RemoteExecutionDriver::RemoteExecutionDriver(std::string socket_path)
             std::rethrow_exception(last);
         }
         throw std::runtime_error("RemoteExecutionDriver: connect failed");
+    }
+    // A planted daemon at path_ would receive full Submit payloads and
+    // could forge Gather results: fail closed unless the peer runs as
+    // the same user, or the operator opted into token auth (the token
+    // then identifies the daemon instead of the peer uid).
+    char const *token = std::getenv("NNTILE_DRIVER_TOKEN");
+    bool const token_auth = token != nullptr && token[0] != '\0';
+    if (!token_auth)
+    {
+        uid_t peer_uid = static_cast<uid_t>(-1);
+        gid_t peer_gid = static_cast<gid_t>(-1);
+        if (!peer_credentials(fd_, &peer_uid, &peer_gid)
+            || peer_uid != ::geteuid())
+        {
+            ::close(fd_);
+            fd_ = -1;
+            throw std::runtime_error(
+                "RemoteExecutionDriver: socket peer is not owned by "
+                "this user; set NNTILE_DRIVER_TOKEN for cross-user "
+                "daemons");
+        }
     }
     apply_client_socket_timeouts(fd_);
     // A throwing handshake would otherwise leak fd_: the destructor

@@ -28,8 +28,10 @@
 #include <chrono>
 #include <cstring>
 #include <fcntl.h>
+#include <grp.h>
 #include <string>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/un.h>
 #include <unistd.h>
 #include <vector>
@@ -515,6 +517,34 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         driver.bind_int64(9999, {1, 2, 3});
     }
 #endif // NNTILE_USE_CUDA
+    daemon.stop();
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "ExecutionDaemon creates the socket node private",
+    "[graph][tile][driver][remote]")
+{
+    // Regression: bind() created the node with umask defaults and
+    // chmod(0600) happened afterwards, leaving a connectable window in
+    // which the node was as wide open as the umask allowed.
+    std::string const path = test_socket_path("umask");
+    mode_t const old_umask = ::umask(0);
+    ExecutionDaemon daemon(path);
+    daemon.start();
+    ::umask(old_umask);
+
+    struct stat st{};
+    REQUIRE(::stat(path.c_str(), &st) == 0);
+    mode_t expected = static_cast<mode_t>(S_IRUSR | S_IWUSR);
+    struct group *gr = ::getgrnam(driver_socket_group_name());
+    if (gr != nullptr && st.st_gid == gr->gr_gid)
+    {
+        // chown landed: the group grant is real (0660).
+        expected = static_cast<mode_t>(
+            S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+    }
+    REQUIRE((st.st_mode & 0777) == expected);
+
     daemon.stop();
 }
 
