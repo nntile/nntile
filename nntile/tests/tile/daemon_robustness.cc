@@ -127,3 +127,28 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     ::close(listener);
     ::unlink(path.c_str());
 }
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "ExecutionDaemon restrict_cuda option pins codelets",
+    "[graph][tile][driver][remote]")
+{
+    // Restriction is process-global and one-way, so this test must run
+    // last in the binary. On CPU-only builds no codelet advertises a
+    // CUDA implementation, so restrict_where(STARPU_CUDA) is a no-op
+    // there by design; the where mask is only assertable with CUDA.
+    std::string const path = test_socket_path("restrict");
+    {
+        ExecutionDaemon daemon(path, DaemonCudaRestrict::None);
+        daemon.start();
+        daemon.stop();
+#ifdef NNTILE_USE_CUDA
+        REQUIRE(starpu::fill.codelet.where & STARPU_CPU);
+#endif
+    }
+    ExecutionDaemon daemon(path, DaemonCudaRestrict::Cuda);
+    daemon.start();
+    daemon.stop();
+#ifdef NNTILE_USE_CUDA
+    REQUIRE_FALSE(starpu::fill.codelet.where & STARPU_CPU);
+#endif
+}

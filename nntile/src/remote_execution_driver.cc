@@ -858,10 +858,12 @@ std::vector<std::uint8_t> RemoteExecutionDriver::gather_bool(
     return reply.at("data").get<std::vector<std::uint8_t>>();
 }
 
-ExecutionDaemon::ExecutionDaemon(std::string socket_path)
+ExecutionDaemon::ExecutionDaemon(
+    std::string socket_path, DaemonCudaRestrict restrict_cuda)
     : path_(
           socket_path.empty() ? default_driver_socket_path()
-                              : std::move(socket_path))
+                              : std::move(socket_path)),
+      restrict_cuda_(restrict_cuda)
 {
 }
 
@@ -885,6 +887,25 @@ void ExecutionDaemon::start()
 #endif
     {
         ctx_ = std::make_unique<Context>(-1, -1, 0);
+    }
+    // Self-configure the worker pool after StarPU init so one daemon
+    // process can pin itself to CUDA without env orchestration.
+    DaemonCudaRestrict const restrict = [&]
+    {
+        if (restrict_cuda_ != DaemonCudaRestrict::Auto)
+        {
+            return restrict_cuda_;
+        }
+        char const *env = std::getenv("NNTILE_DAEMON_RESTRICT_CUDA");
+        if (env != nullptr && env[0] == '1')
+        {
+            return DaemonCudaRestrict::Cuda;
+        }
+        return DaemonCudaRestrict::None;
+    }();
+    if (restrict == DaemonCudaRestrict::Cuda)
+    {
+        restrict_codelets_to_cuda();
     }
     stop_ = false;
     listen_fd_ = listen_unix(path_);

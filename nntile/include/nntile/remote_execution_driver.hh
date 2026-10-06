@@ -81,12 +81,24 @@ class RemoteExecutionDriver : public ExecutionDriver
         pending_bind_bool_;
 };
 
+//! CUDA worker restriction applied by an ExecutionDaemon at start.
+//! ``Auto`` consults ``NNTILE_DAEMON_RESTRICT_CUDA`` ("1" restricts,
+//! anything else does not); ``None`` / ``Cuda`` force the choice.
+enum class DaemonCudaRestrict
+{
+    Auto,
+    None,
+    Cuda,
+};
+
 //! Listen on a Unix socket (mode 0600, group ``nntile-ops`` when
 //! present) and keep one RuntimeExecutionDriver for the connection.
 class ExecutionDaemon
 {
   public:
-    explicit ExecutionDaemon(std::string socket_path = {});
+    explicit ExecutionDaemon(
+        std::string socket_path = {},
+        DaemonCudaRestrict restrict_cuda = DaemonCudaRestrict::Auto);
 
     ~ExecutionDaemon();
 
@@ -106,6 +118,7 @@ class ExecutionDaemon
     void run();
 
     std::string path_;
+    DaemonCudaRestrict restrict_cuda_ = DaemonCudaRestrict::Auto;
     int listen_fd_ = -1;
     std::atomic<bool> stop_{false};
     std::thread thread_;
