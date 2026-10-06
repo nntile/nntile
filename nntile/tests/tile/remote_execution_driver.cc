@@ -423,6 +423,42 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "RemoteExecutionDriver DCE keeps wire-observable sinks",
+    "[graph][tile][driver][remote]")
+{
+    // Regression: a tile produced but never consumed daemon-side (its
+    // only reader is the remote gather) used to be pruned by
+    // Runtime::eliminate_dead_ops as soon as any TILE_UNREGISTER was
+    // pending - the keep-sink fallback ran only when the work list was
+    // empty. The pruned op never wrote its tile and the gather aborted
+    // in _starpu_data_check_initialized (nntile/platform#41 upstream
+    // ask 4).
+    std::string const path = test_socket_path("dce_wire");
+    ExecutionDaemon daemon(path);
+    daemon.start();
+    RemoteExecutionDriver driver(path);
+
+    TileGraph graph("driver_remote_dce_wire");
+    auto *kept = graph.data({4}, "kept", DataType::FP32);
+    auto *released = graph.data({4}, "released", DataType::FP32);
+    auto *sink = graph.data({4}, "sink", DataType::FP32);
+    tg::fill(Scalar(2.0), kept);
+    tg::fill(Scalar(1.0), released);
+    tg::copy(released, sink);
+    tg::unregister(released);
+
+    driver.bind(kept->id(), {0.f, 0.f, 0.f, 0.f});
+    driver.bind(released->id(), {0.f, 0.f, 0.f, 0.f});
+    driver.bind(sink->id(), {0.f, 0.f, 0.f, 0.f});
+    driver.submit(graph);
+    driver.wait();
+    nntile::test::require_relative_element_error(
+        driver.gather(kept->id()), {2.f, 2.f, 2.f, 2.f});
+    nntile::test::require_relative_element_error(
+        driver.gather(sink->id()), {1.f, 1.f, 1.f, 1.f});
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
     "RemoteExecutionDriver classic TILE families",
     "[graph][tile][driver][remote]")
 {

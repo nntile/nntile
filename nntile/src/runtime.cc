@@ -1263,14 +1263,20 @@ void Runtime::eliminate_dead_ops()
         }
     }
 
-    if (work.empty())
+    // Keep wire-observable sinks: tiles produced but never consumed in
+    // the pending window have no daemon-side logical refs - their only
+    // reader is the remote gather. This fallback used to run only when
+    // the work list was empty, so a single pending TILE_UNREGISTER
+    // disabled it and DCE pruned the producing op; the gathered tile
+    // stayed uninitialized and StarPU aborted on
+    // _starpu_data_check_initialized. Seed sinks unconditionally -
+    // liveness of other tiles is unaffected (their consumers still
+    // propagate through the work list).
+    for (auto const &p : producer)
     {
-        for (auto const &p : producer)
+        if (consumed.count(p.first) == 0)
         {
-            if (consumed.count(p.first) == 0)
-            {
-                seed_tile(p.first);
-            }
+            seed_tile(p.first);
         }
     }
     if (live_data.empty())
