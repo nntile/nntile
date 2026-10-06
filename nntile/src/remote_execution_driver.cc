@@ -26,6 +26,7 @@
 #include <poll.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/un.h>
 #include <unistd.h>
@@ -58,6 +59,51 @@ void throw_errno(char const *what)
         std::string(what) + ": " + std::strerror(errno));
 }
 
+//! Socket timeouts for the client side of the driver wire (seconds-
+//! and-microseconds SO_RCVTIMEO / SO_SNDTIMEO). Defaults keep every
+//! existing deployment working; ``NNTILE_DRIVER_RECV_TIMEOUT_MS`` /
+//! ``NNTILE_DRIVER_SEND_TIMEOUT_MS`` bound how long a wedged daemon
+//! can hang a client, and ``0`` restores fully blocking I/O. Timeouts
+//! surface as "recv: timed out" / "send: timed out", which transport
+//! classifiers already treat as connection loss.
+long socket_timeout_ms(char const *env, long default_ms)
+{
+    char const *raw = std::getenv(env);
+    if (raw == nullptr || raw[0] == '\0')
+    {
+        return default_ms;
+    }
+    char *end = nullptr;
+    long const parsed = std::strtol(raw, &end, 10);
+    if (end == raw || parsed < 0)
+    {
+        return default_ms;
+    }
+    return parsed;
+}
+
+void set_socket_timeout(int fd, int option, long ms)
+{
+    if (ms <= 0)
+    {
+        return;
+    }
+    timeval tv{};
+    tv.tv_sec = static_cast<time_t>(ms / 1000);
+    tv.tv_usec = static_cast<suseconds_t>((ms % 1000) * 1000);
+    ::setsockopt(fd, SOL_SOCKET, option, &tv, sizeof(tv));
+}
+
+void apply_client_socket_timeouts(int fd)
+{
+    set_socket_timeout(
+        fd, SO_RCVTIMEO,
+        socket_timeout_ms("NNTILE_DRIVER_RECV_TIMEOUT_MS", 300000));
+    set_socket_timeout(
+        fd, SO_SNDTIMEO,
+        socket_timeout_ms("NNTILE_DRIVER_SEND_TIMEOUT_MS", 300000));
+}
+
 void write_all(int fd, void const *buf, size_t n)
 {
     auto const *p = static_cast<char const *>(buf);
@@ -70,6 +116,10 @@ void write_all(int fd, void const *buf, size_t n)
             if (errno == EINTR)
             {
                 continue;
+            }
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+            {
+                throw std::runtime_error("send: timed out");
             }
             throw_errno("write");
         }
@@ -93,6 +143,10 @@ void read_all(int fd, void *buf, size_t n)
             if (errno == EINTR)
             {
                 continue;
+            }
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+            {
+                throw std::runtime_error("recv: timed out");
             }
             throw_errno("read");
         }
@@ -639,7 +693,11 @@ RemoteExecutionDriver::RemoteExecutionDriver(std::string socket_path)
                               : std::move(socket_path))
 {
     std::exception_ptr last;
-    for (int i = 0; i < 50; ++i)
+    long const connect_budget_ms =
+        socket_timeout_ms("NNTILE_DRIVER_CONNECT_TIMEOUT_MS", 1000);
+    auto const deadline = std::chrono::steady_clock::now()
+        + std::chrono::milliseconds(connect_budget_ms);
+    while (fd_ < 0)
     {
         try
         {
@@ -650,6 +708,10 @@ RemoteExecutionDriver::RemoteExecutionDriver(std::string socket_path)
         catch (...)
         {
             last = std::current_exception();
+            if (std::chrono::steady_clock::now() >= deadline)
+            {
+                break;
+            }
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
         }
     }
@@ -661,6 +723,7 @@ RemoteExecutionDriver::RemoteExecutionDriver(std::string socket_path)
         }
         throw std::runtime_error("RemoteExecutionDriver: connect failed");
     }
+    apply_client_socket_timeouts(fd_);
     send_json(
         fd_,
         {

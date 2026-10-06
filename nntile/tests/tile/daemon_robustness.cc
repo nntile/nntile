@@ -91,3 +91,39 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     daemon.stop();
 }
 
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "RemoteExecutionDriver client socket timeouts",
+    "[graph][tile][driver][remote]")
+{
+    // A socket that accepts but never speaks: with a recv timeout the
+    // handshake fails closed ("recv: timed out") instead of hanging
+    // forever; without one it blocked indefinitely.
+    std::string const path = test_socket_path("blackhole");
+    int listener = ::socket(AF_UNIX, SOCK_STREAM, 0);
+    REQUIRE(listener >= 0);
+    sockaddr_un addr{};
+    addr.sun_family = AF_UNIX;
+    std::strncpy(addr.sun_path, path.c_str(), sizeof(addr.sun_path) - 1);
+    ::unlink(path.c_str());
+    REQUIRE(::bind(
+        listener, reinterpret_cast<sockaddr const *>(&addr),
+        sizeof(addr)) == 0);
+    REQUIRE(::listen(listener, 1) == 0);
+
+    ::setenv("NNTILE_DRIVER_RECV_TIMEOUT_MS", "300", 1);
+    try
+    {
+        RemoteExecutionDriver driver(path);
+        FAIL("handshake against a silent socket should time out");
+    }
+    catch (std::exception const &ex)
+    {
+        REQUIRE_THAT(
+            std::string(ex.what()),
+            Catch::Matchers::ContainsSubstring("timed out"));
+    }
+    ::setenv("NNTILE_DRIVER_RECV_TIMEOUT_MS", "0", 1);
+    ::close(listener);
+    ::unlink(path.c_str());
+}
