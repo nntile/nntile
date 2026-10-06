@@ -127,3 +127,56 @@ def test_platform_hooks_stock_linear_relu():
     assert any(n.startswith("TORCH_") for n in names)
     assert 10 in kinds
     assert 50 in kinds or 54 in kinds or 52 in kinds
+
+
+def test_platform_ingress_survives_classic_gemm_no_fill():
+    # Regression: the classic GEMM recorder used to emit a FILL(1.0) into
+    # an ingressed operand whose node had no graph producer (platform-mode
+    # ingress sends data over the wire, so no SCATTER op exists), turning
+    # ``x @ w.t()`` into ``ones @ w.t()``. Ingress marks the node's data
+    # as present; the flush IR must not mutate ingressed nodes.
+    stdout = _run(
+        _HOOKS
+        + textwrap.dedent(
+            """
+            import torch
+            from torch_nntile.nn import NntileLinear
+
+            phases = []
+
+            def flush_detail(phase_json, gather_ids, wait_only):
+                phases.append(json.loads(phase_json))
+                return b"\\x00" * 256
+
+            _C.set_platform_hooks(ingress, flush_detail)
+            torch.manual_seed(0)
+            layer = NntileLinear(8, 4, bias=True).to("nntile")
+            x = torch.randn(6, 8).to("nntile")
+            y = layer(x)
+            torch_nntile.wait()
+            print("ingress", json.dumps(ingresses))
+            print("phases", json.dumps(phases))
+            """
+        )
+    )
+    ingressed = json.loads(
+        stdout.split("ingress ", 1)[1].splitlines()[0]
+    )
+    phases = json.loads(stdout.split("phases ", 1)[1].splitlines()[0])
+    ingressed_ids = {entry[0] for entry in ingressed}
+    x_ids = {entry[0] for entry in ingressed if entry[1] == [6, 8]}
+    ops = [op for phase in phases for op in phase.get("ops") or []]
+    # The GEMM must consume the ingressed x node directly.
+    gemms = [op for op in ops if op.get("op_name") == "GEMM"]
+    assert gemms, "no GEMM recorded for NntileLinear"
+    assert any(
+        op.get("inputs") and int(op["inputs"][0]) in x_ids for op in gemms
+    ), f"GEMM does not read the ingressed x node: {gemms}"
+    # No op may write into an ingressed node: recorder/lowering never
+    # mutate wire-provided operands.
+    writers = [
+        op
+        for op in ops
+        if any(int(nid) in ingressed_ids for nid in op.get("outputs") or [])
+    ]
+    assert not writers, f"ops mutate ingressed nodes: {writers}"

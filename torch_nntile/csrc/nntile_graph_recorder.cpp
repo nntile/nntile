@@ -1798,6 +1798,10 @@ void init_nntile_input_from_cpu(
 
     if (g_platform_mode.load(std::memory_order_acquire))
     {
+        // The bytes now live daemon-side: mark the node produced so
+        // recorders treat it like a scattered input and never emit
+        // mutating fallback ops (e.g. the gemm operand fill) into it.
+        logical->note_produced();
         platform_ingress_unlocked(
             lock,
             logical,
@@ -1869,6 +1873,7 @@ void overwrite_bound_nntile_logical_from_cpu(
 
     if (g_platform_mode.load(std::memory_order_acquire))
     {
+        logical->note_produced();
         platform_ingress_unlocked(
             lock,
             logical,
