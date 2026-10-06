@@ -63,6 +63,17 @@ TEST_CASE("TileGraph data creation", "[graph][tile]")
     REQUIRE(graph.num_data() == 2);
 }
 
+TEST_CASE("TileGraph TileNode::nelems overflow throws", "[graph][tile]")
+{
+    // Wire-controlled shapes reach TileNode unchecked; the element
+    // count must throw on overflow rather than wrap (a wrapped count
+    // would allocate an undersized tile whose kernels index by the
+    // full strides).
+    TileGraph graph("nelems_overflow");
+    auto *x = graph.data({1LL << 32, 1LL << 32}, "x", DataType::FP32);
+    REQUIRE_THROWS_AS(x->nelems(), std::runtime_error);
+}
+
 TEST_CASE("TileGraph allows duplicate tile labels", "[graph][tile]")
 {
     TileGraph graph("dup_test");

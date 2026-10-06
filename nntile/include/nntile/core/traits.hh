@@ -17,6 +17,7 @@
 #include <nntile/base_types.hh>
 #include <vector>
 #include <array>
+#include <limits>
 #include <stdexcept>
 #include <iostream>
 
@@ -82,10 +83,19 @@ public:
         matrix_shape(ndim+1)
     {
         // Leading (slow) sizes of 2D reshapes at each split.
+        // Shapes are validated positive above, so products can only
+        // overflow upwards: detect it instead of wrapping (a wrapped
+        // nelems would make callers allocate undersized tiles whose
+        // kernels index by the full, huge strides).
         Index tmp = 1;
         matrix_shape[0][0] = 1;
         for(Index i = 1; i <= ndim; ++i)
         {
+            if(tmp > std::numeric_limits<Index>::max() / shape[i-1])
+            {
+                throw std::runtime_error(
+                    "Tile size overflows Index type");
+            }
             tmp *= shape[i-1];
             matrix_shape[i][0] = tmp;
         }
@@ -99,12 +109,18 @@ public:
             tmp *= shape[i-1];
             matrix_shape[i-1][1] = tmp;
         }
-        // C-order strides (last index stride 1).
+        // C-order strides (last index stride 1), also overflow-checked.
         if(ndim > 0)
         {
             stride[ndim-1] = 1;
             for(Index i = ndim - 2; i >= 0; --i)
             {
+                if(stride[i + 1]
+                    > std::numeric_limits<Index>::max() / shape[i + 1])
+                {
+                    throw std::runtime_error(
+                        "Tile stride overflows Index type");
+                }
                 stride[i] = stride[i + 1] * shape[i + 1];
             }
         }
