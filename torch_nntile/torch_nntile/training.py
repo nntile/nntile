@@ -85,11 +85,13 @@ class _NntileMseLoss(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_output: torch.Tensor):
         (x,) = ctx.saved_tensors
-        # grad_loss is implicitly 1.0 for loss outputs (ignore grad_output).
-        del grad_output
         needs_grad = ctx.needs_input_grad[0]
+        if not needs_grad:
+            return None, None
         grad_x = _C.mse_loss_backward(x, ctx.scale, needs_grad)
-        return grad_x if needs_grad else None, None
+        # The loss output is a scalar, so autograd hands us a scalar
+        # upstream weight; composed losses get anything but 1.0 there.
+        return grad_x * grad_output, None
 
 
 def mse_loss(x: torch.Tensor, scale: float = 1.0) -> torch.Tensor:
