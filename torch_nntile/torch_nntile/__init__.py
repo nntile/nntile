@@ -146,6 +146,11 @@ def init_context(
 ) -> None:
     """Configure StarPU workers, or connect to nntile-server.
 
+    On a CUDA build, ``ncpu`` defaults to **no CPU workers**: CUDA worker
+    0 is the default (and only) worker, so every codelet with a CUDA
+    kernel executes on the GPU and CPU-only codelets raise. Pass
+    ``ncpu >= 1`` explicitly to keep CPU workers for CPU-only codelets.
+
     When ``NNTILE_SERVER_SOCKET`` is set, this process is a platform
     kernel: no local StarPU, no hardware knobs. ``.to("nntile")``
     Ingresses bytes and ``.to("cpu")`` Flushes the recorded TensorGraph.
