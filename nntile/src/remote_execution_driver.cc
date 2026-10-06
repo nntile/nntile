@@ -427,29 +427,41 @@ int listen_unix(std::string const &path)
     return fd;
 }
 
-void handle_client(int fd)
+void send_error_safely(
+    int fd, char const *code, std::string const &message)
 {
-    auto hello = recv_json(fd);
-    if (hello.value("type", "") != "Handshake")
+    try
     {
         send_json(
             fd,
             {
                 {"type", "Error"},
-                {"code", "Protocol"},
-                {"message", "expected Handshake"},
+                {"code", code},
+                {"message", message},
             });
+    }
+    catch (...)
+    {
+        // A closing or garbage socket must never take the daemon down.
+    }
+}
+
+void handle_client(int fd)
+{
+    // Everything from the first byte on is per-connection and must be
+    // exception-safe: a liveness probe that speaks garbage used to
+    // throw out of the accept loop and SIGABRT the whole daemon.
+    try
+    {
+    auto hello = recv_json(fd);
+    if (hello.value("type", "") != "Handshake")
+    {
+        send_error_safely(fd, "Protocol", "expected Handshake");
         return;
     }
     if (hello.value("protocol_version", 0) != kDriverProtocol)
     {
-        send_json(
-            fd,
-            {
-                {"type", "Error"},
-                {"code", "Protocol"},
-                {"message", "protocol_version mismatch"},
-            });
+        send_error_safely(fd, "Protocol", "protocol_version mismatch");
         return;
     }
     send_json(fd, {{"type", "HandshakeOk"}});
@@ -483,11 +495,9 @@ void handle_client(int fd)
             it = queued_bind.erase(it);
         }
     };
-    try
+    while (true)
     {
-        while (true)
-        {
-            auto msg = recv_json(fd);
+        auto msg = recv_json(fd);
             std::string const type = msg.value("type", "");
             if (type == "Submit")
             {
@@ -593,24 +603,16 @@ void handle_client(int fd)
         {
             return;
         }
-        try
+        std::string code = "Internal";
+        if (what.rfind("UnknownOp", 0) == 0)
         {
-            std::string code = "Internal";
-            if (what.rfind("UnknownOp", 0) == 0)
-            {
-                code = "UnknownOp";
-            }
-            send_json(
-                fd,
-                {
-                    {"type", "Error"},
-                    {"code", code},
-                    {"message", what},
-                });
+            code = "UnknownOp";
         }
-        catch (...)
-        {
-        }
+        send_error_safely(fd, code.c_str(), what);
+    }
+    catch (...)
+    {
+        send_error_safely(fd, "Internal", "unknown error");
     }
 }
 
@@ -872,7 +874,15 @@ void ExecutionDaemon::run()
             }
             break;
         }
-        handle_client(client);
+        try
+        {
+            handle_client(client);
+        }
+        catch (...)
+        {
+            // handle_client is exception-safe by itself; this guard is
+            // the last resort that keeps run() alive no matter what.
+        }
         ::close(client);
     }
 }
