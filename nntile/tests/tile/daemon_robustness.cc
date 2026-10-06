@@ -14,6 +14,7 @@
 #include <nntile/execution_driver.hh>
 #include <nntile/remote_execution_driver.hh>
 #include <nntile/tile.hh>
+#include <nntile/tile/ops/add_inplace.hh>
 #include <nntile/tile/ops/fill.hh>
 #ifdef NNTILE_TORCH_NATIVE_OPS
 #include <nntile/tile/ops/torch_dispatch.hh>
@@ -355,6 +356,58 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     daemon.stop();
 }
 
+
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "ExecutionDaemon queues binds until their nodes arrive",
+    "[graph][tile][driver][remote]")
+{
+    // BindOk for a not-yet-submitted node is a promise: the data must
+    // apply once a later Submit makes the node exist, and binds whose
+    // node never arrives must not be dropped silently (the daemon now
+    // reports them when the connection ends).
+    std::string const path = test_socket_path("bindqueue");
+    ExecutionDaemon daemon(path);
+    daemon.start();
+
+#ifndef NNTILE_USE_CUDA
+    {
+        RemoteExecutionDriver driver(path);
+        TileGraph first("daemon_bind_queue_first");
+        auto *a1 = first.data({2}, "a", DataType::FP32);
+        tg::fill(Scalar(0.0), a1);
+        driver.bind(a1->id(), {1.f, 2.f});
+        driver.submit(first);
+        driver.wait();
+
+        TileGraph second("daemon_bind_queue_second");
+        auto *a2 = second.data({2}, "a", DataType::FP32);
+        auto *b = second.data({2}, "b", DataType::FP32);
+        // b keeps its own (bound) data: b = 0 * a + 1 * b.
+        tg::add_inplace(Scalar(0.0), a2, Scalar(1.0), b);
+        // Node b (id 1) does not exist on the daemon yet: queued.
+        driver.bind(b->id(), {5.f, 7.f});
+        driver.submit(second);
+        driver.wait();
+        nntile::test::require_relative_element_error(
+            driver.gather(b->id()), {5.f, 7.f});
+    }
+
+    // A bind whose node never appears is reported at disconnect; the
+    // daemon stays healthy afterwards.
+    {
+        RemoteExecutionDriver driver(path);
+        TileGraph graph("daemon_bind_queue_dangling");
+        auto *x = graph.data({2}, "x", DataType::FP32);
+        tg::fill(Scalar(0.0), x);
+        driver.bind(x->id(), {1.f, 1.f});
+        driver.submit(graph);
+        driver.wait();
+        driver.bind_int64(9999, {1, 2, 3});
+    }
+#endif // NNTILE_USE_CUDA
+    daemon.stop();
+}
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "ExecutionDaemon restrict_cuda option pins codelets",

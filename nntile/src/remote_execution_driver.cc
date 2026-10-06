@@ -686,6 +686,31 @@ void handle_client(
             it = queued_bind.erase(it);
         }
     };
+    // BindOk for a not-yet-submitted node is a promise: the data is
+    // applied once a Submit makes the node exist. Any bind still
+    // queued when the connection ends never kept that promise, and
+    // must not be dropped silently.
+    auto report_dropped_binds = [&]()
+    {
+        if (queued_bind.empty())
+        {
+            return;
+        }
+        std::fprintf(
+            stderr,
+            "nntile daemon: dropping %zu Bind(s) to unknown node ids:",
+            queued_bind.size());
+        for (auto const &entry : queued_bind)
+        {
+            std::fprintf(
+                stderr,
+                " %llu",
+                static_cast<unsigned long long>(entry.first));
+        }
+        std::fputc('\n', stderr);
+    };
+    try
+    {
     while (true)
     {
         auto msg = recv_json(fd);
@@ -786,6 +811,15 @@ void handle_client(
                     });
             }
         }
+    }
+    catch (...)
+    {
+        // The message loop only exits via an exception; on the way out
+        // (socket closed, protocol error, anything else), say what
+        // queued data never landed.
+        report_dropped_binds();
+        throw;
+    }
     }
     catch (std::exception const &ex)
     {
