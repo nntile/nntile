@@ -22,6 +22,7 @@
 #include <nntile/remote_tile_codec.hh>
 
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <grp.h>
 #include <poll.h>
 #include <sys/socket.h>
@@ -1148,21 +1149,57 @@ void ExecutionDaemon::start()
     stop_ = false;
     listen_fd_ = listen_unix(
         path_, socket_group_grant_, socket_group_gid_);
+    if (::pipe(wakeup_fd_) != 0)
+    {
+        int const err = errno;
+        ::close(listen_fd_);
+        listen_fd_ = -1;
+        ::unlink(path_.c_str());
+        errno = err;
+        throw_errno("pipe");
+    }
+    for (int i = 0; i < 2; ++i)
+    {
+        int const flags = ::fcntl(wakeup_fd_[i], F_GETFL, 0);
+        ::fcntl(wakeup_fd_[i], F_SETFL, flags | O_NONBLOCK);
+    }
     thread_ = std::thread([this]() { run(); });
 }
 
 void ExecutionDaemon::stop()
 {
     stop_ = true;
-    if (listen_fd_ >= 0)
+    // shutdown() of a listening Unix socket is not portable (macOS
+    // fails it with ENOTCONN), and it does nothing about a connection
+    // stuck in a blocking read: wake the poll loop through the
+    // self-pipe and interrupt the active client instead. The listening
+    // socket is closed only after the thread has left run().
+    int client = client_fd_.load();
+    if (client >= 0)
     {
-        ::shutdown(listen_fd_, SHUT_RDWR);
-        ::close(listen_fd_);
-        listen_fd_ = -1;
+        ::shutdown(client, SHUT_RDWR);
+    }
+    if (wakeup_fd_[1] >= 0)
+    {
+        ssize_t ignored = ::write(wakeup_fd_[1], "x", 1);
+        (void)ignored;
     }
     if (thread_.joinable())
     {
         thread_.join();
+    }
+    if (listen_fd_ >= 0)
+    {
+        ::close(listen_fd_);
+        listen_fd_ = -1;
+    }
+    for (int i = 0; i < 2; ++i)
+    {
+        if (wakeup_fd_[i] >= 0)
+        {
+            ::close(wakeup_fd_[i]);
+            wakeup_fd_[i] = -1;
+        }
     }
     ::unlink(path_.c_str());
     ctx_.reset();
@@ -1172,10 +1209,12 @@ void ExecutionDaemon::run()
 {
     while (!stop_)
     {
-        pollfd pfd{};
-        pfd.fd = listen_fd_;
-        pfd.events = POLLIN;
-        int const rc = ::poll(&pfd, 1, 100);
+        pollfd pfds[2]{};
+        pfds[0].fd = listen_fd_;
+        pfds[0].events = POLLIN;
+        pfds[1].fd = wakeup_fd_[0];
+        pfds[1].events = POLLIN;
+        int const rc = ::poll(pfds, 2, 100);
         if (rc < 0)
         {
             if (errno == EINTR)
@@ -1184,7 +1223,16 @@ void ExecutionDaemon::run()
             }
             break;
         }
-        if (rc == 0 || (pfd.revents & POLLIN) == 0)
+        if ((pfds[1].revents & POLLIN) != 0)
+        {
+            // stop() asked for a prompt exit; drain and leave.
+            char buf[64];
+            while (::read(wakeup_fd_[0], buf, sizeof(buf)) > 0)
+            {
+            }
+            break;
+        }
+        if (rc == 0 || (pfds[0].revents & POLLIN) == 0)
         {
             continue;
         }
@@ -1199,6 +1247,7 @@ void ExecutionDaemon::run()
         }
         suppress_sigpipe(client);
         apply_daemon_socket_timeouts(client);
+        client_fd_ = client;
         try
         {
             handle_client(
@@ -1209,6 +1258,7 @@ void ExecutionDaemon::run()
             // handle_client is exception-safe by itself; this guard is
             // the last resort that keeps run() alive no matter what.
         }
+        client_fd_ = -1;
         ::close(client);
     }
 }
