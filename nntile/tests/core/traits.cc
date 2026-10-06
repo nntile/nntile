@@ -142,6 +142,12 @@ int main(int argc, char **argv)
     TEST_THROW(TileTraits({1, 2, 0, 4, 5}));
     TEST_THROW(TileTraits({1, 0, 3, 4, 5}));
     TEST_THROW(TileTraits({0, 2, 3, 4, 5}));
+    // A shape whose product overflows Index must throw instead of
+    // wrapping to a small nelems (which would make callers allocate an
+    // undersized tile whose kernels index by the full strides).
+    TEST_THROW(TileTraits({1LL << 32, 1LL << 32}));
+    TEST_THROW(TileTraits({1LL << 62, 2}));
+    TEST_THROW(TileTraits({1, 1LL << 62, 2}));
     TEST_ASSERT(t5d_traits.shape == std::vector<Index>({1, 2, 3, 4, 5}));
     std::cout << t5d_traits;
     validate_traits(t5d_traits);

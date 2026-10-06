@@ -15,6 +15,7 @@
 
 #include "nntile/tile/graph.hh"
 
+#include <limits>
 #include <numeric>
 #include <stdexcept>
 
@@ -58,13 +59,36 @@ Index TileGraph::TileNode::dim(int idx) const
 
 Index TileGraph::TileNode::nelems() const
 {
-    return std::accumulate(shape_.begin(), shape_.end(), Index(1),
-        std::multiplies<Index>());
+    // Dimensions are validated positive at construction, so products
+    // can only overflow upwards: detect it instead of wrapping (a
+    // wrapped count would allocate an undersized tile whose kernels
+    // index by the full strides).
+    Index nelems = 1;
+    for(size_t i = 0; i < shape_.size(); ++i)
+    {
+        if(shape_[i] != 0
+            && nelems > std::numeric_limits<Index>::max() / shape_[i])
+        {
+            throw std::runtime_error(
+                "TileGraph::TileNode::nelems: product overflows "
+                "Index type");
+        }
+        nelems *= shape_[i];
+    }
+    return nelems;
 }
 
 size_t TileGraph::TileNode::size_bytes() const
 {
-    return static_cast<size_t>(nelems()) * dtype_size(dtype_);
+    Index const n = nelems();
+    size_t const dtype_bytes = dtype_size(dtype_);
+    size_t bytes = static_cast<size_t>(n) * dtype_bytes;
+    if(bytes / dtype_bytes != static_cast<size_t>(n))
+    {
+        throw std::runtime_error(
+            "TileGraph::TileNode::size_bytes: size overflows size_t");
+    }
+    return bytes;
 }
 
 TileGraph* TileGraph::TileNode::graph()

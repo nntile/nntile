@@ -263,15 +263,29 @@ public:
     {
     }
 
+    //! Allocation size of a freshly owned tile. Only the TileTraits
+    //! base is initialized when this runs, but nelems is already
+    //! validated there; the round-trip check mirrors _get_size.
+    size_t _get_alloc_size()
+    {
+        size_t size = static_cast<size_t>(nelems) * sizeof(T);
+        if(size / sizeof(T) != static_cast<size_t>(nelems))
+        {
+            throw std::runtime_error(
+                "Type size_t is not enough to hold size of the tile");
+        }
+        return size;
+    }
+
     explicit Tile(std::vector<Index> const &shape_):
         TileTraits(shape_),
-        starpu::VariableHandle(nelems * sizeof(T))
+        starpu::VariableHandle(_get_alloc_size())
     {
     }
 
     explicit Tile(TileTraits const &traits):
         TileTraits(traits),
-        starpu::VariableHandle(nelems * sizeof(T))
+        starpu::VariableHandle(_get_alloc_size())
     {
     }
 
