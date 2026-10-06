@@ -19,9 +19,64 @@
 
 #include "nntile/tensor/axis_descriptor.hh"
 #include "nntile/tensor/graph.hh"
+#include "nntile/tensor/ops/logsumexp.hh"
+#include "nntile/tensor/ops/subtract_indexed_outputs.hh"
+#include "nntile/tensor/ops/total_sum_accum.hh"
 
 namespace nntile
 {
+
+namespace
+{
+
+//! Constrain axis tiling around ops whose tile kernels cannot honor an
+//! arbitrary segmentation. The kernels behind LOGSUMEXP,
+//! TOTAL_SUM_ACCUM and SUBTRACT_INDEXED_OUTPUTS index their pair /
+//! class axis with global positions against a local tile extent (and
+//! LOGSUMEXP additionally requires the trailing maxsumexp pair dim in
+//! one tile), so a tiled policy on those axes mis-indexes memory or
+//! fails the lowering's src/dst grid-volume check. The axes in
+//! question are per-op details (a maxsumexp pair axis never merges
+//! with the logits class axis), so dropping their tiling loses no
+//! requested layout on user-named axes.
+void constrain_reduction_tiles(const TensorGraph &tg)
+{
+    for (const auto &op : tg.ops())
+    {
+        if (op == nullptr)
+        {
+            continue;
+        }
+        if (auto const *lse =
+                dynamic_cast<tensor::TensorLogsumexpOp const *>(op.get()))
+        {
+            if (lse->src != nullptr && lse->src->ndim() > 0)
+            {
+                lse->src->axis(lse->src->ndim() - 1)->clear_tiling();
+            }
+        }
+        else if (auto const *tsa = dynamic_cast<
+                     tensor::TensorTotalSumAccumOp const *>(op.get()))
+        {
+            if (tsa->src != nullptr && tsa->src->ndim() > 0)
+            {
+                tsa->src->axis(tsa->src->ndim() - 1)->clear_tiling();
+            }
+        }
+        else if (auto const *sio = dynamic_cast<
+                     tensor::TensorSubtractIndexedOutputsOp const *>(
+                     op.get()))
+        {
+            if (sio->dst != nullptr && sio->dst->ndim() > 0)
+            {
+                sio->dst->axis(sio->dst->ndim() - 1)->clear_tiling();
+            }
+        }
+    }
+}
+
+} // namespace
+
 
 TensorAxisLayout::TensorAxisLayout(const TensorGraph::TensorNode* node)
 {
@@ -293,6 +348,7 @@ void TensorGraphTiling::set_layout(
 
 TensorGraphTiling TensorGraphTiling::from_tensor_graph(const TensorGraph& tg)
 {
+    constrain_reduction_tiles(tg);
     TensorGraphTiling out;
     for(const auto& tn : tg.tensor_nodes())
     {
@@ -351,6 +407,7 @@ TensorGraphTiling TensorGraphTiling::from_phase(
     const TensorGraph& tg,
     const TensorGraph::PhaseSnapshot& phase)
 {
+    // ensure_phase_layouts below runs constrain_reduction_tiles.
     TensorGraphTiling out;
     out.ensure_phase_layouts(tg, phase);
     return out;
@@ -360,6 +417,7 @@ void TensorGraphTiling::ensure_phase_layouts(
     const TensorGraph& tg,
     const TensorGraph::PhaseSnapshot& phase)
 {
+    constrain_reduction_tiles(tg);
     std::vector<const TensorGraph::TensorNode*> touched;
     std::uint32_t const gen =
         TensorGraph::TensorNode::next_touch_gen();

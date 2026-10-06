@@ -52,6 +52,9 @@ struct AxisDescriptor
     //! Sum of tile_sizes must equal extent.
     void set_tiling(const std::vector<Index>& sizes);
 
+    //! Drop tiling: the axis goes back to a single full-extent tile.
+    void clear_tiling() { tile_sizes.clear(); }
+
     //! True if tiling has been set.
     bool is_tiled() const { return !tile_sizes.empty(); }
 
