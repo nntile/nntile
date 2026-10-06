@@ -1475,20 +1475,26 @@ void record_phase_op(
             {
                 shape = spec->second.shape;
             }
+            auto const extra = decode_torch_dispatch_attrs(a);
             if (rec.has_out(0))
             {
                 torch_binary(
                     kind,
                     rec.in_at(0),
                     rec.in_at(1),
-                    rec.need(rec.outputs[0]));
+                    rec.need(rec.outputs[0]),
+                    extra);
             }
             else
             {
                 rec.set_out(
                     0,
                     torch_binary(
-                        kind, rec.in_at(0), rec.in_at(1), shape));
+                        kind,
+                        rec.in_at(0),
+                        rec.in_at(1),
+                        shape,
+                        extra));
             }
             return;
         }
@@ -1498,6 +1504,7 @@ void record_phase_op(
         {
             shape = spec->second.shape;
         }
+        auto const extra = decode_torch_dispatch_attrs(a);
         if (rec.has_out(0))
         {
             torch_ternary(
@@ -1505,7 +1512,8 @@ void record_phase_op(
                 rec.in_at(0),
                 rec.in_at(1),
                 rec.in_at(2),
-                rec.need(rec.outputs[0]));
+                rec.need(rec.outputs[0]),
+                extra);
         }
         else
         {
@@ -1516,7 +1524,8 @@ void record_phase_op(
                     rec.in_at(0),
                     rec.in_at(1),
                     rec.in_at(2),
-                    shape));
+                    shape,
+                    extra));
         }
         return;
     }
