@@ -154,3 +154,43 @@ def test_addmm_forward_layout_roundtrip_shapes():
             assert len(layout.get("sizes") or []) == len(
                 layout.get("strides") or []
             )
+
+
+def test_sum_flush_keeps_reduction_dims():
+    # Regression: the PhaseIR used to encode only attrs.kind for
+    # TORCH_UNARY ops, dropping sum's reduction dims/keepdim. The
+    # platform had to ship a reference stand-in that guesses the dims
+    # by right-aligning the declared output shape - and a daemon-side
+    # execution reduced over the wrong axis set - zoo README gap 3.
+    stdout = _run(
+        _HOOKS
+        + textwrap.dedent(
+            """
+            torch.manual_seed(0)
+            x = torch.randn(6, 8).to("nntile")
+            y = x.sum(dim=1)
+            z = x.sum(dim=[0, 1], keepdim=True)
+            torch_nntile.wait()
+            print("phases", json.dumps(phases))
+            """
+        )
+    )
+    phases = json.loads(stdout.split("phases ", 1)[1].splitlines()[0])
+    ops = _torch_ops(phases)
+    sums = [
+        op
+        for op in ops
+        if op.get("op_name") == "TORCH_UNARY"
+        and (op.get("attrs") or {}).get("kind") == 40
+    ]
+    assert len(sums) >= 2, f"expected two recorded sums: {ops}"
+    reductions = []
+    for op in sums:
+        iargs = (op.get("attrs") or {}).get("iargs")
+        assert iargs, f"sum op carries no iargs: {op}"
+        n_dims = iargs[0]
+        keepdim = iargs[1] != 0
+        dims = sorted(iargs[2:2 + n_dims])
+        reductions.append((dims, keepdim))
+    assert ([0, 1], True) in reductions, reductions
+    assert ([1], False) in reductions, reductions
