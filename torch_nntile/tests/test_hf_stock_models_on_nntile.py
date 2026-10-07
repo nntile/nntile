@@ -171,6 +171,79 @@ def test_stock_gpt_neo_forward_backward_on_nntile():
     )
 
 
+def test_stock_gpt_neo_two_step_training_matches_cpu():
+    """Two optimizer steps on nntile must track the CPU run.
+
+    Single forward/backward parity (the tests above) does not exercise
+    re-recording the graph across steps with an optimizer in the loop;
+    stock HF GPT-Neo training on nntile relies on exactly that.
+    """
+    torch.manual_seed(2)
+    cfg = GPTNeoConfig(
+        vocab_size=128,
+        hidden_size=64,
+        intermediate_size=128,
+        num_layers=2,
+        num_heads=4,
+        max_position_embeddings=16,
+        attention_types=[[["global"], 1], [["local"], 1]],
+        window_size=4,
+        activation_function="gelu_new",
+        attention_dropout=0.0,
+        embed_dropout=0.0,
+        resid_dropout=0.0,
+    )
+    cfg._attn_implementation = "eager"
+    ref = GPTNeoForCausalLM(cfg).train().float()
+    model = GPTNeoForCausalLM(cfg).train().float()
+    with torch.no_grad():
+        model.load_state_dict(ref.state_dict())
+        model = model.to("nntile")
+    opt_ref = torch.optim.SGD(ref.parameters(), lr=1e-3)
+    opt_nnt = torch.optim.SGD(model.parameters(), lr=1e-3)
+    batches = []
+    for step in range(2):
+        g = torch.Generator().manual_seed(100 + step)
+        batches.append(torch.randint(0, cfg.vocab_size, (2, 8), generator=g))
+
+    def nnt_cpu(tensor: torch.Tensor) -> torch.Tensor:
+        if tensor.device.type == "nntile" and not tensor.is_contiguous():
+            tensor = tensor.contiguous()
+        if tensor.device.type == "nntile" and torch_nntile.has_pending_graph():
+            torch_nntile.compile_graph()
+            torch_nntile.run()
+        with torch.no_grad():
+            return tensor.cpu()
+
+    for step, ids in enumerate(batches):
+        loss_ref = ref(ids).logits.sum()
+        loss_ref.backward()
+        opt_ref.step()
+        opt_ref.zero_grad(set_to_none=True)
+        loss = model(ids.to("nntile")).logits.sum()
+        loss.backward()
+        opt_nnt.step()
+        opt_nnt.zero_grad(set_to_none=True)
+        torch.testing.assert_close(
+            nnt_cpu(loss),
+            loss_ref.detach(),
+            rtol=RTOL,
+            atol=RTOL,
+            msg=f"step {step}: loss drift",
+        )
+    for (name_ref, p_ref), (name_nnt, p_nnt) in zip(
+        ref.named_parameters(), model.named_parameters()
+    ):
+        assert name_ref == name_nnt
+        torch.testing.assert_close(
+            nnt_cpu(p_nnt),
+            p_ref.detach(),
+            rtol=1e-4,
+            atol=1e-5,
+            msg=f"{name_ref}: two-step training drift",
+        )
+
+
 def test_stock_gpt_neox_forward_backward_on_nntile():
     torch.manual_seed(3)
     cfg = GPTNeoXConfig(
