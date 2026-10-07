@@ -224,6 +224,13 @@ elseif(USE_CUDA)
         endif()
         enable_language(CUDA)
         find_package(CUDAToolkit 11.0 REQUIRED)
+        # Shared cudart for every consumer of libnntile: the nnhaul
+        # branch already pulls CUDA::cudart (shared) via the imported
+        # nnhaul target, while the StarPU-only path silently took
+        # nvcc's static default - two different cudart instances
+        # across wheels of the same library, and a baked-in launch
+        # path that no interposition or profiler can see.
+        set(CMAKE_CUDA_RUNTIME_LIBRARY Shared)
         # Prefer pip nvidia-*-cu12 for cublas/cudart when wheel CI (or a
         # local build) exports NVIDIA_* paths / NNTILE_CUDA_FROM_PIP.
         include("${PROJECT_SOURCE_DIR}/cmake/NNTilePreferPipCuda.cmake")
