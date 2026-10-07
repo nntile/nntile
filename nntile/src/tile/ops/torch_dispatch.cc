@@ -15,7 +15,9 @@
 #include <nntile/core/torch_meta.hh>
 #include <nntile/dtype.hh>
 #include <nntile/runtime.hh>
+#ifndef NNTILE_USE_NNHAUL
 #include <nntile/starpu/handle.hh>
+#endif
 
 namespace nntile::tile
 {
@@ -198,46 +200,121 @@ void TileTorchUnaryOp::execute(Runtime &runtime) const
             out->shape());
     if (kind == starpu::TorchKind::Cast)
     {
-        starpu::Handle in_h;
-        starpu::Handle out_h;
-        switch (in->dtype())
+        // Grab the typed tiles and pass them straight through: the
+        // core bridge only needs Handle references, and the dtype
+        // dispatch is fully expressed by this switch on both
+        // backends.
+        if (in->dtype() == DataType::FP32 &&
+            out->dtype() == DataType::FP32)
         {
-        case DataType::FP32:
-            in_h = runtime.get_tile<fp32_t>(in);
-            break;
-        case DataType::INT64:
-            in_h = runtime.get_tile<int64_t>(in);
-            break;
-        case DataType::BOOL:
-            in_h = runtime.get_tile<bool_t>(in);
-            break;
-        default:
-            throw std::runtime_error(
-                "TILE_TORCH_UNARY Cast: bad src dtype");
+            core::torch_cast_out(
+                runtime.starpu_worker_hint(),
+                runtime.get_tile<fp32_t>(in),
+                in_meta,
+                runtime.get_tile<fp32_t>(out),
+                out_meta,
+                extra);
+            return;
         }
-        switch (out->dtype())
+        if (in->dtype() == DataType::INT64 &&
+            out->dtype() == DataType::INT64)
         {
-        case DataType::FP32:
-            out_h = runtime.get_tile<fp32_t>(out);
-            break;
-        case DataType::INT64:
-            out_h = runtime.get_tile<int64_t>(out);
-            break;
-        case DataType::BOOL:
-            out_h = runtime.get_tile<bool_t>(out);
-            break;
-        default:
-            throw std::runtime_error(
-                "TILE_TORCH_UNARY Cast: bad dst dtype");
+            core::torch_cast_out(
+                runtime.starpu_worker_hint(),
+                runtime.get_tile<int64_t>(in),
+                in_meta,
+                runtime.get_tile<int64_t>(out),
+                out_meta,
+                extra);
+            return;
         }
-        core::torch_cast_out(
-            runtime.starpu_worker_hint(),
-            in_h,
-            in_meta,
-            out_h,
-            out_meta,
-            extra);
-        return;
+        if (in->dtype() == DataType::BOOL &&
+            out->dtype() == DataType::BOOL)
+        {
+            core::torch_cast_out(
+                runtime.starpu_worker_hint(),
+                runtime.get_tile<bool_t>(in),
+                in_meta,
+                runtime.get_tile<bool_t>(out),
+                out_meta,
+                extra);
+            return;
+        }
+        // Mixed-dtype cast: same-shape copy with dtype change.
+        if (in->dtype() == DataType::FP32 &&
+            out->dtype() == DataType::BOOL)
+        {
+            core::torch_cast_out(
+                runtime.starpu_worker_hint(),
+                runtime.get_tile<fp32_t>(in),
+                in_meta,
+                runtime.get_tile<bool_t>(out),
+                out_meta,
+                extra);
+            return;
+        }
+        if (in->dtype() == DataType::INT64 &&
+            out->dtype() == DataType::BOOL)
+        {
+            core::torch_cast_out(
+                runtime.starpu_worker_hint(),
+                runtime.get_tile<int64_t>(in),
+                in_meta,
+                runtime.get_tile<bool_t>(out),
+                out_meta,
+                extra);
+            return;
+        }
+        if (in->dtype() == DataType::INT64 &&
+            out->dtype() == DataType::FP32)
+        {
+            core::torch_cast_out(
+                runtime.starpu_worker_hint(),
+                runtime.get_tile<int64_t>(in),
+                in_meta,
+                runtime.get_tile<fp32_t>(out),
+                out_meta,
+                extra);
+            return;
+        }
+        if (in->dtype() == DataType::FP32 &&
+            out->dtype() == DataType::INT64)
+        {
+            core::torch_cast_out(
+                runtime.starpu_worker_hint(),
+                runtime.get_tile<fp32_t>(in),
+                in_meta,
+                runtime.get_tile<int64_t>(out),
+                out_meta,
+                extra);
+            return;
+        }
+        if (in->dtype() == DataType::BOOL &&
+            out->dtype() == DataType::FP32)
+        {
+            core::torch_cast_out(
+                runtime.starpu_worker_hint(),
+                runtime.get_tile<bool_t>(in),
+                in_meta,
+                runtime.get_tile<fp32_t>(out),
+                out_meta,
+                extra);
+            return;
+        }
+        if (in->dtype() == DataType::BOOL &&
+            out->dtype() == DataType::INT64)
+        {
+            core::torch_cast_out(
+                runtime.starpu_worker_hint(),
+                runtime.get_tile<bool_t>(in),
+                in_meta,
+                runtime.get_tile<int64_t>(out),
+                out_meta,
+                extra);
+            return;
+        }
+        throw std::runtime_error(
+            "TILE_TORCH_UNARY Cast: unsupported dtype pair");
     }
     if (kind == starpu::TorchKind::Tril)
     {

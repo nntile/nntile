@@ -105,6 +105,7 @@ Context::Context(
     {
         throw std::runtime_error("NNHaul is already initialized");
     }
+#ifndef NNTILE_USE_CUDA
     if (ncpu < 0)
     {
         unsigned const hc = std::thread::hardware_concurrency();
@@ -114,7 +115,6 @@ Context::Context(
     {
         ncpu = 1;
     }
-#ifndef NNTILE_USE_CUDA
     if (ncuda < 0)
     {
         ncuda = 0;
@@ -126,8 +126,15 @@ Context::Context(
     }
     cuda_cap_bytes_each = 0;
 #else
+    // CUDA is the default worker: with no explicit ncpu the context
+    // creates no CPU workers, so every codelet that has a CUDA kernel
+    // executes on a GPU and CPU-only codelets fail loudly in resolve().
     // Worker 0 is the default CUDA worker. Callers that pass ncuda <= 0
     // still get that worker, otherwise a CUDA codelet with no hint throws.
+    if (ncpu < 0)
+    {
+        ncpu = 0;
+    }
     if (ncuda < 1)
     {
         ncuda = 1;
@@ -165,7 +172,10 @@ Context::Context(
     // The first CPU worker stays the default for CPU-only codelets.
     ::nnhaul::set_default_cuda_worker(0);
 #endif
-    ::nnhaul::set_default_cpu_worker(ncuda);
+    if (ncpu > 0)
+    {
+        ::nnhaul::set_default_cpu_worker(ncuda);
+    }
     g_backend_ncpu = ncpu;
     g_backend_ncuda = ncuda;
     g_backend_ready = true;

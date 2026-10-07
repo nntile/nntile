@@ -149,10 +149,14 @@ add_subdirectory("external")
 
 include(CheckSymbolExists)
 if(NNTILE_USE_NNHAUL)
+    # Torch-native dispatch runs on NNHaul too: the graph IR
+    # (TorchKind/TorchDispatchArgs and the tensor/tile layers) is
+    # backend-neutral, and nntile/src/nnhaul/torch_dispatch.cc carries
+    # the codelet substrate. Flash SDPA is still StarPU-only.
     if(NNTILE_TORCH_NATIVE_OPS)
-        message(FATAL_ERROR
-            "NNTILE_USE_NNHAUL does not build torch-native dispatch. "
-            "Pass -DNNTILE_TORCH_NATIVE_OPS=OFF.")
+        message(STATUS
+            "NNTILE_USE_NNHAUL + NNTILE_TORCH_NATIVE_OPS: torch-native "
+            "dispatch on the NNHaul backend")
     endif()
     if(USE_FLASH_SDPA)
         message(FATAL_ERROR

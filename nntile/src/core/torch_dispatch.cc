@@ -11,7 +11,26 @@
 
 #include <stdexcept>
 
+#ifdef NNTILE_USE_NNHAUL
+// The bridge is single-node under NNHaul: provide the same fake MPI
+// rank the StarPU config carries, without pulling starpu.h.
+namespace nntile
+{
+
+static int starpu_mpi_world_rank()
+{
+    return 0;
+}
+
+static int starpu_mpi_world_size()
+{
+    return 1;
+}
+
+} // namespace nntile
+#else
 #include "nntile/starpu/config.hh"
+#endif
 
 namespace nntile::core
 {
