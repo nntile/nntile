@@ -228,6 +228,14 @@ void Context::restore_where()
     g_schedule_kind_filter = ScheduleKindFilter::Any;
 }
 
+//! ExecutionDaemon self-configuration (NNTILE_DAEMON_RESTRICT_CUDA=1):
+//! map to the same schedule-kind filter the Context API uses. The
+//! StarPU-side definition lives in context.cc under !NNHAUL.
+void restrict_codelets_to_cuda()
+{
+    g_schedule_kind_filter = ScheduleKindFilter::Cuda;
+}
+
 } // namespace nntile
 
 #endif // NNTILE_USE_NNHAUL
