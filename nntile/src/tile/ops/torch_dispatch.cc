@@ -691,7 +691,8 @@ void TileTorchEmbeddingDenseBackwardOp::execute(Runtime &runtime) const
         idx_t,
         idx_meta,
         gw_t,
-        gw_meta);
+        gw_meta,
+        static_cast<std::int64_t>(extra.iargs[1]));
 }
 
 void torch_convolution(

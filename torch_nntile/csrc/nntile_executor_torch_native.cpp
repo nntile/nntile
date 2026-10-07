@@ -2427,7 +2427,8 @@ void tensor_embedding_backward_fp32(
     const at::Tensor &grad_out,
     at::Tensor &grad_weight,
     nntile::Index /*axis*/,
-    int /*redux*/)
+    int /*redux*/,
+    std::int64_t padding_idx)
 {
     const std::vector<nntile::Index> index_graph =
         pytorch_shape_to_graph(indices.sizes());
@@ -2453,6 +2454,7 @@ void tensor_embedding_backward_fp32(
         false);
 
     nntile::starpu::TorchDispatchArgs extra{};
+    extra.iargs[1] = static_cast<nntile::Index>(padding_idx);
     pack_tensor_layout(extra, 0, grad_out, false);
     pack_tensor_layout(extra, 1, indices, false);
     pack_tensor_layout(extra, 0, grad_weight, true);

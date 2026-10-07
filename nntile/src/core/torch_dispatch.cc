@@ -723,7 +723,8 @@ void torch_embedding_dense_backward_out(
     const Tile<int64_t> &indices,
     const TorchTileMeta &indices_meta,
     const Tile<fp32_t> &grad_weight,
-    const TorchTileMeta &grad_weight_meta)
+    const TorchTileMeta &grad_weight_meta,
+    std::int64_t padding_idx)
 {
     int mpi_rank = starpu_mpi_world_rank();
     int out_rank = grad_weight.mpi_get_rank();
@@ -740,6 +741,7 @@ void torch_embedding_dense_backward_out(
     args.iargs[0] = grad_weight_meta.sizes.empty()
         ? 0
         : grad_weight_meta.sizes[0];
+    args.iargs[1] = static_cast<Index>(padding_idx);
     pack_meta_into(args, 0, grad_meta, false);
     pack_meta_into(args, 1, indices_meta, false);
     pack_meta_into(args, 0, grad_weight_meta, true);

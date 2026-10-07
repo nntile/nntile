@@ -162,7 +162,8 @@ at::Tensor embedding_dense_backward(
         grad_ref,
         grad_weight,
         axis,
-        0);
+        0,
+        padding_idx);
     return grad_weight;
 }
 

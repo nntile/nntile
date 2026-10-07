@@ -580,7 +580,8 @@ void tensor_embedding_backward_fp32(
     const at::Tensor &grad_out,
     at::Tensor &grad_weight,
     nntile::Index axis,
-    int redux);
+    int redux,
+    std::int64_t padding_idx);
 
 void tensor_sdpa_forward_fp32(
     const at::Tensor &q,
