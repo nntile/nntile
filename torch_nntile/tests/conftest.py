@@ -110,6 +110,11 @@ def ensure_nntile_context(
     parity tests that require unsupported ATen ops to fail instead of silently
     falling back to CPU.
     """
+    # The NNHaul runtime rejects CPU-restricted schedules for tasks
+    # that must run on its CUDA workers, and silent CPU fallback is
+    # already refused via cpu_fallback=False, so the StarPU-only
+    # restrict_cpu() call is skipped there.
+    restrict = not torch_nntile.uses_nnhaul()
     if not torch_nntile.is_context_initialized():
         torch_nntile.init_context(
             ncpu=ncpu,
@@ -117,7 +122,8 @@ def ensure_nntile_context(
             verbose=verbose,
             cpu_fallback=cpu_fallback,
         )
-        torch_nntile.restrict_cpu()
+        if restrict:
+            torch_nntile.restrict_cpu()
         return
     if cpu_fallback and torch_nntile.is_cpu_fallback_enabled():
         return
@@ -126,7 +132,8 @@ def ensure_nntile_context(
             "nntile context already initialized with cpu_fallback=True; "
             "tests in this process require cpu_fallback=False"
         )
-    torch_nntile.restrict_cpu()
+    if restrict:
+        torch_nntile.restrict_cpu()
 
 
 def pytest_collection_modifyitems(config, items) -> None:

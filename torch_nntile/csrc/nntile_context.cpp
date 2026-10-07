@@ -136,6 +136,15 @@ void ensure_nntile_context()
     create_context_locked();
 }
 
+bool uses_nnhaul()
+{
+#ifdef NNTILE_USE_NNHAUL
+    return true;
+#else
+    return false;
+#endif
+}
+
 void restrict_cpu()
 {
     if (platform_session_active())

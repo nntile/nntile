@@ -478,11 +478,133 @@ private:
     const char *name_;
 };
 
-extern TorchStub const torch_convolution;
-extern TorchStub const torch_convolution_backward;
-extern TorchStub const torch_max_pool2d_with_indices;
-extern TorchStub const torch_max_pool2d_with_indices_backward;
 extern TorchStub const torch_sdpa_backward;
+
+//! aten::convolution through the public dispatcher entry. The simple
+//! port: at::convolution_out lets aten pick the backend (cuDNN on
+//! CUDA), accepting the extra copying a hand-tuned backend switch
+//! would avoid.
+class TorchConvolution
+{
+public:
+    Codelet codelet;
+    using args_t = starpu::TorchDispatchArgs;
+
+    TorchConvolution();
+
+    static void cpu(void *buffers[], void *cl_args) noexcept;
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+#endif
+    static std::uint64_t footprint(
+        void const *cl_args, std::size_t cl_arg_size) noexcept
+    {
+        return torch_args_footprint(cl_args, cl_arg_size);
+    }
+
+    void submit(
+        int worker_hint,
+        starpu::TorchDispatchArgs const &meta,
+        TorchHandle const &input,
+        TorchHandle const &weight,
+        TorchHandle const &bias, // aliases input when the op has none
+        TorchHandle const &out,
+        bool has_bias);
+};
+
+//! aten::convolution_backward through the public dispatcher entry
+//! (at::convolution_backward_out writes caller-provided buffers).
+class TorchConvolutionBackward
+{
+public:
+    Codelet codelet;
+    using args_t = starpu::TorchDispatchArgs;
+
+    TorchConvolutionBackward();
+
+    static void cpu(void *buffers[], void *cl_args) noexcept;
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+#endif
+    static std::uint64_t footprint(
+        void const *cl_args, std::size_t cl_arg_size) noexcept
+    {
+        return torch_args_footprint(cl_args, cl_arg_size);
+    }
+
+    void submit(
+        int worker_hint,
+        starpu::TorchDispatchArgs const &meta,
+        TorchHandle const &grad_out,
+        TorchHandle const &input,
+        TorchHandle const &weight,
+        TorchHandle const &grad_input, // aliases inputs when not needed
+        TorchHandle const &grad_weight,
+        TorchHandle const &grad_bias,
+        bool need_grad_input,
+        bool need_grad_weight,
+        bool need_grad_bias);
+};
+
+//! aten::max_pool2d_with_indices (out variant), 2-D only.
+class TorchMaxPool2dWithIndices
+{
+public:
+    Codelet codelet;
+    using args_t = starpu::TorchDispatchArgs;
+
+    TorchMaxPool2dWithIndices();
+
+    static void cpu(void *buffers[], void *cl_args) noexcept;
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+#endif
+    static std::uint64_t footprint(
+        void const *cl_args, std::size_t cl_arg_size) noexcept
+    {
+        return torch_args_footprint(cl_args, cl_arg_size);
+    }
+
+    void submit(
+        int worker_hint,
+        starpu::TorchDispatchArgs const &meta,
+        TorchHandle const &input,
+        TorchHandle const &out,
+        TorchHandle const &indices);
+};
+
+//! aten::max_pool2d_with_indices_backward (out variant), 2-D only.
+class TorchMaxPool2dWithIndicesBackward
+{
+public:
+    Codelet codelet;
+    using args_t = starpu::TorchDispatchArgs;
+
+    TorchMaxPool2dWithIndicesBackward();
+
+    static void cpu(void *buffers[], void *cl_args) noexcept;
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+#endif
+    static std::uint64_t footprint(
+        void const *cl_args, std::size_t cl_arg_size) noexcept
+    {
+        return torch_args_footprint(cl_args, cl_arg_size);
+    }
+
+    void submit(
+        int worker_hint,
+        starpu::TorchDispatchArgs const &meta,
+        TorchHandle const &grad_out,
+        TorchHandle const &input,
+        TorchHandle const &indices,
+        TorchHandle const &grad_input);
+};
+
+extern TorchConvolution torch_convolution;
+extern TorchConvolutionBackward torch_convolution_backward;
+extern TorchMaxPool2dWithIndices torch_max_pool2d_with_indices;
+extern TorchMaxPool2dWithIndicesBackward torch_max_pool2d_with_indices_backward;
 
 //! native_batch_norm forward. The layer_norm composite decomposes to
 //! this family (training=true, no running stats), so GPT-2 records it

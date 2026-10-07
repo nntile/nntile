@@ -161,8 +161,45 @@ inline void insert_task(
             cl_arg_size,
             id);
         break;
+    case 9:
+        ::nnhaul::insert(
+            codelet,
+            {uses[0], uses[1], uses[2], uses[3], uses[4], uses[5],
+                uses[6], uses[7], uses[8]},
+            cl_args,
+            cl_arg_size,
+            id);
+        break;
+    case 10:
+        ::nnhaul::insert(
+            codelet,
+            {uses[0], uses[1], uses[2], uses[3], uses[4], uses[5],
+                uses[6], uses[7], uses[8], uses[9]},
+            cl_args,
+            cl_arg_size,
+            id);
+        break;
+    case 11:
+        ::nnhaul::insert(
+            codelet,
+            {uses[0], uses[1], uses[2], uses[3], uses[4], uses[5],
+                uses[6], uses[7], uses[8], uses[9], uses[10]},
+            cl_args,
+            cl_arg_size,
+            id);
+        break;
+    case 12:
+        ::nnhaul::insert(
+            codelet,
+            {uses[0], uses[1], uses[2], uses[3], uses[4], uses[5],
+                uses[6], uses[7], uses[8], uses[9], uses[10], uses[11]},
+            cl_args,
+            cl_arg_size,
+            id);
+        break;
     default:
-        throw std::runtime_error("too many NNHaul buffers");
+        throw std::runtime_error(
+            "too many NNHaul buffers: " + std::to_string(uses.size()));
     }
 }
 

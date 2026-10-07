@@ -223,6 +223,10 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         &torch_nntile::is_context_initialized,
         "Whether the libnntile context has been created");
     m.def(
+        "uses_nnhaul",
+        &torch_nntile::uses_nnhaul,
+        "True when libnntile runs on the NNHaul runtime backend");
+    m.def(
         "restrict_cpu",
         &torch_nntile::restrict_cpu,
         "Run StarPU codelets on CPU workers only");

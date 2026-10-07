@@ -350,9 +350,14 @@ def run_tiny_cnn_train(
         verbose=0,
         cpu_fallback=bool(args.cpu_fallback),
     )
+    # On the NNHaul backend ncuda=0 does not imply CPU-only workers
+    # (the backend schedules on its CUDA workers by default), and a CPU
+    # restriction makes run() reject the schedule - so the automatic
+    # CPU restriction is StarPU-only.
+    starpu_driver = not torch_nntile.uses_nnhaul()
     if getattr(args, "restrict_cuda", False):
         torch_nntile.restrict_cuda()
-    elif getattr(args, "restrict_cpu", False) or ncuda == 0:
+    elif getattr(args, "restrict_cpu", False) or (ncuda == 0 and starpu_driver):
         torch_nntile.restrict_cpu()
     try:
         with torch.no_grad():

@@ -30,6 +30,16 @@
 #include <ATen/ATen.h>
 #include <ATen/Context.h>
 #include <ATen/core/grad_mode.h>
+#include <ATen/ops/_adaptive_avg_pool2d.h>
+#include <ATen/ops/avg_pool2d.h>
+#include <ATen/ops/convolution.h>
+#include <ATen/ops/convolution_backward.h>
+#include <ATen/ops/max_pool2d_with_indices.h>
+#include <ATen/ops/max_pool2d_with_indices_backward.h>
+#include <ATen/ops/upsample_bilinear2d.h>
+#include <ATen/ops/upsample_bilinear2d_backward.h>
+#include <ATen/ops/upsample_nearest2d.h>
+#include <ATen/ops/upsample_nearest2d_backward.h>
 #include <c10/util/Optional.h>
 
 #ifdef NNTILE_USE_CUDA
@@ -59,6 +69,7 @@ std::vector<std::int64_t> sizes_of(
     const Index *raw = is_out ? args.out_sizes[slot] : args.in_sizes[slot];
     return to_i64(raw, ndim);
 }
+
 
 std::vector<std::int64_t> strides_of(
     const TorchDispatchArgs &args,
@@ -283,6 +294,59 @@ void run_unary(
             result,
             self,
             static_cast<std::int64_t>(args->iargs[0]));
+        break;
+    case TorchKind::AvgPool2d:
+        at::avg_pool2d_out(
+            result,
+            self,
+            iarg_vec(*args, 0, 2),
+            iarg_vec(*args, 2, 2),
+            iarg_vec(*args, 4, 2),
+            args->iargs[6] != 0,
+            args->iargs[7] != 0,
+            optional_iarg(*args, 8, 9));
+        break;
+    case TorchKind::AdaptiveAvgPool2d:
+        at::_adaptive_avg_pool2d_out(
+            result,
+            self,
+            iarg_vec(*args, 0, 2));
+        break;
+    case TorchKind::UpsampleNearest2d:
+        at::upsample_nearest2d_out(
+            result,
+            self,
+            iarg_vec(*args, 0, 2),
+            optional_scale(*args, 2, 0),
+            optional_scale(*args, 3, 1));
+        break;
+    case TorchKind::UpsampleNearest2dBackward:
+        at::upsample_nearest2d_backward_out(
+            result,
+            self,
+            iarg_vec(*args, 0, 2),
+            iarg_vec(*args, 2, 4),
+            optional_scale(*args, 6, 0),
+            optional_scale(*args, 7, 1));
+        break;
+    case TorchKind::UpsampleBilinear2d:
+        at::upsample_bilinear2d_out(
+            result,
+            self,
+            iarg_vec(*args, 0, 2),
+            args->iargs[2] != 0,
+            optional_scale(*args, 3, 0),
+            optional_scale(*args, 4, 1));
+        break;
+    case TorchKind::UpsampleBilinear2dBackward:
+        at::upsample_bilinear2d_backward_out(
+            result,
+            self,
+            iarg_vec(*args, 0, 2),
+            iarg_vec(*args, 2, 4),
+            args->iargs[6] != 0,
+            optional_scale(*args, 7, 0),
+            optional_scale(*args, 8, 1));
         break;
     case TorchKind::Softmax:
         at::_softmax_out(
@@ -1809,11 +1873,443 @@ torch_unary_pack_t torch_unary;
 torch_binary_pack_t torch_binary;
 torch_ternary_pack_t torch_ternary;
 
-TorchStub const torch_convolution{"convolution"};
-TorchStub const torch_convolution_backward{"convolution_backward"};
-TorchStub const torch_max_pool2d_with_indices{"max_pool2d_with_indices"};
-TorchStub const torch_max_pool2d_with_indices_backward{
-    "max_pool2d_with_indices_backward"};
+//! aten::convolution via the public dispatcher entry: the simple port
+//! calls at::convolution_out and lets aten select the backend (cuDNN on
+//! CUDA), accepting extra copies a hand-tuned backend switch (the
+//! StarPU path) would avoid. 1-D configs go through aten's own folding.
+TorchConvolution::TorchConvolution():
+    codelet(
+        "nntile_torch_convolution",
+        &TorchConvolution::cpu,
+#ifdef NNTILE_USE_CUDA
+        &TorchConvolution::cuda,
+#else
+        nullptr,
+#endif
+        &TorchConvolution::footprint)
+{
+}
+
+void TorchConvolution::cpu(void *buffers[], void *cl_args) noexcept
+{
+    try
+    {
+        auto *args = reinterpret_cast<TorchDispatchArgs *>(cl_args);
+        const bool has_bias = args->iargs[11] != 0;
+        Index buf = 0;
+        at::Tensor input = in_fp32(buf_as<float>(buffers, buf++), *args, 0);
+        at::Tensor weight = in_fp32(buf_as<float>(buffers, buf++), *args, 1);
+        at::Tensor bias;
+        if (has_bias)
+        {
+            bias = in_fp32(buf_as<float>(buffers, buf++), *args, 2);
+        }
+        at::Tensor out = out_fp32(buf_as<float>(buffers, buf++), *args, 0);
+        const Index ndim = args->iargs[0];
+        at::AutoDispatchBelowADInplaceOrView guard;
+        at::NoGradGuard no_grad;
+        at::convolution_out(
+            out,
+            input,
+            weight,
+            has_bias ? std::optional<at::Tensor>(bias)
+                     : std::nullopt,
+            iarg_vec(*args, 3, ndim),
+            iarg_vec(*args, 5, ndim),
+            iarg_vec(*args, 7, ndim),
+            args->iargs[2] != 0,
+            iarg_vec(*args, 9, ndim),
+            static_cast<std::int64_t>(args->iargs[1]));
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(stderr, "nntile_torch_convolution failed: %s\n", ex.what());
+        std::abort();
+    }
+}
+
+#ifdef NNTILE_USE_CUDA
+void TorchConvolution::cuda(void *buffers[], void *cl_args) noexcept
+{
+    try
+    {
+        HaulTorchCudaEnv cuda_env;
+        (void)cuda_env;
+        cpu(buffers, cl_args);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_convolution CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+}
+#endif // NNTILE_USE_CUDA
+
+void TorchConvolution::submit(
+    int worker_hint,
+    args_t const &meta,
+    TorchHandle const &input,
+    TorchHandle const &weight,
+    TorchHandle const &bias,
+    TorchHandle const &out,
+    bool has_bias)
+{
+    args_t args = meta;
+    args.kind = TorchKind::Convolution;
+    args.iargs[11] = has_bias ? 1 : 0;
+    std::vector<BufSpec> bufs;
+    bufs.push_back(BufSpec{STARPU_R, &input.get()});
+    bufs.push_back(BufSpec{STARPU_R, &weight.get()});
+    if (has_bias)
+    {
+        bufs.push_back(BufSpec{STARPU_R, &bias.get()});
+    }
+    bufs.push_back(BufSpec{STARPU_W, &out.get()});
+    torch_insert(codelet, worker_hint, args, bufs);
+}
+
+//! aten::convolution_backward via the public dispatcher entry
+//! (out variant: writes the caller-provided grad buffers).
+TorchConvolutionBackward::TorchConvolutionBackward():
+    codelet(
+        "nntile_torch_convolution_backward",
+        &TorchConvolutionBackward::cpu,
+#ifdef NNTILE_USE_CUDA
+        &TorchConvolutionBackward::cuda,
+#else
+        nullptr,
+#endif
+        &TorchConvolutionBackward::footprint)
+{
+}
+
+void TorchConvolutionBackward::cpu(void *buffers[], void *cl_args) noexcept
+{
+    try
+    {
+        auto *args = reinterpret_cast<TorchDispatchArgs *>(cl_args);
+        const bool need_gi = args->iargs[12] != 0;
+        const bool need_gw = args->iargs[13] != 0;
+        const bool need_gb = args->iargs[14] != 0;
+        Index buf = 0;
+        at::Tensor grad_out =
+            in_fp32(buf_as<float>(buffers, buf++), *args, 0);
+        at::Tensor input = in_fp32(buf_as<float>(buffers, buf++), *args, 1);
+        at::Tensor weight = in_fp32(buf_as<float>(buffers, buf++), *args, 2);
+        at::Tensor grad_input;
+        at::Tensor grad_weight;
+        at::Tensor grad_bias;
+        if (need_gi)
+        {
+            grad_input = out_fp32(buf_as<float>(buffers, buf++), *args, 0);
+        }
+        if (need_gw)
+        {
+            grad_weight = out_fp32(buf_as<float>(buffers, buf++), *args, 1);
+        }
+        if (need_gb)
+        {
+            grad_bias = out_fp32(buf_as<float>(buffers, buf++), *args, 2);
+        }
+        // The dispatcher's out wrapper requires defined tensors for every
+        // output even when the output mask skips it.
+        if (!need_gi)
+        {
+            grad_input = at::empty({0}, input.options());
+        }
+        if (!need_gw)
+        {
+            grad_weight = at::empty({0}, weight.options());
+        }
+        if (!need_gb)
+        {
+            grad_bias = at::empty({0}, input.options());
+        }
+        const Index ndim = args->iargs[0];
+        std::vector<std::int64_t> bias_sizes_vec;
+        at::OptionalIntArrayRef bias_sizes = c10::nullopt;
+        if (need_gb)
+        {
+            bias_sizes_vec = sizes_of(*args, 2, true);
+            bias_sizes = at::IntArrayRef(bias_sizes_vec);
+        }
+        at::AutoDispatchBelowADInplaceOrView guard;
+        at::NoGradGuard no_grad;
+        // The functional entry allocates its own outputs (the _out
+        // wrapper demands uninitialized buffers), so the results are
+        // copied into the caller's tiles - the accepted extra copying
+        // of the simple port.
+        auto grads = at::convolution_backward(
+            grad_out,
+            input,
+            weight,
+            bias_sizes,
+            iarg_vec(*args, 3, ndim),
+            iarg_vec(*args, 5, ndim),
+            iarg_vec(*args, 7, ndim),
+            args->iargs[2] != 0,
+            iarg_vec(*args, 9, ndim),
+            static_cast<std::int64_t>(args->iargs[1]),
+            {need_gi, need_gw, need_gb});
+        if (need_gi)
+        {
+            grad_input.copy_(std::get<0>(grads));
+        }
+        if (need_gw)
+        {
+            grad_weight.copy_(std::get<1>(grads));
+        }
+        if (need_gb)
+        {
+            grad_bias.copy_(std::get<2>(grads));
+        }
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_convolution_backward failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+}
+
+#ifdef NNTILE_USE_CUDA
+void TorchConvolutionBackward::cuda(void *buffers[], void *cl_args) noexcept
+{
+    try
+    {
+        HaulTorchCudaEnv cuda_env;
+        (void)cuda_env;
+        cpu(buffers, cl_args);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_convolution_backward CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+}
+#endif // NNTILE_USE_CUDA
+
+void TorchConvolutionBackward::submit(
+    int worker_hint,
+    args_t const &meta,
+    TorchHandle const &grad_out,
+    TorchHandle const &input,
+    TorchHandle const &weight,
+    TorchHandle const &grad_input,
+    TorchHandle const &grad_weight,
+    TorchHandle const &grad_bias,
+    bool need_grad_input,
+    bool need_grad_weight,
+    bool need_grad_bias)
+{
+    args_t args = meta;
+    args.kind = TorchKind::ConvolutionBackward;
+    args.iargs[12] = need_grad_input ? 1 : 0;
+    args.iargs[13] = need_grad_weight ? 1 : 0;
+    args.iargs[14] = need_grad_bias ? 1 : 0;
+    std::vector<BufSpec> bufs;
+    bufs.push_back(BufSpec{STARPU_R, &grad_out.get()});
+    bufs.push_back(BufSpec{STARPU_R, &input.get()});
+    bufs.push_back(BufSpec{STARPU_R, &weight.get()});
+    if (need_grad_input)
+    {
+        bufs.push_back(BufSpec{STARPU_W, &grad_input.get()});
+    }
+    if (need_grad_weight)
+    {
+        bufs.push_back(BufSpec{STARPU_W, &grad_weight.get()});
+    }
+    if (need_grad_bias)
+    {
+        bufs.push_back(BufSpec{STARPU_W, &grad_bias.get()});
+    }
+    torch_insert(codelet, worker_hint, args, bufs);
+}
+
+//! aten::max_pool2d_with_indices (out variant), 2-D only.
+TorchMaxPool2dWithIndices::TorchMaxPool2dWithIndices():
+    codelet(
+        "nntile_torch_max_pool2d_with_indices",
+        &TorchMaxPool2dWithIndices::cpu,
+#ifdef NNTILE_USE_CUDA
+        &TorchMaxPool2dWithIndices::cuda,
+#else
+        nullptr,
+#endif
+        &TorchMaxPool2dWithIndices::footprint)
+{
+}
+
+void TorchMaxPool2dWithIndices::cpu(
+    void *buffers[], void *cl_args) noexcept
+{
+    try
+    {
+        auto *args = reinterpret_cast<TorchDispatchArgs *>(cl_args);
+        at::Tensor input = in_fp32(buf_as<float>(buffers, 0), *args, 0);
+        at::Tensor out = out_fp32(buf_as<float>(buffers, 1), *args, 0);
+        at::Tensor indices =
+            out_i64(buf_as<std::int64_t>(buffers, 2), *args, 1);
+        at::AutoDispatchBelowADInplaceOrView guard;
+        at::NoGradGuard no_grad;
+        at::max_pool2d_with_indices_out(
+            out,
+            indices,
+            input,
+            iarg_vec(*args, 0, 2),
+            iarg_vec(*args, 2, 2),
+            iarg_vec(*args, 4, 2),
+            iarg_vec(*args, 6, 2),
+            args->iargs[8] != 0);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_max_pool2d_with_indices failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+}
+
+#ifdef NNTILE_USE_CUDA
+void TorchMaxPool2dWithIndices::cuda(
+    void *buffers[], void *cl_args) noexcept
+{
+    try
+    {
+        HaulTorchCudaEnv cuda_env;
+        (void)cuda_env;
+        cpu(buffers, cl_args);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_max_pool2d_with_indices CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+}
+#endif // NNTILE_USE_CUDA
+
+void TorchMaxPool2dWithIndices::submit(
+    int worker_hint,
+    args_t const &meta,
+    TorchHandle const &input,
+    TorchHandle const &out,
+    TorchHandle const &indices)
+{
+    args_t args = meta;
+    args.kind = TorchKind::MaxPool2dWithIndices;
+    torch_insert(
+        codelet,
+        worker_hint,
+        args,
+        {BufSpec{STARPU_R, &input.get()},
+         BufSpec{STARPU_W, &out.get()},
+         BufSpec{STARPU_W, &indices.get()}});
+}
+
+//! aten::max_pool2d_with_indices_backward (out variant), 2-D only.
+TorchMaxPool2dWithIndicesBackward::TorchMaxPool2dWithIndicesBackward():
+    codelet(
+        "nntile_torch_max_pool2d_with_indices_backward",
+        &TorchMaxPool2dWithIndicesBackward::cpu,
+#ifdef NNTILE_USE_CUDA
+        &TorchMaxPool2dWithIndicesBackward::cuda,
+#else
+        nullptr,
+#endif
+        &TorchMaxPool2dWithIndicesBackward::footprint)
+{
+}
+
+void TorchMaxPool2dWithIndicesBackward::cpu(
+    void *buffers[], void *cl_args) noexcept
+{
+    try
+    {
+        auto *args = reinterpret_cast<TorchDispatchArgs *>(cl_args);
+        at::Tensor grad_out =
+            in_fp32(buf_as<float>(buffers, 0), *args, 0);
+        at::Tensor input = in_fp32(buf_as<float>(buffers, 1), *args, 1);
+        at::Tensor indices =
+            in_i64(buf_as<std::int64_t>(buffers, 2), *args, 2);
+        at::Tensor grad_input =
+            out_fp32(buf_as<float>(buffers, 3), *args, 0);
+        at::AutoDispatchBelowADInplaceOrView guard;
+        at::NoGradGuard no_grad;
+        at::max_pool2d_with_indices_backward_out(
+            grad_input,
+            grad_out,
+            input,
+            iarg_vec(*args, 0, 2),
+            iarg_vec(*args, 2, 2),
+            iarg_vec(*args, 4, 2),
+            iarg_vec(*args, 6, 2),
+            args->iargs[8] != 0,
+            indices);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_max_pool2d_with_indices_backward failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+}
+
+#ifdef NNTILE_USE_CUDA
+void TorchMaxPool2dWithIndicesBackward::cuda(
+    void *buffers[], void *cl_args) noexcept
+{
+    try
+    {
+        HaulTorchCudaEnv cuda_env;
+        (void)cuda_env;
+        cpu(buffers, cl_args);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_max_pool2d_with_indices_backward CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+}
+#endif // NNTILE_USE_CUDA
+
+void TorchMaxPool2dWithIndicesBackward::submit(
+    int worker_hint,
+    args_t const &meta,
+    TorchHandle const &grad_out,
+    TorchHandle const &input,
+    TorchHandle const &indices,
+    TorchHandle const &grad_input)
+{
+    args_t args = meta;
+    args.kind = TorchKind::MaxPool2dWithIndicesBackward;
+    torch_insert(
+        codelet,
+        worker_hint,
+        args,
+        {BufSpec{STARPU_R, &grad_out.get()},
+         BufSpec{STARPU_R, &input.get()},
+         BufSpec{STARPU_R, &indices.get()},
+         BufSpec{STARPU_W, &grad_input.get()}});
+}
+
 TorchStub const torch_sdpa_backward{"sdpa_backward"};
 
 
@@ -2190,5 +2686,9 @@ TorchArange torch_arange;
 TorchGt torch_gt;
 TorchI64Unary torch_i64_unary;
 TorchCast torch_cast;
+TorchConvolution torch_convolution;
+TorchConvolutionBackward torch_convolution_backward;
+TorchMaxPool2dWithIndices torch_max_pool2d_with_indices;
+TorchMaxPool2dWithIndicesBackward torch_max_pool2d_with_indices_backward;
 
 } // namespace nntile::haul
