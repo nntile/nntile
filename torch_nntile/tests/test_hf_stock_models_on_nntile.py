@@ -357,6 +357,92 @@ def test_stock_roberta_forward_backward_on_nntile():
     )
 
 
+def test_stock_roberta_two_step_training_matches_cpu():
+    """Two optimizer steps on nntile must track the CPU run.
+
+    RoBERTa feeds pad tokens (id 1) as real inputs through its position
+    scheme, so multi-step training exercises the embedding padding-row
+    gradient. Mirrors the GPT-Neo two-step test: per-step loss and every
+    parameter must track the CPU run.
+    """
+    torch.manual_seed(5)
+    cfg = RobertaConfig(
+        vocab_size=128,
+        hidden_size=64,
+        intermediate_size=128,
+        num_hidden_layers=1,
+        num_attention_heads=4,
+        max_position_embeddings=18,
+        pad_token_id=1,
+        type_vocab_size=1,
+        hidden_dropout_prob=0.0,
+        attention_probs_dropout_prob=0.0,
+    )
+    cfg._attn_implementation = "eager"
+    ref = RobertaForMaskedLM(cfg).train().float()
+    model = RobertaForMaskedLM(cfg).train().float()
+    with torch.no_grad():
+        model.load_state_dict(ref.state_dict())
+        model = model.to("nntile")
+    opt_ref = torch.optim.SGD(ref.parameters(), lr=1e-3)
+    opt_nnt = torch.optim.SGD(model.parameters(), lr=1e-3)
+    # Token ids include pad_token_id=1 as a real input token (as
+    # make_mlm_batch does when it masks positions).
+    batches = []
+    for step in range(2):
+        g = torch.Generator().manual_seed(200 + step)
+        ids = torch.randint(0, cfg.vocab_size, (2, 8), generator=g)
+        ids.view(-1)[::5] = cfg.pad_token_id
+        mask = _ones_mask(ids)
+        position_ids = create_position_ids_from_input_ids(
+            ids, cfg.pad_token_id
+        )
+        batches.append((ids, mask, position_ids))
+
+    def nnt_cpu(tensor: torch.Tensor) -> torch.Tensor:
+        if tensor.device.type == "nntile" and not tensor.is_contiguous():
+            tensor = tensor.contiguous()
+        if tensor.device.type == "nntile" and torch_nntile.has_pending_graph():
+            torch_nntile.compile_graph()
+            torch_nntile.run()
+        with torch.no_grad():
+            return tensor.cpu()
+
+    for step, (ids, mask, position_ids) in enumerate(batches):
+        loss_ref = ref(
+            ids, attention_mask=mask, position_ids=position_ids
+        ).logits.sum()
+        loss_ref.backward()
+        opt_ref.step()
+        opt_ref.zero_grad(set_to_none=True)
+        loss = model(
+            ids.to("nntile"),
+            attention_mask=mask.to("nntile"),
+            position_ids=position_ids.to("nntile"),
+        ).logits.sum()
+        loss.backward()
+        opt_nnt.step()
+        opt_nnt.zero_grad(set_to_none=True)
+        torch.testing.assert_close(
+            nnt_cpu(loss),
+            loss_ref.detach(),
+            rtol=RTOL,
+            atol=RTOL,
+            msg=f"step {step}: loss drift",
+        )
+    for (name_ref, p_ref), (name_nnt, p_nnt) in zip(
+        ref.named_parameters(), model.named_parameters()
+    ):
+        assert name_ref == name_nnt
+        torch.testing.assert_close(
+            nnt_cpu(p_nnt),
+            p_ref.detach(),
+            rtol=1e-4,
+            atol=1e-5,
+            msg=f"{name_ref}: two-step training drift",
+        )
+
+
 def test_stock_t5_forward_backward_on_nntile():
     torch.manual_seed(6)
     cfg = T5Config(
