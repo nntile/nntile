@@ -245,6 +245,11 @@ def is_cpu_fallback_enabled() -> bool:
     return _C.is_cpu_fallback_enabled()
 
 
+def uses_nnhaul() -> bool:
+    """True when libnntile runs on the NNHaul runtime backend."""
+    return _C.uses_nnhaul()
+
+
 def restrict_cpu() -> None:
     """Pin StarPU codelets to CPU workers (libnntile)."""
     _C.restrict_cpu()
