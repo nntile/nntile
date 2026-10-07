@@ -295,6 +295,32 @@ def test_arange_as_first_graph_op_matches_cpu():
     torch.testing.assert_close(nntile_cpu(got_f), ref_f)
 
 
+@pytest.mark.parametrize(
+    "src_dtype,dst_dtype",
+    [
+        (torch.int64, torch.float32),
+        (torch.float32, torch.int64),
+        (torch.bool, torch.float32),
+        (torch.bool, torch.int64),
+        (torch.float32, torch.bool),
+        (torch.int64, torch.bool),
+    ],
+)
+def test_cast_mixed_dtype_matches_cpu(src_dtype, dst_dtype):
+    """Mixed-dtype ``aten::_to_copy`` casts must record and run.
+
+    Stock HF models cast mask/index tensors across dtypes (e.g. Llama
+    eager-attention masks, GPT-Neo block-diagonal masks); a missing pair
+    throws ``TILE_TORCH_UNARY Cast: unsupported dtype pair`` from inside
+    the submitted graph and can take the worker down with it.
+    """
+    src = torch.tensor([[0, 1, 0], [2, 0, 3]], dtype=src_dtype)
+    ref = src.to(dst_dtype)
+    got = src.to("nntile").to(dst_dtype)
+    assert_close(got, ref, rtol=_RTOL, atol=_ATOL)
+    assert nntile_cpu(got).dtype == dst_dtype
+
+
 def test_strided_view_ops_match_cpu_forward_backward():
     """Non-contiguous views must match CPU/CUDA (no wrapper densify)."""
     torch.manual_seed(0)

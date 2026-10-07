@@ -265,6 +265,54 @@ void TileTorchUnaryOp::execute(Runtime &runtime) const
                 extra);
             return;
         }
+        if (in->dtype() == DataType::INT64 &&
+            out->dtype() == DataType::FP32)
+        {
+            core::torch_cast_out(
+                runtime.starpu_worker_hint(),
+                runtime.get_tile<int64_t>(in),
+                in_meta,
+                runtime.get_tile<fp32_t>(out),
+                out_meta,
+                extra);
+            return;
+        }
+        if (in->dtype() == DataType::FP32 &&
+            out->dtype() == DataType::INT64)
+        {
+            core::torch_cast_out(
+                runtime.starpu_worker_hint(),
+                runtime.get_tile<fp32_t>(in),
+                in_meta,
+                runtime.get_tile<int64_t>(out),
+                out_meta,
+                extra);
+            return;
+        }
+        if (in->dtype() == DataType::BOOL &&
+            out->dtype() == DataType::FP32)
+        {
+            core::torch_cast_out(
+                runtime.starpu_worker_hint(),
+                runtime.get_tile<bool_t>(in),
+                in_meta,
+                runtime.get_tile<fp32_t>(out),
+                out_meta,
+                extra);
+            return;
+        }
+        if (in->dtype() == DataType::BOOL &&
+            out->dtype() == DataType::INT64)
+        {
+            core::torch_cast_out(
+                runtime.starpu_worker_hint(),
+                runtime.get_tile<bool_t>(in),
+                in_meta,
+                runtime.get_tile<int64_t>(out),
+                out_meta,
+                extra);
+            return;
+        }
         throw std::runtime_error(
             "TILE_TORCH_UNARY Cast: unsupported dtype pair");
     }
