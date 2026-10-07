@@ -222,7 +222,8 @@ void torch_embedding_dense_backward_out(
     const Tile<int64_t> &indices,
     const TorchTileMeta &indices_meta,
     const Tile<fp32_t> &grad_weight,
-    const TorchTileMeta &grad_weight_meta);
+    const TorchTileMeta &grad_weight_meta,
+    std::int64_t padding_idx = -1);
 
 void torch_convolution_out(
     int starpu_worker_hint,

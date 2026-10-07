@@ -244,7 +244,9 @@ def compare_checkpoints(path_a: Path, path_b: Path) -> int:
     print(f"  A: {path_a}")
     print(f"  B: {path_b}")
     max_rel = 0.0
+    max_abs = 0.0
     worst = ""
+    worst_abs = ""
     for name in shared:
         ta = state_a[name]
         tb = state_b[name]
@@ -255,11 +257,18 @@ def compare_checkpoints(path_a: Path, path_b: Path) -> int:
             )
             continue
         rel = relative_frobenius(ta, tb)
+        abs_diff = (ta.float() - tb.float()).norm().item()
         if rel > max_rel:
             max_rel = rel
             worst = name
-        print(f"  {name}: relative_frobenius={rel:.6e}")
+        if abs_diff > max_abs:
+            max_abs = abs_diff
+            worst_abs = name
+        print(f"  {name}: relative_frobenius={rel:.6e} abs={abs_diff:.6e}")
     print(f"max relative_frobenius={max_rel:.6e}  ({worst})")
+    # Near-zero tensors (e.g. biases with vanishing gradients) make the
+    # relative metric meaningless; the absolute norm is the honest check.
+    print(f"max absolute_frobenius_diff={max_abs:.6e}  ({worst_abs})")
     return 0
 
 

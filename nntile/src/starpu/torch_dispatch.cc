@@ -2976,7 +2976,7 @@ void TorchEmbeddingDenseBackward::cpu(
             grad,
             indices,
             num_weights,
-            /*padding_idx=*/-1,
+            /*padding_idx=*/static_cast<std::int64_t>(args->iargs[1]),
             /*scale_grad_by_freq=*/false);
     }
     catch (const std::exception &ex)
