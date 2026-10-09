@@ -91,7 +91,13 @@ class _NntileMseLoss(torch.autograd.Function):
         grad_x = _C.mse_loss_backward(x, ctx.scale, needs_grad)
         # The loss output is a scalar, so autograd hands us a scalar
         # upstream weight; composed losses get anything but 1.0 there.
-        return grad_x * grad_output, None
+        # aten mul has no nntile kernel in classic builds and implicit
+        # nntile<->CPU copies are disabled by default, so the weight
+        # must ride the classic scale op instead of `grad_x * weight`.
+        weight = float(grad_output.to("cpu"))
+        if weight == 1.0:
+            return grad_x, None
+        return _C.mul_scalar(grad_x, weight), None
 
 
 def mse_loss(x: torch.Tensor, scale: float = 1.0) -> torch.Tensor:
