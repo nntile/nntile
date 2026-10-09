@@ -351,6 +351,7 @@ void run_cuda_test(TestData<T>& data)
                 data.k,
                 data.k_start,
                 data.k_size,
+                data.vocab_size,
                 dev_index,
                 dev_vocab,
                 dev_embed
@@ -367,6 +368,7 @@ void run_cuda_test(TestData<T>& data)
             data.k,
             data.k_start,
             data.k_size,
+            data.vocab_size,
             dev_index,
             dev_vocab,
             dev_embed
@@ -513,6 +515,13 @@ TEST_CASE("Out-of-range embedding token aborts", "[kernel][embedding]")
     REQUIRE(pid >= 0);
     if(pid == 0)
     {
+        // The child inherits Catch2's signal handlers and reporters;
+        // the kernel's abort() would make them print a misleading
+        // failure report into the shared stdout before the signal is
+        // re-raised. Silence the child; the parent asserts on the
+        // signal.
+        std::freopen("/dev/null", "w", stdout);
+        std::freopen("/dev/null", "w", stderr);
         kernel::embedding::cpu<nntile::fp32_t>(m, n, k, k_start, k_size,
                 vocab_size, index.data(), vocab.data(), embed.data());
         // Must never get here: the kernel aborts on the bad token.
