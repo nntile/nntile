@@ -53,7 +53,6 @@ void EmbeddingBackward<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
         args->k,
         args->k_start,
         args->k_size,
-        args->index_range,
         args->vocab_nelems,
         args->alpha,
         args->beta,
@@ -113,7 +112,6 @@ void EmbeddingBackward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         args->k,
         args->k_start,
         args->k_size,
-        args->index_range,
         args->vocab_nelems,
         args->alpha,
         args->beta,
@@ -162,8 +160,6 @@ uint32_t EmbeddingBackward<std::tuple<T>>::footprint(struct starpu_task *task)
     hash = starpu_hash_crc32c_be_n(&args->n, sizeof(args->n), hash);
     hash = starpu_hash_crc32c_be_n(&args->k, sizeof(args->k), hash);
     hash = starpu_hash_crc32c_be_n(&args->k_size, sizeof(args->k_size), hash);
-    hash = starpu_hash_crc32c_be_n(&args->index_range,
-            sizeof(args->index_range), hash);
     hash = starpu_hash_crc32c_be_n(&args->vocab_nelems, sizeof(args->vocab_nelems),
             hash);
     hash = starpu_hash_crc32c_be_n(&args->alpha, sizeof(args->alpha), hash);
@@ -173,9 +169,9 @@ uint32_t EmbeddingBackward<std::tuple<T>>::footprint(struct starpu_task *task)
 
 template<typename T>
 void EmbeddingBackward<std::tuple<T>>::submit(int starpu_worker_hint, Index m,
-        Index n, Index k, Index k_start, Index k_size, Index index_range,
-        Index vocab_nelems, Scalar alpha, Scalar beta, Handle index,
-        Handle embed, Handle vocab, int redux)
+        Index n, Index k, Index k_start, Index k_size, Index vocab_nelems,
+        Scalar alpha, Scalar beta, Handle index, Handle embed, Handle vocab,
+        int redux)
 //! Insert embedding_backward task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * nntile_starpu_task_insert() function. If task submission fails, this routines
@@ -212,7 +208,6 @@ void EmbeddingBackward<std::tuple<T>>::submit(int starpu_worker_hint, Index m,
     args->k = k;
     args->k_start = k_start;
     args->k_size = k_size;
-    args->index_range = index_range;
     args->vocab_nelems = vocab_nelems;
     args->alpha = alpha;
     args->beta = beta;

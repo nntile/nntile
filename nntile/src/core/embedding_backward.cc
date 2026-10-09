@@ -29,8 +29,7 @@ namespace nntile::core
 
 template<typename T>
 void embedding_backward_async(int starpu_worker_hint, Index m, Index n,
-        Index k, Index k_start, Index k_size, Index index_range,
-        Scalar alpha, Scalar beta,
+        Index k, Index k_start, Index k_size, Scalar alpha, Scalar beta,
         const Tile<int64_t> &index, const Tile<T> &embed, const Tile<T> &vocab,
         int redux)
 {
@@ -60,12 +59,12 @@ void embedding_backward_async(int starpu_worker_hint, Index m, Index n,
     {
         #ifdef NNTILE_USE_NNHAUL
         haul::embedding_backward.submit<std::tuple<T>>(starpu_worker_hint,
-                m, n, k, k_start, k_size, index_range, vocab.nelems,
-                alpha, beta, index, embed, vocab, redux);
+                m, n, k, k_start, k_size, vocab.nelems, alpha, beta, index,
+                embed, vocab, redux);
         #else
         starpu::embedding_backward.submit<std::tuple<T>>(starpu_worker_hint,
-                m, n, k, k_start, k_size, index_range, vocab.nelems,
-                alpha, beta, index, embed, vocab, redux);
+                m, n, k, k_start, k_size, vocab.nelems, alpha, beta, index,
+                embed, vocab, redux);
         #endif
 
     }
@@ -73,8 +72,7 @@ void embedding_backward_async(int starpu_worker_hint, Index m, Index n,
 
 template<typename T>
 void embedding_backward(int starpu_worker_hint, Index m, Index n, Index k,
-        Index k_start, Index k_size, Index index_range, Scalar alpha,
-        Scalar beta,
+        Index k_start, Index k_size, Scalar alpha, Scalar beta,
         const Tile<int64_t> &index, const Tile<T> &embed, const Tile<T> &vocab,
         int redux)
 {
@@ -85,7 +83,7 @@ void embedding_backward(int starpu_worker_hint, Index m, Index n, Index k,
     }
 #endif
     embedding_backward_async<T>(starpu_worker_hint, m, n, k, k_start, k_size,
-            index_range, alpha, beta, index, embed, vocab, redux);
+            alpha, beta, index, embed, vocab, redux);
     #ifdef NNTILE_USE_NNHAUL
     nntile::nnhaul_task_wait_for_all_unless_deferred();
 #else
@@ -95,10 +93,10 @@ void embedding_backward(int starpu_worker_hint, Index m, Index n, Index k,
 
 #define NNTILE_EMBEDDING_BACKWARD_EXPLICIT(T) \
 template void embedding_backward_async<T>(int, Index, Index, Index, Index, \
-        Index, Index, Scalar, Scalar, const Tile<int64_t> &, \
-        const Tile<T> &, const Tile<T> &, int); \
-template void embedding_backward<T>(int, Index, Index, Index, Index, Index, \
         Index, Scalar, Scalar, const Tile<int64_t> &, const Tile<T> &, \
+        const Tile<T> &, int); \
+template void embedding_backward<T>(int, Index, Index, Index, Index, Index, \
+        Scalar, Scalar, const Tile<int64_t> &, const Tile<T> &, \
         const Tile<T> &, int);
 
 NNTILE_EMBEDDING_BACKWARD_EXPLICIT(fp32_t)

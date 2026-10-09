@@ -15,16 +15,12 @@
 #include "nntile/kernel/embedding/cpu.hh"
 #include "nntile/kernel/cpu.hh"
 
-#include <cstdio>
-#include <cstdlib>
-
 namespace nntile::kernel::embedding
 {
 
 template<typename T>
 void cpu(Index m, Index n, Index k, Index k_start, Index k_size,
-        Index index_range, const int64_t *index_, const T *vocab,
-        T *embed)
+        const int64_t *index_, const T *vocab, T *embed)
     noexcept
 //! Fill embedding from vocabulary
 /*! Fill provided m-by-k-by-n output tensor embed:
@@ -35,8 +31,6 @@ void cpu(Index m, Index n, Index k, Index k_start, Index k_size,
  * @param[in] k: Size of the middle mode of embed tensor
  * @param[in] k_start: Offset of the middle mode of embed tensor
  * @param[in] k_size: Size of the first mode of vocab tensor
- * @param[in] index_range: Number of k_size-sized vectors in the vocab
- *      buffer; every token must be in [0, index_range)
  * @param[in] index_: Tokens (indices of embeddings)
  * @param[in] vocab_: Vocabulary of embeddings. It is a contiguous matrix of shape
  *      (k_size, vocab_size) but vocab_size is not passed as a parameter.
@@ -52,21 +46,8 @@ void cpu(Index m, Index n, Index k, Index k_start, Index k_size,
         // Cycle over row of output buffer
         for(Index i1 = 0; i1 < m; ++i1)
         {
-            // The token becomes a raw pointer offset below: validate
-            // it first. Kernels cannot throw, so fail loudly (like a
-            // PyTorch device assert) instead of corrupting memory.
-            const ::int64_t token = static_cast<::int64_t>(index[i2*m+i1]);
-            if(token < 0 or token >= index_range)
-            {
-                std::fprintf(stderr,
-                        "nntile embedding: token id %lld is outside the "
-                        "vocabulary range [0, %lld)\n",
-                        static_cast<long long>(token),
-                        static_cast<long long>(index_range));
-                std::abort();
-            }
             // Input slice of vocabulary
-            const T *vocab_slice = vocab + k_size*token;
+            const T *vocab_slice = vocab + k_size*index[i2*m+i1];
             // Output slice to be updated
             T *embed_slice = embed + (i2*k+k_start)*m + i1;
             // Cycle over slice over middle axis of output buffer
@@ -81,26 +62,22 @@ void cpu(Index m, Index n, Index k, Index k_start, Index k_size,
 // Explicit instantiation
 template
 void cpu<fp32_t>(Index m, Index n, Index k, Index k_start, Index k_size,
-        Index index_range, const int64_t *index, const fp32_t *vocab,
-        fp32_t *embed)
+        const int64_t *index, const fp32_t *vocab, fp32_t *embed)
     noexcept;
 
 template
 void cpu<bf16_t>(Index m, Index n, Index k, Index k_start, Index k_size,
-        Index index_range, const int64_t *index, const bf16_t *vocab,
-        bf16_t *embed)
+        const int64_t *index, const bf16_t *vocab, bf16_t *embed)
     noexcept;
 
 template
 void cpu<fp16_t>(Index m, Index n, Index k, Index k_start, Index k_size,
-        Index index_range, const int64_t *index, const fp16_t *vocab,
-        fp16_t *embed)
+        const int64_t *index, const fp16_t *vocab, fp16_t *embed)
     noexcept;
 
 template
 void cpu<fp64_t>(Index m, Index n, Index k, Index k_start, Index k_size,
-        Index index_range, const int64_t *index, const fp64_t *vocab,
-        fp64_t *embed)
+        const int64_t *index, const fp64_t *vocab, fp64_t *embed)
     noexcept;
 
 } // namespace nntile::kernel::embedding

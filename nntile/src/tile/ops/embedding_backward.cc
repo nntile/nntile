@@ -27,12 +27,12 @@ namespace
 {
 template<typename T>
 void run(
-    Runtime& runtime, Index a, Index b, Index c, Index ks, Index kz, Index ir,
+    Runtime& runtime, Index a, Index b, Index c, Index ks, Index kz,
     Scalar alpha, Scalar beta, TileGraph::TileNode* i, TileGraph::TileNode* e,
     TileGraph::TileNode* v, int r)
 {
     nntile::core::embedding_backward<T>(runtime.starpu_worker_hint(), a, b, c,
-            ks, kz, ir, alpha, beta, runtime.get_tile<nntile::int64_t>(i),
+            ks, kz, alpha, beta, runtime.get_tile<nntile::int64_t>(i),
             runtime.get_tile<T>(e), runtime.get_tile<T>(v), r);
 }
 } // namespace
@@ -51,18 +51,8 @@ void embedding_backward(
         throw std::invalid_argument("embedding_backward");
     if(beta != Scalar{0.0} && beta != Scalar{1.0})
         throw std::invalid_argument("embedding_backward: beta must be 0 or 1");
-    // A token selects one k_size-sized vector inside the vocab tile, so
-    // anything at or beyond vocab->nelems() / k_size is out of range.
-    // The kernel re-checks per token and fails loudly (it cannot
-    // throw); this bound is derived statically from the tile shapes.
-    Index index_range = 0;
-    if(k_size > 0)
-    {
-        index_range = vocab->nelems() / k_size;
-    }
     index->graph()->add_op(std::make_shared<TileEmbeddingBackwardOp>(
-        m, n, k, k_start, k_size, index_range, alpha, beta, index, embed,
-        vocab, redux));
+        m, n, k, k_start, k_size, alpha, beta, index, embed, vocab, redux));
 }
 void TileEmbeddingBackwardOp::execute(Runtime& runtime) const
 {
@@ -70,32 +60,32 @@ void TileEmbeddingBackwardOp::execute(Runtime& runtime) const
     switch(dtype)
     {
         case DataType::FP32:
-            run<nntile::fp32_t>(runtime, m, n, k, k_start, k_size,
-                    index_range, alpha, beta, index, embed, vocab, redux);
+            run<nntile::fp32_t>(runtime, m, n, k, k_start, k_size, alpha, beta,
+                    index, embed, vocab, redux);
             break;
         case DataType::FP32_FAST_TF32:
             run<nntile::fp32_fast_tf32_t>(runtime, m, n, k, k_start, k_size,
-                    index_range, alpha, beta, index, embed, vocab, redux);
+                    alpha, beta, index, embed, vocab, redux);
             break;
         case DataType::FP32_FAST_FP16:
             run<nntile::fp32_fast_fp16_t>(runtime, m, n, k, k_start, k_size,
-                    index_range, alpha, beta, index, embed, vocab, redux);
+                    alpha, beta, index, embed, vocab, redux);
             break;
         case DataType::FP32_FAST_BF16:
             run<nntile::fp32_fast_bf16_t>(runtime, m, n, k, k_start, k_size,
-                    index_range, alpha, beta, index, embed, vocab, redux);
+                    alpha, beta, index, embed, vocab, redux);
             break;
         case DataType::FP64:
-            run<nntile::fp64_t>(runtime, m, n, k, k_start, k_size,
-                    index_range, alpha, beta, index, embed, vocab, redux);
+            run<nntile::fp64_t>(runtime, m, n, k, k_start, k_size, alpha, beta,
+                    index, embed, vocab, redux);
             break;
         case DataType::FP16:
-            run<nntile::fp16_t>(runtime, m, n, k, k_start, k_size,
-                    index_range, alpha, beta, index, embed, vocab, redux);
+            run<nntile::fp16_t>(runtime, m, n, k, k_start, k_size, alpha, beta,
+                    index, embed, vocab, redux);
             break;
         case DataType::BF16:
-            run<nntile::bf16_t>(runtime, m, n, k, k_start, k_size,
-                    index_range, alpha, beta, index, embed, vocab, redux);
+            run<nntile::bf16_t>(runtime, m, n, k, k_start, k_size, alpha, beta,
+                    index, embed, vocab, redux);
             break;
         case DataType::INT64:
         case DataType::BOOL:

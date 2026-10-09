@@ -60,7 +60,6 @@ void EmbeddingBackward<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
         args->k,
         args->k_start,
         args->k_size,
-        args->index_range,
         args->vocab_nelems,
         args->alpha,
         args->beta,
@@ -117,7 +116,6 @@ void EmbeddingBackward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         args->k,
         args->k_start,
         args->k_size,
-        args->index_range,
         args->vocab_nelems,
         args->alpha,
         args->beta,
@@ -171,7 +169,6 @@ std::uint64_t EmbeddingBackward<std::tuple<T>>::footprint(void const *cl_args, s
     hash = ::nntile::haul::fnv1a(&args->n, sizeof(args->n), hash);
     hash = ::nntile::haul::fnv1a(&args->k, sizeof(args->k), hash);
     hash = ::nntile::haul::fnv1a(&args->k_size, sizeof(args->k_size), hash);
-    hash = ::nntile::haul::fnv1a(&args->index_range, sizeof(args->index_range), hash);
     hash = ::nntile::haul::fnv1a(&args->vocab_nelems, sizeof(args->vocab_nelems),
             hash);
     hash = ::nntile::haul::fnv1a(&args->alpha, sizeof(args->alpha), hash);
@@ -181,8 +178,7 @@ std::uint64_t EmbeddingBackward<std::tuple<T>>::footprint(void const *cl_args, s
 
 template<typename T>
 void EmbeddingBackward<std::tuple<T>>::submit(int starpu_worker_hint, Index m,
-        Index n, Index k, Index k_start, Index k_size, Index index_range,
-        Index vocab_nelems,
+        Index n, Index k, Index k_start, Index k_size, Index vocab_nelems,
         Scalar alpha, Scalar beta, ::nnhaul::Handle & index, ::nnhaul::Handle & embed, ::nnhaul::Handle & vocab,
         int redux)
 //! Insert embedding_backward task into StarPU pool of tasks
@@ -221,7 +217,6 @@ void EmbeddingBackward<std::tuple<T>>::submit(int starpu_worker_hint, Index m,
     args->k = k;
     args->k_start = k_start;
     args->k_size = k_size;
-    args->index_range = index_range;
     args->vocab_nelems = vocab_nelems;
     args->alpha = alpha;
     args->beta = beta;

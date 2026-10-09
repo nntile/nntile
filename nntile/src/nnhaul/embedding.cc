@@ -60,7 +60,6 @@ void Embedding<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
         args->k,
         args->k_start,
         args->k_size,
-        args->index_range,
         index,
         vocab,
         embed
@@ -114,7 +113,6 @@ void Embedding<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         args->k,
         args->k_start,
         args->k_size,
-        args->index_range,
         index,
         vocab,
         embed
@@ -170,7 +168,6 @@ std::uint64_t Embedding<std::tuple<T>>::footprint(void const *cl_args, std::size
 
 template<typename T>
 void Embedding<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, Index k, Index k_start, Index k_size,
-        Index index_range,
         ::nnhaul::Handle & index, ::nnhaul::Handle & vocab, ::nnhaul::Handle & embed)
 //! Insert embedding task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
@@ -185,7 +182,6 @@ void Embedding<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, 
     args->k = k;
     args->k_start = k_start;
     args->k_size = k_size;
-    args->index_range = index_range;
     double nflops = m * n * k_size;
     // Submit task
     ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,

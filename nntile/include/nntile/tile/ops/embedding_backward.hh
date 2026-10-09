@@ -22,17 +22,17 @@ namespace nntile::tile
 
 struct TileEmbeddingBackwardOp : TileGraph::OpNode
 {
-    Index m = 0, n = 0, k = 0, k_start = 0, k_size = 0, index_range = 0;
+    Index m = 0, n = 0, k = 0, k_start = 0, k_size = 0;
     Scalar alpha = 1.0;
     Scalar beta = 1.0;
     int redux = 0;
     TileGraph::TileNode* index = nullptr, * embed = nullptr, * vocab = nullptr;
     TileEmbeddingBackwardOp() = default;
     TileEmbeddingBackwardOp(Index a, Index b, Index c, Index ks, Index kz,
-            Index ir, Scalar al, Scalar be, TileGraph::TileNode* i,
+            Scalar al, Scalar be, TileGraph::TileNode* i,
             TileGraph::TileNode* e, TileGraph::TileNode* v, int r = 0) :
-        m(a), n(b), k(c), k_start(ks), k_size(kz), index_range(ir),
-        alpha(al), beta(be), redux(r), index(i), embed(e), vocab(v)
+        m(a), n(b), k(c), k_start(ks), k_size(kz), alpha(al), beta(be),
+        redux(r), index(i), embed(e), vocab(v)
     {
         inputs_ = {index, embed, vocab};
         outputs_ = {vocab};

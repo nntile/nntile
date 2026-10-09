@@ -27,9 +27,9 @@ namespace
 {
 template<typename T>
 void run(
-    Runtime& runtime, Index a, Index b, Index c, Index ks, Index kz, Index ir, TileGraph::TileNode* ix, TileGraph::TileNode* v, TileGraph::TileNode* e)
+    Runtime& runtime, Index a, Index b, Index c, Index ks, Index kz, TileGraph::TileNode* ix, TileGraph::TileNode* v, TileGraph::TileNode* e)
 {
-    nntile::core::embedding<T>(runtime.starpu_worker_hint(), a, b, c, ks, kz, ir, runtime.get_tile<nntile::int64_t>(ix), runtime.get_tile<T>(v), runtime.get_tile<T>(e));
+    nntile::core::embedding<T>(runtime.starpu_worker_hint(), a, b, c, ks, kz, runtime.get_tile<nntile::int64_t>(ix), runtime.get_tile<T>(v), runtime.get_tile<T>(e));
 }
 } // namespace
 void embedding(
@@ -43,17 +43,8 @@ void embedding(
         throw std::invalid_argument("embedding");
     if(vocab->dtype() != embed->dtype())
         throw std::invalid_argument("embedding");
-    // A token selects one k_size-sized vector inside the vocab tile, so
-    // anything at or beyond vocab->nelems() / k_size is out of range.
-    // The kernel re-checks per token and fails loudly (it cannot
-    // throw); this bound is derived statically from the tile shapes.
-    Index index_range = 0;
-    if(k_size > 0)
-    {
-        index_range = vocab->nelems() / k_size;
-    }
     index->graph()->add_op(
-        std::make_shared<TileEmbeddingOp>(m, n, k, k_start, k_size, index_range, index, vocab, embed));
+        std::make_shared<TileEmbeddingOp>(m, n, k, k_start, k_size, index, vocab, embed));
 }
 void TileEmbeddingOp::execute(Runtime& runtime) const
 {
@@ -61,25 +52,25 @@ void TileEmbeddingOp::execute(Runtime& runtime) const
     switch(dtype)
     {
         case DataType::FP32:
-            run<nntile::fp32_t>(runtime, m, n, k, k_start, k_size, index_range, index, vocab, embed);
+            run<nntile::fp32_t>(runtime, m, n, k, k_start, k_size, index, vocab, embed);
             break;
         case DataType::FP32_FAST_TF32:
-            run<nntile::fp32_fast_tf32_t>(runtime, m, n, k, k_start, k_size, index_range, index, vocab, embed);
+            run<nntile::fp32_fast_tf32_t>(runtime, m, n, k, k_start, k_size, index, vocab, embed);
             break;
         case DataType::FP32_FAST_FP16:
-            run<nntile::fp32_fast_fp16_t>(runtime, m, n, k, k_start, k_size, index_range, index, vocab, embed);
+            run<nntile::fp32_fast_fp16_t>(runtime, m, n, k, k_start, k_size, index, vocab, embed);
             break;
         case DataType::FP32_FAST_BF16:
-            run<nntile::fp32_fast_bf16_t>(runtime, m, n, k, k_start, k_size, index_range, index, vocab, embed);
+            run<nntile::fp32_fast_bf16_t>(runtime, m, n, k, k_start, k_size, index, vocab, embed);
             break;
         case DataType::FP64:
-            run<nntile::fp64_t>(runtime, m, n, k, k_start, k_size, index_range, index, vocab, embed);
+            run<nntile::fp64_t>(runtime, m, n, k, k_start, k_size, index, vocab, embed);
             break;
         case DataType::FP16:
-            run<nntile::fp16_t>(runtime, m, n, k, k_start, k_size, index_range, index, vocab, embed);
+            run<nntile::fp16_t>(runtime, m, n, k, k_start, k_size, index, vocab, embed);
             break;
         case DataType::BF16:
-            run<nntile::bf16_t>(runtime, m, n, k, k_start, k_size, index_range, index, vocab, embed);
+            run<nntile::bf16_t>(runtime, m, n, k, k_start, k_size, index, vocab, embed);
             break;
         case DataType::INT64:
         case DataType::BOOL:

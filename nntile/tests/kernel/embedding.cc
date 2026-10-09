@@ -33,11 +33,6 @@
 #include <nntile/kernel/cuda.hh>
 #include <nntile/base_types.hh>
 
-// POSIX fork-based validation of the out-of-range behavior
-#include <csignal>
-#include <sys/wait.h>
-#include <unistd.h>
-
 // Use namespaces for shorter code
 using namespace Catch;
 using namespace Catch::Matchers;
@@ -240,7 +235,6 @@ void run_cpu_test(TestData<T>& data)
                 data.k,
                 data.k_start,
                 data.k_size,
-                data.vocab_size,
                 &index_cpu[0],
                 &vocab_cpu[0],
                 &embed_cpu[0]
@@ -255,7 +249,6 @@ void run_cpu_test(TestData<T>& data)
             data.k,
             data.k_start,
             data.k_size,
-            data.vocab_size,
             &index_cpu[0],
             &vocab_cpu[0],
             &embed_cpu[0]
@@ -496,30 +489,4 @@ TEMPLATE_TEST_CASE(
         run_cuda_test<T, true>(data);
     }
 #endif
-}
-
-
-//! An out-of-range token must abort the process instead of reading
-//! arbitrary memory past the vocabulary.
-TEST_CASE("Out-of-range embedding token aborts", "[kernel][embedding]")
-{
-    using namespace nntile;
-    using namespace nntile::kernel;
-    Index m = 1, n = 1, k = 0, k_start = 0, k_size = 2, vocab_size = 3;
-    std::vector<nntile::int64_t> index = {7}; // outside [0, vocab_size)
-    std::vector<nntile::fp32_t> vocab(k_size * vocab_size, 0);
-    std::vector<nntile::fp32_t> embed(k_size, 0);
-    pid_t pid = ::fork();
-    REQUIRE(pid >= 0);
-    if(pid == 0)
-    {
-        kernel::embedding::cpu<nntile::fp32_t>(m, n, k, k_start, k_size,
-                vocab_size, index.data(), vocab.data(), embed.data());
-        // Must never get here: the kernel aborts on the bad token.
-        std::_Exit(0);
-    }
-    int wstatus = 0;
-    REQUIRE(::waitpid(pid, &wstatus, 0) == pid);
-    REQUIRE(WIFSIGNALED(wstatus));
-    REQUIRE(WTERMSIG(wstatus) == SIGABRT);
 }

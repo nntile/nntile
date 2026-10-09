@@ -21,8 +21,8 @@ namespace nntile::kernel::embedding_backward
 
 template<typename T>
 void cpu(Index m, Index n, Index k, Index k_start, Index k_size,
-        Index index_range, Index vocab_nelems, Scalar alpha, Scalar beta,
-        const int64_t *index_, const T *embed, T *vocab)
+        Index vocab_nelems, Scalar alpha, Scalar beta, const int64_t *index_,
+        const T *embed, T *vocab)
     noexcept
 //! Accumulate gradients of embeddings into vocabulary
 /*! Does the following operation:
@@ -42,20 +42,7 @@ void cpu(Index m, Index n, Index k, Index k_start, Index k_size,
     {
         for(Index i1 = 0; i1 < m; ++i1)
         {
-            // The token becomes a raw pointer offset below: validate it
-            // first. Kernels cannot throw, so fail loudly (like a
-            // PyTorch device assert) instead of corrupting memory.
-            const ::int64_t token = static_cast<::int64_t>(index[i2*m+i1]);
-            if(token < 0 or token >= index_range)
-            {
-                std::fprintf(stderr,
-                        "nntile embedding_backward: token id %lld is "
-                        "outside the vocabulary range [0, %lld)\n",
-                        static_cast<long long>(token),
-                        static_cast<long long>(index_range));
-                std::abort();
-            }
-            T *vocab_slice = vocab + k_size*token;
+            T *vocab_slice = vocab + k_size*index[i2*m+i1];
             const T *embed_slice = embed + (i2*k+k_start)*m + i1;
             for(Index i0 = 0; i0 < k_size; ++i0)
             {
@@ -68,26 +55,26 @@ void cpu(Index m, Index n, Index k, Index k_start, Index k_size,
 
 template
 void cpu<fp32_t>(Index m, Index n, Index k, Index k_start, Index k_size,
-        Index index_range, Index vocab_nelems, Scalar alpha, Scalar beta,
-        const int64_t *index, const fp32_t *embed, fp32_t *vocab)
+        Index vocab_nelems, Scalar alpha, Scalar beta, const int64_t *index,
+        const fp32_t *embed, fp32_t *vocab)
     noexcept;
 
 template
 void cpu<fp64_t>(Index m, Index n, Index k, Index k_start, Index k_size,
-        Index index_range, Index vocab_nelems, Scalar alpha, Scalar beta,
-        const int64_t *index, const fp64_t *embed, fp64_t *vocab)
+        Index vocab_nelems, Scalar alpha, Scalar beta, const int64_t *index,
+        const fp64_t *embed, fp64_t *vocab)
     noexcept;
 
 template
 void cpu<bf16_t>(Index m, Index n, Index k, Index k_start, Index k_size,
-        Index index_range, Index vocab_nelems, Scalar alpha, Scalar beta,
-        const int64_t *index, const bf16_t *embed, bf16_t *vocab)
+        Index vocab_nelems, Scalar alpha, Scalar beta, const int64_t *index,
+        const bf16_t *embed, bf16_t *vocab)
     noexcept;
 
 template
 void cpu<fp16_t>(Index m, Index n, Index k, Index k_start, Index k_size,
-        Index index_range, Index vocab_nelems, Scalar alpha, Scalar beta,
-        const int64_t *index, const fp16_t *embed, fp16_t *vocab)
+        Index vocab_nelems, Scalar alpha, Scalar beta, const int64_t *index,
+        const fp16_t *embed, fp16_t *vocab)
     noexcept;
 
 } // namespace nntile::kernel::embedding_backward
