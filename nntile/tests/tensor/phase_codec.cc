@@ -490,6 +490,7 @@ TEST_CASE(
     REQUIRE(replay_blob.at("ops").at(0).at("attrs").at("axis") == 2);
 }
 
+#ifdef NNTILE_TORCH_NATIVE_OPS
 TEST_CASE(
     "encode_phase TORCH_UNARY Sum keeps reduction dims",
     "[graph][tensor][codec]")
@@ -572,6 +573,7 @@ TEST_CASE(
         gt::decode_torch_dispatch_attrs(too_many_dims),
         Catch::Matchers::ContainsSubstring("out of range"));
 }
+#endif // NNTILE_TORCH_NATIVE_OPS
 
 TEST_CASE("decode_phase GELU JSON is not UnknownOp", "[graph][tensor][codec]")
 {
