@@ -50,10 +50,15 @@ void Isfinite<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get arguments
     args_t const *args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    T *data = ::nntile::haul::buf_as<T>(buffers, 0);
-    bool_t *flag = ::nntile::haul::buf_as<bool_t>(buffers, 1);
-    // Launch kernel
-    kernel::isfinite::cpu<T>(args->nelems, data, flag);
+    auto data = ::nntile::haul::buf_chunks<T>(buffers, 0);
+    // The flag is a single-element tile: element 0 always lives in
+    // chunk 0, and each chunk call can only ever clear it.
+    bool_t *flag = ::nntile::haul::buf_chunks<bool_t>(buffers, 1).ptr(0);
+    // Launch kernel per chunk (single chunk if unchunked)
+    for (std::size_t i = 0; i < data.count(); ++i)
+    {
+        kernel::isfinite::cpu<T>(data.elems(i), data.ptr(i), flag);
+    }
 }
 
 // Specializations of CPU wrapper for accelerated types
@@ -90,12 +95,17 @@ void Isfinite<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get arguments
     args_t const *args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    T *data = ::nntile::haul::buf_as<T>(buffers, 0);
-    bool_t *flag = ::nntile::haul::buf_as<bool_t>(buffers, 1);
+    auto data = ::nntile::haul::buf_chunks<T>(buffers, 0);
+    // The flag is a single-element tile: element 0 always lives in
+    // chunk 0, and each chunk call can only ever clear it.
+    bool_t *flag = ::nntile::haul::buf_chunks<bool_t>(buffers, 1).ptr(0);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    // Launch kernel
-    kernel::isfinite::cuda<T>(stream, args->nelems, data, flag);
+    // Launch kernel per chunk (single chunk if unchunked)
+    for (std::size_t i = 0; i < data.count(); ++i)
+    {
+        kernel::isfinite::cuda<T>(stream, data.elems(i), data.ptr(i), flag);
+    }
 }
 
 // Specializations of CUDA wrapper for accelerated types

@@ -77,12 +77,15 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, Scalar alpha_,
         {
             sum /= block_max[idx];
             atomicAdd(&block_sum[idx], sum*sum);
-            __syncthreads();
-            // Update output value
-            if(i2_start == 0)
+        }
+        __syncthreads();
+        // Update output value
+        if(i2_start == 0)
+        {
+            // Output value
+            T &output_dst = dst[i1*m+i0];
+            if(block_max[idx] > 0)
             {
-                // Output value
-                T &output_dst = dst[i1*m+i0];
                 sum = block_max[idx];
                 sum *= ::sqrt(block_sum[idx]);
                 Y src2_val = beta * static_cast<Y>(src2[i1*m+i0]);
@@ -93,6 +96,26 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, Scalar alpha_,
                 else
                 {
                     output_dst = ::hypot(src2_val, alpha*sum);
+                }
+            }
+            // All-zero fiber: write the beta-combined value exactly like
+            // the CPU kernel and the m==1 CUDA kernel of this family do
+            // (0 for beta==0, fabs(beta*src2) otherwise). The old code
+            // skipped the write entirely, leaving dst stale - divergent
+            // from the CPU kernel on legal zero inputs (padding, masks)
+            // and fatal for the piecewise hypot chain of the chunked
+            // driver, whose continuation pieces anchor on the first
+            // piece's output.
+            else
+            {
+                if(beta == zero)
+                {
+                    output_dst = static_cast<T>(zero);
+                }
+                else
+                {
+                    output_dst = static_cast<T>(::fabs(
+                            beta * static_cast<Y>(src2[i1*m+i0])));
                 }
             }
         }

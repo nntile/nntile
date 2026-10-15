@@ -53,11 +53,16 @@ void AddInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    const T *src = ::nntile::haul::buf_as<T>(buffers, 0);
-    T *dst = ::nntile::haul::buf_as<T>(buffers, 1);
-    // Launch kernel
-    kernel::add_inplace::cpu<T>(
-        args->nelems, args->alpha, src, args->beta, dst);
+    auto src = ::nntile::haul::buf_chunks<T>(buffers, 0);
+    auto dst = ::nntile::haul::buf_chunks<T>(buffers, 1);
+    // Launch kernel per flat chunk piece (single piece if unchunked)
+    ::nntile::haul::for_each_flat_piece(
+        args->nelems,
+        [&](std::size_t n, const T *s, T *d) {
+            kernel::add_inplace::cpu<T>(n, args->alpha, s, args->beta, d);
+        },
+        src,
+        dst);
 }
 
 // Specializations of CPU wrapper for accelerated types
@@ -94,13 +99,18 @@ void AddInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    const T *src = ::nntile::haul::buf_as<T>(buffers, 0);
-    T *dst = ::nntile::haul::buf_as<T>(buffers, 1);
+    auto src = ::nntile::haul::buf_chunks<T>(buffers, 0);
+    auto dst = ::nntile::haul::buf_chunks<T>(buffers, 1);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    // Launch kernel
-    kernel::add_inplace::cuda<T>(
-        stream, args->nelems, args->alpha, src, args->beta, dst);
+    // Launch kernel per flat chunk piece (single piece if unchunked)
+    ::nntile::haul::for_each_flat_piece(
+        args->nelems,
+        [&](std::size_t n, const T *s, T *d) {
+            kernel::add_inplace::cuda<T>(stream, n, args->alpha, s, args->beta, d);
+        },
+        src,
+        dst);
 }
 
 // Specializations of CUDA wrapper for accelerated types

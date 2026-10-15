@@ -15,6 +15,7 @@
 
 // Corresponding header
 #include "nntile/nnhaul/ops/conv2d_bwd_weight_inplace.hh"
+#include "nntile/nnhaul/stage.hh"
 
 // Standard libraries
 #include <cstdint>
@@ -26,6 +27,23 @@
 
 namespace nntile::haul
 {
+// ---------------------------------------------------------------------------
+// DELIBERATELY STAGED (the family-3 derivation, docs/chunked-tiles.md
+// §4.3): conv2d_bwd_weight_inplace is NOT chunk-decomposable with the
+// existing kernel signature.
+//
+// Index map (kernel::conv2d_bwd_weight_inplace::cpu/cuda): dst(i,j,k,l)
+// (the WEIGHT grad, contiguous axis i) is the reduction
+// sum_{b,m,n} src1(m,n,k,b) * src2((m+offset_m-dilation_m*i)/stride_m,
+// (n+offset_n-dilation_n*j)/stride_n, l, b) - EVERY dst element reduces
+// over the ENTIRE src1 and src2 tensors (all of m, n and batch feed
+// every weight). A dst m-run sub-piece is kernel-expressible and would
+// beta-chain, but it still reads every chunked src1/src2 byte, so the
+// piece count buys nothing: native decomposition here would be a
+// full-tile gather per piece with extra launches, strictly worse than
+// the staging fallback's ONE gather + ONE classic kernel + ONE scatter.
+// GPT-2 does not use conv2d; staged is exact.
+// ---------------------------------------------------------------------------
 
 //! Constructor
 template<typename T>
@@ -183,8 +201,8 @@ void Conv2dBwdWeightInplace<std::tuple<T>>::submit(int starpu_worker_hint,
     {
         dst_mode = STARPU_W;
     }
-    // Submit task
-    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
+    // Submit task: staged by design (the family-3 derivation above).
+    ::nntile::haul::stage::staged_insert_task(codelet.raw, starpu_worker_hint,
         { { STARPU_R, &src1 }, { STARPU_R, &src2 }, { dst_mode, &dst } }, args, sizeof(*args));
     std::free(args);
 

@@ -49,9 +49,14 @@ void GeluInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    T *data = ::nntile::haul::buf_as<T>(buffers, 0);
-    // Launch kernel
-    kernel::gelu_inplace::cpu<T>(args->nelems, data);
+    auto data = ::nntile::haul::buf_chunks<T>(buffers, 0);
+    // Launch kernel per flat chunk piece (single piece if unchunked)
+    ::nntile::haul::for_each_flat_piece(
+        args->nelems,
+        [&](std::size_t n, T *p) {
+            kernel::gelu_inplace::cpu<T>(n, p);
+        },
+        data);
 }
 
 // Specializations of CPU wrapper for accelerated types
@@ -88,11 +93,16 @@ void GeluInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    T *data = ::nntile::haul::buf_as<T>(buffers, 0);
+    auto data = ::nntile::haul::buf_chunks<T>(buffers, 0);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    // Launch kernel
-    kernel::gelu_inplace::cuda<T>(stream, args->nelems, data);
+    // Launch kernel per flat chunk piece (single piece if unchunked)
+    ::nntile::haul::for_each_flat_piece(
+        args->nelems,
+        [&](std::size_t n, T *p) {
+            kernel::gelu_inplace::cuda<T>(stream, n, p);
+        },
+        data);
 }
 
 // Specializations of CUDA wrapper for accelerated types

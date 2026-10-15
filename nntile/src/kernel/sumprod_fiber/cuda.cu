@@ -225,7 +225,24 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
     }
     else
     {
-        dim3 threads(2, std::min(int(m), 32), std::min(int(n), 32));
+        // Cap the block at 1024 threads: 2 x min(m,32) x min(n,32) alone
+        // exceeds the limit whenever min(m,32)*min(n,32) > 512 (a launch
+        // that always failed with invalid configuration argument).
+        // Mapping-stability caveat (family-2 follow-up B, corrected): the
+        // thread-to-element mapping is preserved ONLY while
+        // 2*ty*min(n,32) <= 512, where tz = min(n,32) still assigns one
+        // thread per (i0, i2) fiber position. In the (512, 1024]-thread
+        // band - 512 < 2*ty*min(n,32) <= 1024, i.e. shapes whose original
+        // 2 x ty x min(n,32) block was legal but larger than 512 threads -
+        // tz = max(1, 512/(2*ty)) < min(n,32) REGROUPS the partial sums
+        // (each i2 accumulator folds a different thread's strided partial
+        // before the shared-memory atomicAdd), so such shapes change their
+        // summation grouping versus the pre-cap kernel. Correctness is
+        // unaffected: the kernel's reduction is atomicAdd-based and its
+        // order is unspecified anyway, so any grouping is a legal answer.
+        int const ty = std::min(int(m), 32);
+        int const tz = std::min(int(n), std::max(1, 512 / (2 * ty)));
+        dim3 threads(2, ty, tz);
         dim3 blocks((k+threads.x-1)/threads.x, 1, 1);
         (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, alpha, src1,
                 src2, beta, dst);

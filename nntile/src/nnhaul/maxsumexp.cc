@@ -17,14 +17,112 @@
 
 // Standard libraries
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <stdexcept>
 
 // Other NNTile headers
 #include "nntile/kernel/maxsumexp.hh"
+#include "nntile/nnhaul/chunk_units.hh"
 
 namespace nntile::haul
 {
+
+// ---------------------------------------------------------------------------
+// Native chunked maxsumexp driver (chunk_units.hh scheme, cf. gemm.cc)
+//
+// Kernel index map (derived from kernel::maxsumexp::cpu/cuda, NOT
+// assumed): src is [m, k, n] with m CONTIGUOUS (element (i0, i1, i2) at
+// flat i0 + m*i1 + m*k*i2) and the reduction fiber of the unit (i0, i2)
+// is the k elements at flat i0 + m*i1 + m*k*i2 for i1 in [0, k) - i.e.
+// ONE ELEMENT IN EACH ROW of the unit's panel of k consecutive rows; the
+// (max, sumexp) pair lands at dst[2*(i0 + m*i2)].
+//
+// Decomposition: pieces are runs of whole rows (m contiguous elements)
+// inside single src chunks. A piece computes PARTIAL (max, sumexp) of
+// every unit of its panel over the fiber positions it covers, and the
+// pieces of a panel are combined by the kernel's OWN accumulation
+// contract (the beta!=0 merge): the first piece of each panel runs with
+// the caller's beta, every continuation piece with beta=1, which merges
+// max_first = max(max_a, max_b) and sum = sum_a*exp(max_a-max_first) +
+// sum_b*exp(max_b-max_first) - the algebraically exact combine (the same
+// algebra kernel::accumulate_maxsumexp implements for tensor-level
+// partial merges), applied in fiber-position order on the single
+// in-order stream. NO fiber is ever split mid-piece, so no extra combine
+// kernel is needed; the result equals the plain call up to the rounding
+// of the piecewise merge (CUDA adds its shared-memory atomicAdd
+// nondeterminism, which the plain call already has).
+//
+// The dst slice segment of a panel (2*m elements) is used in place when
+// it lies in one dst chunk, else staged through a bounded 2*m temp for
+// the panel's whole piece chain (gathered when the caller's beta != 0,
+// zero-initialized otherwise, scattered back at the panel switch). Rows
+// straddling src chunk boundaries are gathered into a bounded m-element
+// temp and reduced as (m, 1, 1) pieces. Panel-aligned pieces may span
+// whole panels ((m, n', k) sub-calls, first-piece beta). Zero new
+// kernels; all-unchunked buffers keep the single classic call.
+// ---------------------------------------------------------------------------
+
+namespace
+{
+
+template<typename T, typename Arena, typename Sub>
+void maxsumexp_chunked(Index m, Index n, Index k, ::nnhaul::Buffer *buf_src,
+    ::nnhaul::Buffer *buf_dst, Scalar beta, std::size_t force_bytes,
+    Arena &arena, Sub &&sub)
+{
+    if(m <= 0)
+    {
+        return;
+    }
+    chunkunits::ChunkView<T> const cv_src(buf_src, force_bytes);
+    chunkunits::ChunkView<T> const cv_dst(buf_dst, force_bytes);
+    chunkunits::UnitSpan<T> const span_src{&cv_src, std::size_t(m), Index{1}};
+    chunkunits::UnitSpan<T> const span_dst{&cv_dst, std::size_t{2} * m, k};
+    bool const chunked_src = cv_src.nchunks > 1 || force_bytes != 0;
+    T *temp_src = chunked_src ? arena.alloc(std::size_t(m)) : nullptr;
+    chunkunits::SliceStage<T, Arena> dst_stage(
+        cv_dst, std::size_t{2} * m, true, arena);
+    chunkunits::walk_unit_runs(n, k,
+        [&](Index i, Index len, bool first, bool src_str,
+            bool /*dst_str*/)
+        {
+            if(len <= 0 || !arena.ok_state())
+            {
+                return;
+            }
+            Index const panel = i / k;
+            T *pd = dst_stage.advance(panel, first && beta != Scalar{0});
+            T const *ps = nullptr;
+            if(src_str)
+            {
+                chunkunits::gather_range(cv_src, std::size_t(m) * i,
+                    std::size_t(m), temp_src, arena);
+                ps = temp_src;
+            }
+            else
+            {
+                ps = span_src.ptr(i);
+            }
+            if(ps == nullptr || pd == nullptr || !arena.ok_state())
+            {
+                return;
+            }
+            Scalar const beta_eff = first ? beta : Scalar{1};
+            if(len >= k)
+            {
+                sub(m, len / k, k, ps, beta_eff, pd);
+            }
+            else
+            {
+                sub(m, Index{1}, len, ps, beta_eff, pd);
+            }
+        },
+        span_src, span_dst);
+    dst_stage.retire();
+}
+
+} // namespace
 
 //! Constructor
 template<typename T>
@@ -42,7 +140,7 @@ MaxSumExp<std::tuple<T>>::MaxSumExp():
     // Modes are not fixed, they are decided during runtime by default
 }
 
-//! Max and sum of exponents along middle axis of StarPU buffer on CPU
+//! Max and sum of exponents along middle axis of NNHaul buffer on CPU
 template<typename T>
 void MaxSumExp<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
@@ -50,10 +148,43 @@ void MaxSumExp<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    const T *src = ::nntile::haul::buf_as<T>(buffers, 0);
-    T *dst = ::nntile::haul::buf_as<T>(buffers, 1);
-    // Launch kernel
-    kernel::maxsumexp::cpu<T>(args->m, args->n, args->k, src, args->beta, dst);
+    auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[0]);
+    auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
+    std::size_t const forced = chunkunits::forced_chunk_bytes();
+    if(buf_src->chunk_count() == 1 && buf_dst->chunk_count() == 1
+        && forced == 0)
+    {
+        // Unchunked fast path: the historical single kernel call, bitwise
+        kernel::maxsumexp::cpu<T>(args->m, args->n, args->k,
+            buf_src->get_ptr<T>(), args->beta, buf_dst->get_ptr<T>());
+        return;
+    }
+    Scalar const beta = args->beta;
+    try
+    {
+        chunkunits::ArenaCpu<T> arena;
+        maxsumexp_chunked<T>(
+            args->m,
+            args->n,
+            args->k,
+            buf_src,
+            buf_dst,
+            beta,
+            forced,
+            arena,
+            [](Index mm, Index nn, Index kk, T const *ps, Scalar be, T *pd) {
+                kernel::maxsumexp::cpu<T>(mm, nn, kk, ps, be, pd);
+            });
+    }
+    catch(...)
+    {
+        // A noexcept body must not throw; a failed scratch allocation
+        // leaves the result unwritten (same failure class as a failed
+        // kernel launch).
+        std::fprintf(stderr,
+            "nntile_maxsumexp: cpu chunked driver aborted after an "
+            "allocation failure; dst left unwritten\n");
+    }
 }
 
 // Specializations of CPU wrapper for accelerated types
@@ -82,7 +213,7 @@ void MaxSumExp<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Max and sum of exponents along middle axis of StarPU buffer on CUDA
+//! Max and sum of exponents along middle axis of NNHaul buffer on CUDA
 template<typename T>
 void MaxSumExp<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
@@ -90,13 +221,39 @@ void MaxSumExp<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    const T *src = ::nntile::haul::buf_as<T>(buffers, 0);
-    T *dst = ::nntile::haul::buf_as<T>(buffers, 1);
+    auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[0]);
+    auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    // Launch kernel
-    kernel::maxsumexp::cuda<T>(stream, args->m, args->n, args->k, src,
-            args->beta, dst);
+    std::size_t const forced = chunkunits::forced_chunk_bytes();
+    if(buf_src->chunk_count() == 1 && buf_dst->chunk_count() == 1
+        && forced == 0)
+    {
+        // Unchunked fast path: the historical single kernel call, bitwise
+        kernel::maxsumexp::cuda<T>(stream, args->m, args->n, args->k,
+            buf_src->get_ptr<T>(), args->beta, buf_dst->get_ptr<T>());
+        return;
+    }
+    chunkunits::ArenaCuda<T> arena(stream);
+    maxsumexp_chunked<T>(
+        args->m,
+        args->n,
+        args->k,
+        buf_src,
+        buf_dst,
+        args->beta,
+        forced,
+        arena,
+        [stream](Index mm, Index nn, Index kk, T const *ps, Scalar be,
+            T *pd) {
+            kernel::maxsumexp::cuda<T>(stream, mm, nn, kk, ps, be, pd);
+        });
+    if(!arena.ok_state())
+    {
+        std::fprintf(stderr,
+            "nntile_maxsumexp: chunked CUDA driver aborted after a stream "
+            "error; dst left unwritten\n");
+    }
 }
 
 // Specializations of CUDA wrapper for accelerated types
@@ -184,7 +341,10 @@ void MaxSumExp<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n,
     args->beta = beta;
     // Put amount of bytes read and write inplace of gflops
     double nflops = sizeof(T) * m * (k+2) * n;
-    // Submit task
+    // Submit task: the BODY picks the unchunked fast path or the native
+    // chunked unit driver; maxsumexp never goes through the staging
+    // fallback.
+    (void)nflops;
     ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
         { { STARPU_R, &src }, { dst_mode, &dst } }, args, sizeof(*args));
     std::free(args);

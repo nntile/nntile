@@ -15,6 +15,7 @@
 
 // Corresponding header
 #include "nntile/nnhaul/ops/conv2d_bwd_input_inplace.hh"
+#include "nntile/nnhaul/stage.hh"
 
 // Standard libraries
 #include <cstdint>
@@ -26,6 +27,26 @@
 
 namespace nntile::haul
 {
+// ---------------------------------------------------------------------------
+// DELIBERATELY STAGED (the family-3 derivation, docs/chunked-tiles.md
+// §4.3): conv2d_bwd_input_inplace is NOT chunk-decomposable with the
+// existing kernel signature.
+//
+// Index map (kernel::conv2d_bwd_input_inplace::cpu/cuda): dst(i,j,k,b)
+// (the input grad, contiguous axis i) accumulates
+// sum src1(m,n,l,b) * src2((i+offset_m-dilation_m*kk)/stride_m, ...,
+// k, l) - one dst element reads src1 at the stride_m-STRIDED positions
+// m = i + offset_m - dilation_m*kk for every kernel tap kk, i.e. a
+// stride-m gather spanning the ENTIRE src1 m-extent, and symmetrically
+// in n. Unlike the forward op there is no contiguous src1 window per
+// dst run at all: any dst m-run sub-piece (the forward op's
+// offset-rebase trick does apply to dst) reads src1 elements scattered
+// over the whole (m,n) plane at stride granularity, so single-chunk
+// residency of the reads cannot be guaranteed by any piece cut - only
+// whole-src1 residency per piece would do, which is exactly what the
+// staging fallback provides with one bounded scratch instead of N
+// pieces. GPT-2 does not use conv2d; staged is exact.
+// ---------------------------------------------------------------------------
 
 //! Constructor
 template<typename T>
@@ -164,8 +185,8 @@ void Conv2dBwdInputInplace<std::tuple<T>>::submit(int starpu_worker_hint, Index 
     {
         dst_mode = STARPU_W;
     }
-    // Submit task
-    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
+    // Submit task: staged by design (the family-3 derivation above).
+    ::nntile::haul::stage::staged_insert_task(codelet.raw, starpu_worker_hint,
         { { STARPU_R, &src1 }, { STARPU_R, &src2 }, { dst_mode, &dst } }, args, sizeof(*args));
     std::free(args);
 

@@ -91,6 +91,8 @@ set(TESTS_TILE_CATCH2
 
 set(TESTS_TILE_ROOT_CATCH2
     "append_tensor_graph_phase"
+    "chunked_big"
+    "chunked_staged_probe"
     "daemon_robustness"
     "add_mixed_tile"
     "execution_schedule"
@@ -114,6 +116,12 @@ foreach(test IN LISTS TESTS_TILE_CATCH2)
 endforeach()
 
 foreach(test IN LISTS TESTS_TILE_ROOT_CATCH2)
+    # The chunked-tiles tests exercise the NNHaul runtime API directly
+    # (nnhaul::Handle chunking, stage counters); the headers do not exist
+    # in the StarPU/torch-native flavors.
+    if(test MATCHES "^chunked_" AND NOT NNTILE_USE_NNHAUL)
+        continue()
+    endif()
     add_test_set(TARGET_NAME tests_tile_${test}
         EXEC_NAME test_${test}
         SOURCES ${test}.cc
@@ -126,6 +134,15 @@ foreach(test IN LISTS TESTS_TILE_ROOT_CATCH2)
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/..)
 endforeach()
+
+if(NNTILE_USE_NNHAUL)
+    # The chunked big-tile graph test re-execs itself for the deep-chunk
+    # ladder mode (two full legs).
+    set_tests_properties(tests_tile_chunked_big PROPERTIES TIMEOUT 120)
+    # The adversarial staging probes run multiple tight-cap sessions and a
+    # contiguous-mode child process.
+    set_tests_properties(tests_tile_chunked_staged_probe PROPERTIES TIMEOUT 300)
+endif()
 
 if(NNTILE_USE_CUDA AND NNTILE_USE_FLASH_SDPA)
     foreach(test IN ITEMS flash_sdpa_fwd_cudnn flash_sdpa_bwd_cudnn)

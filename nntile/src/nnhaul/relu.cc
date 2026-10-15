@@ -50,10 +50,16 @@ void Relu<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    const T *src = ::nntile::haul::buf_as<T>(buffers, 0);
-    T *dst = ::nntile::haul::buf_as<T>(buffers, 1);
-    // Launch kernel
-    kernel::relu::cpu<T>(args->nelems, src, dst);
+    auto src = ::nntile::haul::buf_chunks<T>(buffers, 0);
+    auto dst = ::nntile::haul::buf_chunks<T>(buffers, 1);
+    // Launch kernel per flat chunk piece (single piece if unchunked)
+    ::nntile::haul::for_each_flat_piece(
+        args->nelems,
+        [&](std::size_t n, const T *s, T *d) {
+            kernel::relu::cpu<T>(n, s, d);
+        },
+        src,
+        dst);
 }
 
 // Specializations of CPU wrapper for accelerated types
@@ -92,12 +98,18 @@ void Relu<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    const T *src = ::nntile::haul::buf_as<T>(buffers, 0);
-    T *dst = ::nntile::haul::buf_as<T>(buffers, 1);
+    auto src = ::nntile::haul::buf_chunks<T>(buffers, 0);
+    auto dst = ::nntile::haul::buf_chunks<T>(buffers, 1);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    // Launch kernel
-    kernel::relu::cuda<T>(stream, args->nelems, src, dst);
+    // Launch kernel per flat chunk piece (single piece if unchunked)
+    ::nntile::haul::for_each_flat_piece(
+        args->nelems,
+        [&](std::size_t n, const T *s, T *d) {
+            kernel::relu::cuda<T>(stream, n, s, d);
+        },
+        src,
+        dst);
 }
 
 // Specializations of CUDA wrapper for accelerated types

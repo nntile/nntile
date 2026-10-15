@@ -52,11 +52,18 @@ void Hypot<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    const T *src1 = ::nntile::haul::buf_as<T>(buffers, 0);
-    const T *src2 = ::nntile::haul::buf_as<T>(buffers, 1);
-    T *dst = ::nntile::haul::buf_as<T>(buffers, 2);
-    // Launch kernel
-    kernel::hypot::cpu<T>(args->nelems, args->alpha, src1, args->beta, src2, dst);
+    auto src1 = ::nntile::haul::buf_chunks<T>(buffers, 0);
+    auto src2 = ::nntile::haul::buf_chunks<T>(buffers, 1);
+    auto dst = ::nntile::haul::buf_chunks<T>(buffers, 2);
+    // Launch kernel per flat chunk piece (single piece if unchunked)
+    ::nntile::haul::for_each_flat_piece(
+        args->nelems,
+        [&](std::size_t n, const T *s1, const T *s2, T *d) {
+            kernel::hypot::cpu<T>(n, args->alpha, s1, args->beta, s2, d);
+        },
+        src1,
+        src2,
+        dst);
 }
 
 // Specializations of CPU wrapper for accelerated types
@@ -93,14 +100,21 @@ void Hypot<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    const T *src1 = ::nntile::haul::buf_as<T>(buffers, 0);
-    const T *src2 = ::nntile::haul::buf_as<T>(buffers, 1);
-    T *dst = ::nntile::haul::buf_as<T>(buffers, 2);
+    auto src1 = ::nntile::haul::buf_chunks<T>(buffers, 0);
+    auto src2 = ::nntile::haul::buf_chunks<T>(buffers, 1);
+    auto dst = ::nntile::haul::buf_chunks<T>(buffers, 2);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    // Launch kernel
-    kernel::hypot::cuda<T>(stream, args->nelems, args->alpha, src1,
-            args->beta, src2, dst);
+    // Launch kernel per flat chunk piece (single piece if unchunked)
+    ::nntile::haul::for_each_flat_piece(
+        args->nelems,
+        [&](std::size_t n, const T *s1, const T *s2, T *d) {
+            kernel::hypot::cuda<T>(stream, n, args->alpha, s1, args->beta,
+                s2, d);
+        },
+        src1,
+        src2,
+        dst);
 }
 
 // Specializations of CUDA wrapper for accelerated types

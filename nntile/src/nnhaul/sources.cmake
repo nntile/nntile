@@ -63,6 +63,7 @@ set(NNHAUL_CODELET_SRC
     "nnhaul/softmax_inplace.cc"
     "nnhaul/sqrt.cc"
     "nnhaul/sqrt_inplace.cc"
+    "nnhaul/stage.cc"
     "nnhaul/subcopy.cc"
     "nnhaul/subtract_indexed_outputs.cc"
     "nnhaul/sum.cc"

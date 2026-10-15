@@ -74,13 +74,17 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, Scalar alpha_,
         if(block_max[threadIdx.x+blockDim.x*threadIdx.y] > 0)
         {
             sum /= block_max[threadIdx.x+blockDim.x*threadIdx.y];
-            atomicAdd(&block_sum[threadIdx.x+blockDim.x*threadIdx.y], sum*sum);
-            __syncthreads();
-            // Update output value
-            if(i2_start == 0)
+            atomicAdd(&block_sum[threadIdx.x+blockDim.x*threadIdx.y],
+                    sum*sum);
+        }
+        __syncthreads();
+        // Update output value
+        if(i2_start == 0)
+        {
+            // Output value
+            T &result = dst[i1*m+i0];
+            if(block_max[threadIdx.x+blockDim.x*threadIdx.y] > 0)
             {
-                // Output value
-                T &result = dst[i1*m+i0];
                 sum = block_max[threadIdx.x+blockDim.x*threadIdx.y];
                 sum *= ::sqrt(block_sum[threadIdx.x+blockDim.x*threadIdx.y]);
                 if(beta == zero)
@@ -90,6 +94,25 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, Scalar alpha_,
                 else
                 {
                     result = T{::hypot(beta*Y{result}, alpha*sum)};
+                }
+            }
+            // All-zero fiber: write the beta-combined value exactly like
+            // the CPU kernel and the m==1 CUDA kernel of this family do
+            // (0 for beta==0, fabs(beta*dst_old) otherwise). The old code
+            // skipped the write entirely, leaving dst stale - divergent
+            // from the CPU kernel on legal zero inputs (padding, masks)
+            // and fatal for the piecewise hypot chain of the chunked
+            // driver, whose continuation pieces anchor on the first
+            // piece's output.
+            else
+            {
+                if(beta == zero)
+                {
+                    result = T{zero};
+                }
+                else
+                {
+                    result = T{::fabs(beta*Y{result})};
                 }
             }
         }

@@ -51,24 +51,32 @@ void AdamWStep<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    T *grad = ::nntile::haul::buf_as<T>(buffers, 0);
-    T *first_moments = ::nntile::haul::buf_as<T>(buffers, 1);
-    T *second_moments = ::nntile::haul::buf_as<T>(buffers, 2);
-    T* p = ::nntile::haul::buf_as<T>(buffers, 3);
-    // Launch kernel
-    kernel::adamw_step::cpu<T>(
-        args->num_iter,
+    auto grad = ::nntile::haul::buf_chunks<T>(buffers, 0);
+    auto first_moments = ::nntile::haul::buf_chunks<T>(buffers, 1);
+    auto second_moments = ::nntile::haul::buf_chunks<T>(buffers, 2);
+    auto p = ::nntile::haul::buf_chunks<T>(buffers, 3);
+    // Launch kernel per flat chunk piece (single piece if unchunked)
+    ::nntile::haul::for_each_flat_piece(
         args->num_elems,
-        args->beta_1,
-        args->beta_2,
-        args->eps,
-        args->lr,
-        args->weight_decay,
+        [&](std::size_t n, const T *g, T *f, T *s, T *pp) {
+            kernel::adamw_step::cpu<T>(
+                args->num_iter,
+                n,
+                args->beta_1,
+                args->beta_2,
+                args->eps,
+                args->lr,
+                args->weight_decay,
+                g,
+                f,
+                s,
+                pp
+            );
+        },
         grad,
         first_moments,
         second_moments,
-        p
-    );
+        p);
 }
 
 // Specializations of CPU wrapper for accelerated types
@@ -105,27 +113,35 @@ void AdamWStep<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    T *grad = ::nntile::haul::buf_as<T>(buffers, 0);
-    T *first_moments = ::nntile::haul::buf_as<T>(buffers, 1);
-    T *second_moments = ::nntile::haul::buf_as<T>(buffers, 2);
-    T* p = ::nntile::haul::buf_as<T>(buffers, 3);
+    auto grad = ::nntile::haul::buf_chunks<T>(buffers, 0);
+    auto first_moments = ::nntile::haul::buf_chunks<T>(buffers, 1);
+    auto second_moments = ::nntile::haul::buf_chunks<T>(buffers, 2);
+    auto p = ::nntile::haul::buf_chunks<T>(buffers, 3);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    // Launch kernel
-    kernel::adamw_step::cuda<T>(
-        stream,
-        args->num_iter,
+    // Launch kernel per flat chunk piece (single piece if unchunked)
+    ::nntile::haul::for_each_flat_piece(
         args->num_elems,
-        args->beta_1,
-        args->beta_2,
-        args->eps,
-        args->lr,
-        args->weight_decay,
+        [&](std::size_t n, const T *g, T *f, T *s, T *pp) {
+            kernel::adamw_step::cuda<T>(
+                stream,
+                args->num_iter,
+                n,
+                args->beta_1,
+                args->beta_2,
+                args->eps,
+                args->lr,
+                args->weight_decay,
+                g,
+                f,
+                s,
+                pp
+            );
+        },
         grad,
         first_moments,
         second_moments,
-        p
-    );
+        p);
 }
 
 // Specializations of CUDA wrapper for accelerated types
