@@ -50,10 +50,15 @@ void HypotScalarInverse<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    T *dst = ::nntile::haul::buf_as<T>(buffers, 0);
-    // Launch kernel
-    kernel::hypot_scalar_inverse::cpu<T>(args->nelems, args->eps, args->alpha,
-            dst);
+    auto dst = ::nntile::haul::buf_chunks<T>(buffers, 0);
+    // Launch kernel per flat chunk piece (single piece if unchunked)
+    ::nntile::haul::for_each_flat_piece(
+        args->nelems,
+        [&](std::size_t n, T *d) {
+            kernel::hypot_scalar_inverse::cpu<T>(
+                n, args->eps, args->alpha, d);
+        },
+        dst);
 }
 
 // Specializations of CPU wrapper for accelerated types
@@ -90,12 +95,17 @@ void HypotScalarInverse<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    T *dst = ::nntile::haul::buf_as<T>(buffers, 0);
+    auto dst = ::nntile::haul::buf_chunks<T>(buffers, 0);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    // Launch kernel
-    kernel::hypot_scalar_inverse::cuda<T>(stream, args->nelems, args->eps,
-            args->alpha, dst);
+    // Launch kernel per flat chunk piece (single piece if unchunked)
+    ::nntile::haul::for_each_flat_piece(
+        args->nelems,
+        [&](std::size_t n, T *d) {
+            kernel::hypot_scalar_inverse::cuda<T>(
+                stream, n, args->eps, args->alpha, d);
+        },
+        dst);
 }
 
 // Specializations of CUDA wrapper for accelerated types

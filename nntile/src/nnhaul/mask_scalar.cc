@@ -17,14 +17,112 @@
 
 // Standard libraries
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <stdexcept>
 
 // Other NNTile headers
 #include "nntile/kernel/mask_scalar.hh"
+#include "nntile/nnhaul/chunk_units.hh"
 
 namespace nntile::haul
 {
+
+// ---------------------------------------------------------------------------
+// Native chunked mask_scalar driver (chunk_units.hh scheme).
+//
+// Kernel index map (derived from kernel::mask_scalar::cpu/cuda, NOT
+// assumed): data is nrows-by-ncols Fortran with element (i, j) at flat
+// i + j*nrows - the CONTIGUOUS unit is the nrows-element COLUMN, and the
+// mask is the small operand indexed by the row only (constant along the
+// contiguous axis), exactly the slice-class geometry. A run of whole
+// columns [j0, j0+L) inside one data chunk is therefore the plain kernel
+// sub-call (nrows, L, mask, val, data + j0*nrows). A column straddling a
+// data chunk boundary is staged through a bounded nrows temp (gathered -
+// the op writes only masked-out rows - kernel (nrows, 1) on the temp,
+// scattered back). The mask itself is one nrows-element segment: used in
+// place when its range lies in one chunk, gathered ONCE into a bounded
+// temp otherwise (every sub-call reads the whole mask). Writes are
+// idempotent val assignments, so the piecewise result is BITWISE the
+// plain call under any factorization. Zero new kernels; all-unchunked
+// buffers keep the single classic call.
+// ---------------------------------------------------------------------------
+
+namespace
+{
+
+template<typename T, typename Arena, typename Sub>
+void mask_scalar_chunked(Index nrows, Index ncols,
+    ::nnhaul::Buffer *buf_mask, Scalar val, ::nnhaul::Buffer *buf_data,
+    std::size_t force_bytes, Arena &arena, Sub &&sub)
+{
+    if(nrows <= 0 || ncols <= 0)
+    {
+        return;
+    }
+    chunkunits::ChunkView<T> const cv_data(buf_data, force_bytes);
+    chunkunits::ChunkView<nntile::bool_t> const cv_mask(buf_mask,
+        force_bytes);
+    bool const chunked_data = cv_data.nchunks > 1 || force_bytes != 0;
+    T *temp_col = chunked_data ? arena.alloc(std::size_t(nrows)) : nullptr;
+    nntile::bool_t const *mask = nullptr;
+    nntile::bool_t *temp_mask = nullptr;
+    if(cv_mask.nchunks > 1
+        && !chunkunits::in_one_chunk(cv_mask, 0, std::size_t(nrows)))
+    {
+        // The arena hands out T-sized blocks; the mask needs nrows bytes,
+        // so round up in T units and view the block as bool_t (1-byte
+        // alignment inside a T alignment).
+        std::size_t const t_elems = (std::size_t(nrows) * sizeof(nntile::bool_t)
+            + sizeof(T) - 1) / sizeof(T);
+        temp_mask = reinterpret_cast<nntile::bool_t *>(arena.alloc(t_elems));
+        chunkunits::gather_range(cv_mask, 0, std::size_t(nrows), temp_mask,
+            arena);
+        mask = temp_mask;
+    }
+    else
+    {
+        mask = cv_mask.ptr(0, 0);
+    }
+    if(!arena.ok_state() || mask == nullptr)
+    {
+        return;
+    }
+    Index j = 0;
+    while(j < ncols && arena.ok_state())
+    {
+        std::size_t const f = std::size_t(j) * nrows;
+        if(!chunkunits::in_one_chunk(cv_data, f, std::size_t(nrows)))
+        {
+            // Straddling column: stage it whole through the bounded temp.
+            chunkunits::gather_range(cv_data, f, std::size_t(nrows),
+                temp_col, arena);
+            if(arena.ok_state())
+            {
+                sub(nrows, Index{1}, mask, val, temp_col);
+                chunkunits::scatter_range(cv_data, f, std::size_t(nrows),
+                    temp_col, arena);
+            }
+            ++j;
+            continue;
+        }
+        std::size_t const c = cv_data.chunk_of(f);
+        std::size_t const end = cv_data.chunk_end(c);
+        Index L = static_cast<Index>((end - f) / nrows);
+        if(L > ncols - j)
+        {
+            L = ncols - j;
+        }
+        if(L < 1)
+        {
+            L = 1;
+        }
+        sub(nrows, L, mask, val, cv_data.ptr(c, f - cv_data.chunk_begin(c)));
+        j += L;
+    }
+}
+
+} // namespace
 
 //! Constructor
 template<typename T>
@@ -50,11 +148,42 @@ void MaskScalar<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    T *data = ::nntile::haul::buf_as<T>(buffers, 0);
-    const bool_t* mask = ::nntile::haul::buf_as<bool_t>(buffers, 1);
-    // Launch kernel
-    kernel::mask_scalar::cpu<T>(args->nrows, args->ncols, mask, args->val,
-            data);
+    auto buf_data = static_cast<::nnhaul::Buffer *>(buffers[0]);
+    auto buf_mask = static_cast<::nnhaul::Buffer *>(buffers[1]);
+    std::size_t const forced = chunkunits::forced_chunk_bytes();
+    if(buf_data->chunk_count() == 1 && buf_mask->chunk_count() == 1
+        && forced == 0)
+    {
+        // Unchunked fast path: the historical single kernel call, bitwise
+        kernel::mask_scalar::cpu<T>(args->nrows, args->ncols,
+            buf_mask->get_ptr<nntile::bool_t>(), args->val,
+            buf_data->get_ptr<T>());
+        return;
+    }
+    try
+    {
+        chunkunits::ArenaCpu<T> arena;
+        mask_scalar_chunked<T>(
+            args->nrows,
+            args->ncols,
+            buf_mask,
+            args->val,
+            buf_data,
+            forced,
+            arena,
+            [](Index r, Index c, nntile::bool_t const *pm, Scalar v, T *pd) {
+                kernel::mask_scalar::cpu<T>(r, c, pm, v, pd);
+            });
+    }
+    catch(...)
+    {
+        // A noexcept body must not throw; a failed scratch allocation
+        // leaves the result partially unwritten (same failure class as a
+        // failed kernel launch).
+        std::fprintf(stderr,
+            "nntile_mask_scalar: cpu chunked driver aborted after an "
+            "allocation failure; data left unwritten\n");
+    }
 }
 // Specializations of CPU wrapper for accelerated types
 template<>
@@ -90,13 +219,39 @@ void MaskScalar<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    T *data = ::nntile::haul::buf_as<T>(buffers, 0);
-    const bool_t *mask = ::nntile::haul::buf_as<bool_t>(buffers, 1);
+    auto buf_data = static_cast<::nnhaul::Buffer *>(buffers[0]);
+    auto buf_mask = static_cast<::nnhaul::Buffer *>(buffers[1]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    // Launch kernel
-    kernel::mask_scalar::cuda<T>(stream, args->nrows, args->ncols, mask,
-            args->val, data);
+    std::size_t const forced = chunkunits::forced_chunk_bytes();
+    if(buf_data->chunk_count() == 1 && buf_mask->chunk_count() == 1
+        && forced == 0)
+    {
+        // Unchunked fast path: the historical single kernel call, bitwise
+        kernel::mask_scalar::cuda<T>(stream, args->nrows, args->ncols,
+            buf_mask->get_ptr<nntile::bool_t>(), args->val,
+            buf_data->get_ptr<T>());
+        return;
+    }
+    chunkunits::ArenaCuda<T> arena(stream);
+    mask_scalar_chunked<T>(
+        args->nrows,
+        args->ncols,
+        buf_mask,
+        args->val,
+        buf_data,
+        forced,
+        arena,
+        [stream](Index r, Index c, nntile::bool_t const *pm, Scalar v,
+            T *pd) {
+            kernel::mask_scalar::cuda<T>(stream, r, c, pm, v, pd);
+        });
+    if(!arena.ok_state())
+    {
+        std::fprintf(stderr,
+            "nntile_mask_scalar: chunked CUDA driver aborted after a stream "
+            "error; data left unwritten\n");
+    }
 }
 // Specializations of CUDA wrapper for accelerated types
 template<>
@@ -158,7 +313,9 @@ void MaskScalar<std::tuple<T>>::submit(int starpu_worker_hint,
     args->val = val;
     // Indicate maximal possible amount of writes as flops count
     double nflops = sizeof(T) * nrows * (ncols+1);
-    // Submit task
+    // Submit task: the BODY picks the unchunked fast path or the native
+    // chunked column driver; mask_scalar never stages.
+    (void)nflops;
     ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
         { { STARPU_RW, &data }, { STARPU_R, &mask } }, args, sizeof(*args));
     std::free(args);

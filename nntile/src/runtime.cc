@@ -19,6 +19,7 @@
 #include "nntile/core/execution_worker.hh"
 #ifdef NNTILE_USE_NNHAUL
 #include "nntile/backend_workers.hh"
+#include "nntile/nnhaul/chunk_gate.hh"
 #include "nntile/nnhaul/sync_defer.hh"
 #else
 #include "nntile/starpu/sync_defer.hh"
@@ -173,6 +174,8 @@ void Runtime::compile()
         compiled_tile_node_count_ = 0;
         execution_order_.clear();
         executed_op_end_ = 0;
+        // The op history was dropped; rescan re-accumulates the flag.
+        graph_has_torch_ops_ = false;
     }
     if (compiled_graph_op_count_ < graph_ops.size())
     {
@@ -182,9 +185,38 @@ void Runtime::compile()
         for (size_t i = compiled_graph_op_count_; i < graph_ops.size(); ++i)
         {
             execution_order_.push_back(graph_ops[i]);
+            if (!graph_has_torch_ops_
+                && graph_ops[i]->op_name().rfind("TILE_TORCH_", 0) == 0)
+            {
+                graph_has_torch_ops_ = true;
+            }
         }
         compiled_graph_op_count_ = graph_ops.size();
     }
+#ifdef NNTILE_USE_NNHAUL
+    // Chunked tiles are for the classic stack only. Torch_dispatch ops
+    // consume tiles through contiguous torch tensors and cannot read a
+    // chunk chain, so the combination must be impossible to reach: if
+    // this graph lowers a torch op while any chunked tile handle is
+    // alive (every chunked tile registers itself in the stage registry
+    // at allocation), fail LOUDLY at compile time - before execution
+    // could hand a chunked buffer to a torch kernel. The gate flip below
+    // only affects future allocations and would silently leave the old
+    // chunked tiles consumable, hence the throw. NNHAUL_CHUNK_TILES=0
+    // also forces unchunked handles inside nnhaul::chunk_bytes_for().
+    if (graph_has_torch_ops_
+        && ::nntile::haul::stage::chunked_handle_count() != 0)
+    {
+        throw std::runtime_error(
+            "NNTile/NNHaul: this graph lowers torch_dispatch ops "
+            "(TILE_TORCH_*), which cannot consume chunked NNHaul tiles, "
+            "but chunked tile handles are already allocated in this "
+            "session (NNHAUL_CHUNK_TILES is enabled and tiles exceed the "
+            "chunking threshold). Set NNHAUL_CHUNK_TILES=0 for "
+            "torch-native graphs.");
+    }
+    ::nntile::haul::set_tile_chunking(!graph_has_torch_ops_);
+#endif
 
     auto const t_dce = std::chrono::steady_clock::now();
     eliminate_dead_ops();

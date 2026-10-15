@@ -11,6 +11,8 @@
 
 #include <nnhaul/nnhaul.hh>
 
+#include <nntile/nnhaul/stage.hh>
+
 #include <atomic>
 #include <cstdint>
 
@@ -25,6 +27,9 @@ inline void starpu_task_wait_for_all_counted()
 {
     ++g_starpu_wait_for_all_count;
     ::nnhaul::wait();
+    // The queue is idle now, so destroying staged scratch handles is
+    // the non-blocking case of the stage lifetime scheme (stage.hh).
+    ::nntile::haul::stage::drain_scratches();
 }
 
 struct StarpuSyncDefer

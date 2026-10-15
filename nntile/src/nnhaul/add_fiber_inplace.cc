@@ -17,16 +17,105 @@
 
 // Standard libraries
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <stdexcept>
 
 // Other NNTile headers
 #include "nntile/kernel/add_fiber_inplace.hh"
+#include "nntile/nnhaul/chunk_units.hh"
 #include "nntile/nnhaul/ops/scale_inplace.hh"
 #include "nntile/nnhaul/ops/scale_fiber.hh"
 
 namespace nntile::haul
 {
+
+// ---------------------------------------------------------------------------
+// Native chunked add_fiber_inplace driver (chunk_units.hh fiber scheme).
+//
+// Same kernel index map as add_fiber (dst [m, k, n, batch] with the
+// m-element fiber contiguous, src the k-by-batch fiber operand,
+// src[i2 + k*b]); the one behavioral difference: the kernel reads dst
+// even when beta is zero (NaN propagation contract), so a straddling
+// dst fiber is always GATHERED into its bounded m temp before the
+// (m, 1, 1, 1) sub-call and scattered back. Zero new kernels;
+// all-unchunked buffers keep the single classic call.
+// ---------------------------------------------------------------------------
+
+namespace
+{
+
+template<typename T, typename Arena, typename Sub>
+void add_fiber_inplace_chunked(Index m, Index n, Index k, Index batch,
+    Scalar alpha, ::nnhaul::Buffer *buf_src, Scalar beta,
+    ::nnhaul::Buffer *buf_dst, std::size_t force_bytes, Arena &arena,
+    Sub &&sub)
+{
+    if(m <= 0 || k <= 0)
+    {
+        return;
+    }
+    chunkunits::ChunkView<T> const cv_src(buf_src, force_bytes);
+    chunkunits::ChunkView<T> const cv_dst(buf_dst, force_bytes);
+    chunkunits::UnitSpan<T> const span_dst{&cv_dst, std::size_t(m), Index{1}};
+    chunkunits::UnitSpan<T> const span_src{&cv_src, std::size_t(k), k * n};
+    bool const chunked_dst = cv_dst.nchunks > 1 || force_bytes != 0;
+    T *temp_dst = chunked_dst ? arena.alloc(std::size_t(m)) : nullptr;
+    chunkunits::SliceStage<T, Arena> src_stage(
+        cv_src, std::size_t(k), false, arena);
+    chunkunits::walk_unit_runs(batch, k * n,
+        [&](Index i, Index len, bool /*first*/, bool dst_str,
+            bool /*src_str*/)
+        {
+            if(len <= 0 || !arena.ok_state())
+            {
+                return;
+            }
+            chunkunits::split_fiber_piece(i, len, n, k,
+                [&](Index j, Index L, bool plane_span, bool /*first_b*/)
+                {
+                    if(L <= 0 || !arena.ok_state())
+                    {
+                        return;
+                    }
+                    T const *p1 = src_stage.advance(
+                        j / (n * k), false) + (plane_span ? 0 : j % k);
+                    T *pd = nullptr;
+                    if(dst_str)
+                    {
+                        // The kernel reads dst even for beta == 0.
+                        chunkunits::gather_range(cv_dst, std::size_t(m) * j,
+                            std::size_t(m), temp_dst, arena);
+                        pd = temp_dst;
+                    }
+                    else
+                    {
+                        pd = span_dst.ptr(j);
+                    }
+                    if(p1 == nullptr || pd == nullptr || !arena.ok_state())
+                    {
+                        return;
+                    }
+                    if(plane_span)
+                    {
+                        sub(m, L / k, k, alpha, p1, beta, pd);
+                    }
+                    else
+                    {
+                        sub(m, Index{1}, L, alpha, p1, beta, pd);
+                    }
+                    if(dst_str)
+                    {
+                        chunkunits::scatter_range(cv_dst, std::size_t(m) * j,
+                            std::size_t(m), temp_dst, arena);
+                    }
+                });
+        },
+        span_dst, span_src);
+    src_stage.retire();
+}
+
+} // namespace
 
 //! Constructor
 template<typename T>
@@ -52,19 +141,47 @@ void AddFiberInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    const T *src = ::nntile::haul::buf_as<T>(buffers, 0);
-    T *dst = ::nntile::haul::buf_as<T>(buffers, 1);
-    // Launch kernel
-    kernel::add_fiber_inplace::cpu<T>(
-        args->m,
-        args->n,
-        args->k,
-        args->batch,
-        args->alpha,
-        src,
-        args->beta,
-        dst
-    );
+    auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[0]);
+    auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
+    std::size_t const forced = chunkunits::forced_chunk_bytes();
+    if(buf_src->chunk_count() == 1 && buf_dst->chunk_count() == 1
+        && forced == 0)
+    {
+        // Unchunked fast path: the historical single kernel call, bitwise
+        kernel::add_fiber_inplace::cpu<T>(args->m, args->n, args->k,
+            args->batch, args->alpha, buf_src->get_ptr<T>(), args->beta,
+            buf_dst->get_ptr<T>());
+        return;
+    }
+    try
+    {
+        chunkunits::ArenaCpu<T> arena;
+        add_fiber_inplace_chunked<T>(
+            args->m,
+            args->n,
+            args->k,
+            args->batch,
+            args->alpha,
+            buf_src,
+            args->beta,
+            buf_dst,
+            forced,
+            arena,
+            [](Index mm, Index nn, Index kk, Scalar al, T const *p1,
+                Scalar be, T *pd) {
+                kernel::add_fiber_inplace::cpu<T>(mm, nn, kk, Index{1}, al,
+                    p1, be, pd);
+            });
+    }
+    catch(...)
+    {
+        // A noexcept body must not throw; a failed scratch allocation
+        // leaves the result unwritten (same failure class as a failed
+        // kernel launch).
+        std::fprintf(stderr,
+            "nntile_add_fiber_inplace: cpu chunked driver aborted after "
+            "an allocation failure; dst left unwritten\n");
+    }
 }
 
 // Specializations of CPU wrapper for accelerated types
@@ -101,22 +218,43 @@ void AddFiberInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t*>(cl_args);
     // Get interfaces
-    const T *src = ::nntile::haul::buf_as<T>(buffers, 0);
-    T *dst = ::nntile::haul::buf_as<T>(buffers, 1);
+    auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[0]);
+    auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    // Launch kernel
-    kernel::add_fiber_inplace::cuda<T>(
-        stream,
+    std::size_t const forced = chunkunits::forced_chunk_bytes();
+    if(buf_src->chunk_count() == 1 && buf_dst->chunk_count() == 1
+        && forced == 0)
+    {
+        // Unchunked fast path: the historical single kernel call, bitwise
+        kernel::add_fiber_inplace::cuda<T>(stream, args->m, args->n, args->k,
+            args->batch, args->alpha, buf_src->get_ptr<T>(), args->beta,
+            buf_dst->get_ptr<T>());
+        return;
+    }
+    chunkunits::ArenaCuda<T> arena(stream);
+    add_fiber_inplace_chunked<T>(
         args->m,
         args->n,
         args->k,
         args->batch,
         args->alpha,
-        src,
+        buf_src,
         args->beta,
-        dst
-    );
+        buf_dst,
+        forced,
+        arena,
+        [stream](Index mm, Index nn, Index kk, Scalar al, T const *p1,
+            Scalar be, T *pd) {
+            kernel::add_fiber_inplace::cuda<T>(stream, mm, nn, kk, Index{1},
+                al, p1, be, pd);
+        });
+    if(!arena.ok_state())
+    {
+        std::fprintf(stderr,
+            "nntile_add_fiber_inplace: chunked CUDA driver aborted after "
+            "a stream error; dst left unwritten\n");
+    }
 }
 
 // Specializations of CUDA wrapper for accelerated types
@@ -210,7 +348,9 @@ void AddFiberInplace<std::tuple<T>>::submit(int starpu_worker_hint,
     args->beta = beta;
     // Put amount of bytes read and write inplace of gflops
     double nflops = sizeof(T) * m * (2*k+1) * n * batch;
-    // Submit task
+    // Submit task: the BODY picks the unchunked fast path or the native
+    // chunked fiber driver; add_fiber_inplace never stages.
+    (void)nflops;
     ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
         { { STARPU_R, &src }, { dst_mode, &dst } }, args, sizeof(*args));
     std::free(args);

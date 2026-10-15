@@ -48,6 +48,105 @@ T *buf_as(void **buffers, int index) noexcept
     return static_cast<::nnhaul::Buffer *>(buffers[index])->get_ptr<T>();
 }
 
+/*! Chunked view of one NNHaul buffer for flat (elementwise) kernels.
+ *
+ * A flat kernel that maps a function over the first nelems elements of
+ * a buffer can be decomposed into per-chunk kernel calls: chunk i
+ * holds elems(i) contiguous elements at flat element offset
+ * i * elems(0). An unchunked buffer is the degenerate single-chunk
+ * case, so the same code serves both layouts.
+ * */
+template<typename T>
+struct BufChunks
+{
+    ::nnhaul::Buffer *buf = nullptr;
+    std::size_t chunk = 0; //!< Current chunk of the flat piece walk.
+    std::size_t used = 0; //!< Elements consumed inside the current chunk.
+
+    explicit BufChunks(::nnhaul::Buffer *buf_): buf(buf_)
+    {
+    }
+
+    //! Number of device chunks (1 for an unchunked buffer).
+    std::size_t count() const
+    {
+        return buf->chunk_count();
+    }
+
+    //! Typed view of chunk i's device memory.
+    T *ptr(std::size_t i) const
+    {
+        return buf->get_chunk_ptr<T>(i);
+    }
+
+    //! Contiguous elements held by chunk i (the tail may be shorter).
+    std::size_t elems(std::size_t i) const
+    {
+        return buf->chunk_bytes(i) / sizeof(T);
+    }
+
+    //! Elements still unread in the current chunk of the piece walk.
+    std::size_t remain() const
+    {
+        return elems(chunk) - used;
+    }
+
+    //! Typed view of the walk's current position (chunk start + used).
+    T *cur() const
+    {
+        return ptr(chunk) + used;
+    }
+
+    //! Consume n elements of the current chunk, stepping to the next
+    //! chunk when this one is exhausted.
+    void bump(std::size_t n)
+    {
+        used += n;
+        if (used >= elems(chunk) && chunk + 1 < count())
+        {
+            ++chunk;
+            used = 0;
+        }
+    }
+};
+
+//! Chunked view of codelet buffer index (see BufChunks).
+template<typename T>
+BufChunks<T> buf_chunks(void **buffers, int index) noexcept
+{
+    return BufChunks<T>(static_cast<::nnhaul::Buffer *>(buffers[index]));
+}
+
+/*! Split the first nelems flat elements of every buffer into pieces
+ * that each fit inside a single chunk of every buffer, and invoke
+ * f(n, ptrs...) per piece with the piece length n and one pointer per
+ * buffer at the piece's flat offset.
+ *
+ * Buffers may be chunked with different tables (mixed dtypes give
+ * different chunk boundaries); the walk splits at every boundary it
+ * crosses. For unchunked buffers this is exactly one call with the
+ * whole-tile base pointers - today's single-pointer path.
+ * */
+template<typename F, typename... Ts>
+void for_each_flat_piece(std::size_t nelems, F &&f, BufChunks<Ts> &...bufs)
+{
+    std::size_t done = 0;
+    while (done < nelems)
+    {
+        std::size_t n = nelems - done;
+        ((n = n < bufs.remain() ? n : bufs.remain()), ...);
+        if (n == 0)
+        {
+            // A buffer ran out before nelems (mismatched handle sizes);
+            // stop instead of hanging or reading past its last chunk.
+            break;
+        }
+        f(n, bufs.cur()...);
+        (bufs.bump(n), ...);
+        done += n;
+    }
+}
+
 inline ::nnhaul::Access access_from_mode(int mode)
 {
     if (mode == STARPU_REDUX)

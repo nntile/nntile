@@ -48,11 +48,14 @@ Clear::Clear():
 void Clear::cpu(void *buffers[], void *cl_args)
     noexcept
 {
+    (void)cl_args;
     // Get interfaces
-    std::size_t nbytes = (*reinterpret_cast<std::size_t const *>(cl_args));
-    void *data = ::nntile::haul::buf_as<void>(buffers, 0);
-    // Clear buffer
-    std::memset(data, 0, nbytes);
+    auto data = ::nntile::haul::buf_chunks<unsigned char>(buffers, 0);
+    // Clear buffer chunk by chunk (single chunk if unchunked)
+    for (std::size_t i = 0; i < data.count(); ++i)
+    {
+        std::memset(data.ptr(i), 0, data.elems(i));
+    }
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -60,9 +63,13 @@ void Clear::cpu(void *buffers[], void *cl_args)
 void Clear::cuda(void *buffers[], void *cl_args)
     noexcept
 {
-    std::size_t nbytes = (*reinterpret_cast<std::size_t const *>(cl_args));
-    void *data = ::nntile::haul::buf_as<void>(buffers, 0);
-    cudaMemsetAsync(data, 0, nbytes, ::nnhaul::cuda_stream());
+    (void)cl_args;
+    auto data = ::nntile::haul::buf_chunks<unsigned char>(buffers, 0);
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    for (std::size_t i = 0; i < data.count(); ++i)
+    {
+        cudaMemsetAsync(data.ptr(i), 0, data.elems(i), stream);
+    }
 }
 #endif // NNTILE_USE_CUDA
 

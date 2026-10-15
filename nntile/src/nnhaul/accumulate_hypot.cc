@@ -21,6 +21,7 @@
 
 // Other NNTile headers
 #include "nntile/kernel/hypot_inplace.hh"
+#include "nntile/nnhaul/codelet.hh"
 
 namespace nntile::haul
 {
@@ -55,10 +56,16 @@ void AccumulateHypot<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
 {
     // Get interfaces
     Index nelems = (*reinterpret_cast<std::size_t const *>(cl_args)) / sizeof(T);
-    T *dst = ::nntile::haul::buf_as<T>(buffers, 0);
-    const T *src = ::nntile::haul::buf_as<T>(buffers, 1);
-    // Launch kernel
-    kernel::hypot_inplace::cpu<T>(nelems, 1.0, src, 1.0, dst);
+    auto src = ::nntile::haul::buf_chunks<T>(buffers, 1);
+    auto dst = ::nntile::haul::buf_chunks<T>(buffers, 0);
+    // Launch kernel per flat chunk piece (single piece if unchunked)
+    ::nntile::haul::for_each_flat_piece(
+        nelems,
+        [&](std::size_t n, const T *s, T *d) {
+            kernel::hypot_inplace::cpu<T>(n, 1.0, s, 1.0, d);
+        },
+        src,
+        dst);
 }
 
 // Specializations of CPU wrapper for accelerated types
@@ -96,12 +103,18 @@ void AccumulateHypot<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get interfaces
     Index nelems =
         (*reinterpret_cast<std::size_t const *>(cl_args)) / sizeof(T);
-    T *dst = ::nntile::haul::buf_as<T>(buffers, 0);
-    const T *src = ::nntile::haul::buf_as<T>(buffers, 1);
+    auto src = ::nntile::haul::buf_chunks<T>(buffers, 1);
+    auto dst = ::nntile::haul::buf_chunks<T>(buffers, 0);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    // Launch kernel
-    kernel::hypot_inplace::cuda<T>(stream, nelems, 1.0, src, 1.0, dst);
+    // Launch kernel per flat chunk piece (single piece if unchunked)
+    ::nntile::haul::for_each_flat_piece(
+        nelems,
+        [&](std::size_t n, const T *s, T *d) {
+            kernel::hypot_inplace::cuda<T>(stream, n, 1.0, s, 1.0, d);
+        },
+        src,
+        dst);
 }
 
 // Specializations of CUDA wrapper for accelerated types
@@ -144,8 +157,8 @@ void AccumulateHypot<std::tuple<T>>::submit(int starpu_worker_hint, ::nnhaul::Ha
  * throws an std::runtime_error() exception.
  * */
 {
-    //double nflops;
-    // Submit task
+    // Submit task: the BODY runs the native flat chunk-piece loop;
+    // accumulate_hypot never stages (a scalar element has no straddling unit).
     std::size_t nnhaul_nbytes = dst.nbytes();
     ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
         { { STARPU_RW | STARPU_COMMUTE, &dst }, { STARPU_R, &src } }, &nnhaul_nbytes, sizeof(nnhaul_nbytes));

@@ -24,10 +24,19 @@ enum starpu_data_access_mode
     STARPU_COMMUTE = 0
 };
 
-//! Tests call the StarPU drain by this name. On this build it joins NNHaul.
+//! Tests call the StarPU drain by this name. On this build it joins
+//! NNHaul through the counted, scratch-draining wait (defined in
+//! nnhaul/sync_defer.cc) so staged scratch handles do not needlessly
+//! survive this path either.
+namespace nntile
+{
+//! nnhaul::wait() plus the staged-scratch drain (sync_defer.cc).
+void nnhaul_wait_for_all_drained();
+}
+
 inline void starpu_task_wait_for_all()
 {
-    ::nnhaul::wait();
+    ::nntile::nnhaul_wait_for_all_drained();
 }
 
 #endif // NNTILE_USE_NNHAUL

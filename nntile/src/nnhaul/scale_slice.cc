@@ -17,13 +17,89 @@
 
 // Standard libraries
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
+#include <stdexcept>
 
 // Other NNTile headers
 #include "nntile/kernel/scale_slice.hh"
+#include "nntile/nnhaul/chunk_units.hh"
 
 namespace nntile::haul
 {
+
+// ---------------------------------------------------------------------------
+// Native chunked scale_slice driver (chunk_units.hh scheme; see the
+// index-map derivation in add_slice.cc - the op is ELEMENTWISE given the
+// src slice value of the unit, so whole-row pieces reproduce the plain
+// call's per-element operations bitwise). dst is pure output: a row
+// straddling a dst chunk boundary is written through a bounded m-element
+// temp as (m, 1, 1) and scattered back; the src read of a piece is its
+// panel's m-element segment, staged through a bounded temp when it
+// straddles. Zero new kernels; all-unchunked buffers keep the single
+// classic call.
+// ---------------------------------------------------------------------------
+
+namespace
+{
+
+template<typename T, typename Arena, typename Sub>
+void scale_slice_chunked(Index m, Index n, Index k, Scalar alpha,
+    ::nnhaul::Buffer *buf_src, ::nnhaul::Buffer *buf_dst,
+    std::size_t force_bytes, Arena &arena, Sub &&sub)
+{
+    if(m <= 0)
+    {
+        return;
+    }
+    chunkunits::ChunkView<T> const cv_src(buf_src, force_bytes);
+    chunkunits::ChunkView<T> const cv_dst(buf_dst, force_bytes);
+    chunkunits::UnitSpan<T> const span_dst{&cv_dst, std::size_t(m), Index{1}};
+    chunkunits::UnitSpan<T> const span_src{&cv_src, std::size_t(m), k};
+    bool const chunked_dst = cv_dst.nchunks > 1 || force_bytes != 0;
+    T *temp_dst = chunked_dst ? arena.alloc(std::size_t(m)) : nullptr;
+    chunkunits::SliceStage<T, Arena> src_stage(
+        cv_src, std::size_t(m), false, arena);
+    chunkunits::walk_unit_runs(n, k,
+        [&](Index i, Index len, bool /*first*/, bool dst_str,
+            bool /*src_str*/)
+        {
+            if(len <= 0 || !arena.ok_state())
+            {
+                return;
+            }
+            T *pd = nullptr;
+            if(dst_str)
+            {
+                pd = temp_dst;
+            }
+            else
+            {
+                pd = span_dst.ptr(i);
+            }
+            T const *ps = src_stage.advance(i / k, false);
+            if(pd == nullptr || ps == nullptr || !arena.ok_state())
+            {
+                return;
+            }
+            if(len >= k)
+            {
+                sub(m, len / k, k, alpha, ps, pd);
+            }
+            else
+            {
+                sub(m, Index{1}, len, alpha, ps, pd);
+            }
+            if(dst_str)
+            {
+                chunkunits::scatter_range(cv_dst, std::size_t(m) * i,
+                    std::size_t(m), temp_dst, arena);
+            }
+        },
+        span_dst, span_src);
+}
+
+} // namespace
 
 //! Constructor
 template<typename T>
@@ -41,7 +117,7 @@ ScaleSlice<std::tuple<T>>::ScaleSlice():
     // Modes are not fixed, they are decided during runtime by default
 }
 
-//! StarPU wrapper for kernel::scale_slice::cpu<T>
+//! NNHaul wrapper for kernel::scale_slice::cpu<T>
 template<typename T>
 void ScaleSlice<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
@@ -49,11 +125,42 @@ void ScaleSlice<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    const T *src = ::nntile::haul::buf_as<T>(buffers, 0);
-    T *dst = ::nntile::haul::buf_as<T>(buffers, 1);
-    // Launch kernel
-    kernel::scale_slice::cpu<T>(
-        args->m, args->n, args->k, args->alpha, src, dst);
+    auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[0]);
+    auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
+    std::size_t const forced = chunkunits::forced_chunk_bytes();
+    if(buf_src->chunk_count() == 1 && buf_dst->chunk_count() == 1
+        && forced == 0)
+    {
+        // Unchunked fast path: the historical single kernel call, bitwise
+        kernel::scale_slice::cpu<T>(args->m, args->n, args->k, args->alpha,
+            buf_src->get_ptr<T>(), buf_dst->get_ptr<T>());
+        return;
+    }
+    try
+    {
+        chunkunits::ArenaCpu<T> arena;
+        scale_slice_chunked<T>(
+            args->m,
+            args->n,
+            args->k,
+            args->alpha,
+            buf_src,
+            buf_dst,
+            forced,
+            arena,
+            [](Index mm, Index nn, Index kk, Scalar al, T const *ps, T *pd) {
+                kernel::scale_slice::cpu<T>(mm, nn, kk, al, ps, pd);
+            });
+    }
+    catch(...)
+    {
+        // A noexcept body must not throw; a failed scratch allocation
+        // leaves the result unwritten (same failure class as a failed
+        // kernel launch).
+        std::fprintf(stderr,
+            "nntile_scale_slice: cpu chunked driver aborted after an "
+            "allocation failure; dst left unwritten\n");
+    }
 }
 
 // Specializations of CPU wrapper for accelerated types
@@ -82,21 +189,47 @@ void ScaleSlice<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_arg
 }
 
 #ifdef NNTILE_USE_CUDA
-//! StarPU wrapper for kernel::scale_slice::cuda<T>
+//! NNHaul wrapper for kernel::scale_slice::cuda<T>
 template<typename T>
 void ScaleSlice<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
-    auto args = reinterpret_cast<args_t*>(cl_args);
+    auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    const T *src = ::nntile::haul::buf_as<T>(buffers, 0);
-    T *dst = ::nntile::haul::buf_as<T>(buffers, 1);
+    auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[0]);
+    auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    // Launch kernel
-    kernel::scale_slice::cuda<T>(
-        stream, args->m, args->n, args->k, args->alpha, src, dst);
+    std::size_t const forced = chunkunits::forced_chunk_bytes();
+    if(buf_src->chunk_count() == 1 && buf_dst->chunk_count() == 1
+        && forced == 0)
+    {
+        // Unchunked fast path: the historical single kernel call, bitwise
+        kernel::scale_slice::cuda<T>(stream, args->m, args->n, args->k,
+            args->alpha, buf_src->get_ptr<T>(), buf_dst->get_ptr<T>());
+        return;
+    }
+    chunkunits::ArenaCuda<T> arena(stream);
+    scale_slice_chunked<T>(
+        args->m,
+        args->n,
+        args->k,
+        args->alpha,
+        buf_src,
+        buf_dst,
+        forced,
+        arena,
+        [stream](Index mm, Index nn, Index kk, Scalar al, T const *ps,
+            T *pd) {
+            kernel::scale_slice::cuda<T>(stream, mm, nn, kk, al, ps, pd);
+        });
+    if(!arena.ok_state())
+    {
+        std::fprintf(stderr,
+            "nntile_scale_slice: chunked CUDA driver aborted after a "
+            "stream error; dst left unwritten\n");
+    }
 }
 
 // Specializations of CUDA wrapper for accelerated types
@@ -167,7 +300,8 @@ void ScaleSlice<std::tuple<T>>::submit(int starpu_worker_hint,
     args->alpha = alpha;
     // Put amount of bytes read and write inplace of gflops
     double nflops = sizeof(T) * m * (k+1) * n;
-    // Submit task
+    // Submit task: the BODY picks the unchunked fast path or the native
+    // chunked unit driver; scale_slice never stages.
     ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
         { { STARPU_R, &src }, { STARPU_W, &dst } }, args, sizeof(*args));
     std::free(args);

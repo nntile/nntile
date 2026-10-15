@@ -15,6 +15,7 @@
 
 // Corresponding header
 #include "nntile/nnhaul/ops/conv2d_inplace.hh"
+#include "nntile/nnhaul/stage.hh"
 
 // Standard libraries
 #include <cstdint>
@@ -26,6 +27,35 @@
 
 namespace nntile::haul
 {
+// ---------------------------------------------------------------------------
+// DELIBERATELY STAGED (the family-3 derivation, docs/chunked-tiles.md
+// §4.3): conv2d_inplace is NOT cleanly chunk-decomposable with the
+// existing kernel signature.
+//
+// Index map (kernel::conv2d_inplace::cpu/cuda): all three tensors are
+// F-contiguous WHCN, so the contiguous axis is m (axis 0) on src1, src2
+// and dst alike. dst(i,j,k,b) sums src1(m,n,l,b) over the m-window
+// [i*stride_m - offset_m, i*stride_m - offset_m + dilation_m*(src2_m-1)]
+// and the analogous n-window. A sub-call over a dst m-run [i0, i0+Li)
+// IS kernel-expressible (dst_m'=Li at dst+i0, offset_m'=offset_m -
+// i0*stride_m, src1/src2 args unchanged - the kernel's own bounds logic
+// then skips out-of-window contributions exactly as the plain call
+// does for those outputs), and the pieces would beta-chain along the
+// m-runs like the fiber class. What blocks native promotion is the
+// piece CAP: the src1 m-read of one piece is the CONTIGUOUS range
+// [i0*stride_m - offset_m, (i0+Li-1)*stride_m - offset_m +
+// dilation_m*(src2_m-1)] taken at EVERY (n,l,b) column of src1, whose
+// flat starts are src1_m apart - each column lands on a different
+// residue mod chunk_elems, so the whole-range-in-one-chunk cap is the
+// MINIMUM over n*channels*batch columns and collapses Li to ~1 for
+// small chunks; straddling windows would additionally need per-column
+// staging of a window that the scatter must write back before the NEXT
+// piece's overlapping window reads it (windows of adjacent dst rows
+// OVERLAP, so staged windows cannot retire independently). GPT-2 does
+// not use conv2d; the universal staging fallback is exact. Revisit only
+// with a panel-style kernel variant (kernel::transpose::panel's
+// whole-tensor-strides trick) that takes per-column base pointers.
+// ---------------------------------------------------------------------------
 
 //! Constructor
 template<typename T>
@@ -163,8 +193,8 @@ void Conv2dInplace<std::tuple<T>>::submit(int starpu_worker_hint, Index src1_m, 
     {
         dst_mode = STARPU_W;
     }
-    // Submit task
-    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
+    // Submit task: staged by design (the family-3 derivation above).
+    ::nntile::haul::stage::staged_insert_task(codelet.raw, starpu_worker_hint,
         { { STARPU_R, &src1 }, { STARPU_R, &src2 }, { dst_mode, &dst } }, args, sizeof(*args));
     std::free(args);
 

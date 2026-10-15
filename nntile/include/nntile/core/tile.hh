@@ -17,6 +17,8 @@
 #ifdef NNTILE_USE_NNHAUL
 
 #include <nntile/data_access.hh>
+#include <nntile/nnhaul/chunk_gate.hh>
+#include <nntile/nnhaul/stage.hh>
 
 #include <nnhaul/nnhaul.hh>
 
@@ -39,6 +41,16 @@ class Tile: public TileTraits
     {
         std::unique_ptr<::nnhaul::Handle> handle;
         bool live = true;
+
+        ~Payload()
+        {
+            // Unregister before the Handle member dies so a recycled
+            // address can never alias a stale registry entry.
+            if (handle)
+            {
+                ::nntile::haul::stage::forget_handle(*handle);
+            }
+        }
     };
 
     std::shared_ptr<Payload> payload_;
@@ -58,8 +70,22 @@ class Tile: public TileTraits
     void alloc_handle()
     {
         payload_ = std::make_shared<Payload>();
+        std::size_t const nbytes = storage_bytes(nelems);
+        // Classic-stack chunked tiles: cache-chunk storage with the
+        // nnhaul ladder policy. Disabled for torch_dispatch graphs via
+        // the haul gate, and by NNHAUL_CHUNK_TILES=0 inside the policy.
+        std::size_t const chunk_bytes = ::nntile::haul::tile_chunking_enabled()
+            ? ::nnhaul::chunk_bytes_for(nbytes)
+            : 0;
         payload_->handle =
-            std::make_unique<::nnhaul::Handle>(storage_bytes(nelems));
+            std::make_unique<::nnhaul::Handle>(nbytes, chunk_bytes);
+        if (chunk_bytes != 0)
+        {
+            // Exact chunkedness for the stage helper and the compile-time
+            // torch gate (raw handles cannot be queried at submit time).
+            ::nntile::haul::stage::note_chunked(*payload_->handle,
+                chunk_bytes);
+        }
     }
 
 public:

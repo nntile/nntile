@@ -297,6 +297,11 @@ class Runtime
     //! Ingress may lower marked staging tiles before any new op is appended;
     //! those nodes must still be allocated without scanning full history.
     size_t compiled_tile_node_count_ = 0;
+    //! True once any lowered op of this graph is a torch_dispatch
+    //! (TILE_TORCH_*) op. NNHaul builds use it to switch tile allocation
+    //! to contiguous handles (torch-native ops cannot consume chunked
+    //! tiles); StarPU builds never read it.
+    bool graph_has_torch_ops_ = false;
     double last_compile_dce_s_ = 0.0;
     double last_compile_alloc_s_ = 0.0;
 };

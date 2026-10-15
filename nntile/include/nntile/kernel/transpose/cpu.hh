@@ -24,4 +24,10 @@ template<typename T>
 void cpu(Index m, Index n, Scalar alpha, const T* src, T* dst)
     noexcept;
 
+// Transpose an nr-by-nc sub-block of an m-by-n buffer on CPU
+template<typename T>
+void panel(Index m, Index n, Index nr, Index nc, Scalar alpha,
+    const T* src, T* dst)
+    noexcept;
+
 } // namespace nntile::kernel::transpose

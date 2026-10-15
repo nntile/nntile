@@ -105,9 +105,17 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch,
  *      sums over slices along the first and the last axes.
  * */
 {
-    // Both source and destination are Fortran-contiguous
-    dim3 threads(1, std::min(int(m), 32), std::min(int(n), 32));
-    dim3 blocks((k*batch+threads.x-1)/threads.x, 1, 1);
+    // Both source and destination are Fortran-contiguous. ONE thread per
+    // (i2, b) accumulator: the kernel body loops the full m-by-n slice
+    // itself, so any blockDim.y/z would make that many threads duplicate
+    // the same accumulator and RACE on dst (the reads and writes of
+    // different warps interleave once the block is large enough, walking
+    // dst toward the fixed point of dst <- hypot(beta*dst, alpha*norm)
+    // instead of the caller's beta-merge; smaller blocks happened to stay
+    // warp-clustered and write identical bytes). One thread also does the
+    // loop once instead of once per racing thread.
+    dim3 threads(1, 1, 1);
+    dim3 blocks(k*batch, 1, 1);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, batch, alpha,
             src1, beta, src2, dst);
 }

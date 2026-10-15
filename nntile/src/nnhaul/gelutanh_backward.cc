@@ -48,11 +48,18 @@ void GeluTanhBackward<std::tuple<T>>::cpu(void *buffers[], void *cl_args) noexce
     // Get arguments
     args_t const *args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    const T *x = ::nntile::haul::buf_as<T>(buffers, 0);
-    const T *dy = ::nntile::haul::buf_as<T>(buffers, 1);
-    T *dx = ::nntile::haul::buf_as<T>(buffers, 2);
-    // Launch kernel
-    kernel::gelutanh_backward::cpu<T>(args->nelems, args->alpha, x, dy, args->beta, dx);
+    auto x = ::nntile::haul::buf_chunks<T>(buffers, 0);
+    auto dy = ::nntile::haul::buf_chunks<T>(buffers, 1);
+    auto dx = ::nntile::haul::buf_chunks<T>(buffers, 2);
+    // Launch kernel per flat chunk piece (single piece if unchunked)
+    ::nntile::haul::for_each_flat_piece(
+        args->nelems,
+        [&](std::size_t n, const T *px, const T *pdy, T *pdx) {
+            kernel::gelutanh_backward::cpu<T>(n, args->alpha, px, pdy, args->beta, pdx);
+        },
+        x,
+        dy,
+        dx);
 }
 
 // Specializations of CPU wrapper for accelerated types
@@ -90,21 +97,28 @@ void GeluTanhBackward<std::tuple<T>>::cuda(
     // Get arguments
     args_t const *args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    const T *x = ::nntile::haul::buf_as<T>(buffers, 0);
-    const T *dy = ::nntile::haul::buf_as<T>(buffers, 1);
-    T *dx = ::nntile::haul::buf_as<T>(buffers, 2);
+    auto x = ::nntile::haul::buf_chunks<T>(buffers, 0);
+    auto dy = ::nntile::haul::buf_chunks<T>(buffers, 1);
+    auto dx = ::nntile::haul::buf_chunks<T>(buffers, 2);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    // Launch kernel
-    kernel::gelutanh_backward::cuda<T>(
-        stream,
+    // Launch kernel per flat chunk piece (single piece if unchunked)
+    ::nntile::haul::for_each_flat_piece(
         args->nelems,
-        args->alpha,
+        [&](std::size_t n, const T *px, const T *pdy, T *pdx) {
+            kernel::gelutanh_backward::cuda<T>(
+                stream,
+                n,
+                args->alpha,
+                px,
+                pdy,
+                args->beta,
+                pdx
+            );
+        },
         x,
         dy,
-        args->beta,
-        dx
-    );
+        dx);
 }
 
 // Specializations of CUDA wrapper for accelerated types

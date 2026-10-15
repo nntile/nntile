@@ -17,14 +17,93 @@
 
 // Standard libraries
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <stdexcept>
 
 // Other NNTile headers
 #include "nntile/kernel/norm_slice_inplace.hh"
+#include "nntile/nnhaul/chunk_units.hh"
 
 namespace nntile::haul
 {
+
+// ---------------------------------------------------------------------------
+// Native chunked norm_slice_inplace driver (chunk_units.hh scheme; the
+// layout derivation and the piecewise-hypot combine are documented in
+// norm_slice.cc - first piece (alpha, caller beta) against the real dst
+// slice, continuation pieces (alpha, 1) accumulating in place, exact up
+// to the piecewise rounding). All-zero pieces anchor the chain because
+// the CUDA m>1 kernel writes the beta-combined value for all-zero
+// fibers (0 for beta==0, fabs(beta*dst_old) otherwise), matching the
+// CPU kernel and the CUDA m==1 kernel. The dst slice segment of a panel
+// is used in place or staged through a bounded m temp for the panel's
+// chain (gathered when the caller's beta != 0, zero-initialized
+// otherwise, scattered back at the panel switch); rows straddling src
+// chunk boundaries are gathered into a bounded m temp and reduced as
+// (m, 1, 1) pieces. Panel-aligned pieces may span whole panels. Zero
+// new kernels; all-unchunked buffers keep the single classic call.
+// ---------------------------------------------------------------------------
+
+namespace
+{
+
+template<typename T, typename Arena, typename Sub>
+void norm_slice_inplace_chunked(Index m, Index n, Index k, Scalar alpha,
+    ::nnhaul::Buffer *buf_src, Scalar beta, ::nnhaul::Buffer *buf_dst,
+    std::size_t force_bytes, Arena &arena, Sub &&sub)
+{
+    if(m <= 0)
+    {
+        return;
+    }
+    chunkunits::ChunkView<T> const cv_src(buf_src, force_bytes);
+    chunkunits::ChunkView<T> const cv_dst(buf_dst, force_bytes);
+    chunkunits::UnitSpan<T> const span_src{&cv_src, std::size_t(m), Index{1}};
+    chunkunits::UnitSpan<T> const span_dst{&cv_dst, std::size_t(m), k};
+    bool const chunked_src = cv_src.nchunks > 1 || force_bytes != 0;
+    T *temp_src = chunked_src ? arena.alloc(std::size_t(m)) : nullptr;
+    chunkunits::SliceStage<T, Arena> dst_stage(
+        cv_dst, std::size_t(m), true, arena);
+    chunkunits::walk_unit_runs(n, k,
+        [&](Index i, Index len, bool first, bool src_str, bool /*dst_str*/)
+        {
+            if(len <= 0 || !arena.ok_state())
+            {
+                return;
+            }
+            Index const panel = i / k;
+            T *pd = dst_stage.advance(panel, first && beta != Scalar{0});
+            T const *ps = nullptr;
+            if(src_str)
+            {
+                chunkunits::gather_range(cv_src, std::size_t(m) * i,
+                    std::size_t(m), temp_src, arena);
+                ps = temp_src;
+            }
+            else
+            {
+                ps = span_src.ptr(i);
+            }
+            if(ps == nullptr || pd == nullptr || !arena.ok_state())
+            {
+                return;
+            }
+            Scalar const beta_eff = first ? beta : Scalar{1};
+            if(len >= k)
+            {
+                sub(m, len / k, k, ps, beta_eff, pd);
+            }
+            else
+            {
+                sub(m, Index{1}, len, ps, beta_eff, pd);
+            }
+        },
+        span_src, span_dst);
+    dst_stage.retire();
+}
+
+} // namespace
 
 //! Constructor
 template<typename T>
@@ -42,7 +121,7 @@ NormSliceInplace<std::tuple<T>>::NormSliceInplace():
     // Modes are not fixed, they are decided during runtime by default
 }
 
-//! StarPU wrapper for kernel::norm_slice_inplace::norm_slice_inplace<T>
+//! NNHaul wrapper for kernel::norm_slice_inplace::norm_slice_inplace<T>
 template<typename T>
 void NormSliceInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
@@ -50,11 +129,47 @@ void NormSliceInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    const T *src = ::nntile::haul::buf_as<T>(buffers, 0);
-    T *dst = ::nntile::haul::buf_as<T>(buffers, 1);
-    // Launch kernel
-    kernel::norm_slice_inplace::cpu<T>(args->m, args->n, args->k, args->alpha, src,
-            args->beta, dst);
+    auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[0]);
+    auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
+    std::size_t const forced = chunkunits::forced_chunk_bytes();
+    if(buf_src->chunk_count() == 1 && buf_dst->chunk_count() == 1
+        && forced == 0)
+    {
+        // Unchunked fast path: the historical single kernel call, bitwise
+        kernel::norm_slice_inplace::cpu<T>(args->m, args->n, args->k,
+            args->alpha, buf_src->get_ptr<T>(), args->beta,
+            buf_dst->get_ptr<T>());
+        return;
+    }
+    Scalar const alpha = args->alpha;
+    try
+    {
+        chunkunits::ArenaCpu<T> arena;
+        norm_slice_inplace_chunked<T>(
+            args->m,
+            args->n,
+            args->k,
+            alpha,
+            buf_src,
+            args->beta,
+            buf_dst,
+            forced,
+            arena,
+            [alpha](Index mm, Index nn, Index kk, T const *ps, Scalar be,
+                T *pd) {
+                kernel::norm_slice_inplace::cpu<T>(mm, nn, kk, alpha, ps, be,
+                    pd);
+            });
+    }
+    catch(...)
+    {
+        // A noexcept body must not throw; a failed scratch allocation
+        // leaves the result unwritten (same failure class as a failed
+        // kernel launch).
+        std::fprintf(stderr,
+            "nntile_norm_slice_inplace: cpu chunked driver aborted after "
+            "an allocation failure; dst left unwritten\n");
+    }
 }
 
 // Specializations of CPU wrapper for accelerated types
@@ -83,7 +198,7 @@ void NormSliceInplace<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *
 }
 
 #ifdef NNTILE_USE_CUDA
-//! StarPU wrapper for kernel::norm_slice_inplace::norm_slice_inplace<T>
+//! NNHaul wrapper for kernel::norm_slice_inplace::norm_slice_inplace<T>
 template<typename T>
 void NormSliceInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
@@ -91,13 +206,43 @@ void NormSliceInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    const T *src = ::nntile::haul::buf_as<T>(buffers, 0);
-    T *dst = ::nntile::haul::buf_as<T>(buffers, 1);
+    auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[0]);
+    auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    // Launch kernel
-    kernel::norm_slice_inplace::cuda<T>(stream, args->m, args->n, args->k,
-            args->alpha, src, args->beta, dst);
+    std::size_t const forced = chunkunits::forced_chunk_bytes();
+    if(buf_src->chunk_count() == 1 && buf_dst->chunk_count() == 1
+        && forced == 0)
+    {
+        // Unchunked fast path: the historical single kernel call, bitwise
+        kernel::norm_slice_inplace::cuda<T>(stream, args->m, args->n,
+            args->k, args->alpha, buf_src->get_ptr<T>(), args->beta,
+            buf_dst->get_ptr<T>());
+        return;
+    }
+    chunkunits::ArenaCuda<T> arena(stream);
+    Scalar const alpha = args->alpha;
+    norm_slice_inplace_chunked<T>(
+        args->m,
+        args->n,
+        args->k,
+        alpha,
+        buf_src,
+        args->beta,
+        buf_dst,
+        forced,
+        arena,
+        [alpha, stream](Index mm, Index nn, Index kk, T const *ps, Scalar be,
+            T *pd) {
+            kernel::norm_slice_inplace::cuda<T>(
+                stream, mm, nn, kk, alpha, ps, be, pd);
+        });
+    if(!arena.ok_state())
+    {
+        std::fprintf(stderr,
+            "nntile_norm_slice_inplace: chunked CUDA driver aborted after "
+            "a stream error; dst left unwritten\n");
+    }
 }
 
 // Specializations of CUDA wrapper for accelerated types
@@ -189,7 +334,9 @@ void NormSliceInplace<std::tuple<T>>::submit(int starpu_worker_hint, Index m, In
     size_t dst_nbytes = sizeof(T) * m * n;
     double nflops = beta == 0.0 ? src_nbytes + dst_nbytes :
         src_nbytes + 2*dst_nbytes;
-    // Submit task
+    // Submit task: the BODY picks the unchunked fast path or the native
+    // chunked unit driver; norm_slice_inplace never stages.
+    (void)nflops;
     ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
         { { STARPU_R, &src }, { dst_mode, &dst } }, args, sizeof(*args));
     std::free(args);

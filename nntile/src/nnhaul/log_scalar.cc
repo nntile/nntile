@@ -41,8 +41,9 @@ void LogScalar<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
-    // Get interfaces
-    const T *value = ::nntile::haul::buf_as<T>(buffers, 0);
+    // Get interfaces: single-element tile, element 0 always lives in
+    // chunk 0 of the (never-chunked, one-element) handle.
+    const T *value = ::nntile::haul::buf_chunks<T>(buffers, 0).ptr(0);
     // Launch logger
     using Y = typename T::repr_t;
     logger::log_scalar(args->name, static_cast<Y>(*value));

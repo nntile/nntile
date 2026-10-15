@@ -8,6 +8,7 @@
  * */
 
 #include "nntile/nnhaul/ops/swap_two_axes.hh"
+#include "nntile/nnhaul/stage.hh"
 
 #include <cstdint>
 #include <cstdlib>
@@ -17,6 +18,37 @@
 
 namespace nntile::haul
 {
+
+// ---------------------------------------------------------------------------
+// DELIBERATELY STAGED (family-2 follow-up C: the in-tree derivation).
+//
+// Kernel index map (kernel::swap_two_axes::cpu/cuda): element
+// (i0, i1, i2, i3, i4) sits at src flat i0*d1*d2*d3*d4 + i1*d2*d3*d4 +
+// i2*d3*d4 + i3*d4 + i4 and at dst flat i0*d3*d2*d1*d4 + i3*d2*d1*d4 +
+// i2*d1*d4 + i1*d4 + i4 - axes 1 and 3 swap, and d4 is the CONTIGUOUS
+// axis on BOTH sides. The two candidate decompositions each fail one
+// half of the chunked-tile contract:
+//  * the natural chunk-local unit is the d4 RUN (contiguous in both
+//    src and dst), but the existing kernel signature has no
+//    sub-block/panel form - it always swaps the FULL axes 1 and 3 of
+//    the view it is handed - so one d4-run per sub-call is not
+//    expressible without a new kernel, and per-element staging of
+//    d0*d1*d2*d3 runs (one launch each) is the degenerate regime the
+//    transpose guard exists to avoid;
+//  * the kernel-EXPRESSIBLE sub-view is the i0 SLAB: a sub-call over
+//    i0 in [a, b) with dims 1..4 full is (d0' = b-a, d1, d2, d3, d4)
+//    at src + a*d1*d2*d3*d4 / dst + a*d3*d2*d1*d4, because d1*d2*d3 ==
+//    d3*d2*d1 makes the in-slab swap equal the global swap. But an i0
+//    slab spans all of dims 1..4 - it is chunk-local only when the
+//    whole slab (nearly the whole tensor) fits one chunk, which is the
+//    unchunked case. Straddling slabs would need whole-slab staging
+//    through a tensor-sized temp, i.e. staging with extra steps.
+// Hence the universal staging fallback: one gather + the classic kernel
+// + one scatter, exact for every geometry. A future panel-style kernel
+// variant (per-fiber base pointers along the lines of
+// kernel::transpose::panel) would unlock the d4-run decomposition.
+// ---------------------------------------------------------------------------
+
 
 template<typename T>
 SwapTwoAxes<std::tuple<T>>::SwapTwoAxes():
@@ -155,7 +187,7 @@ void SwapTwoAxes<std::tuple<T>>::submit(
         static_cast<double>(d0) * static_cast<double>(d1) *
         static_cast<double>(d2) * static_cast<double>(d3) *
         static_cast<double>(d4);
-    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
+    ::nntile::haul::stage::staged_insert_task(codelet.raw, starpu_worker_hint,
         { { STARPU_R, &src }, { STARPU_W, &dst } }, args, sizeof(*args));
     std::free(args);
 

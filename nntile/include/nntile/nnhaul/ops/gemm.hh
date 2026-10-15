@@ -21,8 +21,27 @@
 #include <nntile/nnhaul/codelet.hh>
 #include <nntile/constants.hh>
 
+#include <atomic>
+#include <cstdint>
+
 namespace nntile::haul
 {
+
+//! Number of gemm bodies that ran the native chunked driver so far
+//! (the engagement probe for the chunked-tile tests: gemm must NOT go
+//! through the staging fallback).
+inline std::atomic<std::uint64_t> g_gemm_native_chunked_count{0};
+
+inline void note_gemm_native_chunked() noexcept
+{
+    g_gemm_native_chunked_count.fetch_add(1, std::memory_order_relaxed);
+}
+
+//! How many gemm bodies took the native chunked path so far.
+inline std::uint64_t gemm_native_chunked_count() noexcept
+{
+    return g_gemm_native_chunked_count.load(std::memory_order_relaxed);
+}
 
 //! Generic wrapper class for gemm operation is not defined
 template<typename T>
@@ -50,6 +69,8 @@ public:
         Index batch;
         Scalar alpha;
         Scalar beta;
+        bool broadcast_a;
+        bool broadcast_b;
     };
 
     //! Footprint function for the current operation
@@ -86,7 +107,9 @@ public:
         ::nnhaul::Handle & B,
         Scalar beta,
         ::nnhaul::Handle & C,
-        int redux=0
+        int redux=0,
+        bool broadcast_a=false,
+        bool broadcast_b=false
     );
 };
 

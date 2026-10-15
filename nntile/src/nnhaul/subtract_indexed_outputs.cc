@@ -17,14 +17,110 @@
 
 // Standard libraries
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <stdexcept>
 
 // Other NNTile headers
 #include "nntile/kernel/subtract_indexed_outputs.hh"
+#include "nntile/nnhaul/chunk_units.hh"
 
 namespace nntile::haul
 {
+
+// ---------------------------------------------------------------------------
+// Native chunked subtract_indexed_outputs driver (chunk_units.hh scheme;
+// the indexed-scatter column decomposition, the same arena pattern the
+// embedding_backward promotion uses for its vocab rows).
+//
+// Kernel index map (derived from kernel::subtract_indexed_outputs::
+// cpu/cuda, NOT assumed): dst is n_labels-by-n_outputs Fortran with
+// element (l, i) at flat l + i*n_labels - the CONTIGUOUS unit is the
+// n_labels-element OUTPUT COLUMN, and every kernel action on output i
+// (the labels[i]==ignore_index column memset, or the single
+// dst[labels[i], i] -= val update) touches ONLY column i. The labels
+// vector is the small operand, one element per column. A run of whole
+// columns [j0, j0+L) is therefore the plain kernel sub-call
+// (n_labels, L, ignore_index, val, labels + j0, dst + j0*n_labels);
+// the labels range is cut at label-chunk boundaries (a one-column piece
+// reads a single label, always chunk-resident), and a dst column
+// straddling a chunk boundary is staged through a bounded n_labels temp
+// (gathered - the update reads dst[labels[i]] first - kernel
+// (n_labels, 1) on the temp, scattered back). Column-local updates, so
+// the piecewise result is BITWISE the plain call under any
+// factorization. Zero new kernels; all-unchunked buffers keep the
+// single classic call.
+// ---------------------------------------------------------------------------
+
+namespace
+{
+
+template<typename T, typename Arena, typename Sub>
+void subtract_indexed_outputs_chunked(Index n_labels, Index n_outputs,
+    Index ignore_index, Scalar val, ::nnhaul::Buffer *buf_labels,
+    ::nnhaul::Buffer *buf_dst, std::size_t force_bytes, Arena &arena,
+    Sub &&sub)
+{
+    if(n_labels <= 0 || n_outputs <= 0)
+    {
+        return;
+    }
+    chunkunits::ChunkView<T> const cv_dst(buf_dst, force_bytes);
+    chunkunits::ChunkView<nntile::int64_t> const cv_labels(buf_labels,
+        force_bytes);
+    bool const chunked_dst = cv_dst.nchunks > 1 || force_bytes != 0;
+    T *temp_col = chunked_dst ? arena.alloc(std::size_t(n_labels)) : nullptr;
+    Index j = 0;
+    while(j < n_outputs && arena.ok_state())
+    {
+        // Cut the piece at the next labels-chunk boundary first: the
+        // sub-call reads labels[j, j+L) as one contiguous run.
+        Index L = n_outputs - j;
+        {
+            std::size_t const lf = std::size_t(j);
+            std::size_t const lc = cv_labels.chunk_of(lf);
+            Index const lcap = static_cast<Index>(cv_labels.chunk_end(lc)
+                - lf);
+            if(lcap < L)
+            {
+                L = lcap;
+            }
+        }
+        std::size_t const f = std::size_t(j) * n_labels;
+        nntile::int64_t const *pl = cv_labels.ptr(cv_labels.chunk_of(j),
+            std::size_t(j) - cv_labels.chunk_begin(cv_labels.chunk_of(j)));
+        if(!chunkunits::in_one_chunk(cv_dst, f, std::size_t(n_labels)))
+        {
+            // Straddling column: stage it whole through the bounded temp.
+            chunkunits::gather_range(cv_dst, f, std::size_t(n_labels),
+                temp_col, arena);
+            if(arena.ok_state())
+            {
+                sub(n_labels, Index{1}, ignore_index, val, pl, temp_col);
+                chunkunits::scatter_range(cv_dst, f, std::size_t(n_labels),
+                    temp_col, arena);
+            }
+            ++j;
+            continue;
+        }
+        std::size_t const c = cv_dst.chunk_of(f);
+        std::size_t const end = cv_dst.chunk_end(c);
+        Index cap = static_cast<Index>((end - f) / n_labels);
+        if(cap < L)
+        {
+            L = cap;
+        }
+        if(L < 1)
+        {
+            L = 1;
+        }
+        sub(n_labels, L, ignore_index, val, pl,
+            cv_dst.ptr(c, f - cv_dst.chunk_begin(c)));
+        j += L;
+    }
+}
+
+} // namespace
 
 //! Constructor
 template<typename T>
@@ -53,11 +149,45 @@ void SubtractIndexedOutputs<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     Index ignore_index = args->ignore_index;
     Scalar val = args->value;
     // Get interfaces
-    const int64_t *labels = ::nntile::haul::buf_as<int64_t>(buffers, 0);
-    T *dst = ::nntile::haul::buf_as<T>(buffers, 1);
-    // Launch kernel
-    kernel::subtract_indexed_outputs::cpu<T>(n_labels, n_outputs, ignore_index,
-        val, labels, dst);
+    auto buf_labels = static_cast<::nnhaul::Buffer *>(buffers[0]);
+    auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
+    std::size_t const forced = chunkunits::forced_chunk_bytes();
+    if(buf_labels->chunk_count() == 1 && buf_dst->chunk_count() == 1
+        && forced == 0)
+    {
+        // Unchunked fast path: the historical single kernel call, bitwise
+        kernel::subtract_indexed_outputs::cpu<T>(n_labels, n_outputs,
+            ignore_index, val, buf_labels->get_ptr<nntile::int64_t>(),
+            buf_dst->get_ptr<T>());
+        return;
+    }
+    try
+    {
+        chunkunits::ArenaCpu<T> arena;
+        subtract_indexed_outputs_chunked<T>(
+            n_labels,
+            n_outputs,
+            ignore_index,
+            val,
+            buf_labels,
+            buf_dst,
+            forced,
+            arena,
+            [](Index nl, Index no, Index ig, Scalar v,
+                nntile::int64_t const *pl, T *pd) {
+                kernel::subtract_indexed_outputs::cpu<T>(nl, no, ig, v, pl,
+                    pd);
+            });
+    }
+    catch(...)
+    {
+        // A noexcept body must not throw; a failed scratch allocation
+        // leaves the result partially unwritten (same failure class as a
+        // failed kernel launch).
+        std::fprintf(stderr,
+            "nntile_subtract_indexed_outputs: cpu chunked driver aborted "
+            "after an allocation failure; dst left unwritten\n");
+    }
 }
 
 // Specializations of CPU wrapper for accelerated types
@@ -99,13 +229,41 @@ void SubtractIndexedOutputs<std::tuple<T>>::cuda(
     Index n_outputs = args->n_outputs;
     Index ignore_index = args->ignore_index;
     // Get interfaces
-    const int64_t *labels = ::nntile::haul::buf_as<int64_t>(buffers, 0);
-    T *dst = ::nntile::haul::buf_as<T>(buffers, 1);
+    auto buf_labels = static_cast<::nnhaul::Buffer *>(buffers[0]);
+    auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    // Launch kernel
-    kernel::subtract_indexed_outputs::cuda<T>(stream, n_labels, n_outputs,
-            ignore_index, args->value, labels, dst);
+    std::size_t const forced = chunkunits::forced_chunk_bytes();
+    if(buf_labels->chunk_count() == 1 && buf_dst->chunk_count() == 1
+        && forced == 0)
+    {
+        // Unchunked fast path: the historical single kernel call, bitwise
+        kernel::subtract_indexed_outputs::cuda<T>(stream, n_labels,
+            n_outputs, ignore_index, args->value,
+            buf_labels->get_ptr<nntile::int64_t>(), buf_dst->get_ptr<T>());
+        return;
+    }
+    chunkunits::ArenaCuda<T> arena(stream);
+    subtract_indexed_outputs_chunked<T>(
+        n_labels,
+        n_outputs,
+        ignore_index,
+        args->value,
+        buf_labels,
+        buf_dst,
+        forced,
+        arena,
+        [stream](Index nl, Index no, Index ig, Scalar v,
+            nntile::int64_t const *pl, T *pd) {
+            kernel::subtract_indexed_outputs::cuda<T>(stream, nl, no, ig, v,
+                pl, pd);
+        });
+    if(!arena.ok_state())
+    {
+        std::fprintf(stderr,
+            "nntile_subtract_indexed_outputs: chunked CUDA driver aborted "
+            "after a stream error; dst left unwritten\n");
+    }
 }
 
 // Specializations of CUDA wrapper for accelerated types
@@ -166,6 +324,8 @@ void SubtractIndexedOutputs<std::tuple<T>>::submit(
     args->n_outputs = n_outputs;
     args->value = val;
     args->ignore_index = ignore_index;
+    // Submit task: the BODY picks the unchunked fast path or the native
+    // chunked column driver; subtract_indexed_outputs never stages.
     ::nntile::haul::insert_task(
         codelet.raw,
         -1,

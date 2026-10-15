@@ -43,12 +43,19 @@ void cuda_kernel(Index nelems, Scalar alpha, const T *src1, const T *src2, T *ds
     }
     else
     {
-        for(int j = 0; j < nelems-blockIdx.x*BLOCK; j += BLOCK_STEP)
+        // Per-thread clamp: threads of the last (partial) block whose
+        // index reached nelems must not read or write. The old
+        // block-level bound let every thread of the partial block run up
+        // to the block's end, reading and writing up to BLOCK-1 elements
+        // past nelems - tolerated by over-allocated test buffers, but out
+        // of bounds for an exact-size chunk of a chunked tile.
+        int j_max = nelems - i;
+        for(int j = 0; j < j_max; j += BLOCK_STEP)
         {
             src1_block[threadIdx.x+j] = src1[i+j];
             src2_block[threadIdx.x+j] = src2[i+j];
         }
-        for(int j = 0; j < nelems-blockIdx.x*BLOCK; j += BLOCK_STEP)
+        for(int j = 0; j < j_max; j += BLOCK_STEP)
         {
             dst[i+j] = static_cast<T>(
                     alpha * static_cast<Y>(src1_block[threadIdx.x+j]) *

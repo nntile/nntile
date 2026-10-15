@@ -25,4 +25,10 @@ template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Scalar alpha, const T* src, T* dst)
     noexcept;
 
+// Transpose an nr-by-nc sub-block of an m-by-n buffer on CUDA
+template<typename T>
+void panel(cudaStream_t stream, Index m, Index n, Index nr, Index nc,
+    Scalar alpha, const T* src, T* dst)
+    noexcept;
+
 } // namespace nntile::kernel::transpose

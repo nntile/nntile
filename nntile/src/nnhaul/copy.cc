@@ -43,10 +43,17 @@ void Copy::cpu(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    const void *src = ::nntile::haul::buf_as<void>(buffers, 0);
-    void *dst = ::nntile::haul::buf_as<void>(buffers, 1);
-    // Launch kernel
-    std::memcpy(dst, src, args->nbytes);
+    auto src = ::nntile::haul::buf_chunks<unsigned char>(buffers, 0);
+    auto dst = ::nntile::haul::buf_chunks<unsigned char>(buffers, 1);
+    // Copy per flat chunk piece (single piece if unchunked); src and dst
+    // may chunk differently (same numel, different dtype)
+    ::nntile::haul::for_each_flat_piece(
+        args->nbytes,
+        [&](std::size_t n, const unsigned char *s, unsigned char *d) {
+            std::memcpy(d, s, n);
+        },
+        src,
+        dst);
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -55,14 +62,21 @@ void Copy::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     auto args = reinterpret_cast<args_t const *>(cl_args);
-    const void *src = ::nntile::haul::buf_as<void>(buffers, 0);
-    void *dst = ::nntile::haul::buf_as<void>(buffers, 1);
-    cudaMemcpyAsync(
-        dst,
-        src,
+    auto src = ::nntile::haul::buf_chunks<unsigned char>(buffers, 0);
+    auto dst = ::nntile::haul::buf_chunks<unsigned char>(buffers, 1);
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    ::nntile::haul::for_each_flat_piece(
         args->nbytes,
-        cudaMemcpyDeviceToDevice,
-        ::nnhaul::cuda_stream());
+        [&](std::size_t n, const unsigned char *s, unsigned char *d) {
+            cudaMemcpyAsync(
+                d,
+                s,
+                n,
+                cudaMemcpyDeviceToDevice,
+                stream);
+        },
+        src,
+        dst);
 }
 #endif // NNTILE_USE_CUDA
 

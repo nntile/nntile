@@ -51,22 +51,29 @@ void SGDStep<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    T *grad = ::nntile::haul::buf_as<T>(buffers, 0);
-    T *velocity = ::nntile::haul::buf_as<T>(buffers, 1);
-    T* p = ::nntile::haul::buf_as<T>(buffers, 2);
-    // Launch kernel
-    kernel::sgd_step::cpu<T>(
-        args->num_iter,
+    auto grad = ::nntile::haul::buf_chunks<T>(buffers, 0);
+    auto velocity = ::nntile::haul::buf_chunks<T>(buffers, 1);
+    auto p = ::nntile::haul::buf_chunks<T>(buffers, 2);
+    // Launch kernel per flat chunk piece (single piece if unchunked)
+    ::nntile::haul::for_each_flat_piece(
         args->num_elems,
-        args->momentum,
-        args->lr,
-        args->weight_decay,
-        args->dampening,
-        args->nesterov,
+        [&](std::size_t n, const T *g, T *v, T *pp) {
+            kernel::sgd_step::cpu<T>(
+                args->num_iter,
+                n,
+                args->momentum,
+                args->lr,
+                args->weight_decay,
+                args->dampening,
+                args->nesterov,
+                g,
+                v,
+                pp
+            );
+        },
         grad,
         velocity,
-        p
-    );
+        p);
 }
 
 // Specializations of CPU wrapper for accelerated types
@@ -103,25 +110,32 @@ void SGDStep<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    T *grad = ::nntile::haul::buf_as<T>(buffers, 0);
-    T *velocity = ::nntile::haul::buf_as<T>(buffers, 1);
-    T* p = ::nntile::haul::buf_as<T>(buffers, 2);
+    auto grad = ::nntile::haul::buf_chunks<T>(buffers, 0);
+    auto velocity = ::nntile::haul::buf_chunks<T>(buffers, 1);
+    auto p = ::nntile::haul::buf_chunks<T>(buffers, 2);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    // Launch kernel
-    kernel::sgd_step::cuda<T>(
-        stream,
-        args->num_iter,
+    // Launch kernel per flat chunk piece (single piece if unchunked)
+    ::nntile::haul::for_each_flat_piece(
         args->num_elems,
-        args->momentum,
-        args->lr,
-        args->weight_decay,
-        args->dampening,
-        args->nesterov,
+        [&](std::size_t n, const T *g, T *v, T *pp) {
+            kernel::sgd_step::cuda<T>(
+                stream,
+                args->num_iter,
+                n,
+                args->momentum,
+                args->lr,
+                args->weight_decay,
+                args->dampening,
+                args->nesterov,
+                g,
+                v,
+                pp
+            );
+        },
         grad,
         velocity,
-        p
-    );
+        p);
 }
 
 // Specializations of CUDA wrapper for accelerated types

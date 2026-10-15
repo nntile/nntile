@@ -173,6 +173,78 @@ void cuda(cudaStream_t stream, Index m, Index n, Scalar alpha, const T *src,
     }
 }
 
+//! Transpose an nr-by-nc sub-block of an m-by-n buffer on CUDA
+/*! Performs the following operation for di in [0, nr) and dj in [0, nc):
+ *      dst[di*n+dj] = alpha * src[di+dj*m]
+ *
+ * src and dst are the sub-block's base pointers (its (0, 0) corner in
+ * the whole m-by-n matrix); the sub-block KEEPS the whole matrix's
+ * strides - the src columns stay m elements apart, the dst rows n
+ * elements apart. The chunked NNHaul wrapper drives this entry with
+ * sub-blocks whose covered src column segments and whose covered dst
+ * flat range each lie inside single device chunks; the whole-buffer
+ * cuda() above is the (m, n) case. Internally shared-memory tiled
+ * like the whole-buffer kernel: a 32x(32+1) tile with the load phase
+ * coalesced along the contiguous src axis (the di axis) and the store
+ * phase coalesced along the contiguous dst axis (the dj axis).
+ * Elementwise and deterministic: any piece factorization is bitwise
+ * the whole-buffer call.
+ *
+ * @param[in] stream: CUDA stream
+ * @param[in] m: Size of the first mode of the whole src buffer.
+ * @param[in] n: Size of the last mode of the whole src buffer.
+ * @param[in] nr: Number of rows of the sub-block.
+ * @param[in] nc: Number of columns of the sub-block.
+ * @param[in] alpha: Scalar factor for src.
+ * @param[in] src: Base pointer of the sub-block (m column stride).
+ * @param[inout] dst: Base pointer of the sub-block (n row stride).
+ * */
+template<typename T, int TILE>
+static __global__
+void panel_cuda_kernel(Index m, Index n, Index nr, Index nc, Scalar alpha_,
+    const T *src, T *dst)
+{
+    __shared__ T tile[TILE][TILE+1];
+    Index const bx = blockIdx.x;
+    Index const by = blockIdx.y;
+    Index const tx = threadIdx.x;
+    Index const ty = threadIdx.y;
+    Index const rel_i = by*TILE + tx;
+    Index const rel_j = bx*TILE + ty;
+    using Y = typename T::repr_t;
+    const Y alpha{alpha_};
+    // Load phase: consecutive threads read consecutive src elements
+    // (the di axis is contiguous in src).
+    if(rel_i < nr && rel_j < nc)
+    {
+        tile[tx][ty] = T{alpha * Y{src[rel_i + rel_j*m]}};
+    }
+    __syncthreads();
+    // Store phase: consecutive threads write consecutive dst elements
+    // (the dj axis is contiguous in dst); the value comes from the
+    // transposed tile cell.
+    if(by*TILE + ty < nr && bx*TILE + tx < nc)
+    {
+        dst[(by*TILE+ty)*n + bx*TILE+tx] = tile[ty][tx];
+    }
+}
+
+template<typename T>
+void panel(cudaStream_t stream, Index m, Index n, Index nr, Index nc,
+    Scalar alpha, const T* src, T* dst)
+    noexcept
+{
+    if(nr <= 0 || nc <= 0)
+    {
+        return;
+    }
+    constexpr int TILE = 32;
+    dim3 threads(TILE, TILE);
+    dim3 blocks((nc+TILE-1)/TILE, (nr+TILE-1)/TILE);
+    (panel_cuda_kernel<T, TILE>)<<<blocks, threads, 0, stream>>>(m, n, nr,
+            nc, alpha, src, dst);
+}
+
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Scalar alpha,
@@ -192,6 +264,26 @@ void cuda<bf16_t>(cudaStream_t stream, Index m, Index n, Scalar alpha,
 template
 void cuda<fp16_t>(cudaStream_t stream, Index m, Index n, Scalar alpha,
         const fp16_t* src, fp16_t* dst)
+    noexcept;
+
+template
+void panel<fp32_t>(cudaStream_t stream, Index m, Index n, Index nr, Index nc,
+    Scalar alpha, const fp32_t* src, fp32_t* dst)
+    noexcept;
+
+template
+void panel<fp64_t>(cudaStream_t stream, Index m, Index n, Index nr, Index nc,
+    Scalar alpha, const fp64_t* src, fp64_t* dst)
+    noexcept;
+
+template
+void panel<bf16_t>(cudaStream_t stream, Index m, Index n, Index nr, Index nc,
+    Scalar alpha, const bf16_t* src, bf16_t* dst)
+    noexcept;
+
+template
+void panel<fp16_t>(cudaStream_t stream, Index m, Index n, Index nr, Index nc,
+    Scalar alpha, const fp16_t* src, fp16_t* dst)
     noexcept;
 
 } // namespace nntile::kernel::tranpose
