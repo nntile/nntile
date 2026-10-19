@@ -22,6 +22,8 @@ option(BUILD_SHARED_LIBS "Build shared libraries instead of static" ON)
 option(BUILD_LIBNNTILE "Build the core C++ libnntile library" ON)
 option(NNTILE_USE_NNHAUL
     "Link libnnhaul instead of StarPU (one backend per build)" OFF)
+option(NNTILE_FORCE_CHUNKED_KERNELS
+    "Dispatch every op through its chunked kernel, including contiguous operands" OFF)
 option(USE_CUDA "Use CUDA toolkit (cuBLAS and cuDNN are required)" ON)
 option(USE_CUDA_FP16 "Enable FP16 CUDA support" ON)
 option(USE_CUDA_TF32 "Enable TF32 CUDA support" ON)
@@ -102,6 +104,10 @@ macro(nntile_apply_common_includes target)
         # Visible before any include. defs.h also #defines it, but headers
         # branch on the macro before they include defs.h.
         target_compile_definitions(${target} PUBLIC NNTILE_USE_NNHAUL)
+        if(NNTILE_FORCE_CHUNKED_KERNELS)
+            target_compile_definitions(${target} PUBLIC
+                NNTILE_FORCE_CHUNKED_KERNELS)
+        endif()
         target_link_libraries(${target} PUBLIC
             "$<BUILD_INTERFACE:nnhaul>")
     else()

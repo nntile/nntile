@@ -13,6 +13,23 @@
  * contiguous mode (b), scratch-pressure fan-out (c), and the
  * compile-time torch-op gate (d).
  *
+ * (RULE 7 VACUITY NOTE, 2026-10-18) this probe was written for the
+ * configurable-class era and its tiles are 2-3 MiB -- every tile is a
+ * SINGLE chunk under the compile-time 16 MiB class, so the probes that
+ * keyed on chunk_bytes_for(2/3 MiB) > 0 no longer engage their chunked
+ * intent: probe a's native-chunked-gemm assert is skipped (the guard
+ * `chunking_off` is true), and probes b/e spawn their contiguous-mode
+ * children WITHOUT the retired FORCE_PANEL_BYTES / CHUNK_UNITS_FORCE_
+ * BYTES knobs (the env knobs are gone and chunk_bytes_for returns 0),
+ * so those comparisons degenerate to plain flag-on vs flag-off
+ * contiguous runs. The staged-fallback pressure probes (c) and the
+ * torch gate (d) remain meaningful. The chunked-side coverage this
+ * file once bought lives in the .zcode/bench-kernel checks
+ * (p4_check BIG blocks, bv_check, ring_check) on REAL 16 MiB
+ * factorizations; making these probes chunked again requires
+ * >16 MiB tiles and a rewrite for the constant-class era (recorded on
+ * the campaign page's coverage-lost list).
+ *
  * Knobs (read per case, before the Context init): PROBE_CAP_MIB
  * (default unlimited), PROBE_POLICY (reactive|belady|proactive),
  * PROBE_REPS (default 3).

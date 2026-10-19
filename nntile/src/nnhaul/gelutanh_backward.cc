@@ -9,7 +9,7 @@
  * @file src/starpu/gelutanh_backward.cc
  * Backward approximate GeLU operation on a StarPU buffer
  *
- * @version 1.1.0
+ * @version 1.2.0
  * */
 
 // Corresponding headers
@@ -22,6 +22,7 @@
 
 // Other NNTile headers
 #include "nntile/kernel/gelutanh_backward.hh"
+#include "nntile/nnhaul/chunk_units.hh"
 
 namespace nntile::haul
 {
@@ -102,6 +103,93 @@ void GeluTanhBackward<std::tuple<T>>::cuda(
     auto dx = ::nntile::haul::buf_chunks<T>(buffers, 2);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Chunked single-launch path: when at least one operand is chunked (or
+    // the force flag is on), issue the WHOLE flat
+    // operation as ONE chunk-aware kernel instead of the per-piece walk's
+    // launches. The chunk base-pointer tables are built on the host from
+    // the ChunkViews and parked in the shared device chunk-ptr ring; the
+    // kernel reads the table per-thread by shift/mask (rule 10: no smem staging). No chunk-count cap.
+    // The per-element expression is identical (including the beta special
+    // cases), so the result is cuda()'s bitwise. The all-unchunked case
+    // (flag off) and a failed table upload keep the historical
+    // for_each_flat_piece path verbatim.
+    {
+        auto buf_x = static_cast<::nnhaul::Buffer *>(buffers[0]);
+        auto buf_dy = static_cast<::nnhaul::Buffer *>(buffers[1]);
+        auto buf_dx = static_cast<::nnhaul::Buffer *>(buffers[2]);
+        bool const all_plain = (buf_x->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+            && (buf_dy->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+            && (buf_dx->chunk_count() == 1 && !chunkunits::force_chunked_kernels());
+        if(!(all_plain) && args->nelems > 0)
+        {
+            if(buf_x->chunk_count() == 1 && buf_dy->chunk_count() == 1 && buf_dx->chunk_count() == 1)
+            {
+                // Piece C (2026-10-18c): the all-1-chunk degenerate
+                // launch is the FIRST thing the chunked block does --
+                // the chunk counts are read straight off the buffers,
+                // before any ChunkView/RingTables work exists, so the
+                // degenerate host path is as lean as the classic
+                // dispatch above (gemm path-F precedent; launch
+                // pointer-identical, bitwise by construction, ring
+                // untouched).
+                kernel::gelutanh_backward::cuda<T>(stream, args->nelems,
+                    args->alpha, buf_x->get_ptr<T>(), buf_dy->get_ptr<T>(), args->beta,
+                    buf_dx->get_ptr<T>());
+                return;
+            }
+            chunkunits::ChunkView<T> const cvx(buf_x);
+            chunkunits::ChunkView<T> const cvdy(buf_dy);
+            chunkunits::ChunkView<T> const cvdx(buf_dx);
+            chunkunits::RingTables &tabs = chunkunits::ring_tables();
+            tabs.clear();
+            std::size_t const o_px = tabs.add(cvx);
+            std::size_t const o_pdy = tabs.add(cvdy);
+            std::size_t const o_pdx = tabs.add(cvdx);
+            chunkunits::ChunkPtrRing &arena = chunkunits::chunk_ptr_ring();
+            if(arena.begin(stream))
+            {
+                void const *ring_base = arena.upload_tables(tabs);
+                if(ring_base != nullptr)
+                {
+                    const T *const *tx = arena.table_view<const T *>(
+                        ring_base, o_px);
+                    const T *const *tdy = arena.table_view<const T *>(
+                        ring_base, o_pdy);
+                    T *const *tdx = arena.table_view<T *>(ring_base, o_pdx);
+                    kernel::gelutanh_backward::chunked<T>(
+                        stream,
+                        args->nelems,
+                        args->alpha,
+                        tx,
+                        Index(cvx.nchunks),
+                        tdy,
+                        Index(cvdy.nchunks),
+                        args->beta,
+                        tdx,
+                        Index(cvdx.nchunks),
+                        Index(cvx.chunk_elems),
+                        Index(cvdy.chunk_elems),
+                        Index(cvdx.chunk_elems));
+                    arena.end(stream);
+                    return;
+                }
+                    // (rule 11, user directive 2026-10-19) There is no per-piece
+                    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot ring
+                    // serve any launch up to a 16 TiB operand, so a failed upload is an
+                    // invariant violation, not a mode to stage around.
+                    std::fprintf(stderr,
+                        "nntile_gelutanh_backward: chunk-ptr ring cannot serve this launch (invariant "
+                        "violation; the per-piece staging fallback was deleted by rule "
+                        "11)\n");
+                    std::abort();
+            }
+        }
+        if(args->nelems > 0)
+        {
+            chunkunits::classic_dispatch_tripwire("nntile_gelutanh_backward",
+                false);
+        }
+    }
     // Launch kernel per flat chunk piece (single piece if unchunked)
     ::nntile::haul::for_each_flat_piece(
         args->nelems,

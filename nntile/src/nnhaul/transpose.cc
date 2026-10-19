@@ -9,7 +9,7 @@
  * @file src/starpu/transpose.cc
  * Transpose operation for StarPU buffers
  *
- * @version 1.1.0
+ * @version 1.2.0
  * */
 
 // Corresponding header
@@ -63,16 +63,16 @@ namespace
 template<typename T, typename Arena, typename Sub>
 void transpose_chunked(Index m, Index n, Scalar alpha,
     ::nnhaul::Buffer *buf_src, ::nnhaul::Buffer *buf_dst,
-    std::size_t force_bytes, Arena &arena, Sub &&sub)
+    Arena &arena, Sub &&sub)
 {
     if(m <= 0 || n <= 0)
     {
         return;
     }
-    chunkunits::ChunkView<T> const cv_src(buf_src, force_bytes);
-    chunkunits::ChunkView<T> const cv_dst(buf_dst, force_bytes);
+    chunkunits::ChunkView<T> const cv_src(buf_src);
+    chunkunits::ChunkView<T> const cv_dst(buf_dst);
     chunkunits::UnitSpan<T> const span_src{&cv_src, std::size_t(m), Index{1}};
-    bool const chunked_src = cv_src.nchunks > 1 || force_bytes != 0;
+    bool const chunked_src = cv_src.nchunks > 1;
     T *temp_col = chunked_src ? arena.alloc(std::size_t(m)) : nullptr;
     // Drive the rows [i, i+R) of one src column window (P columns fully
     // inside one src chunk, base ps at row 0 of column j0) through
@@ -172,10 +172,12 @@ void Transpose<std::tuple<T>>::cpu(void *buffers[], void *cl_args) noexcept
     // Get interfaces
     auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
-    if(buf_src->chunk_count() == 1 && buf_dst->chunk_count() == 1
-        && forced == 0)
+    if((buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+       )
     {
+        // Classic contiguous dispatch: illegal under the force flag
+        // (the tripwire proves it never happens in a flag-on run).
+        chunkunits::classic_dispatch_tripwire("nntile_transpose", false);
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::transpose::cpu<T>(args->m, args->n, args->alpha,
             buf_src->get_ptr<T>(), buf_dst->get_ptr<T>());
@@ -190,7 +192,6 @@ void Transpose<std::tuple<T>>::cpu(void *buffers[], void *cl_args) noexcept
             args->alpha,
             buf_src,
             buf_dst,
-            forced,
             arena,
             [](Index mm, Index nn, Index nr, Index nc, Scalar al,
                 T const *ps, T *pd) {
@@ -245,35 +246,81 @@ void Transpose<std::tuple<T>>::cuda(void *buffers[], void *cl_args) noexcept
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
-    if(buf_src->chunk_count() == 1 && buf_dst->chunk_count() == 1
-        && forced == 0)
+    if((buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+       )
     {
+        // Classic contiguous dispatch: illegal under the force flag
+        // (the tripwire proves it never happens in a flag-on run).
+        chunkunits::classic_dispatch_tripwire("nntile_transpose", false);
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::transpose::cuda<T>(stream, args->m, args->n, args->alpha,
             buf_src->get_ptr<T>(), buf_dst->get_ptr<T>());
         return;
     }
-    chunkunits::ArenaCuda<T> arena(stream);
-    transpose_chunked<T>(
-        args->m,
-        args->n,
-        args->alpha,
-        buf_src,
-        buf_dst,
-        forced,
-        arena,
-        [stream](Index mm, Index nn, Index nr, Index nc, Scalar al,
-            T const *ps, T *pd) {
-            kernel::transpose::panel<T>(stream, mm, nn, nr, nc, al, ps, pd);
-        });
-    if(!arena.ok_state())
+    // Chunked single-launch path: the WHOLE transpose is issued as ONE
+    // chunk-aware kernel with the chunk base-pointer tables read from the
+    // shared device chunk-ptr ring (no chunk-count cap), instead of the
+    // per-panel driver's O(src windows x dst row runs) launches. Elementwise
+    // and bitwise the whole-buffer call. A launch whose pointer set exceeds
+    // the ring, and the arbitrary factorizations,
+    // keep the per-panel driver below as the fallback.
+    // Piece C (2026-10-18c): the all-1-chunk degenerate launch is
+    // the FIRST thing the chunked block does -- the chunk counts are
+    // read straight off the buffers, before any
+    // ChunkView/UnitSpan/RingTables work exists, so the degenerate
+    // host path is as lean as the classic dispatch above (gemm
+    // path-F precedent; launch pointer-identical, bitwise by
+    // construction, ring untouched).
+    if(buf_src->chunk_count() == 1 && buf_dst->chunk_count() == 1)
     {
-        std::fprintf(stderr,
-            "nntile_transpose: chunked CUDA driver aborted after a stream "
-            "error; dst left unwritten\n");
+        kernel::transpose::cuda<T>(stream, args->m, args->n, args->alpha,
+            buf_src->get_ptr<T>(), buf_dst->get_ptr<T>());
+        return;
     }
+    chunkunits::ChunkView<T> const cv_src(buf_src);
+    chunkunits::ChunkView<T> const cv_dst(buf_dst);
+    {
+        chunkunits::RingTables &tabs = chunkunits::ring_tables();
+        tabs.clear();
+        std::size_t const o_src_ptrs = tabs.add(cv_src);
+        std::size_t const o_dst_ptrs = tabs.add(cv_dst);
+        chunkunits::ChunkPtrRing &arena = chunkunits::chunk_ptr_ring();
+        if(arena.begin(stream))
+        {
+            void const *ring_base = arena.upload_tables(tabs);
+            if(ring_base != nullptr)
+            {
+                const T *const *src_tab = arena.table_view<const T *>(
+                    ring_base, o_src_ptrs);
+                T *const *dst_tab = arena.table_view<T *>(
+                    ring_base, o_dst_ptrs);
+                kernel::transpose::chunked<T>(
+                    stream,
+                    args->m,
+                    args->n,
+                    args->alpha,
+                    src_tab,
+                    Index(cv_src.nchunks),
+                    dst_tab,
+                    Index(cv_dst.nchunks),
+                    Index(cv_src.chunk_elems),
+                    Index(cv_dst.chunk_elems));
+                arena.end(stream);
+                return;
+            }
+        }
+    }
+        // (rule 11, user directive 2026-10-19) There is no per-piece
+    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot ring
+    // serve any launch up to a 16 TiB operand, so a failed upload is an
+    // invariant violation, not a mode to stage around.
+    std::fprintf(stderr,
+        "nntile_transpose: chunk-ptr ring cannot serve this launch (invariant "
+        "violation; the per-piece staging fallback was deleted by rule "
+        "11)\n");
+    std::abort();
 }
+
 
 // Specializations of CUDA wrapper for accelerated types
 template<>

@@ -9,7 +9,7 @@
  * @file src/starpu/sumprod_fiber.cc
  * Sums over slices into a fiber of a product of two StarPU buffers
  *
- * @version 1.1.0
+ * @version 1.2.0
  * */
 
 // Corresponding header
@@ -60,21 +60,21 @@ namespace
 template<typename T, typename Arena, typename Sub>
 void sumprod_fiber_chunked(Index m, Index n, Index k, Scalar alpha,
     ::nnhaul::Buffer *buf_src1, ::nnhaul::Buffer *buf_src2, Scalar beta,
-    ::nnhaul::Buffer *buf_dst, std::size_t force_bytes, Arena &arena,
+    ::nnhaul::Buffer *buf_dst, Arena &arena,
     Sub &&sub)
 {
     if(m <= 0 || k <= 0)
     {
         return;
     }
-    chunkunits::ChunkView<T> const cv_src1(buf_src1, force_bytes);
-    chunkunits::ChunkView<T> const cv_src2(buf_src2, force_bytes);
-    chunkunits::ChunkView<T> const cv_dst(buf_dst, force_bytes);
+    chunkunits::ChunkView<T> const cv_src1(buf_src1);
+    chunkunits::ChunkView<T> const cv_src2(buf_src2);
+    chunkunits::ChunkView<T> const cv_dst(buf_dst);
     chunkunits::UnitSpan<T> const span_src1{&cv_src1, std::size_t(m), Index{1}};
     chunkunits::UnitSpan<T> const span_src2{&cv_src2, std::size_t(m), Index{1}};
     chunkunits::UnitSpan<T> const span_dst{&cv_dst, std::size_t(k), k * n};
-    bool const chunked_src1 = cv_src1.nchunks > 1 || force_bytes != 0;
-    bool const chunked_src2 = cv_src2.nchunks > 1 || force_bytes != 0;
+    bool const chunked_src1 = cv_src1.nchunks > 1;
+    bool const chunked_src2 = cv_src2.nchunks > 1;
     T *temp_src1 = chunked_src1 ? arena.alloc(std::size_t(m)) : nullptr;
     T *temp_src2 = chunked_src2 ? arena.alloc(std::size_t(m)) : nullptr;
     chunkunits::SliceStage<T, Arena> dst_stage(
@@ -166,10 +166,12 @@ void SumProdFiber<std::tuple<T>>::cpu(void *buffers[], void *cl_args) noexcept
     auto buf_src1 = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_src2 = static_cast<::nnhaul::Buffer *>(buffers[1]);
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[2]);
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
-    if(buf_src1->chunk_count() == 1 && buf_src2->chunk_count() == 1
-        && buf_dst->chunk_count() == 1 && forced == 0)
+    if((buf_src1->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_src2->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+        && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels()))
     {
+        // Classic contiguous dispatch: illegal under the force flag
+        // (the tripwire proves it never happens in a flag-on run).
+        chunkunits::classic_dispatch_tripwire("nntile_sumprod_fiber", false);
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::sumprod_fiber::cpu<T>(args->m, args->n, args->k,
             args->alpha, buf_src1->get_ptr<T>(), buf_src2->get_ptr<T>(),
@@ -188,7 +190,6 @@ void SumProdFiber<std::tuple<T>>::cpu(void *buffers[], void *cl_args) noexcept
             buf_src2,
             args->beta,
             buf_dst,
-            forced,
             arena,
             [alpha = args->alpha](Index mm, Index nn, Index kk,
                 T const *p1, T const *p2, Scalar be, T *pd) {
@@ -245,40 +246,94 @@ void SumProdFiber<std::tuple<T>>::cuda(void *buffers[], void *cl_args) noexcept
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[2]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
-    if(buf_src1->chunk_count() == 1 && buf_src2->chunk_count() == 1
-        && buf_dst->chunk_count() == 1 && forced == 0)
+    if((buf_src1->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_src2->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+        && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels()))
     {
+        // Classic contiguous dispatch: illegal under the force flag
+        // (the tripwire proves it never happens in a flag-on run).
+        chunkunits::classic_dispatch_tripwire("nntile_sumprod_fiber", false);
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::sumprod_fiber::cuda<T>(stream, args->m, args->n, args->k,
             args->alpha, buf_src1->get_ptr<T>(), buf_src2->get_ptr<T>(),
             args->beta, buf_dst->get_ptr<T>());
         return;
     }
-    chunkunits::ArenaCuda<T> arena(stream);
-    sumprod_fiber_chunked<T>(
-        args->m,
-        args->n,
-        args->k,
-        args->alpha,
-        buf_src1,
-        buf_src2,
-        args->beta,
-        buf_dst,
-        forced,
-        arena,
-        [stream, alpha = args->alpha](Index mm, Index nn, Index kk,
-            T const *p1, T const *p2, Scalar be, T *pd) {
-            kernel::sumprod_fiber::cuda<T>(stream, mm, nn, kk, alpha, p1,
-                p2, be, pd);
-        });
-    if(!arena.ok_state())
+    // Chunked single-launch path (see sum_slice.cc for the rationale): one
+    // chunk-aware kernel over the whole logical range; the chunk base-pointer
+    // tables are built on the host and parked in the shared device chunk-ptr ring's
+    // device-resident ring (no chunk-count cap), and the kernel stages
+    // them into shared memory per block. The piece driver stays as the
+    // fallback for a failed table allocation.
+    // Piece C (2026-10-18c): the all-1-chunk degenerate launch is
+    // the FIRST thing the chunked block does -- the chunk counts are
+    // read straight off the buffers, before any
+    // ChunkView/UnitSpan/RingTables work exists, so the degenerate
+    // host path is as lean as the classic dispatch above (gemm
+    // path-F precedent; launch pointer-identical, bitwise by
+    // construction, ring untouched).
+    if(args->m > 0 && args->n > 0 && args->k > 0
+        && buf_src1->chunk_count() == 1
+        && buf_src2->chunk_count() == 1
+        && buf_dst->chunk_count() == 1)
     {
-        std::fprintf(stderr,
-            "nntile_sumprod_fiber: chunked CUDA driver aborted after a "
-            "stream error; dst left unwritten\n");
+        kernel::sumprod_fiber::cuda<T>(stream, args->m, args->n, args->k,
+            args->alpha, buf_src1->get_ptr<T>(), buf_src2->get_ptr<T>(), args->beta,
+            buf_dst->get_ptr<T>());
+        return;
     }
+    chunkunits::ChunkView<T> const cv_src1(buf_src1);
+    chunkunits::ChunkView<T> const cv_src2(buf_src2);
+    chunkunits::ChunkView<T> const cv_dst(buf_dst);
+    if(args->m > 0 && args->n > 0 && args->k > 0)
+    {
+            chunkunits::RingTables &tabs = chunkunits::ring_tables();
+        tabs.clear();
+        std::size_t const o_s1_ptrs = tabs.add(cv_src1);
+        std::size_t const o_s2_ptrs = tabs.add(cv_src2);
+        std::size_t const o_dst_ptrs = tabs.add(cv_dst);
+        chunkunits::ChunkPtrRing &arena = chunkunits::chunk_ptr_ring();
+        if(arena.begin(stream))
+        {
+            void const *ring_base = arena.upload_tables(tabs);
+            if(ring_base != nullptr)
+            {
+                const T *const *t1 = arena.table_view<const T *>(
+                    ring_base, o_s1_ptrs);
+                const T *const *t2 = arena.table_view<const T *>(
+                    ring_base, o_s2_ptrs);
+                T *const *td = arena.table_view<T *>(ring_base, o_dst_ptrs);
+                kernel::sumprod_fiber::chunked<T>(
+                    stream,
+                    args->m,
+                    args->n,
+                    args->k,
+                    args->alpha,
+                    t1,
+                    Index(cv_src1.nchunks),
+                    t2,
+                    Index(cv_src2.nchunks),
+                    args->beta,
+                    td,
+                    Index(cv_dst.nchunks),
+                    Index(cv_src1.chunk_elems),
+                    Index(cv_src2.chunk_elems),
+                    Index(cv_dst.chunk_elems));
+                arena.end(stream);
+                return;
+            }
+        }
+    }
+        // (rule 11, user directive 2026-10-19) There is no per-piece
+    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot ring
+    // serve any launch up to a 16 TiB operand, so a failed upload is an
+    // invariant violation, not a mode to stage around.
+    std::fprintf(stderr,
+        "nntile_sumprod_fiber: chunk-ptr ring cannot serve this launch (invariant "
+        "violation; the per-piece staging fallback was deleted by rule "
+        "11)\n");
+    std::abort();
 }
+
 
 // Specializations of CUDA wrapper for accelerated types
 template<>

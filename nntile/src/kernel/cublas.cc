@@ -73,6 +73,71 @@ void c_order_gemm_ld(
 template<typename T>
 using scalar_t = typename T::repr_t;
 
+//! cublasGemm(Ex|BatchedEx) type parameters for one element type
+template<typename T>
+void gemm_types(cudaDataType_t &typeA, cudaDataType_t &typeB,
+    cudaDataType_t &typeC, cublasComputeType_t &computeType)
+{
+    if constexpr(std::is_same_v<T, fp64_t>)
+    {
+        typeA = CUDA_R_64F;
+        typeB = CUDA_R_64F;
+        typeC = CUDA_R_64F;
+        computeType = CUBLAS_COMPUTE_64F;
+    }
+    else if constexpr(std::is_same_v<T, fp32_t>)
+    {
+        typeA = CUDA_R_32F;
+        typeB = CUDA_R_32F;
+        typeC = CUDA_R_32F;
+        computeType = CUBLAS_COMPUTE_32F;
+    }
+    else if constexpr(std::is_same_v<T, fp32_fast_tf32_t>)
+    {
+        typeA = CUDA_R_32F;
+        typeB = CUDA_R_32F;
+        typeC = CUDA_R_32F;
+        computeType = CUBLAS_COMPUTE_32F_FAST_TF32;
+    }
+    else if constexpr(std::is_same_v<T, fp32_fast_fp16_t>)
+    {
+        typeA = CUDA_R_32F;
+        typeB = CUDA_R_32F;
+        typeC = CUDA_R_32F;
+        computeType = CUBLAS_COMPUTE_32F_FAST_16F;
+    }
+    else if constexpr(std::is_same_v<T, fp32_fast_bf16_t>)
+    {
+        typeA = CUDA_R_32F;
+        typeB = CUDA_R_32F;
+        typeC = CUDA_R_32F;
+        computeType = CUBLAS_COMPUTE_32F_FAST_16BF;
+    }
+    else if constexpr(std::is_same_v<T, bf16_t>)
+    {
+        typeA = CUDA_R_16BF;
+        typeB = CUDA_R_16BF;
+        typeC = CUDA_R_16BF;
+        computeType = CUBLAS_COMPUTE_32F;
+    }
+    else if constexpr(std::is_same_v<T, fp16_t>)
+    {
+        typeA = CUDA_R_16F;
+        typeB = CUDA_R_16F;
+        typeC = CUDA_R_16F;
+        computeType = CUBLAS_COMPUTE_32F;
+    }
+}
+
+//! GEMM with EXPLICIT leading dimensions (batch=1): see cublas.hh. The
+//! caller-supplied row-major lds pass through the same C-order
+//! mirroring as gemm() (a row-major matrix with row length L is its
+//! own col-major transpose view with ld L, so the values pass through;
+//! only the operand positions swap).
+
+//! GEMM over per-batch pointer arrays (see cublas.hh): the batch dim is
+//! addressed by DEVICE pointer arrays, one cublasGemmBatchedEx call.
+
 // GEMM operation implementation
 template<typename T>
 void gemm(
@@ -305,6 +370,20 @@ template void gemm<fp16_t>(
     fp16_t *C,
     bool broadcast_a,
     bool broadcast_b) noexcept;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 } // namespace nntile:kernel::cublas
 #endif // NNTILE_USE_CUDA

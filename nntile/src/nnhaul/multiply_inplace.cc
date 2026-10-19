@@ -9,7 +9,7 @@
  * @file src/starpu/multiply_inplace.cc
  * Per-element multiplication of two StarPU buffers
  *
- * @version 1.1.0
+ * @version 1.2.0
  * */
 
 // Corresponding header
@@ -17,11 +17,13 @@
 
 // Standard libraries
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <stdexcept>
 
 // Other NNTile headers
 #include "nntile/kernel/multiply_inplace.hh"
+#include "nntile/nnhaul/chunk_units.hh"
 
 namespace nntile::haul
 {
@@ -100,11 +102,95 @@ void MultiplyInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     Index nelems = args->nelems;
     Scalar alpha = args->alpha;
     // Get interfaces
-    auto src = ::nntile::haul::buf_chunks<T>(buffers, 0);
-    auto dst = ::nntile::haul::buf_chunks<T>(buffers, 1);
+    auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[0]);
+    auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
+    if((buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+       )
+    {
+        // Classic contiguous dispatch: illegal under the force flag (the
+        // tripwire proves it never happens in a flag-on run).
+        chunkunits::classic_dispatch_tripwire("nntile_multiply_inplace",
+            false);
+        // Unchunked fast path: the historical single kernel call, bitwise
+        kernel::multiply_inplace::cuda<T>(stream, nelems, alpha,
+            buf_src->get_ptr<T>(), buf_dst->get_ptr<T>());
+        return;
+    }
+    // Chunked single-launch path: issue the WHOLE flat range as ONE
+    // chunk-aware kernel instead of the per-piece driver's one launch per
+    // chunk boundary crossing. The chunk base-pointer tables are built on the
+    // host and parked in the shared device chunk-ptr ring's device-resident
+    // ring (no chunk-count cap); the kernel stages them into shared memory
+    // per block. Elementwise and bitwise the whole-buffer call. The per-piece
+    // driver below stays as the fallback for a
+    // failed table allocation.
+    // Piece C (2026-10-18c): the all-1-chunk degenerate launch, missing
+    // from this wrapper until now (piece 4's 20-op list and piece 6's
+    // extension both skipped it -- the graph shape is 3-chunk so it
+    // never fired). Same form as the rest of the flat family: chunk
+    // counts read straight off the buffers, before any
+    // ChunkView/RingTables work, launch pointer-identical to the
+    // classic dispatch (gemm path-F precedent; bitwise by construction,
+    // ring untouched).
+    if(nelems > 0
+        && buf_src->chunk_count() == 1
+        && buf_dst->chunk_count() == 1)
+    {
+        kernel::multiply_inplace::cuda<T>(stream, nelems, alpha,
+            buf_src->get_ptr<T>(), buf_dst->get_ptr<T>());
+        return;
+    }
+    chunkunits::ChunkView<T> const cv_src(buf_src);
+    chunkunits::ChunkView<T> const cv_dst(buf_dst);
+    if(nelems > 0)
+    {
+        chunkunits::RingTables &tabs = chunkunits::ring_tables();
+        tabs.clear();
+        std::size_t const o_src_ptrs = tabs.add(cv_src);
+        std::size_t const o_dst_ptrs = tabs.add(cv_dst);
+        chunkunits::ChunkPtrRing &arena = chunkunits::chunk_ptr_ring();
+        if(arena.begin(stream))
+        {
+            void const *ring_base = arena.upload_tables(tabs);
+            if(ring_base != nullptr)
+            {
+                const T *const *ts = arena.table_view<const T *>(
+                    ring_base, o_src_ptrs);
+                T *const *td = arena.table_view<T *>(ring_base, o_dst_ptrs);
+                kernel::multiply_inplace::chunked<T>(
+                    stream,
+                    nelems,
+                    alpha,
+                    ts,
+                    Index(cv_src.nchunks),
+                    Index(cv_src.chunk_elems),
+                    td,
+                    Index(cv_dst.nchunks),
+                    Index(cv_dst.chunk_elems));
+                arena.end(stream);
+                return;
+            }
+                // (rule 11, user directive 2026-10-19) There is no per-piece
+                // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot ring
+                // serve any launch up to a 16 TiB operand, so a failed upload is an
+                // invariant violation, not a mode to stage around.
+                std::fprintf(stderr,
+                    "nntile_multiply_inplace: chunk-ptr ring cannot serve this launch (invariant "
+                    "violation; the per-piece staging fallback was deleted by rule "
+                    "11)\n");
+                std::abort();
+        }
+    }
+    if(nelems > 0)
+    {
+        chunkunits::classic_dispatch_tripwire("nntile_multiply_inplace",
+            false);
+    }
     // Launch kernel per flat chunk piece (single piece if unchunked)
+    auto src = ::nntile::haul::buf_chunks<T>(buffers, 0);
+    auto dst = ::nntile::haul::buf_chunks<T>(buffers, 1);
     ::nntile::haul::for_each_flat_piece(
         nelems,
         [&](std::size_t n, const T *s, T *d) {

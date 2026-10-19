@@ -12,6 +12,7 @@
  * @version 1.1.0
  * */
 
+#include <cstdio>
 #include "nntile/kernel/sum_slice/cuda.hh"
 #include <algorithm>
 #include "nntile/kernel/cuda.hh"
@@ -294,6 +295,238 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
     }
 }
 
+//! Chunk descriptors for the one-launch chunked sum_slice (see cuda.hh).
+template<typename T>
+struct SumSliceChunkTables
+{
+    const T* const* src; //!< device-ring view of the src pointer array
+    T* const* dst; //!< device-ring view of the dst pointer array
+    Index nsrc;
+    Index ndst;
+    Index elems_src; //!< elements in a full src chunk
+    Index elems_dst; //!< elements in a full dst chunk
+    int shift_src; //!< class shift (multi-chunk) or the 62 single-chunk sentinel
+    int shift_dst; //!< class shift (multi-chunk) or the 62 single-chunk sentinel
+    Index m;
+    Index n;
+    Index k;
+    Scalar alpha;
+    Scalar beta;
+};
+
+//! Chunk index of a flat element offset (power-of-two shift when possible).
+static __device__ __forceinline__ long ss_chunk_of(long f, Index elems,
+    int shift)
+{
+    return f >> shift;
+}
+
+//! Chunk-aware m==1 kernel: the SAME geometry (one block per output column,
+//! 256 threads, strided per-thread sum then the shared-memory tree
+//! reduction) and the SAME accumulation order as cuda_kernel_m1 above, with
+//! each read resolved through the src chunk table and the write through the
+//! dst table. Deterministic (no atomics), so bitwise cuda()->m1.
+template<typename T, int BLOCK_ROW, int LOOP>
+static __global__
+void chunked_m1_kernel(SumSliceChunkTables<T> t)
+{
+    Index const elems_src = t.elems_src;
+    Index const elems_dst = t.elems_dst;
+    int const shift_src = t.shift_src;
+    int const shift_dst = t.shift_dst;
+    Index const j = blockIdx.x;
+    using Y = typename T::repr_t;
+    const Y alpha{t.alpha};
+    const Y beta{t.beta};
+    constexpr int BLOCK_ROW_STEP = BLOCK_ROW / LOOP;
+    volatile __shared__ Y dst_block[BLOCK_ROW_STEP];
+    Y dst_val = 0.0;
+    long const base = long(j) * long(t.k);
+    long const step = BLOCK_ROW_STEP;
+    // The kernel's two original loops (whole BLOCK_ROW blocks, then the
+    // tail) together read exactly the offsets tid + step*i for i = 0,1,...
+    // while that offset is < k, in increasing i; collapse them into one
+    // affine walk and keep the current chunk's base pointer in a register,
+    // rebasing only when the walk crosses a chunk boundary.
+    long f = base + long(threadIdx.x);
+    long const end = base + long(t.k);
+    // Run-structured in-chunk walk (piece 4): the span-start divmod runs
+    // once per thread; inside a run the element at flat offset f is
+    // addressed as q[f] through the virtual contiguous base
+    // q = chunk_base - chunk*elems, so the hot loop is branch-free and
+    // nvcc pipelines the loads like the classic kernel's loop (a rebase
+    // branch inside the walk inhibited unrolling and starved
+    // memory-level parallelism). A rebase (one divmod per straddling run
+    // end) restores q when the walk crosses into the next chunk. Same
+    // values in the same order, so the result is unchanged bitwise.
+    if(threadIdx.x < t.k)
+    {
+        long const c0 = f >> shift_src;
+        long const flast = end - 1 - ((end - 1 - f) % step);
+        if(flast >> shift_src == c0)
+        {
+            // Single-run fast path: the plain affine loop through the
+            // virtual contiguous base (cuda_kernel_m1's own loop shape,
+            // so the loads pipeline like the classic kernel's).
+            T const *q = t.src[c0] - c0 * elems_src;
+            for(; f < end; f += step)
+            {
+                dst_val += Y{q[f]};
+            }
+        }
+        else
+        {
+            long off = f - c0 * elems_src;
+            T const *q = t.src[c0] - c0 * elems_src;
+            while(f < end)
+            {
+                long const room = (elems_src - off + step - 1) / step;
+                long run_end = f + room * step;
+                if(run_end > end)
+                {
+                    run_end = end;
+                }
+                for(; f < run_end; f += step)
+                {
+                    dst_val += Y{q[f]};
+                    off += step;
+                }
+                if(off >= elems_src)
+                {
+                    long const c = f >> shift_src;
+                    off = f - c * elems_src;
+                    q = t.src[c] - c * elems_src;
+                }
+            }
+        }
+    }
+    dst_block[threadIdx.x] = alpha * dst_val;
+    __syncthreads();
+    for(int c = BLOCK_ROW_STEP>>1; c > 32; c >>= 1)
+    {
+        if(threadIdx.x < c)
+        {
+            dst_block[threadIdx.x] += dst_block[threadIdx.x+c];
+        }
+        __syncthreads();
+    }
+    if(threadIdx.x < 32)
+    {
+        for(int c = 32; c > 0; c >>= 1)
+        {
+            dst_block[threadIdx.x] += dst_block[threadIdx.x+c];
+        }
+    }
+    if(threadIdx.x == 0)
+    {
+        long const g = long(j);
+        long const cd = ss_chunk_of(g, elems_dst, shift_dst);
+        T *dp = t.dst[cd] + (g - cd * long(elems_dst));
+        if(beta == 0.0)
+        {
+            dp[0] = T{Y(dst_block[0])};
+        }
+        else
+        {
+            Y v = beta * Y{dp[0]};
+            dp[0] = T{v + dst_block[0]};
+        }
+    }
+}
+
+//! Chunk-aware general kernel (m>1): the SAME geometry and accumulation
+//! order as cuda_kernel above (per-thread strided fiber walk with i2 outer,
+//! shared-memory atomicAdd reduction), with reads/writes resolved through
+//! the chunk tables. Equal to cuda() up to the atomic ordering floor.
+template<typename T>
+static __global__
+void chunked_general_kernel(SumSliceChunkTables<T> t)
+{
+    Index i0 = threadIdx.x + blockIdx.x*blockDim.x,
+          i1 = threadIdx.y + blockIdx.y*blockDim.y;
+    Index i2_start = threadIdx.z, i2_step = blockDim.z;
+    using Y = typename T::repr_t;
+    Y alpha{t.alpha};
+    Y beta{t.beta};
+    constexpr Y zero{0.0};
+    if(i0 < t.m and i1 < t.n)
+    {
+        Y sum{zero};
+        long const mk = long(t.m) * long(t.k);
+        for(Index i2 = i2_start; i2 < t.k; i2 += i2_step)
+        {
+            long const f = long(i1)*mk + long(i0) + long(i2)*long(t.m);
+            long const ci = ss_chunk_of(f, t.elems_src, t.shift_src);
+            sum += Y{t.src[ci][f - ci * long(t.elems_src)]};
+        }
+        __shared__ Y block_sum[64];
+        if(i2_start == 0)
+        {
+            block_sum[threadIdx.x+blockDim.x*threadIdx.y] = zero;
+        }
+        __syncthreads();
+        atomicAdd(&block_sum[threadIdx.x+blockDim.x*threadIdx.y], sum);
+        __syncthreads();
+        if(i2_start == 0)
+        {
+            long const g = long(i1)*long(t.m) + long(i0);
+            long const cd = ss_chunk_of(g, t.elems_dst, t.shift_dst);
+            T *dp = t.dst[cd] + (g - cd * long(t.elems_dst));
+            sum = block_sum[threadIdx.x+blockDim.x*threadIdx.y];
+            if(beta == zero)
+            {
+                dp[0] = T{alpha * sum};
+            }
+            else
+            {
+                dp[0] = T{beta * Y{dp[0]} + alpha * sum};
+            }
+        }
+    }
+}
+
+template<typename T>
+void chunked(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
+        const T* const* src_chunks, Index nsrc, Scalar beta,
+        T* const* dst_chunks, Index ndst, Index elems_src, Index elems_dst)
+    noexcept
+{
+    if(m <= 0 or n <= 0 or k <= 0 or nsrc <= 0 or ndst <= 0)
+    {
+        return;
+    }
+    SumSliceChunkTables<T> t;
+    t.src = src_chunks;
+    t.dst = dst_chunks;
+    t.nsrc = nsrc;
+    t.ndst = ndst;
+    t.elems_src = elems_src;
+    t.elems_dst = elems_dst;
+    t.shift_src = chunk_shift_of<T>(t.nsrc, elems_src, "nntile_sum_slice");
+    t.shift_dst = chunk_shift_of<T>(t.ndst, elems_dst, "nntile_sum_slice");
+    t.m = m;
+    t.n = n;
+    t.k = k;
+    t.alpha = alpha;
+    t.beta = beta;
+    // Mirror cuda()'s branch selection and geometry.
+    if(m == 1)
+    {
+        dim3 threads(256);
+        dim3 blocks(n);
+        (chunked_m1_kernel<T, 1024, 4>)<<<blocks, threads, 0,
+            stream>>>(t);
+    }
+    else
+    {
+        dim3 threads(std::min(int(m), 8), std::min(int(n), 8),
+                std::min(int(k), 16));
+        dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y, 1);
+        (chunked_general_kernel<T>)<<<blocks, threads, 0,
+            stream>>>(t);
+    }
+}
+
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
@@ -314,5 +547,34 @@ template
 void cuda<fp16_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
         const fp16_t *src, Scalar beta, fp16_t *dst)
     noexcept;
+
+template
+void chunked<fp32_t>(cudaStream_t stream, Index m, Index n, Index k,
+        Scalar alpha, const fp32_t* const* src_chunks, Index nsrc, Scalar beta,
+        fp32_t* const* dst_chunks, Index ndst, Index elems_src,
+        Index elems_dst) noexcept;
+
+template
+void chunked<fp64_t>(cudaStream_t stream, Index m, Index n, Index k,
+        Scalar alpha, const fp64_t* const* src_chunks, Index nsrc, Scalar beta,
+        fp64_t* const* dst_chunks, Index ndst, Index elems_src,
+        Index elems_dst) noexcept;
+
+template
+void chunked<bf16_t>(cudaStream_t stream, Index m, Index n, Index k,
+        Scalar alpha, const bf16_t* const* src_chunks, Index nsrc, Scalar beta,
+        bf16_t* const* dst_chunks, Index ndst, Index elems_src,
+        Index elems_dst) noexcept;
+
+template
+void chunked<fp16_t>(cudaStream_t stream, Index m, Index n, Index k,
+        Scalar alpha, const fp16_t* const* src_chunks, Index nsrc, Scalar beta,
+        fp16_t* const* dst_chunks, Index ndst, Index elems_src,
+        Index elems_dst) noexcept;
+
+
+
+
+
 
 } // namespace nntile::kernel::sum_slice

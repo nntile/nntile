@@ -9,7 +9,7 @@
  * @file src/starpu/logsumexp.cc
  * Log of sum of exponents for StarPU buffer
  *
- * @version 1.1.0
+ * @version 1.2.0
  * */
 
 // Corresponding header
@@ -47,14 +47,14 @@ namespace
 
 template<typename T, typename Arena, typename Sub>
 void logsumexp_chunked(Index nelems, ::nnhaul::Buffer *buf_mse,
-    ::nnhaul::Buffer *buf_lse, std::size_t force_bytes, Arena &arena,
+    ::nnhaul::Buffer *buf_lse, Arena &arena,
     Sub &&sub)
 {
-    chunkunits::ChunkView<T> const cv_mse(buf_mse, force_bytes);
-    chunkunits::ChunkView<T> const cv_lse(buf_lse, force_bytes);
+    chunkunits::ChunkView<T> const cv_mse(buf_mse);
+    chunkunits::ChunkView<T> const cv_lse(buf_lse);
     chunkunits::UnitSpan<T> const span_mse{&cv_mse, std::size_t{2}, Index{1}};
     chunkunits::UnitSpan<T> const span_lse{&cv_lse, std::size_t{1}, Index{1}};
-    bool const chunked_mse = cv_mse.nchunks > 1 || force_bytes != 0;
+    bool const chunked_mse = cv_mse.nchunks > 1;
     T *temp_mse = chunked_mse ? arena.alloc(std::size_t{2}) : nullptr;
     chunkunits::walk_unit_runs(Index{1}, nelems,
         [&](Index i, Index len, bool /*first*/, bool mse_str,
@@ -114,9 +114,8 @@ void LogSumExp<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get interfaces
     auto buf_mse = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_lse = static_cast<::nnhaul::Buffer *>(buffers[1]);
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
-    if(buf_mse->chunk_count() == 1 && buf_lse->chunk_count() == 1
-        && forced == 0)
+    if((buf_mse->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_lse->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+       )
     {
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::logsumexp::cpu<T>(
@@ -130,7 +129,6 @@ void LogSumExp<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
             args->nelems,
             buf_mse,
             buf_lse,
-            forced,
             arena,
             [](Index nn, T const *pm, T *pl) {
                 kernel::logsumexp::cpu<T>(nn, pm, pl);
@@ -184,32 +182,80 @@ void LogSumExp<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto buf_lse = static_cast<::nnhaul::Buffer *>(buffers[1]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
-    if(buf_mse->chunk_count() == 1 && buf_lse->chunk_count() == 1
-        && forced == 0)
+    if((buf_mse->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_lse->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+       )
     {
+        // Classic contiguous dispatch: illegal under the force flag (the
+        // tripwire proves it never happens in a flag-on run).
+        chunkunits::classic_dispatch_tripwire("nntile_logsumexp", false);
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::logsumexp::cuda<T>(
             stream, args->nelems, buf_mse->get_ptr<T>(), buf_lse->get_ptr<T>());
         return;
     }
-    chunkunits::ArenaCuda<T> arena(stream);
-    logsumexp_chunked<T>(
-        args->nelems,
-        buf_mse,
-        buf_lse,
-        forced,
-        arena,
-        [stream](Index nn, T const *pm, T *pl) {
-            kernel::logsumexp::cuda<T>(stream, nn, pm, pl);
-        });
-    if(!arena.ok_state())
+    // Chunked single-launch path: issue the WHOLE 2-to-1 reduction as ONE
+    // chunk-aware kernel (each element reads its maxsumexp pair through the
+    // mse chunk table -- the pair may straddle chunks -- and writes its
+    // logsumexp through the lse table). The tables are parked in the shared
+    // device chunk-ptr ring; no chunk-count cap. The per-element expression
+    // is identical, so the result is cuda()'s bitwise. The piece driver
+    // below stays as the ring-overflow fallback and for degenerate shapes.
+    if(args->nelems > 0)
     {
-        std::fprintf(stderr,
-            "nntile_logsumexp: chunked CUDA driver aborted after a stream "
-            "error; logsumexp left unwritten\n");
+        // Piece C (2026-10-18c): the all-1-chunk degenerate launch is
+        // the FIRST thing the chunked block does -- the chunk counts
+        // are read straight off the buffers, before any
+        // ChunkView/RingTables work exists, so the degenerate host
+        // path is as lean as the classic dispatch above (gemm path-F
+        // precedent; launch pointer-identical, bitwise by
+        // construction, ring untouched).
+        if(buf_mse->chunk_count() == 1 && buf_lse->chunk_count() == 1)
+        {
+            kernel::logsumexp::cuda<T>(
+                stream, args->nelems, buf_mse->get_ptr<T>(),
+                buf_lse->get_ptr<T>());
+            return;
+        }
+        chunkunits::ChunkView<T> const cv_mse(buf_mse);
+        chunkunits::ChunkView<T> const cv_lse(buf_lse);
+        chunkunits::RingTables &tabs = chunkunits::ring_tables();
+        tabs.clear();
+        std::size_t const o_pm = tabs.add(cv_mse);
+        std::size_t const o_pl = tabs.add(cv_lse);
+        chunkunits::ChunkPtrRing &ring = chunkunits::chunk_ptr_ring();
+        if(ring.begin(stream))
+        {
+            void const *ring_base = ring.upload_tables(tabs);
+            if(ring_base != nullptr)
+            {
+                const T *const *tm = ring.table_view<const T *>(
+                    ring_base, o_pm);
+                T *const *tl = ring.table_view<T *>(ring_base, o_pl);
+                kernel::logsumexp::chunked<T>(
+                    stream,
+                    args->nelems,
+                    tm,
+                    Index(cv_mse.nchunks),
+                    tl,
+                    Index(cv_lse.nchunks),
+                    Index(cv_mse.chunk_elems),
+                    Index(cv_lse.chunk_elems));
+                ring.end(stream);
+                return;
+            }
+        }
     }
+        // (rule 11, user directive 2026-10-19) There is no per-piece
+    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot ring
+    // serve any launch up to a 16 TiB operand, so a failed upload is an
+    // invariant violation, not a mode to stage around.
+    std::fprintf(stderr,
+        "nntile_logsumexp: chunk-ptr ring cannot serve this launch (invariant "
+        "violation; the per-piece staging fallback was deleted by rule "
+        "11)\n");
+    std::abort();
 }
+
 
 // Specializations of CUDA wrapper for accelerated types
 template<>

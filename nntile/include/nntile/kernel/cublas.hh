@@ -71,5 +71,7 @@ void gemm(
     bool broadcast_b = false
 ) noexcept;
 
+
+
 } // namespace nntile:kernel::cublas
 #endif // NNTILE_USE_CUDA

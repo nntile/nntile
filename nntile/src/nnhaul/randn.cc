@@ -103,7 +103,7 @@ template<typename T, typename Sub>
 void randn_chunked(Index ndim, Index nelems, unsigned long long seed,
     Scalar mean, Scalar stddev, const Index *start, const Index *shape,
     const Index *underlying_shape, ::nnhaul::Buffer *buf_data,
-    std::size_t force_bytes, Sub &&sub)
+    Sub &&sub)
 {
     if(ndim <= 0 || nelems <= 0 || shape[0] <= 0)
     {
@@ -115,7 +115,7 @@ void randn_chunked(Index ndim, Index nelems, unsigned long long seed,
     {
         return;
     }
-    chunkunits::ChunkView<T> const cv(buf_data, force_bytes);
+    chunkunits::ChunkView<T> const cv(buf_data);
     Index const U0 = underlying_shape[0];
     // Column-space index bookkeeping: idx[] is the multi-index of the
     // current column over shape[1..ndim-1], us[d] the underlying stride
@@ -280,13 +280,12 @@ void Randn<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get interfaces
     Index ndim = *ndim_ptr;
     auto buf_data = static_cast<::nnhaul::Buffer *>(buffers[0]);
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
     bool const dense = dense_fortran_strides(ndim, shape, stride);
-    if(buf_data->chunk_count() == 1 && (forced == 0 || !dense))
+    if(buf_data->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
     {
         // Unchunked fast path: the historical single kernel call, bitwise.
-        // (A forced virtual factorization of a non-dense geometry cannot
-        // use the native driver and keeps this call.)
+        // (A non-dense multi-chunk geometry keeps the piecewise chunked
+        // walk below, as before.)
         // Index walk writes one past ndim; StarPU scratch is 2 * ndim.
         std::size_t const scratch_n =
             static_cast<std::size_t>(*ndim_ptr > 0 ? *ndim_ptr : 1);
@@ -322,7 +321,6 @@ void Randn<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
             shape,
             underlying_shape,
             buf_data,
-            forced,
             [&](Index sndim, Index snelems, unsigned long long sseed,
                 Scalar smean, Scalar sstddev, const Index *sstart,
                 const Index *sshape, const Index *sunder, T *sdata,
@@ -377,9 +375,8 @@ void Randn<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     Index ndim = *ndim_ptr;
     auto buf_data = static_cast<::nnhaul::Buffer *>(buffers[0]);
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
     bool const dense = dense_fortran_strides(ndim, shape, stride);
-    if(buf_data->chunk_count() == 1 && (forced == 0 || !dense))
+    if(buf_data->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
     {
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::randn::cuda<T>(
@@ -409,7 +406,6 @@ void Randn<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
             shape,
             underlying_shape,
             buf_data,
-            forced,
             [stream](Index sndim, Index snelems, unsigned long long sseed,
                 Scalar smean, Scalar sstddev, const Index *sstart,
                 const Index *sshape, const Index *sunder, T *sdata,

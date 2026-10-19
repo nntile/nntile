@@ -64,20 +64,20 @@ namespace
 template<typename T, typename Arena, typename Sub>
 void norm_slice_chunked(Index m, Index n, Index k, Scalar alpha,
     ::nnhaul::Buffer *buf_src1, Scalar beta, ::nnhaul::Buffer *buf_src2,
-    ::nnhaul::Buffer *buf_dst, std::size_t force_bytes, Arena &arena,
+    ::nnhaul::Buffer *buf_dst, Arena &arena,
     Sub &&sub)
 {
     if(m <= 0)
     {
         return;
     }
-    chunkunits::ChunkView<T> const cv_src1(buf_src1, force_bytes);
-    chunkunits::ChunkView<T> const cv_src2(buf_src2, force_bytes);
-    chunkunits::ChunkView<T> const cv_dst(buf_dst, force_bytes);
+    chunkunits::ChunkView<T> const cv_src1(buf_src1);
+    chunkunits::ChunkView<T> const cv_src2(buf_src2);
+    chunkunits::ChunkView<T> const cv_dst(buf_dst);
     chunkunits::UnitSpan<T> const span_src1{&cv_src1, std::size_t(m), Index{1}};
     chunkunits::UnitSpan<T> const span_src2{&cv_src2, std::size_t(m), k};
     chunkunits::UnitSpan<T> const span_dst{&cv_dst, std::size_t(m), k};
-    bool const chunked_src1 = cv_src1.nchunks > 1 || force_bytes != 0;
+    bool const chunked_src1 = cv_src1.nchunks > 1;
     T *temp_src1 = chunked_src1 ? arena.alloc(std::size_t(m)) : nullptr;
     chunkunits::SliceStage<T, Arena> src2_stage(
         cv_src2, std::size_t(m), false, arena);
@@ -153,9 +153,8 @@ void NormSlice<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     auto buf_src1 = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_src2 = static_cast<::nnhaul::Buffer *>(buffers[1]);
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[2]);
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
-    if(buf_src1->chunk_count() == 1 && buf_src2->chunk_count() == 1
-        && buf_dst->chunk_count() == 1 && forced == 0)
+    if((buf_src1->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_src2->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+        && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels()))
     {
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::norm_slice::cpu<T>(args->m, args->n, args->k, args->alpha,
@@ -176,7 +175,6 @@ void NormSlice<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
             args->beta,
             buf_src2,
             buf_dst,
-            forced,
             arena,
             [alpha](Index mm, Index nn, Index kk, T const *p1, Scalar be,
                 T const *p2, T *pd) {
@@ -233,9 +231,8 @@ void NormSlice<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[2]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
-    if(buf_src1->chunk_count() == 1 && buf_src2->chunk_count() == 1
-        && buf_dst->chunk_count() == 1 && forced == 0)
+    if((buf_src1->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_src2->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+        && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels()))
     {
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::norm_slice::cuda<T>(stream, args->m, args->n, args->k,
@@ -254,7 +251,6 @@ void NormSlice<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         args->beta,
         buf_src2,
         buf_dst,
-        forced,
         arena,
         [alpha, stream](Index mm, Index nn, Index kk, T const *p1, Scalar be,
             T const *p2, T *pd) {

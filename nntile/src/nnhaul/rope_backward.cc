@@ -49,7 +49,7 @@ namespace
 template<typename T, typename Arena, typename Sub>
 void rope_backward_chunked(Index m, Index n, ::nnhaul::Buffer *buf_sin,
     ::nnhaul::Buffer *buf_cos, ::nnhaul::Buffer *buf_dy,
-    ::nnhaul::Buffer *buf_dx, std::size_t force_bytes, Arena &arena,
+    ::nnhaul::Buffer *buf_dx, Arena &arena,
     Sub &&sub)
 {
     if(m <= 0 || n <= 0)
@@ -57,12 +57,12 @@ void rope_backward_chunked(Index m, Index n, ::nnhaul::Buffer *buf_sin,
         return;
     }
     std::size_t const col = 2 * std::size_t(m);
-    chunkunits::ChunkView<T> const cv_src(buf_dy, force_bytes);
-    chunkunits::ChunkView<T> const cv_dst(buf_dx, force_bytes);
-    chunkunits::ChunkView<T> const cv_sin(buf_sin, force_bytes);
-    chunkunits::ChunkView<T> const cv_cos(buf_cos, force_bytes);
+    chunkunits::ChunkView<T> const cv_src(buf_dy);
+    chunkunits::ChunkView<T> const cv_dst(buf_dx);
+    chunkunits::ChunkView<T> const cv_sin(buf_sin);
+    chunkunits::ChunkView<T> const cv_cos(buf_cos);
     bool const chunked_big =
-        cv_src.nchunks > 1 || cv_dst.nchunks > 1 || force_bytes != 0;
+        cv_src.nchunks > 1 || cv_dst.nchunks > 1;
     T *temp_src = chunked_big ? arena.alloc(col) : nullptr;
     T *temp_dst = chunked_big ? arena.alloc(col) : nullptr;
     T const *psin = nullptr;
@@ -170,10 +170,9 @@ void RopeBackward<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     auto buf_cos = static_cast<::nnhaul::Buffer *>(buffers[1]);
     auto buf_dy = static_cast<::nnhaul::Buffer *>(buffers[2]);
     auto buf_dx = static_cast<::nnhaul::Buffer *>(buffers[3]);
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
-    if(buf_sin->chunk_count() == 1 && buf_cos->chunk_count() == 1
-        && buf_dy->chunk_count() == 1 && buf_dx->chunk_count() == 1
-        && forced == 0)
+    if((buf_sin->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_cos->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+        && (buf_dy->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dx->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+       )
     {
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::rope_backward::cpu<T>(args->m, args->n, buf_sin->get_ptr<T>(),
@@ -191,7 +190,6 @@ void RopeBackward<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
             buf_cos,
             buf_dy,
             buf_dx,
-            forced,
             arena,
             [](Index mm, Index nn, T const *sn, T const *cc, T const *ps,
                 T *pd) {
@@ -249,10 +247,9 @@ void RopeBackward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto buf_dx = static_cast<::nnhaul::Buffer *>(buffers[3]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
-    if(buf_sin->chunk_count() == 1 && buf_cos->chunk_count() == 1
-        && buf_dy->chunk_count() == 1 && buf_dx->chunk_count() == 1
-        && forced == 0)
+    if((buf_sin->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_cos->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+        && (buf_dy->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dx->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+       )
     {
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::rope_backward::cuda<T>(stream, args->m, args->n,
@@ -268,7 +265,6 @@ void RopeBackward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         buf_cos,
         buf_dy,
         buf_dx,
-        forced,
         arena,
         [stream](Index mm, Index nn, T const *sn, T const *cc, T const *ps,
             T *pd) {

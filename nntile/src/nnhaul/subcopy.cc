@@ -63,7 +63,7 @@ template<typename T, typename Sub>
 void subcopy_chunked(Index ndim, const Index *src_start,
     const Index *src_stride, const Index *copy_shape, const Index *dst_start,
     const Index *dst_stride, ::nnhaul::Buffer *buf_src,
-    ::nnhaul::Buffer *buf_dst, std::size_t force_bytes, Sub &&sub)
+    ::nnhaul::Buffer *buf_dst, Sub &&sub)
 {
     if(ndim <= 0 || copy_shape[0] <= 0)
     {
@@ -79,8 +79,8 @@ void subcopy_chunked(Index ndim, const Index *src_start,
         }
         ncols *= copy_shape[d];
     }
-    chunkunits::ChunkView<T> const cv_src(buf_src, force_bytes);
-    chunkunits::ChunkView<T> const cv_dst(buf_dst, force_bytes);
+    chunkunits::ChunkView<T> const cv_src(buf_src);
+    chunkunits::ChunkView<T> const cv_dst(buf_dst);
     bool const batchable = ndim >= 2 && src_stride[1] == C0
         && dst_stride[1] == C0;
     Index idx[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -243,9 +243,8 @@ void Subcopy<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get interfaces
     auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
-    if(buf_src->chunk_count() == 1 && buf_dst->chunk_count() == 1
-        && forced == 0)
+    if((buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+       )
     {
         // Unchunked fast path: the historical single kernel call, bitwise.
         // Kernel maps the scratch into src and dst indexes (2 * ndim).
@@ -262,7 +261,7 @@ void Subcopy<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Sub-call scratch (2 * ndim' int64, ndim' <= 2).
     std::vector<int64_t> tmp_index_storage(4);
     subcopy_chunked<T>(*ndim_ptr, src_start, src_stride, copy_shape,
-        dst_start, dst_stride, buf_src, buf_dst, forced,
+        dst_start, dst_stride, buf_src, buf_dst,
         [&](Index sndim, const Index *sstart, const Index *sstride,
             const Index *sshape, T const *psrc, const Index *dstart,
             const Index *dstride, T *pdst) {
@@ -287,9 +286,8 @@ void Subcopy<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
-    if(buf_src->chunk_count() == 1 && buf_dst->chunk_count() == 1
-        && forced == 0)
+    if((buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+       )
     {
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::subcopy::cuda<T>(stream, *ndim_ptr, src_start, src_stride,
@@ -298,7 +296,7 @@ void Subcopy<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         return;
     }
     subcopy_chunked<T>(*ndim_ptr, src_start, src_stride, copy_shape,
-        dst_start, dst_stride, buf_src, buf_dst, forced,
+        dst_start, dst_stride, buf_src, buf_dst,
         [stream](Index sndim, const Index *sstart, const Index *sstride,
             const Index *sshape, T const *psrc, const Index *dstart,
             const Index *dstride, T *pdst) {

@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/fill/cuda.hh
  * Fill operation on CUDA
  *
- * @version 1.1.0
+ * @version 1.2.0
  * */
 
 #pragma once
@@ -22,6 +22,12 @@ namespace nntile::kernel::fill
 
 template<typename T>
 void cuda(cudaStream_t stream, Index nelems, Scalar val, T *data)
+    noexcept;
+
+//! Fill chunked buffers on CUDA (ONE launch, chunk tables via UVA)
+template<typename T>
+void chunked(cudaStream_t stream, Index nelems, Scalar val,
+        T* const* data_chunks, Index ndata, Index elems_data)
     noexcept;
 
 } // namespace nntile::kernel::fill

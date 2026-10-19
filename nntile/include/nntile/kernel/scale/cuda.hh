@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/scale/cuda.hh
  * Scale operation on buffers on CUDA
  *
- * @version 1.1.0
+ * @version 1.2.0
  * */
 
 #pragma once
@@ -23,6 +23,14 @@ namespace nntile::kernel::scale
 // Apply scale for buffers on CUDA
 template<typename T>
 void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T* src, T* dst)
+    noexcept;
+
+//! Scale chunked buffers on CUDA (ONE launch, chunk tables via UVA)
+/*! Same per-element operation and thread/block mapping as cuda(). */
+template<typename T>
+void chunked(cudaStream_t stream, Index nelems, Scalar alpha,
+        const T* const* src_chunks, Index nsrc, T* const* dst_chunks,
+        Index ndst, Index elems_src, Index elems_dst)
     noexcept;
 
 } // namespace nntile::kernel::scale

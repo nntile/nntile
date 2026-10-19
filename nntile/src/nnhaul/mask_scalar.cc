@@ -9,7 +9,7 @@
  * @file src/starpu/mask_scalar.cc
  * StarPU wrappers for mask_scalar operation
  *
- * @version 1.1.0
+ * @version 1.2.0
  * */
 
 // Corresponding header
@@ -25,8 +25,83 @@
 #include "nntile/kernel/mask_scalar.hh"
 #include "nntile/nnhaul/chunk_units.hh"
 
+#ifdef NNTILE_USE_CUDA
+#include <algorithm>
+#include <chrono>
+#include <vector>
+#endif
+
 namespace nntile::haul
 {
+
+#ifdef NNTILE_USE_CUDA
+namespace
+{
+/*! Piece-3 in-trainer host-section instrument (piece 7's
+ * NNHAUL_BODY_DIAG discipline, ONE representative wrapper): with
+ * NNHAUL_RING_DIAG=1 in the environment, every chunked mask instance
+ * records steady-clock section times of the merged-table host work --
+ * (1) staging build (clear + the operand adds) and (2) the ring upload
+ * (begin + upload_tables, i.e. the single H2D copy) -- and the
+ * process-exit summary prints medians/tails. This is the instrument the
+ * piece-3 pinned-vs-pageable decision was measured with (an
+ * in-trainer-population variant; the rejected pinned regime has since
+ * been removed from the transport). Zero cost when off (one branch on a
+ * cached bool per instance). */
+struct RingDiag
+{
+    bool on = std::getenv("NNHAUL_RING_DIAG") != nullptr;
+    std::vector<double> build_ns, up_ns;
+
+    void sample(double b, double u)
+    {
+        if(build_ns.size() < 200000)
+        {
+            build_ns.push_back(b);
+            up_ns.push_back(u);
+        }
+    }
+
+    static void dump(char const *tag, std::vector<double> &v)
+    {
+        if(v.empty())
+        {
+            std::printf("ringdiag %-9s n=0\n", tag);
+            return;
+        }
+        std::sort(v.begin(), v.end());
+        std::size_t const n = v.size();
+        auto q = [&](double p) {
+            return v[std::size_t(p * double(n - 1))];
+        };
+        std::printf("ringdiag %-9s n=%zu med=%.2fus p90=%.2fus p99=%.2fus "
+            "max=%.2fus\n",
+            tag, n, q(0.5) / 1e3, q(0.9) / 1e3, q(0.99) / 1e3,
+            v.back() / 1e3);
+    }
+
+    ~RingDiag()
+    {
+        if(!on || build_ns.empty())
+        {
+            return;
+        }
+        std::printf("NNHAUL_RING_DIAG mask_scalar host sections "
+            "(build = staging clear+adds; up = ring begin + ONE merged "
+            "upload):\n");
+        dump("build", build_ns);
+        dump("up", up_ns);
+        std::fflush(stdout);
+    }
+};
+
+RingDiag &ring_diag() noexcept
+{
+    static RingDiag d;
+    return d;
+}
+} // namespace
+#endif
 
 // ---------------------------------------------------------------------------
 // Native chunked mask_scalar driver (chunk_units.hh scheme).
@@ -54,16 +129,15 @@ namespace
 template<typename T, typename Arena, typename Sub>
 void mask_scalar_chunked(Index nrows, Index ncols,
     ::nnhaul::Buffer *buf_mask, Scalar val, ::nnhaul::Buffer *buf_data,
-    std::size_t force_bytes, Arena &arena, Sub &&sub)
+    Arena &arena, Sub &&sub)
 {
     if(nrows <= 0 || ncols <= 0)
     {
         return;
     }
-    chunkunits::ChunkView<T> const cv_data(buf_data, force_bytes);
-    chunkunits::ChunkView<nntile::bool_t> const cv_mask(buf_mask,
-        force_bytes);
-    bool const chunked_data = cv_data.nchunks > 1 || force_bytes != 0;
+    chunkunits::ChunkView<T> const cv_data(buf_data);
+    chunkunits::ChunkView<nntile::bool_t> const cv_mask(buf_mask);
+    bool const chunked_data = cv_data.nchunks > 1;
     T *temp_col = chunked_data ? arena.alloc(std::size_t(nrows)) : nullptr;
     nntile::bool_t const *mask = nullptr;
     nntile::bool_t *temp_mask = nullptr;
@@ -150,10 +224,12 @@ void MaskScalar<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get interfaces
     auto buf_data = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_mask = static_cast<::nnhaul::Buffer *>(buffers[1]);
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
-    if(buf_data->chunk_count() == 1 && buf_mask->chunk_count() == 1
-        && forced == 0)
+    if((buf_data->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_mask->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+       )
     {
+        // Classic contiguous dispatch: illegal under the force flag
+        // (the tripwire proves it never happens in a flag-on run).
+        chunkunits::classic_dispatch_tripwire("nntile_mask_scalar", false);
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::mask_scalar::cpu<T>(args->nrows, args->ncols,
             buf_mask->get_ptr<nntile::bool_t>(), args->val,
@@ -169,7 +245,6 @@ void MaskScalar<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
             buf_mask,
             args->val,
             buf_data,
-            forced,
             arena,
             [](Index r, Index c, nntile::bool_t const *pm, Scalar v, T *pd) {
                 kernel::mask_scalar::cpu<T>(r, c, pm, v, pd);
@@ -223,36 +298,85 @@ void MaskScalar<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto buf_mask = static_cast<::nnhaul::Buffer *>(buffers[1]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
-    if(buf_data->chunk_count() == 1 && buf_mask->chunk_count() == 1
-        && forced == 0)
+    if((buf_data->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_mask->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+       )
     {
+        // Classic contiguous dispatch: illegal under the force flag
+        // (the tripwire proves it never happens in a flag-on run).
+        chunkunits::classic_dispatch_tripwire("nntile_mask_scalar", false);
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::mask_scalar::cuda<T>(stream, args->nrows, args->ncols,
             buf_mask->get_ptr<nntile::bool_t>(), args->val,
             buf_data->get_ptr<T>());
         return;
     }
-    chunkunits::ArenaCuda<T> arena(stream);
-    mask_scalar_chunked<T>(
-        args->nrows,
-        args->ncols,
-        buf_mask,
-        args->val,
-        buf_data,
-        forced,
-        arena,
-        [stream](Index r, Index c, nntile::bool_t const *pm, Scalar v,
-            T *pd) {
-            kernel::mask_scalar::cuda<T>(stream, r, c, pm, v, pd);
-        });
-    if(!arena.ok_state())
+    // Chunked single-launch path: the WHOLE region is issued as ONE
+    // chunk-aware kernel, elementwise and bitwise the whole-buffer call.
+    // Transport: the device chunk-pointer ring is the only regime.
     {
-        std::fprintf(stderr,
-            "nntile_mask_scalar: chunked CUDA driver aborted after a stream "
-            "error; data left unwritten\n");
+        chunkunits::ChunkView<T> const cv_data(buf_data);
+        chunkunits::ChunkView<nntile::bool_t> const cv_mask(buf_mask);
+        chunkunits::RingTables &tabs = chunkunits::ring_tables();
+        RingDiag &rdiag = ring_diag();
+        std::chrono::steady_clock::time_point dt0, dt1;
+        if(rdiag.on)
+        {
+            dt0 = std::chrono::steady_clock::now();
+        }
+        tabs.clear();
+        std::size_t const o_data_ptrs = tabs.add(cv_data);
+        std::size_t const o_mask_ptrs = tabs.add(cv_mask);
+        chunkunits::ChunkPtrRing &arena = chunkunits::chunk_ptr_ring();
+        if(arena.begin(stream))
+        {
+            if(rdiag.on)
+            {
+                dt1 = std::chrono::steady_clock::now();
+            }
+            void const *ring_base = arena.upload_tables(tabs);
+            if(ring_base != nullptr)
+            {
+                if(rdiag.on)
+                {
+                    std::chrono::steady_clock::time_point const dt2 =
+                        std::chrono::steady_clock::now();
+                    rdiag.sample(
+                        std::chrono::duration<double, std::nano>(dt1 - dt0)
+                            .count(),
+                        std::chrono::duration<double, std::nano>(dt2 - dt1)
+                            .count());
+                }
+                T *const *data_tab = arena.table_view<T *>(
+                    ring_base, o_data_ptrs);
+                const nntile::bool_t *const *mask_tab = arena.table_view<const nntile::bool_t *>(
+                    ring_base, o_mask_ptrs);
+                kernel::mask_scalar::chunked<T>(
+                    stream,
+                    args->nrows,
+                    args->ncols,
+                    args->val,
+                    data_tab,
+                    Index(cv_data.nchunks),
+                    Index(cv_data.chunk_elems),
+                    mask_tab,
+                    Index(cv_mask.nchunks),
+                    Index(cv_mask.chunk_elems));
+                arena.end(stream);
+                return;
+            }
+        }
     }
+        // (rule 11, user directive 2026-10-19) There is no per-piece
+    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot ring
+    // serve any launch up to a 16 TiB operand, so a failed upload is an
+    // invariant violation, not a mode to stage around.
+    std::fprintf(stderr,
+        "nntile_mask_scalar: chunk-ptr ring cannot serve this launch (invariant "
+        "violation; the per-piece staging fallback was deleted by rule "
+        "11)\n");
+    std::abort();
 }
+
 // Specializations of CUDA wrapper for accelerated types
 template<>
 void MaskScalar<std::tuple<fp32_fast_tf32_t>>::cuda(
