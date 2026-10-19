@@ -9,7 +9,7 @@
  * @file src/starpu/softmax.cc
  * Softmax operation for StarPU buffer
  *
- * @version 1.1.0
+ * @version 1.2.0
  * */
 
 // Corresponding header
@@ -27,6 +27,7 @@
 
 namespace nntile::haul
 {
+
 
 // ---------------------------------------------------------------------------
 // Native chunked softmax driver (chunk_units.hh scheme, cf. gemm.cc)
@@ -54,20 +55,20 @@ namespace
 template<typename T, typename Arena, typename Sub>
 void softmax_chunked(Index m, Index n, Index k, ::nnhaul::Buffer *buf_mse,
     ::nnhaul::Buffer *buf_src, ::nnhaul::Buffer *buf_dst,
-    std::size_t force_bytes, Arena &arena, Sub &&sub)
+    Arena &arena, Sub &&sub)
 {
     if(m <= 0)
     {
         return;
     }
-    chunkunits::ChunkView<T> const cv_mse(buf_mse, force_bytes);
-    chunkunits::ChunkView<T> const cv_src(buf_src, force_bytes);
-    chunkunits::ChunkView<T> const cv_dst(buf_dst, force_bytes);
+    chunkunits::ChunkView<T> const cv_mse(buf_mse);
+    chunkunits::ChunkView<T> const cv_src(buf_src);
+    chunkunits::ChunkView<T> const cv_dst(buf_dst);
     chunkunits::UnitSpan<T> const span_src{&cv_src, std::size_t(m), Index{1}};
     chunkunits::UnitSpan<T> const span_dst{&cv_dst, std::size_t(m), Index{1}};
     chunkunits::UnitSpan<T> const span_mse{&cv_mse, std::size_t{2} * m, k};
-    bool const chunked_src = cv_src.nchunks > 1 || force_bytes != 0;
-    bool const chunked_dst = cv_dst.nchunks > 1 || force_bytes != 0;
+    bool const chunked_src = cv_src.nchunks > 1;
+    bool const chunked_dst = cv_dst.nchunks > 1;
     T *temp_src = chunked_src ? arena.alloc(std::size_t(m)) : nullptr;
     T *temp_dst = chunked_dst ? arena.alloc(std::size_t(m)) : nullptr;
     chunkunits::SliceStage<T, Arena> mse_stage(
@@ -152,10 +153,12 @@ void Softmax<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     auto buf_mse = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[1]);
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[2]);
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
-    if(buf_mse->chunk_count() == 1 && buf_src->chunk_count() == 1
-        && buf_dst->chunk_count() == 1 && forced == 0)
+    if((buf_mse->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+        && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels()))
     {
+        // Classic contiguous dispatch: illegal under the force flag
+        // (the tripwire proves it never happens in a flag-on run).
+        chunkunits::classic_dispatch_tripwire("nntile_softmax", false);
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::softmax::cpu<T>(args->m, args->n, args->k,
             buf_mse->get_ptr<T>(), buf_src->get_ptr<T>(), args->alpha,
@@ -173,7 +176,6 @@ void Softmax<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
             buf_mse,
             buf_src,
             buf_dst,
-            forced,
             arena,
             [alpha](Index mm, Index nn, Index kk, T const *pm, T const *ps,
                 T *pd) {
@@ -230,38 +232,68 @@ void Softmax<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[2]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
-    if(buf_mse->chunk_count() == 1 && buf_src->chunk_count() == 1
-        && buf_dst->chunk_count() == 1 && forced == 0)
+    if((buf_mse->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+        && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels()))
     {
+        // Classic contiguous dispatch: illegal under the force flag
+        // (the tripwire proves it never happens in a flag-on run).
+        chunkunits::classic_dispatch_tripwire("nntile_softmax", false);
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::softmax::cuda<T>(stream, args->m, args->n, args->k,
             buf_mse->get_ptr<T>(), buf_src->get_ptr<T>(), args->alpha,
             buf_dst->get_ptr<T>());
         return;
     }
-    chunkunits::ArenaCuda<T> arena(stream);
-    Scalar const alpha = args->alpha;
-    softmax_chunked<T>(
-        args->m,
-        args->n,
-        args->k,
-        buf_mse,
-        buf_src,
-        buf_dst,
-        forced,
-        arena,
-        [alpha, stream](Index mm, Index nn, Index kk, T const *pm,
-            T const *ps, T *pd) {
-            kernel::softmax::cuda<T>(stream, mm, nn, kk, pm, ps, alpha, pd);
-        });
-    if(!arena.ok_state())
+    // Chunked single-launch path: whenever any operand is chunked, process
+    // the WHOLE tensor with ONE chunk-aware kernel. The merged chunk
+    // base-pointer table rides the device ring (ONE control-stream copy
+    // per launch, event-ordered ahead of the kernel); the kernel reads
+    // it per-thread by shift/mask. The elementwise formula is
+    // byte-for-byte cuda()'s, so the result is bitwise cuda()'s. (The
+    // historical piecewise fallback is DELETED -- rule 11; a launch the
+    // ring cannot serve aborts.)
+    chunkunits::ChunkView<T> const cv_mse(buf_mse);
+    chunkunits::ChunkView<T> const cv_src(buf_src);
+    chunkunits::ChunkView<T> const cv_dst(buf_dst);
     {
-        std::fprintf(stderr,
-            "nntile_softmax: chunked CUDA driver aborted after a stream "
-            "error; dst left unwritten\n");
+        chunkunits::RingTables &tabs = chunkunits::ring_tables();
+        tabs.clear();
+        std::size_t const o_mse_ptrs = tabs.add(cv_mse);
+        std::size_t const o_src_ptrs = tabs.add(cv_src);
+        std::size_t const o_dst_ptrs = tabs.add(cv_dst);
+        chunkunits::ChunkPtrRing &arena = chunkunits::chunk_ptr_ring();
+        if(arena.begin(stream))
+        {
+            void const *ring_base = arena.upload_tables(tabs);
+            if(ring_base != nullptr)
+            {
+                const T *const *mse_tab = arena.table_view<const T *>(
+                    ring_base, o_mse_ptrs);
+                const T *const *src_tab = arena.table_view<const T *>(
+                    ring_base, o_src_ptrs);
+                T *const *dst_tab = arena.table_view<T *>(
+                    ring_base, o_dst_ptrs);
+                kernel::softmax::chunked<T>(stream, args->m, args->n,
+                    args->k, mse_tab, Index(cv_mse.nchunks), src_tab,
+                    Index(cv_src.nchunks), args->alpha, dst_tab,
+                    Index(cv_dst.nchunks), Index(cv_mse.chunk_elems),
+                    Index(cv_src.chunk_elems), Index(cv_dst.chunk_elems));
+                arena.end(stream);
+                return;
+            }
+        }
     }
+        // (rule 11, user directive 2026-10-19) There is no per-piece
+    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot ring
+    // serve any launch up to a 16 TiB operand, so a failed upload is an
+    // invariant violation, not a mode to stage around.
+    std::fprintf(stderr,
+        "nntile_softmax: chunk-ptr ring cannot serve this launch (invariant "
+        "violation; the per-piece staging fallback was deleted by rule "
+        "11)\n");
+    std::abort();
 }
+
 
 // Specializations of CUDA wrapper for accelerated types
 template<>

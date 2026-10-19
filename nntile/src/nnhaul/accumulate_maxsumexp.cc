@@ -50,16 +50,16 @@ namespace
 template<typename T, typename Arena, typename Sub>
 void accumulate_maxsumexp_chunked(Index npairs,
     ::nnhaul::Buffer *buf_src, ::nnhaul::Buffer *buf_dst,
-    std::size_t force_bytes, Arena &arena, Sub &&sub)
+    Arena &arena, Sub &&sub)
 {
     if(npairs <= 0)
     {
         return;
     }
-    chunkunits::ChunkView<T> const cv_src(buf_src, force_bytes);
-    chunkunits::ChunkView<T> const cv_dst(buf_dst, force_bytes);
-    bool const chunked_src = cv_src.nchunks > 1 || force_bytes != 0;
-    bool const chunked_dst = cv_dst.nchunks > 1 || force_bytes != 0;
+    chunkunits::ChunkView<T> const cv_src(buf_src);
+    chunkunits::ChunkView<T> const cv_dst(buf_dst);
+    bool const chunked_src = cv_src.nchunks > 1;
+    bool const chunked_dst = cv_dst.nchunks > 1;
     T *temp_src = chunked_src ? arena.alloc(std::size_t(2)) : nullptr;
     T *temp_dst = chunked_dst ? arena.alloc(std::size_t(2)) : nullptr;
     Index done = 0;
@@ -138,10 +138,14 @@ void AccumulateMaxSumExp<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
         (*reinterpret_cast<std::size_t const *>(cl_args)) / sizeof(T) / 2;
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[1]);
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
-    if(buf_src->chunk_count() == 1 && buf_dst->chunk_count() == 1
-        && forced == 0)
+    if((buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+       )
     {
+        // Classic contiguous dispatch: illegal under the force flag
+        // (the tripwire proves it never happens in a flag-on run --
+        // review 540 #5, this wrapper was missing it).
+        chunkunits::classic_dispatch_tripwire("nntile_accumulate_maxsumexp",
+            false);
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::accumulate_maxsumexp::cpu<T>(npairs, buf_src->get_ptr<T>(),
             buf_dst->get_ptr<T>());
@@ -150,7 +154,7 @@ void AccumulateMaxSumExp<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     try
     {
         chunkunits::ArenaCpu<T> arena;
-        accumulate_maxsumexp_chunked<T>(npairs, buf_src, buf_dst, forced,
+        accumulate_maxsumexp_chunked<T>(npairs, buf_src, buf_dst,
             arena,
             [](Index n, T const *s, T *d) {
                 kernel::accumulate_maxsumexp::cpu<T>(n, s, d);
@@ -205,17 +209,20 @@ void AccumulateMaxSumExp<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[1]);
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
-    if(buf_src->chunk_count() == 1 && buf_dst->chunk_count() == 1
-        && forced == 0)
+    if((buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+       )
     {
+        // Classic contiguous dispatch: illegal under the force flag
+        // (review 540 #5).
+        chunkunits::classic_dispatch_tripwire("nntile_accumulate_maxsumexp",
+            false);
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::accumulate_maxsumexp::cuda<T>(stream, npairs,
             buf_src->get_ptr<T>(), buf_dst->get_ptr<T>());
         return;
     }
     chunkunits::ArenaCuda<T> arena(stream);
-    accumulate_maxsumexp_chunked<T>(npairs, buf_src, buf_dst, forced, arena,
+    accumulate_maxsumexp_chunked<T>(npairs, buf_src, buf_dst, arena,
         [stream](Index n, T const *s, T *d) {
             kernel::accumulate_maxsumexp::cuda<T>(stream, n, s, d);
         });

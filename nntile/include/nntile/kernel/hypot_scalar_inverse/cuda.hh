@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/hypot_scalar_inverse/cuda.hh
  * Inverse of a hypot operation of a buffer and a scalar
  *
- * @version 1.1.0
+ * @version 1.2.0
  * */
 
 #pragma once
@@ -22,6 +22,12 @@ namespace nntile::kernel::hypot_scalar_inverse
 
 template<typename T>
 void cuda(cudaStream_t stream, Index nelems, Scalar eps, Scalar alpha, T* dst)
+    noexcept;
+
+//! Inverse hypot of a scalar and chunked buffers on CUDA (ONE launch)
+template<typename T>
+void chunked(cudaStream_t stream, Index nelems, Scalar eps, Scalar alpha,
+        T* const* dst_chunks, Index ndst, Index elems_dst)
     noexcept;
 
 } // namespace nntile::kernel::hypot_scalar_inverse

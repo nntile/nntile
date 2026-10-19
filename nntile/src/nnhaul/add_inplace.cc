@@ -9,7 +9,7 @@
  * @file src/starpu/add_inplace.cc
  * Add operation on a StarPU buffers
  *
- * @version 1.1.0
+ * @version 1.2.0
  * */
 
 // Corresponding header
@@ -22,12 +22,14 @@
 
 // Other NNTile headers
 #include "nntile/kernel/add_inplace.hh"
+#include "nntile/nnhaul/chunk_units.hh"
 #include "nntile/nnhaul/ops/scale.hh"
 #include "nntile/nnhaul/ops/scale_inplace.hh"
 
 //! StarPU wrappers for add_inplace operation
 namespace nntile::haul
 {
+
 
 //! Constructor
 template<typename T>
@@ -103,6 +105,82 @@ void AddInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto dst = ::nntile::haul::buf_chunks<T>(buffers, 1);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Chunked single-launch path: when at least one operand is chunked, issue the WHOLE flat addition as ONE
+    // chunk-aware kernel instead of the per-piece walk's launches. The chunk
+    // base-pointer tables are built on the host and parked in the shared
+    // device chunk-ptr ring (no chunk-count cap); the
+    // kernel reads the table per-thread by shift/mask (rule 10: no smem staging). Elements are
+    // independent and the expression is identical, so the result is cuda()'s
+    // bitwise. The all-unchunked case and a failed table allocation keep the
+    // historical for_each_flat_piece path verbatim.
+    {
+        auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[0]);
+        auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
+        bool const all_plain = (buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+            && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels());
+        if(!(all_plain) && args->nelems > 0)
+        {
+            if(buf_src->chunk_count() == 1 && buf_dst->chunk_count() == 1)
+            {
+                // Piece C (2026-10-18c): the all-1-chunk degenerate
+                // launch is the FIRST thing the chunked block does --
+                // the chunk counts are read straight off the buffers,
+                // before any ChunkView/RingTables work exists, so the
+                // degenerate host path is as lean as the classic
+                // dispatch above (gemm path-F precedent; launch
+                // pointer-identical, bitwise by construction, ring
+                // untouched).
+                kernel::add_inplace::cuda<T>(stream, args->nelems, args->alpha,
+                    buf_src->get_ptr<T>(), args->beta, buf_dst->get_ptr<T>());
+                return;
+            }
+            chunkunits::ChunkView<T> const cvs(buf_src);
+            chunkunits::ChunkView<T> const cvd(buf_dst);
+            chunkunits::RingTables &tabs = chunkunits::ring_tables();
+            tabs.clear();
+            std::size_t const o_ps = tabs.add(cvs);
+            std::size_t const o_pd = tabs.add(cvd);
+            chunkunits::ChunkPtrRing &arena =
+                chunkunits::chunk_ptr_ring();
+            if(arena.begin(stream))
+            {
+                void const *ring_base = arena.upload_tables(tabs);
+                if(ring_base != nullptr)
+                {
+                    const T *const *ts = arena.table_view<const T *>(
+                        ring_base, o_ps);
+                    T *const *td = arena.table_view<T *>(ring_base, o_pd);
+                    kernel::add_inplace::chunked<T>(
+                        stream,
+                        args->nelems,
+                        args->alpha,
+                        ts,
+                        Index(cvs.nchunks),
+                        args->beta,
+                        td,
+                        Index(cvd.nchunks),
+                        Index(cvs.chunk_elems),
+                        Index(cvd.chunk_elems));
+                    arena.end(stream);
+                    return;
+                }
+                    // (rule 11, user directive 2026-10-19) There is no per-piece
+                    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot ring
+                    // serve any launch up to a 16 TiB operand, so a failed upload is an
+                    // invariant violation, not a mode to stage around.
+                    std::fprintf(stderr,
+                        "nntile_add_inplace: chunk-ptr ring cannot serve this launch (invariant "
+                        "violation; the per-piece staging fallback was deleted by rule "
+                        "11)\n");
+                    std::abort();
+            }
+        }
+        if(args->nelems > 0)
+        {
+            chunkunits::classic_dispatch_tripwire("nntile_add_inplace",
+                false);
+        }
+    }
     // Launch kernel per flat chunk piece (single piece if unchunked)
     ::nntile::haul::for_each_flat_piece(
         args->nelems,

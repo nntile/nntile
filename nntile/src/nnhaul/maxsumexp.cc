@@ -9,7 +9,7 @@
  * @file src/starpu/maxsumexp.cc
  * Max and sum of exponents for StarPU buffer
  *
- * @version 1.1.0
+ * @version 1.2.0
  * */
 
 // Corresponding header
@@ -20,6 +20,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <stdexcept>
+#include <vector>
 
 // Other NNTile headers
 #include "nntile/kernel/maxsumexp.hh"
@@ -68,18 +69,18 @@ namespace
 
 template<typename T, typename Arena, typename Sub>
 void maxsumexp_chunked(Index m, Index n, Index k, ::nnhaul::Buffer *buf_src,
-    ::nnhaul::Buffer *buf_dst, Scalar beta, std::size_t force_bytes,
+    ::nnhaul::Buffer *buf_dst, Scalar beta,
     Arena &arena, Sub &&sub)
 {
     if(m <= 0)
     {
         return;
     }
-    chunkunits::ChunkView<T> const cv_src(buf_src, force_bytes);
-    chunkunits::ChunkView<T> const cv_dst(buf_dst, force_bytes);
+    chunkunits::ChunkView<T> const cv_src(buf_src);
+    chunkunits::ChunkView<T> const cv_dst(buf_dst);
     chunkunits::UnitSpan<T> const span_src{&cv_src, std::size_t(m), Index{1}};
     chunkunits::UnitSpan<T> const span_dst{&cv_dst, std::size_t{2} * m, k};
-    bool const chunked_src = cv_src.nchunks > 1 || force_bytes != 0;
+    bool const chunked_src = cv_src.nchunks > 1;
     T *temp_src = chunked_src ? arena.alloc(std::size_t(m)) : nullptr;
     chunkunits::SliceStage<T, Arena> dst_stage(
         cv_dst, std::size_t{2} * m, true, arena);
@@ -150,10 +151,12 @@ void MaxSumExp<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get interfaces
     auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
-    if(buf_src->chunk_count() == 1 && buf_dst->chunk_count() == 1
-        && forced == 0)
+    if((buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+       )
     {
+        // Classic contiguous dispatch: illegal under the force flag
+        // (the tripwire proves it never happens in a flag-on run).
+        chunkunits::classic_dispatch_tripwire("nntile_maxsumexp", false);
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::maxsumexp::cpu<T>(args->m, args->n, args->k,
             buf_src->get_ptr<T>(), args->beta, buf_dst->get_ptr<T>());
@@ -170,7 +173,6 @@ void MaxSumExp<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
             buf_src,
             buf_dst,
             beta,
-            forced,
             arena,
             [](Index mm, Index nn, Index kk, T const *ps, Scalar be, T *pd) {
                 kernel::maxsumexp::cpu<T>(mm, nn, kk, ps, be, pd);
@@ -225,36 +227,77 @@ void MaxSumExp<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
-    if(buf_src->chunk_count() == 1 && buf_dst->chunk_count() == 1
-        && forced == 0)
+    if((buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+       )
     {
+        // Classic contiguous dispatch: illegal under the force flag
+        // (the tripwire proves it never happens in a flag-on run).
+        chunkunits::classic_dispatch_tripwire("nntile_maxsumexp", false);
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::maxsumexp::cuda<T>(stream, args->m, args->n, args->k,
             buf_src->get_ptr<T>(), args->beta, buf_dst->get_ptr<T>());
         return;
     }
-    chunkunits::ArenaCuda<T> arena(stream);
-    maxsumexp_chunked<T>(
-        args->m,
-        args->n,
-        args->k,
-        buf_src,
-        buf_dst,
-        args->beta,
-        forced,
-        arena,
-        [stream](Index mm, Index nn, Index kk, T const *ps, Scalar be,
-            T *pd) {
-            kernel::maxsumexp::cuda<T>(stream, mm, nn, kk, ps, be, pd);
-        });
-    if(!arena.ok_state())
+    // Chunked single-launch path: ONE chunk-aware kernel over the whole
+    // (m, n, k) range.  The piece driver below launches one kernel per
+        // chunk-resident run and thereby pays the full m*n grid per piece; on
+    // the GPT-2 attention shape (m=1, n=12288, k=1024) that dominated the
+    // p90 tail.  The arithmetic order is unchanged, so this reproduces the
+    // contiguous kernel up to its shared-atomic floor.  The piece driver
+    // stays as the fallback for a failed
+    // table upload.
+    if(args->m > 0 && args->n > 0 && args->k > 0)
     {
-        std::fprintf(stderr,
-            "nntile_maxsumexp: chunked CUDA driver aborted after a stream "
-            "error; dst left unwritten\n");
+        chunkunits::ChunkView<T> const cv_src(buf_src);
+        chunkunits::ChunkView<T> const cv_dst(buf_dst);
+        // Piece 7: the m==1 straddling panels are resolved INSIDE the one
+        // launch now, so there is no host-side panel list and no third
+        // table -- the merged upload is just (src | dst).
+        // ONE merged table (src | dst) in the reusable thread-local
+        // staging, ONE ring upload per launch.
+        chunkunits::RingTables &tabs = chunkunits::ring_tables();
+        tabs.clear();
+        std::size_t const o_src = tabs.add(cv_src);
+        std::size_t const o_dst = tabs.add(cv_dst);
+        chunkunits::ChunkPtrRing &ring = chunkunits::chunk_ptr_ring();
+        if(ring.begin(stream))
+        {
+            void const *ring_base = ring.upload_tables(tabs);
+            if(ring_base != nullptr)
+            {
+                const T *const *tps = ring.table_view<const T *>(ring_base,
+                    o_src);
+                T *const *tpd = ring.table_view<T *>(ring_base, o_dst);
+                kernel::maxsumexp::chunked<T>(
+                    stream,
+                    args->m,
+                    args->n,
+                    args->k,
+                    tps,
+                    Index(cv_src.nchunks),
+                    args->beta,
+                    tpd,
+                    Index(cv_dst.nchunks),
+                    Index(cv_src.chunk_elems),
+                    Index(cv_dst.chunk_elems),
+                    long(cv_src.total_elems),
+                    long(cv_dst.total_elems));
+                ring.end(stream);
+                return;
+            }
+        }
     }
+        // (rule 11, user directive 2026-10-19) There is no per-piece
+    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot ring
+    // serve any launch up to a 16 TiB operand, so a failed upload is an
+    // invariant violation, not a mode to stage around.
+    std::fprintf(stderr,
+        "nntile_maxsumexp: chunk-ptr ring cannot serve this launch (invariant "
+        "violation; the per-piece staging fallback was deleted by rule "
+        "11)\n");
+    std::abort();
 }
+
 
 // Specializations of CUDA wrapper for accelerated types
 template<>

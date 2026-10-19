@@ -46,4 +46,24 @@ template <typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *src,
           Scalar beta, T *maxsumexp) noexcept;
 
+//! Chunk-aware maxsumexp on CUDA (ONE launch)
+/*! Same operation and arithmetic order as cuda() above, but the src and
+ * maxsumexp flat ranges are backed by chains of equal-size chunks. Each
+ * operand's chunk base-pointer table is built by the driver through the
+ * device chunk-ptr ring and travels as `*_chunks`. Every fiber
+ * element resolves its chunk from its flat offset (chunk = offset / elems,
+ * in-chunk offset = offset % elems; shift/mask on a power-of-two elems).
+ * The per-thread reduction partition, the max/atomicAdd combine and the
+ * m==1 tree are unchanged, so the result is bitwise-equal to cuda()'s up
+ * to the contiguous kernel's own shared-atomic ordering floor.  Piece 7:
+ * an m==1 panel that straddles a chunk boundary takes the per-element
+ * chunk-resolved read path INSIDE the one launch (no host-side straddle
+ * panel list, no second kernel).
+ * */
+template <typename T>
+void chunked(cudaStream_t stream, Index m, Index n, Index k,
+        const T* const* src_chunks, Index nsrc, Scalar beta,
+        T* const* dst_chunks, Index ndst, Index elems_src, Index elems_dst,
+        long total_src, long total_dst) noexcept;
+
 } // namespace nntile::kernel::maxsumexp

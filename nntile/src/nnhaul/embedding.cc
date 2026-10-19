@@ -9,7 +9,7 @@
  * @file src/starpu/embedding.cc
  * Embeddings from vocabulary within StarPU buffers
  *
- * @version 1.1.0
+ * @version 1.2.0
  * */
 
 // Corresponding header
@@ -25,6 +25,7 @@
 
 // Other NNTile headers
 #include "nntile/kernel/embedding.hh"
+#include "nntile/nnhaul/chunk_units.hh"
 
 namespace nntile::haul
 {
@@ -65,6 +66,15 @@ struct EmbChunkView
     {
         if(nchunks > 1)
         {
+            if(b->chunk_bytes(0) != chunkunits::kChunkClassBytes)
+            {
+                std::fprintf(stderr,
+                    "nntile embedding: multi-chunk buffer %zu-byte full chunk "
+                    "!= the compile-time %zu-byte class (rule 7)\n",
+                    b->chunk_bytes(0),
+                    chunkunits::kChunkClassBytes);
+                std::abort();
+            }
             chunk_elems = b->chunk_bytes(0) / sizeof(T);
         }
         else
@@ -146,8 +156,19 @@ std::vector<int64_t> index_to_host(::nnhaul::Buffer *buf, Index m, Index n,
     std::vector<int64_t> out(nelems == 0 ? 1 : nelems);
     if(buf->chunk_count() == 1)
     {
+        // (review 540 #1) Under the force flag an UNCHUNKED buffer also
+        // takes this path -- a 1-chunk buffer IS its chunk (rule-3
+        // degenerate; chunk_bytes(0) == nbytes, never the class).
         host_copy(out.data(), buf->get_ptr<int64_t>(), nelems * sizeof(int64_t));
         return out;
+    }
+    if(buf->chunk_bytes(0) != chunkunits::kChunkClassBytes)
+    {
+        std::fprintf(stderr,
+            "nntile embedding: multi-chunk buffer %zu-byte full chunk != the "
+            "compile-time %zu-byte class (rule 7)\n",
+            buf->chunk_bytes(0), chunkunits::kChunkClassBytes);
+        std::abort();
     }
     std::size_t const chunk_elems = buf->chunk_bytes(0) / sizeof(int64_t);
     std::size_t done = 0;
@@ -221,9 +242,12 @@ void Embedding<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     auto buf_index = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_vocab = static_cast<::nnhaul::Buffer *>(buffers[1]);
     auto buf_embed = static_cast<::nnhaul::Buffer *>(buffers[2]);
-    if(buf_index->chunk_count() == 1 && buf_vocab->chunk_count() == 1
-        && buf_embed->chunk_count() == 1)
+    if((buf_index->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_vocab->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+        && (buf_embed->chunk_count() == 1 && !chunkunits::force_chunked_kernels()))
     {
+        // Classic contiguous dispatch: illegal under the force flag
+        // (the tripwire proves it never happens in a flag-on run).
+        chunkunits::classic_dispatch_tripwire("nntile_embedding", false);
         // Unchunked fast path: the historical single kernel call, bitwise
         const int64_t *index = buf_index->get_ptr<int64_t>();
         const T *vocab = buf_vocab->get_ptr<T>();
@@ -310,9 +334,12 @@ void Embedding<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto buf_embed = static_cast<::nnhaul::Buffer *>(buffers[2]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    if(buf_index->chunk_count() == 1 && buf_vocab->chunk_count() == 1
-        && buf_embed->chunk_count() == 1)
+    if((buf_index->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_vocab->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+        && (buf_embed->chunk_count() == 1 && !chunkunits::force_chunked_kernels()))
     {
+        // Classic contiguous dispatch: illegal under the force flag
+        // (the tripwire proves it never happens in a flag-on run).
+        chunkunits::classic_dispatch_tripwire("nntile_embedding", false);
         // Unchunked fast path: the historical single kernel call, bitwise
         const int64_t *index = buf_index->get_ptr<int64_t>();
         const T *vocab = buf_vocab->get_ptr<T>();
@@ -331,82 +358,94 @@ void Embedding<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         );
         return;
     }
-    // Fetch the tokens host-side (a pageable D2H cudaMemcpyAsync of the
-    // small m*n list synchronizes the host copy; the stream sync orders it
-    // after the task's earlier fetch work), validate, then enqueue the
-    // per-segment pitch copies stream-ordered.
-    std::vector<int64_t> index = index_to_host(
-        buf_index, args->m, args->n,
-        [&](void *dst, const void *src, std::size_t nbytes) {
-            cudaError_t const err = cudaMemcpyAsync(
-                dst, src, nbytes, cudaMemcpyDeviceToHost, stream);
-            if(err != cudaSuccess)
-            {
-                std::fprintf(stderr, "nntile_embedding: token fetch failed: "
-                        "%s\n", cudaGetErrorString(err));
-                std::abort();
-            }
-        });
-    cudaError_t const sync_err = cudaStreamSynchronize(stream);
-    if(sync_err != cudaSuccess)
+    // Chunked single-launch path: the WHOLE gather is issued as ONE
+    // chunk-aware kernel with the three chunk base-pointer tables read from
+    // the shared device chunk-ptr ring (no chunk-count cap) - each element
+    // derives its chunk index from its own flat offset by divmod - instead
+    // of the per-segment 2D-copy driver below (which issued ~1k
+    // cudaMemcpy2DAsync launches for the GPT-2 token embedding). A pure
+    // copy, bitwise the whole-buffer call.  A launch whose pointer
+    // set exceeds the ring ABORTS (rule 11 -- no fallback exists).
     {
-        std::fprintf(stderr, "nntile_embedding: token fetch sync failed: "
-                "%s\n", cudaGetErrorString(sync_err));
-        std::abort();
-    }
-    embedding_check_tokens(
-        args->m, args->n, args->index_range, index.data());
-    EmbChunkView<T> const vocab(buf_vocab);
-    EmbChunkView<T> const embed(buf_embed);
-    bool ok = true;
-    embedding_chunked<T>(
-        args->m,
-        args->n,
-        args->k,
-        args->k_start,
-        args->k_size,
-        index.data(),
-        vocab,
-        [&](const T *src, std::size_t dst0, std::size_t stride,
-            std::size_t len) {
-            if(!ok)
+        EmbChunkView<int64_t> const cv_index(buf_index);
+        EmbChunkView<T> const cv_vocab(buf_vocab);
+        EmbChunkView<T> const cv_embed(buf_embed);
+        if(cv_index.nchunks == 1 and cv_vocab.nchunks == 1
+            and cv_embed.nchunks == 1)
+        {
+            // Piece 7: every operand is single-chunk, so the chunked
+            // operation degenerates to the classic kernel on the
+            // resolved chunk bases -- the piece-4/6 degenerate-launch
+            // pattern (geometry and instruction stream identical to the
+            // flag-off path, bitwise by construction; no pointer table
+            // to read, so the ring is untouched). This covers the GPT-2
+            // position-embedding call (wpe: 3 MiB vocab, 6 MiB embed
+            // tile, 8 KiB index -- all 1-chunk at the class; pair-4
+            // informational 1.59x med). The chunked kernel stays the
+            // multi-chunk path (the 10-chunk wte call).
+            kernel::embedding::cuda<T>(
+                stream,
+                args->m,
+                args->n,
+                args->k,
+                args->k_start,
+                args->k_size,
+                args->index_range,
+                cv_index.ptr(0, 0),
+                cv_vocab.ptr(0, 0),
+                cv_embed.ptr(0, 0));
+            return;
+        }
+        chunkunits::RingTables &tabs = chunkunits::ring_tables();
+        tabs.clear();
+        std::size_t const o_index_ptrs = tabs.add(cv_index);
+        std::size_t const o_vocab_ptrs = tabs.add(cv_vocab);
+        std::size_t const o_embed_ptrs = tabs.add(cv_embed);
+        chunkunits::ChunkPtrRing &arena = chunkunits::chunk_ptr_ring();
+        if(arena.begin(stream))
+        {
+            void const *ring_base = arena.upload_tables(tabs);
+            if(ring_base != nullptr)
             {
+                const int64_t *const *index_tab = arena.table_view<const int64_t *>(
+                    ring_base, o_index_ptrs);
+                const T *const *vocab_tab = arena.table_view<const T *>(
+                    ring_base, o_vocab_ptrs);
+                T *const *embed_tab = arena.table_view<T *>(
+                    ring_base, o_embed_ptrs);
+                kernel::embedding::chunked<T>(
+                    stream,
+                    args->m,
+                    args->n,
+                    args->k,
+                    args->k_start,
+                    args->k_size,
+                    args->index_range,
+                    index_tab,
+                    Index(cv_index.nchunks),
+                    Index(cv_index.chunk_elems),
+                    vocab_tab,
+                    Index(cv_vocab.nchunks),
+                    Index(cv_vocab.chunk_elems),
+                    embed_tab,
+                    Index(cv_embed.nchunks),
+                    Index(cv_embed.chunk_elems));
+                arena.end(stream);
                 return;
             }
-            // Split the strided run at the embed chunk boundaries; each
-            // piece is one element-wide 2D copy with the run's stride as
-            // the destination pitch.
-            std::size_t j = 0;
-            while(j < len)
-            {
-                std::size_t const e = dst0 + j * stride;
-                std::size_t const c = embed.chunk_of(e);
-                std::size_t run =
-                    (embed.chunk_end(c) - e + stride - 1) / stride;
-                if(run > len - j)
-                {
-                    run = len - j;
-                }
-                cudaError_t const err = cudaMemcpy2DAsync(
-                    embed.ptr(c, e - embed.chunk_begin(c)),
-                    stride * sizeof(T),
-                    src + j,
-                    sizeof(T),
-                    sizeof(T),
-                    run,
-                    cudaMemcpyDeviceToDevice,
-                    stream);
-                if(err != cudaSuccess)
-                {
-                    std::fprintf(stderr, "nntile_embedding: chunked gather "
-                            "copy failed: %s\n", cudaGetErrorString(err));
-                    ok = false;
-                    return;
-                }
-                j += run;
-            }
-        });
+        }
+    }
+        // (rule 11, user directive 2026-10-19) There is no per-piece
+    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot ring
+    // serve any launch up to a 16 TiB operand, so a failed upload is an
+    // invariant violation, not a mode to stage around.
+    std::fprintf(stderr,
+        "nntile_embedding: chunk-ptr ring cannot serve this launch (invariant "
+        "violation; the per-piece staging fallback was deleted by rule "
+        "11)\n");
+    std::abort();
 }
+
 
 // Specializations of CUDA wrapper for accelerated types
 template<>

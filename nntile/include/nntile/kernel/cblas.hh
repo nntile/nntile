@@ -83,6 +83,7 @@ void gemm(
     bool broadcast_b = false
 ) noexcept;
 
+
 //! Helper to check if CBLAS supports the given type
 template<typename T>
 inline constexpr bool gemm_is_supported = false;

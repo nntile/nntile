@@ -9,7 +9,7 @@
  * @file src/starpu/total_sum_accum.cc
  * Total sum accumulating for StarPU buffer
  *
- * @version 1.1.0
+ * @version 1.2.0
  * */
 
 // Corresponding header
@@ -27,6 +27,7 @@
 
 namespace nntile::haul
 {
+
 
 // ---------------------------------------------------------------------------
 // Native chunked total_sum_accum driver (chunk_units.hh scheme; the
@@ -61,18 +62,17 @@ template<typename T, typename Arena, typename Sub>
 void total_sum_accum_chunked(Scalar alpha, Index n_labels, Index n_outputs,
     Index ignore_index, ::nnhaul::Buffer *buf_logsumexp,
     ::nnhaul::Buffer *buf_src, ::nnhaul::Buffer *buf_labels,
-    ::nnhaul::Buffer *buf_val, std::size_t force_bytes, Arena &arena,
+    ::nnhaul::Buffer *buf_val, Arena &arena,
     Sub &&sub)
 {
     if(n_labels <= 0 || n_outputs <= 0)
     {
         return;
     }
-    chunkunits::ChunkView<T> const cv_src(buf_src, force_bytes);
-    chunkunits::ChunkView<T> const cv_lse(buf_logsumexp, force_bytes);
-    chunkunits::ChunkView<nntile::int64_t> const cv_labels(buf_labels,
-        force_bytes);
-    bool const chunked_src = cv_src.nchunks > 1 || force_bytes != 0;
+    chunkunits::ChunkView<T> const cv_src(buf_src);
+    chunkunits::ChunkView<T> const cv_lse(buf_logsumexp);
+    chunkunits::ChunkView<nntile::int64_t> const cv_labels(buf_labels);
+    bool const chunked_src = cv_src.nchunks > 1;
     T *temp_col = chunked_src ? arena.alloc(std::size_t(n_labels)) : nullptr;
     float *pv = buf_val->get_ptr<float>();
     Index j = 0;
@@ -173,11 +173,13 @@ void TotalSumAccum<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[1]);
     auto buf_labels = static_cast<::nnhaul::Buffer *>(buffers[2]);
     auto buf_val = static_cast<::nnhaul::Buffer *>(buffers[3]);
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
-    if(buf_logsumexp->chunk_count() == 1 && buf_src->chunk_count() == 1
-        && buf_labels->chunk_count() == 1 && buf_val->chunk_count() == 1
-        && forced == 0)
+    if((buf_logsumexp->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+        && (buf_labels->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_val->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+       )
     {
+        // Classic contiguous dispatch: illegal under the force flag
+        // (the tripwire proves it never happens in a flag-on run).
+        chunkunits::classic_dispatch_tripwire("nntile_total_sum_accum", false);
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::total_sum_accum::cpu<T>(alpha, n_labels, n_outputs,
             ignore_index, buf_logsumexp->get_ptr<T>(), buf_src->get_ptr<T>(),
@@ -196,7 +198,6 @@ void TotalSumAccum<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
             buf_src,
             buf_labels,
             buf_val,
-            forced,
             arena,
             [](Scalar al, Index nl, Index no, Index ig, T const *plse,
                 T const *ps, nntile::int64_t const *pb, float *pv) {
@@ -259,41 +260,115 @@ void TotalSumAccum<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto buf_val = static_cast<::nnhaul::Buffer *>(buffers[3]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
-    if(buf_logsumexp->chunk_count() == 1 && buf_src->chunk_count() == 1
-        && buf_labels->chunk_count() == 1 && buf_val->chunk_count() == 1
-        && forced == 0)
+    if((buf_logsumexp->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+        && (buf_labels->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_val->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+       )
     {
+        // Classic contiguous dispatch: illegal under the force flag
+        // (the tripwire proves it never happens in a flag-on run).
+        chunkunits::classic_dispatch_tripwire("nntile_total_sum_accum", false);
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::total_sum_accum::cuda<T>(stream, alpha, n_labels, n_outputs,
             ignore_index, buf_logsumexp->get_ptr<T>(), buf_src->get_ptr<T>(),
             buf_labels->get_ptr<nntile::int64_t>(), buf_val->get_ptr<float>());
         return;
     }
-    chunkunits::ArenaCuda<T> arena(stream);
-    total_sum_accum_chunked<T>(
-        alpha,
-        n_labels,
-        n_outputs,
-        ignore_index,
-        buf_logsumexp,
-        buf_src,
-        buf_labels,
-        buf_val,
-        forced,
-        arena,
-        [stream](Scalar al, Index nl, Index no, Index ig, T const *plse,
-            T const *ps, nntile::int64_t const *pb, float *pv) {
-            kernel::total_sum_accum::cuda<T>(stream, al, nl, no, ig, plse, ps,
-                pb, pv);
-        });
-    if(!arena.ok_state())
+    // Chunked single-launch path: whenever any operand is chunked, do the
+    // WHOLE op with ONE chunk-aware kernel. The chunk base-pointer arrays are
+    // rides the device ring (ONE event-ordered control-stream copy per
+    // launch) and the kernel reads it per-thread by shift/mask. Each
+    // thread's per-column reads and the block-shared float atomicAdd
+    // grouping are identical to cuda()'s, so the result is cuda()'s up
+    // to the same float-atomic ordering nondeterminism. (The historical
+    // piecewise fallback is DELETED -- rule 11.)
+    chunkunits::ChunkView<T> const cv_lse(buf_logsumexp);
+    chunkunits::ChunkView<T> const cv_src(buf_src);
+    chunkunits::ChunkView<nntile::int64_t> const cv_lab(buf_labels);
+    chunkunits::ChunkView<float> const cv_val(buf_val);
+    // Piece C (2026-10-18c) smalls-direct fast path: when lse, labels
+    // and val are all SINGLE-CHUNK (the graph shape beside the
+    // multi-chunk src), their resolved bases travel as plain kernel
+    // parameters -- so ONLY the src table is built, uploaded and read
+    // through the ring. This halves the host table work and the upload
+    // payload of the latency-bound 4-block launch, and removes one
+    // dependent ring-slot load per operand per thread from the serial
+    // chain. The general four-table form below (and the piecewise
+    // fallback) keeps every other shape.
+    if(cv_lse.nchunks == 1 && cv_lab.nchunks == 1 && cv_val.nchunks == 1)
     {
-        std::fprintf(stderr,
-            "nntile_total_sum_accum: chunked CUDA driver aborted after a "
-            "stream error; val left unwritten\n");
+        chunkunits::RingTables &tabs = chunkunits::ring_tables();
+        tabs.clear();
+        std::size_t const o_src_ptrs = tabs.add(cv_src);
+        chunkunits::ChunkPtrRing &arena = chunkunits::chunk_ptr_ring();
+        if(arena.begin(stream))
+        {
+            void const *ring_base = arena.upload_tables(tabs);
+            if(ring_base != nullptr)
+            {
+                const T *const *src_tab = arena.table_view<const T *>(
+                    ring_base, o_src_ptrs);
+                kernel::total_sum_accum::chunked<T>(stream, alpha, n_labels,
+                    n_outputs, ignore_index, nullptr, 1, src_tab,
+                    Index(cv_src.nchunks), nullptr, 1, nullptr, 1, 1,
+                    Index(cv_src.chunk_elems), 1, 1,
+                    cv_lse.ptr(0, 0), cv_lab.ptr(0, 0),
+                    cv_val.ptr(0, 0));
+                arena.end(stream);
+                return;
+            }
+        }
     }
+    {
+        chunkunits::RingTables &tabs = chunkunits::ring_tables();
+        tabs.clear();
+        std::size_t const o_lse_ptrs = tabs.add(cv_lse);
+        std::size_t const o_src_ptrs = tabs.add(cv_src);
+        std::size_t const o_lab_ptrs = tabs.add(cv_lab);
+        std::size_t const o_val_ptrs = tabs.add(cv_val);
+        chunkunits::ChunkPtrRing &arena = chunkunits::chunk_ptr_ring();
+        if(arena.begin(stream))
+        {
+            void const *ring_base = arena.upload_tables(tabs);
+            if(ring_base != nullptr)
+            {
+                const T *const *lse_tab = arena.table_view<const T *>(
+                    ring_base, o_lse_ptrs);
+                const T *const *src_tab = arena.table_view<const T *>(
+                    ring_base, o_src_ptrs);
+                const nntile::int64_t *const *lab_tab = arena.table_view<const nntile::int64_t *>(
+                    ring_base, o_lab_ptrs);
+                float *const *val_tab = arena.table_view<float *>(
+                    ring_base, o_val_ptrs);
+                // Piece C: the single-chunk small operands (lse,
+                // labels, val -- the graph shape) also hand their
+                // resolved bases straight to the kernel, the per-operand
+                // degenerate resolution; only a multi-chunk src still
+                // reads the ring table.
+                kernel::total_sum_accum::chunked<T>(stream, alpha, n_labels,
+                    n_outputs, ignore_index, lse_tab, Index(cv_lse.nchunks),
+                    src_tab, Index(cv_src.nchunks), lab_tab,
+                    Index(cv_lab.nchunks), val_tab, Index(cv_val.nchunks),
+                    Index(cv_lse.chunk_elems), Index(cv_src.chunk_elems),
+                    Index(cv_lab.chunk_elems), Index(cv_val.chunk_elems),
+                    cv_lse.nchunks == 1 ? cv_lse.ptr(0, 0) : nullptr,
+                    cv_lab.nchunks == 1 ? cv_lab.ptr(0, 0) : nullptr,
+                    cv_val.nchunks == 1 ? cv_val.ptr(0, 0) : nullptr);
+                arena.end(stream);
+                return;
+            }
+        }
+    }
+        // (rule 11, user directive 2026-10-19) There is no per-piece
+    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot ring
+    // serve any launch up to a 16 TiB operand, so a failed upload is an
+    // invariant violation, not a mode to stage around.
+    std::fprintf(stderr,
+        "nntile_total_sum_accum: chunk-ptr ring cannot serve this launch (invariant "
+        "violation; the per-piece staging fallback was deleted by rule "
+        "11)\n");
+    std::abort();
 }
+
 
 // Specializations of CUDA wrapper for accelerated types
 template<>

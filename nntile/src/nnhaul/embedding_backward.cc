@@ -9,7 +9,7 @@
  * @file src/starpu/embedding_backward.cc
  * Embeddings from vocabulary within StarPU buffers
  *
- * @version 1.1.0
+ * @version 1.2.0
  * */
 
 // Corresponding header
@@ -26,6 +26,7 @@
 
 // Other NNTile headers
 #include "nntile/kernel/embedding_backward.hh"
+#include "nntile/nnhaul/chunk_units.hh"
 
 namespace nntile::haul
 {
@@ -96,6 +97,15 @@ struct EmbBwdChunkView
     {
         if(nchunks > 1)
         {
+            if(b->chunk_bytes(0) != chunkunits::kChunkClassBytes)
+            {
+                std::fprintf(stderr,
+                    "nntile embedding_backward: multi-chunk buffer %zu-byte full chunk "
+                    "!= the compile-time %zu-byte class (rule 7)\n",
+                    b->chunk_bytes(0),
+                    chunkunits::kChunkClassBytes);
+                std::abort();
+            }
             chunk_elems = b->chunk_bytes(0) / sizeof(T);
         }
         else
@@ -165,99 +175,8 @@ struct EmbBwdArenaCpu
 //! cudaMallocAsync'd on the compute stream and freed (cudaFreeAsync) at
 //! scope end, so all gather/kernel/scatter work enqueued in between is
 //! stream-ordered before the release.
-struct EmbBwdArenaCuda
-{
-    cudaStream_t stream;
-    std::vector<void *> blocks;
-    bool ok = true;
-
-    explicit EmbBwdArenaCuda(cudaStream_t s): stream(s)
-    {
-    }
-    void *alloc(std::size_t bytes)
-    {
-        void *p = nullptr;
-        cudaError_t const err = cudaMallocAsync(&p, bytes == 0 ? 1 : bytes,
-            stream);
-        if(err != cudaSuccess)
-        {
-            // Same convention as the gemm chunked driver: report on
-            // stderr; the codelet returns void, so a failed scratch
-            // leaves the result partially unwritten (ok stops the rest).
-            std::fprintf(stderr, "nntile_embedding_backward: "
-                    "cudaMallocAsync failed: %s\n", cudaGetErrorString(err));
-            ok = false;
-            return nullptr;
-        }
-        blocks.push_back(p);
-        return p;
-    }
-    template<typename T>
-    T *alloc(std::size_t elems)
-    {
-        return static_cast<T *>(alloc(elems * sizeof(T)));
-    }
-    void copy_bytes(void *dst, void const *src, std::size_t bytes) noexcept
-    {
-        if(bytes == 0 || !ok)
-        {
-            return;
-        }
-        cudaError_t const err = cudaMemcpyAsync(dst, src, bytes,
-            cudaMemcpyDeviceToDevice, stream);
-        if(err != cudaSuccess)
-        {
-            std::fprintf(stderr, "nntile_embedding_backward: "
-                    "cudaMemcpyAsync failed: %s\n", cudaGetErrorString(err));
-            ok = false;
-        }
-    }
-    void zero_bytes(void *dst, std::size_t bytes) noexcept
-    {
-        if(bytes == 0 || !ok)
-        {
-            return;
-        }
-        cudaError_t const err = cudaMemsetAsync(dst, 0, bytes, stream);
-        if(err != cudaSuccess)
-        {
-            std::fprintf(stderr, "nntile_embedding_backward: "
-                    "cudaMemsetAsync failed: %s\n", cudaGetErrorString(err));
-            ok = false;
-        }
-    }
-    void copy_h2d(void *dst, void const *src, std::size_t bytes) noexcept
-    {
-        if(bytes == 0 || !ok)
-        {
-            return;
-        }
-        // Pageable H2D: the call returns once the source has been staged,
-        // so the caller's host buffer may die right after (documented
-        // cudaMemcpyAsync behavior).
-        cudaError_t const err = cudaMemcpyAsync(dst, src, bytes,
-            cudaMemcpyHostToDevice, stream);
-        if(err != cudaSuccess)
-        {
-            std::fprintf(stderr, "nntile_embedding_backward: host-to-device "
-                    "copy failed: %s\n", cudaGetErrorString(err));
-            ok = false;
-        }
-    }
-    ~EmbBwdArenaCuda()
-    {
-        for(void *p : blocks)
-        {
-            cudaError_t const err = cudaFreeAsync(p, stream);
-            if(err != cudaSuccess)
-            {
-                std::fprintf(stderr, "nntile_embedding_backward: "
-                        "cudaFreeAsync failed: %s\n",
-                        cudaGetErrorString(err));
-            }
-        }
-    }
-};
+// (rule 11, critic C4 2026-10-19) EmbBwdArenaCuda deleted: the
+// per-piece staging fallback it served no longer exists.
 #endif // NNTILE_USE_CUDA
 
 //! Host-side tokens of the (possibly chunked) index buffer. The list is
@@ -270,8 +189,19 @@ std::vector<int64_t> index_to_host(::nnhaul::Buffer *buf, Index m, Index n,
     std::vector<int64_t> out(nelems == 0 ? 1 : nelems);
     if(buf->chunk_count() == 1)
     {
+        // (review 540 #1) Under the force flag an UNCHUNKED buffer also
+        // takes this path -- a 1-chunk buffer IS its chunk (rule-3
+        // degenerate; chunk_bytes(0) == nbytes, never the class).
         host_copy(out.data(), buf->get_ptr<int64_t>(), nelems * sizeof(int64_t));
         return out;
+    }
+    if(buf->chunk_bytes(0) != chunkunits::kChunkClassBytes)
+    {
+        std::fprintf(stderr,
+            "nntile embedding_backward: multi-chunk buffer %zu-byte full chunk != the "
+            "compile-time %zu-byte class (rule 7)\n",
+            buf->chunk_bytes(0), chunkunits::kChunkClassBytes);
+        std::abort();
     }
     std::size_t const chunk_elems = buf->chunk_bytes(0) / sizeof(int64_t);
     std::size_t done = 0;
@@ -386,9 +316,12 @@ void EmbeddingBackward<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     auto buf_index = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_embed = static_cast<::nnhaul::Buffer *>(buffers[1]);
     auto buf_vocab = static_cast<::nnhaul::Buffer *>(buffers[2]);
-    if(buf_index->chunk_count() == 1 && buf_embed->chunk_count() == 1
-        && buf_vocab->chunk_count() == 1)
+    if((buf_index->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_embed->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+        && (buf_vocab->chunk_count() == 1 && !chunkunits::force_chunked_kernels()))
     {
+        // Classic contiguous dispatch: illegal under the force flag
+        // (the tripwire proves it never happens in a flag-on run).
+        chunkunits::classic_dispatch_tripwire("nntile_embedding_backward", false);
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::embedding_backward::cpu<T>(
             args->m,
@@ -550,9 +483,12 @@ void EmbeddingBackward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto buf_vocab = static_cast<::nnhaul::Buffer *>(buffers[2]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    if(buf_index->chunk_count() == 1 && buf_embed->chunk_count() == 1
-        && buf_vocab->chunk_count() == 1)
+    if((buf_index->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_embed->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+        && (buf_vocab->chunk_count() == 1 && !chunkunits::force_chunked_kernels()))
     {
+        // Classic contiguous dispatch: illegal under the force flag
+        // (the tripwire proves it never happens in a flag-on run).
+        chunkunits::classic_dispatch_tripwire("nntile_embedding_backward", false);
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::embedding_backward::cuda<T>(
             stream,
@@ -571,140 +507,98 @@ void EmbeddingBackward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         );
         return;
     }
-    // Fetch the tokens host-side (see the embedding gather driver).
-    std::vector<int64_t> index = index_to_host(
-        buf_index, args->m, args->n,
-        [&](void *dst, const void *src, std::size_t nbytes) {
-            cudaError_t const err = cudaMemcpyAsync(
-                dst, src, nbytes, cudaMemcpyDeviceToHost, stream);
-            if(err != cudaSuccess)
-            {
-                std::fprintf(stderr, "nntile_embedding_backward: token "
-                        "fetch failed: %s\n", cudaGetErrorString(err));
-                std::abort();
-            }
-        });
-    cudaError_t const sync_err = cudaStreamSynchronize(stream);
-    if(sync_err != cudaSuccess)
+    // Chunked single-launch path: the WHOLE scatter-add is issued as ONE
+    // chunk-aware atomicAdd kernel (the three chunk base-pointer tables are
+    // read from the device chunk-ptr ring, no chunk-count cap; each
+    // element's chunk from its own flat offset by divmod) and the beta==0
+    // zeroing as ONE chunk-aware kernel launch, instead of the per-chunk
+    // arena driver below (which copied the whole 147 MiB GPT-2 table out and
+    // back and ran 37 full kernel launches). The accumulation is atomicAdd
+    // exactly as the whole-buffer entry's.  A launch whose pointer
+    // set exceeds the ring ABORTS (rule 11 -- no fallback exists).
     {
-        std::fprintf(stderr, "nntile_embedding_backward: token fetch sync "
-                "failed: %s\n", cudaGetErrorString(sync_err));
-        std::abort();
-    }
-    embedding_backward_check_tokens(
-        args->m, args->n, args->index_range, index.data());
-    EmbBwdArenaCuda arena(stream);
-    // The chunked driver (see the block comment above).
-    Index const k_size = args->k_size;
-    std::size_t const row_len = static_cast<std::size_t>(k_size);
-    EmbBwdChunkView<T> const vocab(buf_vocab);
-    EmbBwdChunkView<T> const embed_view(buf_embed);
-    const T *embed = nullptr;
-    T *embed_scratch = nullptr;
-    if(embed_view.nchunks > 1)
-    {
-        embed_scratch = arena.alloc<T>(embed_view.total_elems);
-        emb_bwd_gather(embed_view, 0, embed_view.total_elems, embed_scratch,
-            arena);
-        embed = embed_scratch;
-    }
-    else
-    {
-        embed = embed_view.ptr(0, 0);
-    }
-    if(args->beta == Scalar{0.0})
-    {
-        for(std::size_t c = 0; c < vocab.nchunks; ++c)
+        EmbBwdChunkView<int64_t> const cv_index(buf_index);
+        EmbBwdChunkView<T> const cv_embed(buf_embed);
+        EmbBwdChunkView<T> const cv_vocab(buf_vocab);
+        if(cv_index.nchunks == 1 and cv_embed.nchunks == 1
+            and cv_vocab.nchunks == 1)
         {
-            arena.zero_bytes(vocab.ptr(c, 0),
-                (vocab.chunk_end(c) - vocab.chunk_begin(c)) * sizeof(T));
-        }
-    }
-    if(!arena.ok)
-    {
-        std::fprintf(stderr, "nntile_embedding_backward: chunked CUDA "
-                "driver aborted after a stream error; vocab partially "
-                "updated\n");
-        return;
-    }
-    int64_t *temp_index = arena.alloc<int64_t>(
-        static_cast<std::size_t>(args->m) * args->n);
-    std::vector<int64_t> host_index(static_cast<std::size_t>(args->m)
-        * args->n);
-    // One reusable temp: the garbage row plus the largest chunk's row
-    // image (a fresh temp per chunk would add up to the whole table).
-    std::size_t span_max = 0;
-    for(std::size_t c = 0; c < vocab.nchunks; ++c)
-    {
-        std::size_t const begin = vocab.chunk_begin(c);
-        std::size_t const end = vocab.chunk_end(c);
-        std::size_t const r0 = (begin + row_len - 1) / row_len;
-        std::size_t const r1_raw = (end + row_len - 1) / row_len;
-        std::size_t const r1 = r1_raw < static_cast<std::size_t>(args->index_range)
-            ? r1_raw
-            : static_cast<std::size_t>(args->index_range);
-        if(r0 < r1)
-        {
-            span_max = std::max(span_max, (r1 - r0) * row_len);
-        }
-    }
-    if(span_max > 0)
-    {
-        T *temp = arena.alloc<T>(row_len + span_max);
-        for(std::size_t c = 0; c < vocab.nchunks && arena.ok; ++c)
-        {
-            // Rows whose FIRST element starts inside this chunk (a row
-            // straddling the end drags its tail along, see above).
-            std::size_t const begin = vocab.chunk_begin(c);
-            std::size_t const end = vocab.chunk_end(c);
-            std::size_t const r0 = (begin + row_len - 1) / row_len;
-            std::size_t const r1_raw = (end + row_len - 1) / row_len;
-            std::size_t const r1 = r1_raw < static_cast<std::size_t>(args->index_range)
-                ? r1_raw
-                : static_cast<std::size_t>(args->index_range);
-            if(r0 >= r1)
-            {
-                continue;
-            }
-            std::size_t const span = (r1 - r0) * row_len;
-            arena.zero_bytes(temp, row_len * sizeof(T));
-            emb_bwd_gather(vocab, r0 * row_len, span, temp + row_len, arena);
-            // Row-shifted index: garbage row 0 for out-of-chunk
-            // occurrences, shipped to the device temp for the kernel.
-            for(std::size_t j = 0; j < host_index.size(); ++j)
-            {
-                std::size_t const token = static_cast<std::size_t>(
-                    static_cast<::int64_t>(index[j]));
-                host_index[j] = token >= r0 && token < r1
-                    ? static_cast<int64_t>(token - r0 + 1)
-                    : int64_t{0};
-            }
-            arena.copy_h2d(temp_index, host_index.data(),
-                host_index.size() * sizeof(int64_t));
+            // Piece 7: every operand is single-chunk, so the chunked
+            // operation degenerates to the classic kernel on the
+            // resolved chunk bases -- the piece-4/6 degenerate-launch
+            // pattern (bitwise by construction; ring untouched). Covers
+            // the GPT-2 position-embedding-backward call (3 MiB dy, 3
+            // MiB wpe grad, 8 KiB index -- all 1-chunk at the class;
+            // pair-4 informational med 1.167 on that group). The
+            // chunked kernel stays the multi-chunk path (the 147 MiB
+            // wte grad).
             kernel::embedding_backward::cuda<T>(
                 stream,
                 args->m,
                 args->n,
                 args->k,
                 args->k_start,
-                k_size,
-                /*index_range=*/static_cast<Index>(r1 - r0 + 1),
-                /*vocab_nelems=*/static_cast<Index>(row_len + span),
+                args->k_size,
+                args->index_range,
+                args->vocab_nelems,
                 args->alpha,
-                /*beta=*/Scalar{1.0},
-                temp_index,
-                embed,
-                temp
-            );
-            emb_bwd_scatter(vocab, r0 * row_len, span, temp + row_len, arena);
+                args->beta,
+                cv_index.ptr(0, 0),
+                cv_embed.ptr(0, 0),
+                cv_vocab.ptr(0, 0));
+            return;
+        }
+        chunkunits::RingTables &tabs = chunkunits::ring_tables();
+        tabs.clear();
+        std::size_t const o_index_ptrs = tabs.add(cv_index);
+        std::size_t const o_embed_ptrs = tabs.add(cv_embed);
+        std::size_t const o_vocab_ptrs = tabs.add(cv_vocab);
+        chunkunits::ChunkPtrRing &arena = chunkunits::chunk_ptr_ring();
+        if(arena.begin(stream))
+        {
+            void const *ring_base = arena.upload_tables(tabs);
+            if(ring_base != nullptr)
+            {
+                const int64_t *const *index_tab = arena.table_view<const int64_t *>(
+                    ring_base, o_index_ptrs);
+                const T *const *embed_tab = arena.table_view<const T *>(
+                    ring_base, o_embed_ptrs);
+                T *const *vocab_tab = arena.table_view<T *>(
+                    ring_base, o_vocab_ptrs);
+                kernel::embedding_backward::chunked<T>(
+                    stream,
+                    args->m,
+                    args->n,
+                    args->k,
+                    args->k_start,
+                    args->k_size,
+                    args->index_range,
+                    args->vocab_nelems,
+                    args->alpha,
+                    args->beta,
+                    index_tab,
+                    Index(cv_index.nchunks),
+                    Index(cv_index.chunk_elems),
+                    embed_tab,
+                    Index(cv_embed.nchunks),
+                    Index(cv_embed.chunk_elems),
+                    vocab_tab,
+                    Index(cv_vocab.nchunks),
+                    Index(cv_vocab.chunk_elems));
+                arena.end(stream);
+                return;
+            }
         }
     }
-    if(!arena.ok)
-    {
-        std::fprintf(stderr, "nntile_embedding_backward: chunked CUDA "
-                "driver aborted after a stream error; vocab partially "
-                "updated\n");
-    }
+    // (rule 11, user directive 2026-10-19) There is no per-piece
+    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot ring
+    // serve any launch up to a 16 TiB operand, so a failed upload is an
+    // invariant violation, not a mode to stage around.
+    std::fprintf(stderr,
+        "nntile_embedding_backward: chunk-ptr ring cannot serve this launch "
+        "(invariant violation; the per-piece staging fallback was deleted "
+        "by rule 11)\n");
+    std::abort();
 }
 
 // Specializations of CUDA wrapper for accelerated types

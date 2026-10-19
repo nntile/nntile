@@ -29,6 +29,18 @@
 #endif
 
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+
+#ifdef NNTILE_USE_NNHAUL
+// One source of truth for the chunk class (rule 7): the kernel-side
+// constant below must equal nnhaul::kChunkClassBytes in every NNHaul
+// build (kernel translation units see the public macro through the
+// target's PUBLIC definition). The kernel files must also build in the
+// StarPU configuration, where the nnhaul headers are absent -- hence
+// the restatement inside the namespace instead of an alias.
+#include <nnhaul/nnhaul.hh>
+#endif
 
 namespace nntile::kernel
 {
@@ -130,6 +142,75 @@ const typename CUDAComputeType<T>::value *cast_pointer_cuda(const T *ptr)
             throw std::runtime_error(std::string(message) + ": " + cudaGetErrorString(_err)); \
         } \
     } while (0)
+
+// ---- (rule 7) the compile-time chunk class of the chunked kernels ----
+//
+// The ONE chunk class: 16 MiB, a power of two, identical to
+// nnhaul::kChunkClassBytes (static_asserted in the NNHaul build below;
+// restated because the kernel translation units also build in the
+// StarPU configuration, where the nnhaul headers are absent). A
+// multi-chunk operand's full chunk is exactly the class -- the nnhaul
+// policy cannot create anything else and a violation aborts loudly
+// (chunk_shift_of) -- so the chunk-index divmod lowers to shift/mask
+// on the class. A single-chunk operand uses the sentinel shift 62:
+// every flat offset stays in chunk 0 (f >> 62 == 0, f & mask == f),
+// which is correct for a contiguous buffer of ANY size. Scope of the
+// "no runtime divisor" claim: the address-resolution HELPERS here and
+// the chunked kernels' per-element/per-span chunk resolutions --
+// including the piece-4 m1 walk span starts and rebases (sum_fiber,
+// sum_slice, multiply_slice, sumprod_fiber, multiply_fiber) -- are
+// pure shift/mask; the historical shift = -1 fallback (a runtime
+// 64-bit division whose expansion serialized the address path, 4.58x
+// on sumprod_fiber) is deleted. What still divides by a runtime
+// value: only the straddling-RUN room arithmetic of the walks
+// ((elems - off + step - 1) / step, once per run end, never per
+// element) and arithmetic unrelated to chunk residency (grid tiling
+// and the like).
+inline constexpr std::size_t kChunkClassBytes = std::size_t{16} << 20;
+#ifdef NNTILE_USE_NNHAUL
+static_assert(::nnhaul::kChunkClassBytes == kChunkClassBytes,
+    "nntile kernel chunk class must equal nnhaul::kChunkClassBytes");
+#endif
+
+//! Exact log2 of a power of two (constexpr, v must be a power of two).
+inline constexpr int chunk_log2(std::size_t v) noexcept
+{
+    int s = 0;
+    while ((v >>= 1) != 0)
+    {
+        ++s;
+    }
+    return s;
+}
+
+//! Sentinel shift of a single-chunk operand: everything in chunk 0.
+inline constexpr int kChunkSingleShift = 62;
+
+//! Per-operand chunk shift (rule 7): the class shift for a multi-chunk
+//! operand -- aborting loudly unless its full chunk is exactly the
+//! class (the invariant the nnhaul side guarantees; hand-built tables
+//! that violate it are caught here) -- and the single-chunk sentinel
+//! otherwise. elems is the operand's full-chunk element count the
+//! caller derived from its buffer view.
+template<typename T>
+inline int chunk_shift_of(std::size_t nchunks, std::size_t elems,
+    char const *op) noexcept
+{
+    constexpr std::size_t class_elems = kChunkClassBytes / sizeof(T);
+    if (nchunks > 1)
+    {
+        if (elems != class_elems)
+        {
+            std::fprintf(stderr,
+                "nntile %s: chunked operand full chunk %zu elements != "
+                "class %zu (rule 7 compile-time 16 MiB class)\n",
+                op, elems, class_elems);
+            std::abort();
+        }
+        return chunk_log2(class_elems);
+    }
+    return kChunkSingleShift;
+}
 
 } // namespace nntile::kernel
 

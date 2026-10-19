@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/logsumexp/cuda.hh
  * Logsumexp of a buffer on CUDA
  *
- * @version 1.1.0
+ * @version 1.2.0
  * */
 
 #pragma once
@@ -23,6 +23,16 @@ namespace nntile::kernel::logsumexp
 // Compute logsumexp based on the resut of maxsumexp operation
 template<typename T>
 void cuda(cudaStream_t stream, Index nelems, const T *maxsumexp, T *logsumexp)
+    noexcept;
+
+//! Logsumexp over chunked buffers on CUDA (ONE launch)
+/*! maxsumexp is addressed as 2*nelems elements and logsumexp as nelems,
+ * each through its own device-ring chunk table. */
+template<typename T>
+void chunked(cudaStream_t stream, Index nelems,
+        const T* const* maxsumexp_chunks, Index nmse,
+        T* const* logsumexp_chunks, Index nlse, Index elems_mse,
+        Index elems_lse)
     noexcept;
 
 } // namespace nntile::kernel::logsumexp

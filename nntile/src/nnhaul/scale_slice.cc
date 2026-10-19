@@ -46,17 +46,17 @@ namespace
 template<typename T, typename Arena, typename Sub>
 void scale_slice_chunked(Index m, Index n, Index k, Scalar alpha,
     ::nnhaul::Buffer *buf_src, ::nnhaul::Buffer *buf_dst,
-    std::size_t force_bytes, Arena &arena, Sub &&sub)
+    Arena &arena, Sub &&sub)
 {
     if(m <= 0)
     {
         return;
     }
-    chunkunits::ChunkView<T> const cv_src(buf_src, force_bytes);
-    chunkunits::ChunkView<T> const cv_dst(buf_dst, force_bytes);
+    chunkunits::ChunkView<T> const cv_src(buf_src);
+    chunkunits::ChunkView<T> const cv_dst(buf_dst);
     chunkunits::UnitSpan<T> const span_dst{&cv_dst, std::size_t(m), Index{1}};
     chunkunits::UnitSpan<T> const span_src{&cv_src, std::size_t(m), k};
-    bool const chunked_dst = cv_dst.nchunks > 1 || force_bytes != 0;
+    bool const chunked_dst = cv_dst.nchunks > 1;
     T *temp_dst = chunked_dst ? arena.alloc(std::size_t(m)) : nullptr;
     chunkunits::SliceStage<T, Arena> src_stage(
         cv_src, std::size_t(m), false, arena);
@@ -127,9 +127,8 @@ void ScaleSlice<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get interfaces
     auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
-    if(buf_src->chunk_count() == 1 && buf_dst->chunk_count() == 1
-        && forced == 0)
+    if((buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+       )
     {
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::scale_slice::cpu<T>(args->m, args->n, args->k, args->alpha,
@@ -146,7 +145,6 @@ void ScaleSlice<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
             args->alpha,
             buf_src,
             buf_dst,
-            forced,
             arena,
             [](Index mm, Index nn, Index kk, Scalar al, T const *ps, T *pd) {
                 kernel::scale_slice::cpu<T>(mm, nn, kk, al, ps, pd);
@@ -201,9 +199,8 @@ void ScaleSlice<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
-    if(buf_src->chunk_count() == 1 && buf_dst->chunk_count() == 1
-        && forced == 0)
+    if((buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+       )
     {
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::scale_slice::cuda<T>(stream, args->m, args->n, args->k,
@@ -218,7 +215,6 @@ void ScaleSlice<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         args->alpha,
         buf_src,
         buf_dst,
-        forced,
         arena,
         [stream](Index mm, Index nn, Index kk, Scalar al, T const *ps,
             T *pd) {

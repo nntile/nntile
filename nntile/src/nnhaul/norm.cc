@@ -50,10 +50,10 @@ namespace
 
 template<typename T, typename Sub>
 void norm_chunked(Index nelems, Scalar alpha, ::nnhaul::Buffer *buf_src,
-    Scalar beta, ::nnhaul::Buffer *buf_dst, std::size_t force_bytes,
+    Scalar beta, ::nnhaul::Buffer *buf_dst,
     Sub &&sub)
 {
-    chunkunits::ChunkView<T> const cv_src(buf_src, force_bytes);
+    chunkunits::ChunkView<T> const cv_src(buf_src);
     T *pd = buf_dst->get_ptr<T>();
     if(nelems <= 0)
     {
@@ -111,9 +111,8 @@ void Norm<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get interfaces
     auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
-    if(buf_src->chunk_count() == 1 && buf_dst->chunk_count() == 1
-        && forced == 0)
+    if((buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+       )
     {
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::norm::cpu<T>(args->nelems, args->alpha,
@@ -126,7 +125,6 @@ void Norm<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
         buf_src,
         args->beta,
         buf_dst,
-        forced,
         [](Index n, Scalar al, T const *ps, Scalar be, T *pd) {
             kernel::norm::cpu<T>(n, al, ps, be, pd);
         });
@@ -170,9 +168,8 @@ void Norm<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
-    if(buf_src->chunk_count() == 1 && buf_dst->chunk_count() == 1
-        && forced == 0)
+    if((buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+       )
     {
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::norm::cuda<T>(
@@ -191,7 +188,6 @@ void Norm<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         buf_src,
         args->beta,
         buf_dst,
-        forced,
         [stream](Index n, Scalar al, T const *ps, Scalar be, T *pd) {
             kernel::norm::cuda<T>(stream, n, al, ps, be, pd);
         });

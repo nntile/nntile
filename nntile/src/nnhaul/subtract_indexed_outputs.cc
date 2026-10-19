@@ -9,7 +9,7 @@
  * @file src/starpu/subtract_indexed_outputs.cc
  * Subtract a given value from certain matrix elements for StarPU buffer
  *
- * @version 1.1.0
+ * @version 1.2.0
  * */
 
 // Corresponding header
@@ -27,6 +27,7 @@
 
 namespace nntile::haul
 {
+
 
 // ---------------------------------------------------------------------------
 // Native chunked subtract_indexed_outputs driver (chunk_units.hh scheme;
@@ -58,17 +59,16 @@ namespace
 template<typename T, typename Arena, typename Sub>
 void subtract_indexed_outputs_chunked(Index n_labels, Index n_outputs,
     Index ignore_index, Scalar val, ::nnhaul::Buffer *buf_labels,
-    ::nnhaul::Buffer *buf_dst, std::size_t force_bytes, Arena &arena,
+    ::nnhaul::Buffer *buf_dst, Arena &arena,
     Sub &&sub)
 {
     if(n_labels <= 0 || n_outputs <= 0)
     {
         return;
     }
-    chunkunits::ChunkView<T> const cv_dst(buf_dst, force_bytes);
-    chunkunits::ChunkView<nntile::int64_t> const cv_labels(buf_labels,
-        force_bytes);
-    bool const chunked_dst = cv_dst.nchunks > 1 || force_bytes != 0;
+    chunkunits::ChunkView<T> const cv_dst(buf_dst);
+    chunkunits::ChunkView<nntile::int64_t> const cv_labels(buf_labels);
+    bool const chunked_dst = cv_dst.nchunks > 1;
     T *temp_col = chunked_dst ? arena.alloc(std::size_t(n_labels)) : nullptr;
     Index j = 0;
     while(j < n_outputs && arena.ok_state())
@@ -151,10 +151,12 @@ void SubtractIndexedOutputs<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get interfaces
     auto buf_labels = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
-    if(buf_labels->chunk_count() == 1 && buf_dst->chunk_count() == 1
-        && forced == 0)
+    if((buf_labels->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+       )
     {
+        // Classic contiguous dispatch: illegal under the force flag
+        // (the tripwire proves it never happens in a flag-on run).
+        chunkunits::classic_dispatch_tripwire("nntile_subtract_indexed_outputs", false);
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::subtract_indexed_outputs::cpu<T>(n_labels, n_outputs,
             ignore_index, val, buf_labels->get_ptr<nntile::int64_t>(),
@@ -171,7 +173,6 @@ void SubtractIndexedOutputs<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
             val,
             buf_labels,
             buf_dst,
-            forced,
             arena,
             [](Index nl, Index no, Index ig, Scalar v,
                 nntile::int64_t const *pl, T *pd) {
@@ -233,38 +234,89 @@ void SubtractIndexedOutputs<std::tuple<T>>::cuda(
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    std::size_t const forced = chunkunits::forced_chunk_bytes();
-    if(buf_labels->chunk_count() == 1 && buf_dst->chunk_count() == 1
-        && forced == 0)
+    if((buf_labels->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+       )
     {
+        // Classic contiguous dispatch: illegal under the force flag
+        // (the tripwire proves it never happens in a flag-on run).
+        chunkunits::classic_dispatch_tripwire("nntile_subtract_indexed_outputs", false);
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::subtract_indexed_outputs::cuda<T>(stream, n_labels,
             n_outputs, ignore_index, args->value,
             buf_labels->get_ptr<nntile::int64_t>(), buf_dst->get_ptr<T>());
         return;
     }
-    chunkunits::ArenaCuda<T> arena(stream);
-    subtract_indexed_outputs_chunked<T>(
-        n_labels,
-        n_outputs,
-        ignore_index,
-        args->value,
-        buf_labels,
-        buf_dst,
-        forced,
-        arena,
-        [stream](Index nl, Index no, Index ig, Scalar v,
-            nntile::int64_t const *pl, T *pd) {
-            kernel::subtract_indexed_outputs::cuda<T>(stream, nl, no, ig, v,
-                pl, pd);
-        });
-    if(!arena.ok_state())
+    // Chunked single-launch path: whenever any operand is chunked, do the
+    // WHOLE op with ONE chunk-aware kernel. The chunk base-pointer arrays are
+    // rides the device ring (ONE event-ordered control-stream copy per
+    // launch) and the kernel reads it per-thread by shift/mask.
+    // Column-local updates, so the result is bitwise the contiguous
+    // call's. (The historical piecewise fallback is DELETED -- rule 11.)
+    chunkunits::ChunkView<nntile::int64_t> const cv_lab(buf_labels);
+    chunkunits::ChunkView<T> const cv_dst(buf_dst);
+    // Piece C (2026-10-18c) smalls-direct fast path: a single-chunk
+    // labels operand (the graph shape beside the multi-chunk dst)
+    // travels as its resolved base pointer, so ONLY the dst table is
+    // built, uploaded and read through the ring; the labels load
+    // shortens by the ring-table hop. The general two-table form below
+    // (and the piecewise fallback) keeps every other shape.
+    if(cv_lab.nchunks == 1)
     {
-        std::fprintf(stderr,
-            "nntile_subtract_indexed_outputs: chunked CUDA driver aborted "
-            "after a stream error; dst left unwritten\n");
+        chunkunits::RingTables &tabs = chunkunits::ring_tables();
+        tabs.clear();
+        std::size_t const o_dst_ptrs = tabs.add(cv_dst);
+        chunkunits::ChunkPtrRing &arena = chunkunits::chunk_ptr_ring();
+        if(arena.begin(stream))
+        {
+            void const *ring_base = arena.upload_tables(tabs);
+            if(ring_base != nullptr)
+            {
+                T *const *dst_tab = arena.table_view<T *>(
+                    ring_base, o_dst_ptrs);
+                kernel::subtract_indexed_outputs::chunked<T>(stream,
+                    n_labels, n_outputs, ignore_index, args->value,
+                    nullptr, 1, dst_tab, Index(cv_dst.nchunks), 1,
+                    Index(cv_dst.chunk_elems), cv_lab.ptr(0, 0));
+                arena.end(stream);
+                return;
+            }
+        }
     }
+    {
+        chunkunits::RingTables &tabs = chunkunits::ring_tables();
+        tabs.clear();
+        std::size_t const o_lab_ptrs = tabs.add(cv_lab);
+        std::size_t const o_dst_ptrs = tabs.add(cv_dst);
+        chunkunits::ChunkPtrRing &arena = chunkunits::chunk_ptr_ring();
+        if(arena.begin(stream))
+        {
+            void const *ring_base = arena.upload_tables(tabs);
+            if(ring_base != nullptr)
+            {
+                const nntile::int64_t *const *lab_tab = arena.table_view<const nntile::int64_t *>(
+                    ring_base, o_lab_ptrs);
+                T *const *dst_tab = arena.table_view<T *>(
+                    ring_base, o_dst_ptrs);
+                kernel::subtract_indexed_outputs::chunked<T>(stream,
+                    n_labels, n_outputs, ignore_index, args->value, lab_tab,
+                    Index(cv_lab.nchunks), dst_tab, Index(cv_dst.nchunks),
+                    Index(cv_lab.chunk_elems), Index(cv_dst.chunk_elems));
+                arena.end(stream);
+                return;
+            }
+        }
+    }
+        // (rule 11, user directive 2026-10-19) There is no per-piece
+    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot ring
+    // serve any launch up to a 16 TiB operand, so a failed upload is an
+    // invariant violation, not a mode to stage around.
+    std::fprintf(stderr,
+        "nntile_subtract_indexed_outputs: chunk-ptr ring cannot serve this launch (invariant "
+        "violation; the per-piece staging fallback was deleted by rule "
+        "11)\n");
+    std::abort();
 }
+
 
 // Specializations of CUDA wrapper for accelerated types
 template<>
