@@ -328,13 +328,12 @@ TEST_CASE("probe b: mixed chain bitwise vs contiguous mode",
     std::cout << "probe b OK bitwise\n";
 }
 
-// (c) Scratch-pressure fan-out: staged swap_two_axes ops (transpose
-// became a native chunked op in family 2; the axis swap is still the
-// V1 staging fallback) on many distinct 2 MiB chunked tiles under a
-// tiny cap. Every scratch of every staged op stays alive until the
-// next idle drain (the stage lifetime scheme), so this exercises
-// eviction of idle scratch handles.
-TEST_CASE("probe c: ten staged ops under scratch pressure",
+// (c) Scratch-pressure fan-out: native swap_two_axes ops (both it and
+// transpose are native chunked drivers now; no staging) on many
+// distinct 2 MiB chunked tiles under a tiny cap. It still exercises
+// their residency/eviction behaviour, and the staged counter printed
+// below must remain zero for them.
+TEST_CASE("probe c: ten native ops under scratch pressure",
     "[chunked][probe]")
 {
     auto context = make_context();

@@ -117,6 +117,22 @@ class Runtime
     //! installed.
     int starpu_worker_hint() const noexcept { return starpu_worker_hint_; }
 
+#ifdef NNTILE_USE_NNHAUL
+    //! Tag a retained payload with the next phase that can reference it.
+    void nnhaul_retain_payload(std::shared_ptr<void> const &payload);
+    //! Erase retained payloads whose tag is <= phase_seq.
+    void release_retained_through(std::uint64_t phase_seq);
+    //! Advance the submitted-phase sequence (one per submit).
+    void bump_nnhaul_phase() { ++nnhaul_phase_seq_; }
+    //! The current submitted-phase sequence (captured at a submit).
+    std::uint64_t nnhaul_phase_seq() const { return nnhaul_phase_seq_; }
+    //! Retained payload count (the two-window hard-cap observable).
+    std::size_t nnhaul_retained_count() const
+    {
+        return nnhaul_retained_payloads_.size();
+    }
+#endif
+
     //! Block until all tasks submitted by ``execute()`` / ``execute_range()``
     //! have finished. Last-consumer tile invalidation already ran during
     //! submit; this only drains StarPU.
@@ -283,9 +299,19 @@ class Runtime
     //! ``execute_range`` (not deferred to ``wait()``).
     std::vector<const TileNode *> queued_dead_tiles_;
 #ifdef NNTILE_USE_NNHAUL
+    //! One retained payload, tagged with the earliest phase that can
+    //! still reference it (pipelined-planning.md §11.2.1).
+    struct RetainedPayload
+    {
+        std::shared_ptr<void> payload;
+        std::uint64_t phase_tag = 0;
+    };
     //! Payloads whose handles have an async invalidate in flight.
-    //! ``nnhaul::Handle`` must stay alive until ``wait()`` joins that task.
-    std::vector<std::shared_ptr<void>> nnhaul_retained_payloads_;
+    //! Released per batch through ``release_retained_through`` or
+    //! entirely by ``wait()`` / the destructor.
+    std::vector<RetainedPayload> nnhaul_retained_payloads_;
+    //! The submitted phase counter (monotone).
+    std::uint64_t nnhaul_phase_seq_ = 0;
 #endif
     //! Highest exclusive op index already run via execute / execute_range.
     size_t executed_op_end_ = 0;

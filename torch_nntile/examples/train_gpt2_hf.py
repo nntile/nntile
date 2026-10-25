@@ -90,6 +90,7 @@ from pathlib import Path
 import torch
 from hf_tiny_train_common import configure_single_thread_host, configure_tf32
 from nntile_iter_phases import (
+    compile_run_join_prev_iter,
     compile_run_wait_iter,
     compile_wait_run_iter,
     print_nntile_prep_compute,
@@ -878,7 +879,9 @@ def train_nntile(args: argparse.Namespace) -> int:
                 step_torch_s = max(0.0, record_wall_s - step_nntile_s)
                 record_nntile_s += step_nntile_s
                 record_torch_s += step_torch_s
-                if args.wait_after_run:
+                if args.join_predecessor:
+                    dc, dr, dw = compile_run_join_prev_iter(torch_nntile)
+                elif args.wait_after_run:
                     dc, dw, dr = compile_run_wait_iter(torch_nntile)
                 else:
                     dc, dw, dr = compile_wait_run_iter(torch_nntile)
@@ -886,6 +889,7 @@ def train_nntile(args: argparse.Namespace) -> int:
                 wait_s += dw
                 run_s += dr
                 global_step += 1
+
                 is_last = (
                     epoch_idx == n_epoch_batches - 1
                     and batch_idx == n_batches - 1
@@ -1090,6 +1094,15 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Pin nntile kernels to CPU workers "
             "(ignored on --device cpu/cuda)"
+        ),
+    )
+    train.add_argument(
+        "--join-predecessor",
+        action="store_true",
+        help=(
+            "Compile, run, then join only the PREVIOUS run, so the next "
+            "plan is built from its predicted boundary while the newest "
+            "run executes. A final wait() joins the last batch."
         ),
     )
     train.add_argument(

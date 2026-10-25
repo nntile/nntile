@@ -22,6 +22,8 @@
 
 // Other NNTile headers
 #include "nntile/kernel/sgd_step.hh"
+#include "nntile/kernel/nnhaul/chunk_ops.hh"
+#include "nntile/nnhaul/chunk_units.hh"
 
 //! StarPU wrappers for one step of SGD with momentum optimizer
 namespace nntile::haul
@@ -115,6 +117,17 @@ void SGDStep<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto p = ::nntile::haul::buf_chunks<T>(buffers, 2);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
+    std::size_t const forced = chunkunits::forced_chunk_bytes();
+    if((grad.count() > 1 || velocity.count() > 1 || p.count() > 1)
+        && forced == 0)
+    {
+        // Chunked native path: one launch over the whole flat range.
+        ::nntile::kernel::nnhaul::chunk_sgd_step(*grad.buf, *velocity.buf, *p.buf,
+            args->num_iter, args->num_elems, args->momentum, args->lr,
+            args->weight_decay, args->dampening, args->nesterov,
+            chunkunits::nnhaul_elem_type<T>());
+        return;
+    }
     // Launch kernel per flat chunk piece (single piece if unchunked)
     ::nntile::haul::for_each_flat_piece(
         args->num_elems,

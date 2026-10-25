@@ -23,6 +23,7 @@
 
 // Other NNTile headers
 #include "nntile/kernel/sum_fiber.hh"
+#include "nntile/kernel/nnhaul/chunk_ops.hh"
 #include "nntile/nnhaul/chunk_units.hh"
 
 namespace nntile::haul
@@ -242,6 +243,18 @@ void SumFiber<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         kernel::sum_fiber::cuda<T>(stream, args->m, args->n, args->k,
             args->batch, args->alpha, buf_src->get_ptr<T>(), args->beta,
             buf_dst->get_ptr<T>());
+        return;
+    }
+    if(buf_src->chunk_count() > 1 || buf_dst->chunk_count() > 1)
+    {
+        // Chunked native path: one launch, the reduction walks every
+        // chunk directly through the by-value tables.
+        ::nntile::kernel::nnhaul::chunk_sum_fiber(*buf_src, *buf_dst,
+            static_cast<std::size_t>(args->m),
+            static_cast<std::size_t>(args->n),
+            static_cast<std::size_t>(args->k),
+            static_cast<std::size_t>(args->batch), args->alpha, args->beta,
+            chunkunits::nnhaul_elem_type<T>());
         return;
     }
     chunkunits::ArenaCuda<T> arena(stream);

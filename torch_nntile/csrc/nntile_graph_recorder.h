@@ -39,6 +39,11 @@ void run_graph();
 //! Prefer ``torch_nntile.wait()`` / ``wait_for_all()`` which call this.
 void wait_graph_session();
 
+//! Join the older of two in-flight submitted runs (the predecessor),
+//! without joining the newest; returns its batch sequence, or 0 when
+//! fewer than two runs are un-retired. No event is queried.
+std::uint64_t join_predecessor();
+
 void reset_graph_session();
 
 void shutdown_recorder();

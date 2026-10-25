@@ -23,6 +23,7 @@
 
 // Other NNTile headers
 #include "nntile/kernel/subtract_indexed_outputs.hh"
+#include "nntile/kernel/nnhaul/chunk_ops.hh"
 #include "nntile/nnhaul/chunk_units.hh"
 
 namespace nntile::haul
@@ -241,6 +242,16 @@ void SubtractIndexedOutputs<std::tuple<T>>::cuda(
         kernel::subtract_indexed_outputs::cuda<T>(stream, n_labels,
             n_outputs, ignore_index, args->value,
             buf_labels->get_ptr<nntile::int64_t>(), buf_dst->get_ptr<T>());
+        return;
+    }
+    if(buf_labels->chunk_count() > 1 || buf_dst->chunk_count() > 1)
+    {
+        // Chunked native path: one launch, columns addressed directly
+        // through the chunk tables (no straddle staging, no per-piece
+        // host loop).
+        ::nntile::kernel::nnhaul::chunk_subtract_indexed_outputs(*buf_labels, *buf_dst,
+            n_labels, n_outputs, ignore_index, args->value,
+            chunkunits::nnhaul_elem_type<T>());
         return;
     }
     chunkunits::ArenaCuda<T> arena(stream);

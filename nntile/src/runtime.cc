@@ -39,6 +39,7 @@
 #include "nntile/dtype.hh"
 #include "nntile/tile/lowering_context.hh"
 
+#include <algorithm>
 #include <chrono>
 #include <cstring>
 #include <stdexcept>
@@ -293,7 +294,7 @@ void Runtime::invalidate_logical_tiles(
 #ifdef NNTILE_USE_NNHAUL
         if (payload)
         {
-            nnhaul_retained_payloads_.push_back(payload);
+            nnhaul_retain_payload(payload);
         }
 #endif
         auto *mut = const_cast<TileGraph::TileNode *>(tile);
@@ -315,7 +316,7 @@ void Runtime::invalidate_tile(TileGraph::TileNode *tile)
 #ifdef NNTILE_USE_NNHAUL
     if (payload)
     {
-        nnhaul_retained_payloads_.push_back(payload);
+        nnhaul_retain_payload(payload);
     }
 #endif
     tile->clear_payload();
@@ -335,7 +336,7 @@ void Runtime::unregister_tile(TileGraph::TileNode *tile)
 #ifdef NNTILE_USE_NNHAUL
         if (payload)
         {
-            nnhaul_retained_payloads_.push_back(payload);
+            nnhaul_retain_payload(payload);
         }
 #endif
     }
@@ -1197,7 +1198,7 @@ void Runtime::flush_queued_dead_tiles()
 #ifdef NNTILE_USE_NNHAUL
         if (payload)
         {
-            nnhaul_retained_payloads_.push_back(payload);
+            nnhaul_retain_payload(payload);
         }
 #endif
         auto *mut = const_cast<TileGraph::TileNode *>(tile);
@@ -1391,11 +1392,41 @@ std::string Runtime::execution_op_name(size_t i) const
     return execution_order_[i]->op_name();
 }
 
+#ifdef NNTILE_USE_NNHAUL
+void Runtime::nnhaul_retain_payload(std::shared_ptr<void> const &payload)
+{
+    nnhaul_retained_payloads_.push_back(
+        RetainedPayload{payload, nnhaul_phase_seq_ + 1});
+}
+
+void Runtime::release_retained_through(std::uint64_t phase_seq)
+{
+    auto const first_retained = std::remove_if(
+        nnhaul_retained_payloads_.begin(),
+        nnhaul_retained_payloads_.end(),
+        [phase_seq](RetainedPayload const &entry)
+        { return entry.phase_tag <= phase_seq; });
+    nnhaul_retained_payloads_.erase(first_retained,
+        nnhaul_retained_payloads_.end());
+    if (std::getenv("NNHAUL_PLAN_DIAG") != nullptr)
+    {
+        std::fprintf(stderr,
+            "[pipeline] retained_payloads=%zu after release(<=%llu)\n",
+            nnhaul_retained_payloads_.size(),
+            static_cast<unsigned long long>(phase_seq));
+    }
+}
+#endif
+
 void Runtime::wait()
 {
     starpu_task_wait_for_all_counted();
 #ifdef NNTILE_USE_NNHAUL
     nnhaul_retained_payloads_.clear();
+    if (std::getenv("NNHAUL_PLAN_DIAG") != nullptr)
+    {
+        std::fprintf(stderr, "[pipeline] retained_payloads=0 after wait\n");
+    }
 #endif
 }
 

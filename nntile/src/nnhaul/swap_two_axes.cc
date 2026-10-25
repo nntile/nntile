@@ -8,47 +8,32 @@
  * */
 
 #include "nntile/nnhaul/ops/swap_two_axes.hh"
-#include "nntile/nnhaul/stage.hh"
 
 #include <cstdint>
 #include <cstdlib>
 #include <stdexcept>
 
 #include "nntile/kernel/swap_two_axes.hh"
+#include "nntile/kernel/nnhaul/chunk_ops.hh"
+#include "nntile/nnhaul/chunk_units.hh"
 
 namespace nntile::haul
 {
 
 // ---------------------------------------------------------------------------
-// DELIBERATELY STAGED (family-2 follow-up C: the in-tree derivation).
+// Native chunked driver (no staging).
 //
 // Kernel index map (kernel::swap_two_axes::cpu/cuda): element
 // (i0, i1, i2, i3, i4) sits at src flat i0*d1*d2*d3*d4 + i1*d2*d3*d4 +
 // i2*d3*d4 + i3*d4 + i4 and at dst flat i0*d3*d2*d1*d4 + i3*d2*d1*d4 +
 // i2*d1*d4 + i1*d4 + i4 - axes 1 and 3 swap, and d4 is the CONTIGUOUS
-// axis on BOTH sides. The two candidate decompositions each fail one
-// half of the chunked-tile contract:
-//  * the natural chunk-local unit is the d4 RUN (contiguous in both
-//    src and dst), but the existing kernel signature has no
-//    sub-block/panel form - it always swaps the FULL axes 1 and 3 of
-//    the view it is handed - so one d4-run per sub-call is not
-//    expressible without a new kernel, and per-element staging of
-//    d0*d1*d2*d3 runs (one launch each) is the degenerate regime the
-//    transpose guard exists to avoid;
-//  * the kernel-EXPRESSIBLE sub-view is the i0 SLAB: a sub-call over
-//    i0 in [a, b) with dims 1..4 full is (d0' = b-a, d1, d2, d3, d4)
-//    at src + a*d1*d2*d3*d4 / dst + a*d3*d2*d1*d4, because d1*d2*d3 ==
-//    d3*d2*d1 makes the in-slab swap equal the global swap. But an i0
-//    slab spans all of dims 1..4 - it is chunk-local only when the
-//    whole slab (nearly the whole tensor) fits one chunk, which is the
-//    unchunked case. Straddling slabs would need whole-slab staging
-//    through a tensor-sized temp, i.e. staging with extra steps.
-// Hence the universal staging fallback: one gather + the classic kernel
-// + one scatter, exact for every geometry. A future panel-style kernel
-// variant (per-fiber base pointers along the lines of
-// kernel::transpose::panel) would unlock the d4-run decomposition.
+// axis on BOTH sides. The chunked body calls the device kernel that
+// reads a destination flat position, decodes it with the destination
+// axes and writes the corresponding source position; both positions go
+// through the chunk tables with the compile-time shift/mask map. A
+// chunked buffer is therefore exactly the unchunked call plus pointer
+// arithmetic. All-unchunked buffers keep the single classic call.
 // ---------------------------------------------------------------------------
-
 
 template<typename T>
 SwapTwoAxes<std::tuple<T>>::SwapTwoAxes():
@@ -70,16 +55,49 @@ void SwapTwoAxes<std::tuple<T>>::cpu(
     void *cl_args) noexcept
 {
     auto args = reinterpret_cast<args_t const *>(cl_args);
-    const T *src = ::nntile::haul::buf_as<T>(buffers, 0);
-    T *dst = ::nntile::haul::buf_as<T>(buffers, 1);
-    kernel::swap_two_axes::cpu<T>(
-        args->d0,
-        args->d1,
-        args->d2,
-        args->d3,
-        args->d4,
-        src,
-        dst);
+    auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[0]);
+    auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
+    if(buf_src->chunk_count() == 1 && buf_dst->chunk_count() == 1)
+    {
+        kernel::swap_two_axes::cpu<T>(
+            args->d0,
+            args->d1,
+            args->d2,
+            args->d3,
+            args->d4,
+            buf_src->get_ptr<T>(),
+            buf_dst->get_ptr<T>());
+        return;
+    }
+    // Chunked CPU body (never scheduled by this runtime): the same map
+    // as the device kernel, elementwise through the chunk views.
+    std::size_t const d0 = static_cast<std::size_t>(args->d0);
+    std::size_t const d1 = static_cast<std::size_t>(args->d1);
+    std::size_t const d2 = static_cast<std::size_t>(args->d2);
+    std::size_t const d3 = static_cast<std::size_t>(args->d3);
+    std::size_t const d4 = static_cast<std::size_t>(args->d4);
+    chunkunits::ChunkView<T> const cs(buf_src, 0);
+    chunkunits::ChunkView<T> const cd(buf_dst, 0);
+    std::size_t const s0 = d3 * d2 * d1 * d4;
+    std::size_t const s3 = d2 * d1 * d4;
+    std::size_t const s2 = d1 * d4;
+    for(std::size_t p = 0; p < d0 * d1 * d2 * d3 * d4; ++p)
+    {
+        std::size_t r = p;
+        std::size_t const i0 = r / s0;
+        r -= i0 * s0;
+        std::size_t const i3 = r / s3;
+        r -= i3 * s3;
+        std::size_t const i2 = r / s2;
+        r -= i2 * s2;
+        std::size_t const i1 = r / d4;
+        std::size_t const i4 = r - i1 * d4;
+        std::size_t const sf =
+            ((((i0 * d1 + i1) * d2 + i2) * d3 + i3) * d4) + i4;
+        std::size_t const sc = cs.chunk_of(sf);
+        std::size_t const dc = cd.chunk_of(p);
+        *cd.ptr(dc, cd.chunk_off(p)) = *cs.ptr(sc, cs.chunk_off(sf));
+    }
 }
 
 template<>
@@ -114,18 +132,32 @@ void SwapTwoAxes<std::tuple<T>>::cuda(
     void *cl_args) noexcept
 {
     auto args = reinterpret_cast<args_t const *>(cl_args);
-    const T *src = ::nntile::haul::buf_as<T>(buffers, 0);
-    T *dst = ::nntile::haul::buf_as<T>(buffers, 1);
+    auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[0]);
+    auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    kernel::swap_two_axes::cuda<T>(
-        stream,
-        args->d0,
-        args->d1,
-        args->d2,
-        args->d3,
-        args->d4,
-        src,
-        dst);
+    if(buf_src->chunk_count() == 1 && buf_dst->chunk_count() == 1)
+    {
+        // Unchunked fast path: the historical single kernel call, bitwise.
+        kernel::swap_two_axes::cuda<T>(
+            stream,
+            args->d0,
+            args->d1,
+            args->d2,
+            args->d3,
+            args->d4,
+            buf_src->get_ptr<T>(),
+            buf_dst->get_ptr<T>());
+        return;
+    }
+    ::nntile::kernel::nnhaul::chunk_swap_two_axes(
+        *buf_src,
+        *buf_dst,
+        static_cast<std::size_t>(args->d0),
+        static_cast<std::size_t>(args->d1),
+        static_cast<std::size_t>(args->d2),
+        static_cast<std::size_t>(args->d3),
+        static_cast<std::size_t>(args->d4),
+        chunkunits::nnhaul_elem_type<T>());
 }
 
 template<>
@@ -183,11 +215,13 @@ void SwapTwoAxes<std::tuple<T>>::submit(
     args->d2 = d2;
     args->d3 = d3;
     args->d4 = d4;
-    const double nflops = static_cast<double>(sizeof(T)) * 2.0 *
+    (void)(static_cast<double>(sizeof(T)) * 2.0 *
         static_cast<double>(d0) * static_cast<double>(d1) *
         static_cast<double>(d2) * static_cast<double>(d3) *
-        static_cast<double>(d4);
-    ::nntile::haul::stage::staged_insert_task(codelet.raw, starpu_worker_hint,
+        static_cast<double>(d4));
+    // The body picks the unchunked classic call or the native chunked
+    // kernel; no staging either way.
+    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
         { { STARPU_R, &src }, { STARPU_W, &dst } }, args, sizeof(*args));
     std::free(args);
 

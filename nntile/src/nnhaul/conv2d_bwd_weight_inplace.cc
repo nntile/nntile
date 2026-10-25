@@ -15,7 +15,6 @@
 
 // Corresponding header
 #include "nntile/nnhaul/ops/conv2d_bwd_weight_inplace.hh"
-#include "nntile/nnhaul/stage.hh"
 
 // Standard libraries
 #include <cstdint>
@@ -24,25 +23,22 @@
 
 // Other NNTile headers
 #include "nntile/kernel/conv2d_bwd_weight_inplace.hh"
+#include "nntile/kernel/nnhaul/chunk_ops.hh"
+#include "nntile/nnhaul/chunk_units.hh"
 
 namespace nntile::haul
 {
 // ---------------------------------------------------------------------------
-// DELIBERATELY STAGED (the family-3 derivation, docs/chunked-tiles.md
-// §4.3): conv2d_bwd_weight_inplace is NOT chunk-decomposable with the
-// existing kernel signature.
+// Native chunked conv2d_bwd_weight_inplace (no staging).
 //
-// Index map (kernel::conv2d_bwd_weight_inplace::cpu/cuda): dst(i,j,k,l)
-// (the WEIGHT grad, contiguous axis i) is the reduction
-// sum_{b,m,n} src1(m,n,k,b) * src2((m+offset_m-dilation_m*i)/stride_m,
-// (n+offset_n-dilation_n*j)/stride_n, l, b) - EVERY dst element reduces
-// over the ENTIRE src1 and src2 tensors (all of m, n and batch feed
-// every weight). A dst m-run sub-piece is kernel-expressible and would
-// beta-chain, but it still reads every chunked src1/src2 byte, so the
-// piece count buys nothing: native decomposition here would be a
-// full-tile gather per piece with extra launches, strictly worse than
-// the staging fallback's ONE gather + ONE classic kernel + ONE scatter.
-// GPT-2 does not use conv2d; staged is exact.
+// The stock kernel's index map and accumulation order are preserved
+// exactly; every global load/store is addressed in the operand's flat
+// element space and mapped through the chunk tables (the device entry
+// point is ::nntile::kernel::nnhaul::chunk_conv2d_bwd_weight_inplace). Every weight
+// output reduces over the whole src1/src2, so a destination piece's
+// touched source span is bounded and the host emitter splits the
+// destination range until the by-value tables fit. All-unchunked
+// buffers keep the single classic kernel call, bitwise.
 // ---------------------------------------------------------------------------
 
 //! Constructor
@@ -69,32 +65,164 @@ void Conv2dBwdWeightInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get arguments
     args_t const *args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    const T *src1 = ::nntile::haul::buf_as<T>(buffers, 0);
-    const T *src2 = ::nntile::haul::buf_as<T>(buffers, 1);
-    T *dst = ::nntile::haul::buf_as<T>(buffers, 2);
-    // Launch kernel
-    kernel::conv2d_bwd_weight_inplace::cpu<T>(
-        args->src1_m,
-        args->src1_n,
-        args->src1_channels,
-        args->batch,
-        args->src2_m,
-        args->src2_n,
-        args->stride_m,
-        args->stride_n,
-        args->src2_channels,
-        args->offset_m,
-        args->offset_n,
-        args->alpha,
-        src1,
-        src2,
-        args->dst_m,
-        args->dst_n,
-        args->dilation_m,
-        args->dilation_n,
-        args->beta,
-        dst
-    );
+    auto buf_src1 = static_cast<::nnhaul::Buffer *>(buffers[0]);
+    auto buf_src2 = static_cast<::nnhaul::Buffer *>(buffers[1]);
+    auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[2]);
+    if(buf_src1->chunk_count() == 1 && buf_src2->chunk_count() == 1
+        && buf_dst->chunk_count() == 1)
+    {
+        // Unchunked fast path: the historical single kernel call, bitwise.
+        kernel::conv2d_bwd_weight_inplace::cpu<T>(
+            args->src1_m,
+            args->src1_n,
+            args->src1_channels,
+            args->batch,
+            args->src2_m,
+            args->src2_n,
+            args->stride_m,
+            args->stride_n,
+            args->src2_channels,
+            args->offset_m,
+            args->offset_n,
+            args->alpha,
+            buf_src1->get_ptr<T>(),
+            buf_src2->get_ptr<T>(),
+            args->dst_m,
+            args->dst_n,
+            args->dilation_m,
+            args->dilation_n,
+            args->beta,
+            buf_dst->get_ptr<T>()
+        );
+        return;
+    }
+    // Chunked CPU body (never scheduled by this runtime): the stock
+    // arithmetic, elementwise through the chunk views.
+    using Y = typename T::repr_t;
+    chunkunits::ChunkView<T> const v1(buf_src1, 0);
+    chunkunits::ChunkView<T> const v2(buf_src2, 0);
+    chunkunits::ChunkView<T> const vd(buf_dst, 0);
+    auto at = [](chunkunits::ChunkView<T> const &v, std::size_t f) -> T &
+    {
+        std::size_t const c = v.chunk_of(f);
+        return *v.ptr(c, v.chunk_off(f));
+    };
+    Index const src1_step =
+        args->src1_channels * args->src1_n * args->src1_m;
+    Index const src2_step =
+        args->src2_channels * args->src2_n * args->src2_m;
+    auto const dst_lo = std::max(
+        (args->offset_m - args->stride_m*(args->src2_m-1)
+            + args->dilation_m-1) / args->dilation_m, Index(0));
+    auto const dst_hi = std::min(
+        (args->src1_m-1 + args->offset_m + args->dilation_m)
+            / args->dilation_m, args->dst_m);
+    auto const dst_lo_n = std::max(
+        (args->offset_n - args->stride_n*(args->src2_n-1)
+            + args->dilation_n-1) / args->dilation_n, Index(0));
+    auto const dst_hi_n = std::min(
+        (args->src1_n-1 + args->offset_n + args->dilation_n)
+            / args->dilation_n, args->dst_n);
+    for(Index oc = 0; oc < args->src2_channels; ++oc)
+    {
+        for(Index ic = 0; ic < args->src1_channels; ++ic)
+        {
+            for(Index dst_j = 0; dst_j < args->dst_n; ++dst_j)
+            {
+                for(Index dst_i = 0; dst_i < args->dst_m; ++dst_i)
+                {
+                    std::size_t const df = static_cast<std::size_t>(
+                        ((oc*args->src1_channels+ic)*args->dst_n+dst_j)
+                        * args->dst_m + dst_i);
+                    if(dst_i >= dst_lo and dst_i < dst_hi
+                        and dst_j >= dst_lo_n and dst_j < dst_hi_n)
+                    {
+                        Y conv{0.0}, c{0}, y, t;
+                        Index src1_start_m =
+                            args->dilation_m*dst_i - args->offset_m;
+                        if(src1_start_m < 0)
+                        {
+                            Index const neg_rem =
+                                (-src1_start_m) % args->stride_m;
+                            src1_start_m = neg_rem == 0 ? 0
+                                : args->stride_m - neg_rem;
+                        }
+                        Index const src1_end_m = std::min(
+                            args->dilation_m*dst_i - args->offset_m
+                                + args->stride_m*(args->src2_m-1) + 1,
+                            args->src1_m);
+                        Index src1_start_n =
+                            args->dilation_n*dst_j - args->offset_n;
+                        if(src1_start_n < 0)
+                        {
+                            Index const neg_rem =
+                                (-src1_start_n) % args->stride_n;
+                            src1_start_n = neg_rem == 0 ? 0
+                                : args->stride_n - neg_rem;
+                        }
+                        Index const src1_end_n = std::min(
+                            args->dilation_n*dst_j - args->offset_n
+                                + args->stride_n*(args->src2_n-1) + 1,
+                            args->src1_n);
+                        for(Index src1_i = src1_start_m;
+                            src1_i < src1_end_m;
+                            src1_i += args->stride_m)
+                        {
+                            for(Index src1_j = src1_start_n;
+                                src1_j < src1_end_n;
+                                src1_j += args->stride_n)
+                            {
+                                std::size_t const s1f =
+                                    static_cast<std::size_t>(src1_i
+                                        + (ic*args->src1_n+src1_j)
+                                            *args->src1_m);
+                                std::size_t const s2f =
+                                    static_cast<std::size_t>(
+                                        (src1_i+args->offset_m
+                                            -args->dilation_m*dst_i)
+                                            /args->stride_m
+                                        + (oc*args->src2_n
+                                            + (src1_j+args->offset_n
+                                                -args->dilation_n*dst_j)
+                                                /args->stride_n)
+                                            *args->src2_m);
+                                for(Index b = 0; b < args->batch; ++b)
+                                {
+                                    Y const a{at(v1, s1f
+                                        + src1_step*b)};
+                                    Y const w{at(v2, s2f
+                                        + src2_step*b)};
+                                    y = a*w - c;
+                                    t = conv + y;
+                                    c = (t-conv) - y;
+                                    conv = t;
+                                }
+                            }
+                        }
+                        if(args->beta == 0.0)
+                        {
+                            at(vd, df) = T{args->alpha * conv};
+                        }
+                        else
+                        {
+                            Y const old{at(vd, df)};
+                            at(vd, df) = T{(args->beta*old - args->alpha*c)
+                                + args->alpha*conv};
+                        }
+                    }
+                    else if(args->beta == 0.0)
+                    {
+                        at(vd, df) = T{Y{0.0}};
+                    }
+                    else if(args->beta != 1.0)
+                    {
+                        Y const old{at(vd, df)};
+                        at(vd, df) = T{args->beta * old};
+                    }
+                }
+            }
+        }
+    }
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -108,35 +236,47 @@ void Conv2dBwdWeightInplace<std::tuple<T>>::cuda(
     // Get arguments
     args_t const *args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    const T *src1 = ::nntile::haul::buf_as<T>(buffers, 0);
-    const T *src2 = ::nntile::haul::buf_as<T>(buffers, 1);
-    T *dst = ::nntile::haul::buf_as<T>(buffers, 2);
+    auto buf_src1 = static_cast<::nnhaul::Buffer *>(buffers[0]);
+    auto buf_src2 = static_cast<::nnhaul::Buffer *>(buffers[1]);
+    auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[2]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    // Launch kernel
-    kernel::conv2d_bwd_weight_inplace::cuda<T>(
-        stream,
-        args->src1_m,
-        args->src1_n,
-        args->src1_channels,
-        args->batch,
-        args->src2_m,
-        args->src2_n,
-        args->stride_m,
-        args->stride_n,
-        args->src2_channels,
-        args->offset_m,
-        args->offset_n,
-        args->alpha,
-        src1,
-        src2,
-        args->dst_m,
-        args->dst_n,
-        args->dilation_m,
-        args->dilation_n,
-        args->beta,
-        dst
-    );
+    if(buf_src1->chunk_count() == 1 && buf_src2->chunk_count() == 1
+        && buf_dst->chunk_count() == 1)
+    {
+        // Unchunked fast path: the historical single kernel call, bitwise.
+        kernel::conv2d_bwd_weight_inplace::cuda<T>(
+            stream,
+            args->src1_m,
+            args->src1_n,
+            args->src1_channels,
+            args->batch,
+            args->src2_m,
+            args->src2_n,
+            args->stride_m,
+            args->stride_n,
+            args->src2_channels,
+            args->offset_m,
+            args->offset_n,
+            args->alpha,
+            buf_src1->get_ptr<T>(),
+            buf_src2->get_ptr<T>(),
+            args->dst_m,
+            args->dst_n,
+            args->dilation_m,
+            args->dilation_n,
+            args->beta,
+            buf_dst->get_ptr<T>()
+        );
+        return;
+    }
+    ::nntile::kernel::nnhaul::chunk_conv2d_bwd_weight_inplace(*buf_src1, *buf_src2,
+        *buf_dst, args->src1_m, args->src1_n, args->src1_channels,
+        args->batch, args->src2_m, args->src2_n, args->stride_m,
+        args->stride_n, args->src2_channels, args->offset_m,
+        args->offset_n, args->alpha, args->dst_m, args->dst_n,
+        args->dilation_m, args->dilation_n, args->beta,
+        chunkunits::nnhaul_elem_type<T>());
 }
 #endif // NNTILE_USE_CUDA
 
@@ -201,8 +341,9 @@ void Conv2dBwdWeightInplace<std::tuple<T>>::submit(int starpu_worker_hint,
     {
         dst_mode = STARPU_W;
     }
-    // Submit task: staged by design (the family-3 derivation above).
-    ::nntile::haul::stage::staged_insert_task(codelet.raw, starpu_worker_hint,
+    // The body picks the unchunked classic call or the native chunked
+    // kernel; no staging either way.
+    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
         { { STARPU_R, &src1 }, { STARPU_R, &src2 }, { dst_mode, &dst } }, args, sizeof(*args));
     std::free(args);
 

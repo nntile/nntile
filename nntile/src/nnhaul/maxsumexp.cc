@@ -23,6 +23,7 @@
 
 // Other NNTile headers
 #include "nntile/kernel/maxsumexp.hh"
+#include "nntile/kernel/nnhaul/chunk_ops.hh"
 #include "nntile/nnhaul/chunk_units.hh"
 
 namespace nntile::haul
@@ -232,6 +233,17 @@ void MaxSumExp<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::maxsumexp::cuda<T>(stream, args->m, args->n, args->k,
             buf_src->get_ptr<T>(), args->beta, buf_dst->get_ptr<T>());
+        return;
+    }
+    if(buf_src->chunk_count() > 1 || buf_dst->chunk_count() > 1)
+    {
+        // Chunked native path: one launch, both the m==1 and m>1
+        // reductions address every source row through the tables.
+        ::nntile::kernel::nnhaul::chunk_maxsumexp(*buf_src, *buf_dst,
+            static_cast<std::size_t>(args->m),
+            static_cast<std::size_t>(args->n),
+            static_cast<std::size_t>(args->k), args->beta,
+            chunkunits::nnhaul_elem_type<T>());
         return;
     }
     chunkunits::ArenaCuda<T> arena(stream);

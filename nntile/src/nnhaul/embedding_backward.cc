@@ -26,6 +26,7 @@
 
 // Other NNTile headers
 #include "nntile/kernel/embedding_backward.hh"
+#include "nntile/kernel/nnhaul/chunk_embedding.hh"
 
 namespace nntile::haul
 {
@@ -571,140 +572,18 @@ void EmbeddingBackward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         );
         return;
     }
-    // Fetch the tokens host-side (see the embedding gather driver).
-    std::vector<int64_t> index = index_to_host(
-        buf_index, args->m, args->n,
-        [&](void *dst, const void *src, std::size_t nbytes) {
-            cudaError_t const err = cudaMemcpyAsync(
-                dst, src, nbytes, cudaMemcpyDeviceToHost, stream);
-            if(err != cudaSuccess)
-            {
-                std::fprintf(stderr, "nntile_embedding_backward: token "
-                        "fetch failed: %s\n", cudaGetErrorString(err));
-                std::abort();
-            }
-        });
-    cudaError_t const sync_err = cudaStreamSynchronize(stream);
-    if(sync_err != cudaSuccess)
-    {
-        std::fprintf(stderr, "nntile_embedding_backward: token fetch sync "
-                "failed: %s\n", cudaGetErrorString(sync_err));
-        std::abort();
-    }
-    embedding_backward_check_tokens(
-        args->m, args->n, args->index_range, index.data());
-    EmbBwdArenaCuda arena(stream);
-    // The chunked driver (see the block comment above).
-    Index const k_size = args->k_size;
-    std::size_t const row_len = static_cast<std::size_t>(k_size);
-    EmbBwdChunkView<T> const vocab(buf_vocab);
-    EmbBwdChunkView<T> const embed_view(buf_embed);
-    const T *embed = nullptr;
-    T *embed_scratch = nullptr;
-    if(embed_view.nchunks > 1)
-    {
-        embed_scratch = arena.alloc<T>(embed_view.total_elems);
-        emb_bwd_gather(embed_view, 0, embed_view.total_elems, embed_scratch,
-            arena);
-        embed = embed_scratch;
-    }
-    else
-    {
-        embed = embed_view.ptr(0, 0);
-    }
-    if(args->beta == Scalar{0.0})
-    {
-        for(std::size_t c = 0; c < vocab.nchunks; ++c)
-        {
-            arena.zero_bytes(vocab.ptr(c, 0),
-                (vocab.chunk_end(c) - vocab.chunk_begin(c)) * sizeof(T));
-        }
-    }
-    if(!arena.ok)
-    {
-        std::fprintf(stderr, "nntile_embedding_backward: chunked CUDA "
-                "driver aborted after a stream error; vocab partially "
-                "updated\n");
-        return;
-    }
-    int64_t *temp_index = arena.alloc<int64_t>(
-        static_cast<std::size_t>(args->m) * args->n);
-    std::vector<int64_t> host_index(static_cast<std::size_t>(args->m)
-        * args->n);
-    // One reusable temp: the garbage row plus the largest chunk's row
-    // image (a fresh temp per chunk would add up to the whole table).
-    std::size_t span_max = 0;
-    for(std::size_t c = 0; c < vocab.nchunks; ++c)
-    {
-        std::size_t const begin = vocab.chunk_begin(c);
-        std::size_t const end = vocab.chunk_end(c);
-        std::size_t const r0 = (begin + row_len - 1) / row_len;
-        std::size_t const r1_raw = (end + row_len - 1) / row_len;
-        std::size_t const r1 = r1_raw < static_cast<std::size_t>(args->index_range)
-            ? r1_raw
-            : static_cast<std::size_t>(args->index_range);
-        if(r0 < r1)
-        {
-            span_max = std::max(span_max, (r1 - r0) * row_len);
-        }
-    }
-    if(span_max > 0)
-    {
-        T *temp = arena.alloc<T>(row_len + span_max);
-        for(std::size_t c = 0; c < vocab.nchunks && arena.ok; ++c)
-        {
-            // Rows whose FIRST element starts inside this chunk (a row
-            // straddling the end drags its tail along, see above).
-            std::size_t const begin = vocab.chunk_begin(c);
-            std::size_t const end = vocab.chunk_end(c);
-            std::size_t const r0 = (begin + row_len - 1) / row_len;
-            std::size_t const r1_raw = (end + row_len - 1) / row_len;
-            std::size_t const r1 = r1_raw < static_cast<std::size_t>(args->index_range)
-                ? r1_raw
-                : static_cast<std::size_t>(args->index_range);
-            if(r0 >= r1)
-            {
-                continue;
-            }
-            std::size_t const span = (r1 - r0) * row_len;
-            arena.zero_bytes(temp, row_len * sizeof(T));
-            emb_bwd_gather(vocab, r0 * row_len, span, temp + row_len, arena);
-            // Row-shifted index: garbage row 0 for out-of-chunk
-            // occurrences, shipped to the device temp for the kernel.
-            for(std::size_t j = 0; j < host_index.size(); ++j)
-            {
-                std::size_t const token = static_cast<std::size_t>(
-                    static_cast<::int64_t>(index[j]));
-                host_index[j] = token >= r0 && token < r1
-                    ? static_cast<int64_t>(token - r0 + 1)
-                    : int64_t{0};
-            }
-            arena.copy_h2d(temp_index, host_index.data(),
-                host_index.size() * sizeof(int64_t));
-            kernel::embedding_backward::cuda<T>(
-                stream,
-                args->m,
-                args->n,
-                args->k,
-                args->k_start,
-                k_size,
-                /*index_range=*/static_cast<Index>(r1 - r0 + 1),
-                /*vocab_nelems=*/static_cast<Index>(row_len + span),
-                args->alpha,
-                /*beta=*/Scalar{1.0},
-                temp_index,
-                embed,
-                temp
-            );
-            emb_bwd_scatter(vocab, r0 * row_len, span, temp + row_len, arena);
-        }
-    }
-    if(!arena.ok)
-    {
-        std::fprintf(stderr, "nntile_embedding_backward: chunked CUDA "
-                "driver aborted after a stream error; vocab partially "
-                "updated\n");
-    }
+    // Fully asynchronous: the same atomic-accumulation kernel the
+    // unchunked path uses, but addressing chunk tables directly; the
+    // token index never leaves the device.
+    ::nntile::kernel::nnhaul::embedding_backward_add(*buf_index, *buf_embed, *buf_vocab,
+        static_cast<std::size_t>(args->m),
+        static_cast<std::size_t>(args->n),
+        static_cast<std::size_t>(args->k),
+        static_cast<std::size_t>(args->k_start),
+        static_cast<std::size_t>(args->k_size),
+        static_cast<std::size_t>(args->index_range),
+        static_cast<double>(args->alpha),
+        static_cast<double>(args->beta), sizeof(T));
 }
 
 // Specializations of CUDA wrapper for accelerated types

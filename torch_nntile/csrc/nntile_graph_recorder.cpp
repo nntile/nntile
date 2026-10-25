@@ -5,6 +5,10 @@
  */
 
 #include "nntile_graph_recorder.h"
+
+#ifdef NNTILE_USE_NNHAUL
+#include <nnhaul/nnhaul.hh>
+#endif
 #include "nntile_graph_recorder_impl.h"
 #include "nntile_tensor_gc.h"
 #include "nntile_tensor_meta.h"
@@ -54,6 +58,7 @@ std::vector<Index> tile_sizes_for_axis_extent(
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <deque>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -148,8 +153,19 @@ struct RecorderExecState
 };
 
 std::unique_ptr<RecorderExecState> g_exec;
-//! True after run_graph() until wait_graph_session() finishes post-run work.
-bool g_run_cleanup_pending = false;
+//! Submitted runs awaiting retirement: at most two (the pipeline's
+//! depth), keyed by the batch sequence the end-of-sequence hint
+//! returned. A traced run's seq is 0.
+struct RunCleanup
+{
+    std::size_t op_begin = 0;
+    std::size_t op_end = 0;
+    std::uint64_t batch_seq = 0;
+    //! The runtime phase sequence captured at this submit (§11.2.1).
+    std::uint64_t retain_watermark = 0;
+};
+std::deque<RunCleanup> g_run_cleanup;
+std::size_t g_retained_max = 0;
 
 struct GraphApiTimingStats
 {
@@ -223,6 +239,8 @@ void compile_graph_locked();
 void run_graph_locked();
 
 void finish_run_locked();
+
+std::uint64_t join_predecessor_locked();
 
 void gc_dead_data_nodes_locked();
 
@@ -1294,8 +1312,15 @@ void run_graph_locked()
     {
         return;
     }
+#ifdef NNTILE_USE_NNHAUL
+    // §11.2.1: every submit advances the phase sequence; pushes in this
+    // submit and the following recording window carry tag seq+1.
+    g_exec->runtime->bump_nnhaul_phase();
+#endif
     // Submit the pending tile-op range. INVALIDATE / UNREGISTER ops are
     // already in the execution stream. Join StarPU via wait() for readout.
+    std::size_t const op_begin = g_exec->pending_exec_op_begin;
+    std::size_t const op_end = g_exec->pending_exec_op_end;
     if (g_exec->pending_exec_op_end > g_exec->pending_exec_op_begin)
     {
         std::uint64_t const phase_ops = static_cast<std::uint64_t>(
@@ -1319,7 +1344,21 @@ void run_graph_locked()
         g_exec->executed_op_end = g_exec->pending_exec_op_end;
         g_exec->pending_exec_op_begin = g_exec->pending_exec_op_end;
     }
-    g_run_cleanup_pending = true;
+#ifdef NNTILE_USE_NNHAUL
+    // End-of-sequence hint: the submitted graph is complete. NNHaul
+    // closes this batch (plan, check, issue) without waiting, so the
+    // next iteration's compile overlaps this batch's GPU work;
+    // join_predecessor()/wait() retire it. run_pending covers traced
+    // runs ({0,true}), whose batch is closed at wait().
+    ::nnhaul::GraphEnd const hint = ::nnhaul::signal_graph_end();
+    if (hint.run_pending)
+    {
+        g_run_cleanup.push_back(RunCleanup{op_begin, op_end,
+            hint.issued_seq, g_exec->runtime->nnhaul_phase_seq()});
+    }
+#else
+    g_run_cleanup.push_back(RunCleanup{op_begin, op_end, 0, 0});
+#endif
     compact_after_submit_locked();
 }
 
@@ -1327,12 +1366,12 @@ void finish_run_locked()
 {
     if (g_exec == nullptr || g_exec->runtime == nullptr)
     {
-        g_run_cleanup_pending = false;
+        g_run_cleanup.clear();
         return;
     }
     // run() is asynchronous: only wait when a submit is still unfinished.
     // Idle calls (e.g. redundant wait_for_all before .to("cpu")) are no-ops.
-    if (!g_run_cleanup_pending)
+    if (g_run_cleanup.empty())
     {
         return;
     }
@@ -1349,9 +1388,48 @@ void finish_run_locked()
     flush_released_logicals_locked();
     g_timing.wait_compact_s += seconds_since(t_part);
     gc_dead_data_nodes_locked();
-    g_run_cleanup_pending = false;
+    g_run_cleanup.clear();
     g_timing.wait_s += seconds_since(t0);
     ++g_timing.wait_calls;
+}
+
+std::uint64_t join_predecessor_locked()
+{
+#ifdef NNTILE_USE_NNHAUL
+    if (g_exec == nullptr || g_exec->runtime == nullptr)
+    {
+        return 0;
+    }
+    std::uint64_t const seq = ::nnhaul::join_predecessor();
+    if (seq == 0)
+    {
+        // The only in-flight entry is the newest; it must survive
+        // until the final wait().
+        return 0;
+    }
+    if (g_run_cleanup.empty())
+    {
+        throw std::runtime_error(
+            "torch_nntile: join_predecessor returned a batch with no "
+            "recorded run cleanup (recorder defect)");
+    }
+    if (g_run_cleanup.front().batch_seq != seq)
+    {
+        throw std::runtime_error(
+            "torch_nntile: join_predecessor's batch does not match the "
+            "recorded run cleanup front (recorder defect)");
+    }
+    // §11.2.1: release the retained payloads of the joined phase only.
+    // Entries pushed afterwards carry a later tag and survive.
+    RunCleanup const cleanup = g_run_cleanup.front();
+    g_run_cleanup.pop_front();
+    g_exec->runtime->release_retained_through(cleanup.retain_watermark);
+    g_retained_max = std::max(g_retained_max,
+        g_exec->runtime->nnhaul_retained_count());
+    return seq;
+#else
+    return 0;
+#endif
 }
 
 void reset_recorder_locked(bool clear_tensor_gc)
@@ -1360,7 +1438,7 @@ void reset_recorder_locked(bool clear_tensor_gc)
     {
         g_exec->runtime->wait();
     }
-    g_run_cleanup_pending = false;
+    g_run_cleanup.clear();
     clear_pending_recorder_state_locked();
     g_ephemeral_staging_serial = 0;
     g_exec.reset();
@@ -1427,6 +1505,12 @@ void execute_pending_graph_locked()
 void shutdown_recorder_locked()
 {
     reset_recorder_locked(true);
+    if (std::getenv("NNHAUL_PLAN_DIAG") != nullptr)
+    {
+        std::fprintf(stderr,
+            "[pipeline] retained_payloads_max=%zu (hard cap: two phase "
+            "windows)\n", g_retained_max);
+    }
 }
 
 } // namespace
@@ -1468,6 +1552,12 @@ void run_graph()
 {
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     run_graph_locked();
+}
+
+std::uint64_t join_predecessor()
+{
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    return join_predecessor_locked();
 }
 
 void wait_graph_session()
@@ -1542,7 +1632,7 @@ void gather_logical_to_staging_and_read_locked(
     // Host readout must join a prior async run() before recording gather:
     // wait() compacts sealed history; without it, drop_all_ops on a later
     // wait could race with an in-flight phase that still owns these nodes.
-    if (g_run_cleanup_pending)
+    if (!g_run_cleanup.empty())
     {
         finish_run_locked();
     }
@@ -1634,7 +1724,7 @@ void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst)
 
     // Sync a prior async execute()/run() even when no ops are pending so
     // subsequent gather recording is not wiped by wait-side drop_all_ops().
-    if (g_run_cleanup_pending)
+    if (!g_run_cleanup.empty())
     {
         finish_run_locked();
     }
@@ -1885,7 +1975,7 @@ void overwrite_bound_nntile_logical_from_cpu(
 
     // Sync prior async work so scatter appends to a clean phase (same
     // pattern as copy_nntile_tensor_to_cpu).
-    if (g_run_cleanup_pending)
+    if (!g_run_cleanup.empty())
     {
         finish_run_locked();
     }

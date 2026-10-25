@@ -26,10 +26,12 @@
 #include <nnhaul/nnhaul.hh>
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <limits>
+#include <type_traits>
 #include <vector>
 
 #ifdef NNTILE_USE_CUDA
@@ -55,10 +57,62 @@ inline std::size_t forced_chunk_bytes() noexcept
     return v > 0 ? static_cast<std::size_t>(v) : std::size_t{0};
 }
 
+//! The nnhaul chunk-kernel element type matching the nntile tensor type.
+//! The accelerated fp32 family stores a plain float (repr_t float), so a
+//! 4-byte element maps to F32 and an 8-byte one to F64; the 16-bit types
+//! are distinguished by name (bf16/fp16 have the same storage size).
+template<typename T>
+constexpr ::nnhaul::ElemType nnhaul_elem_type() noexcept
+{
+    using U = std::remove_cv_t<T>;
+    if constexpr(std::is_same_v<U, bf16_t>)
+    {
+        return ::nnhaul::ElemType::BF16;
+    }
+    else if constexpr(std::is_same_v<U, fp16_t>)
+    {
+        return ::nnhaul::ElemType::F16;
+    }
+    else if constexpr(sizeof(U) == 8)
+    {
+        return ::nnhaul::ElemType::F64;
+    }
+    else if constexpr(sizeof(U) == 4)
+    {
+        return ::nnhaul::ElemType::F32;
+    }
+    else
+    {
+        static_assert(!std::is_same_v<U, U>,
+            "nnhaul chunk kernels: unsupported element type");
+        return ::nnhaul::ElemType::F32;
+    }
+}
+
+//! floor(log2(v)) for v >= 1.
+inline unsigned log2_floor(std::size_t v) noexcept
+{
+    unsigned s = 0;
+    while(v > 1)
+    {
+        v >>= 1;
+        ++s;
+    }
+    return s;
+}
+
 //! Chunk residency of one buffer's flat element space: equal-size chunks
 //! with a shorter tail; an unchunked buffer is the 1-chunk degenerate case
 //! (same arithmetic as the anonymous ChunkView of src/nnhaul/gemm.cc,
 //! published here so the unit-structured families share one walker).
+//!
+//! Every production chunk class is kChunkClassBytes and a power of two,
+//! and the element types are powers of two, so chunk_elems is normally a
+//! power of two: chunk_of/chunk_begin then lower to a shift/mask instead
+//! of a 64-bit division/multiply on the address path. The test hook
+//! NNHAUL_CHUNK_UNITS_FORCE_BYTES may force an arbitrary (non-power-of-
+//! two) size, so the exact division/multiply fallback is kept and is
+//! selected once, at construction, by the `pow2` flag.
 template<typename T>
 struct ChunkView
 {
@@ -67,6 +121,9 @@ struct ChunkView
     std::size_t nchunks = 1;
     std::size_t total_elems = 0;
     bool real = false; //!< true: per-chunk pointers; false: one block
+    bool pow2 = false; //!< chunk_elems is a power of two
+    unsigned shift = 0; //!< log2(chunk_elems) when pow2
+    std::size_t mask = 0; //!< chunk_elems - 1 when pow2
 
     ChunkView() = default;
     ChunkView(::nnhaul::Buffer *b, std::size_t force_chunk_bytes):
@@ -93,19 +150,30 @@ struct ChunkView
             nchunks = 1;
             real = false;
         }
+        if(chunk_elems != 0 && (chunk_elems & (chunk_elems - 1)) == 0)
+        {
+            pow2 = true;
+            shift = log2_floor(chunk_elems);
+            mask = chunk_elems - 1;
+        }
     }
 
     std::size_t chunk_of(std::size_t elem) const noexcept
     {
-        return elem / chunk_elems;
+        return pow2 ? elem >> shift : elem / chunk_elems;
     }
     std::size_t chunk_begin(std::size_t c) const noexcept
     {
-        return c * chunk_elems;
+        return pow2 ? c << shift : c * chunk_elems;
+    }
+    //! Offset of `elem` inside its chunk (chunk_of + chunk_begin folded).
+    std::size_t chunk_off(std::size_t elem) const noexcept
+    {
+        return pow2 ? elem & mask : elem - (elem / chunk_elems) * chunk_elems;
     }
     std::size_t chunk_end(std::size_t c) const noexcept
     {
-        std::size_t const e = (c + 1) * chunk_elems;
+        std::size_t const e = chunk_begin(c + 1);
         return e < total_elems ? e : total_elems;
     }
     //! Typed pointer at chunk c, off elements into that chunk.
@@ -274,7 +342,7 @@ void gather_range(ChunkView<T> const &cv, std::size_t start,
         {
             n = len - done;
         }
-        arena.copy(dst + done, cv.ptr(c, at - cv.chunk_begin(c)), n);
+        arena.copy(dst + done, cv.ptr(c, cv.chunk_off(at)), n);
         done += n;
     }
 }
@@ -293,7 +361,7 @@ void scatter_range(ChunkView<T> const &cv, std::size_t start,
         {
             n = len - done;
         }
-        arena.copy(cv.ptr(c, at - cv.chunk_begin(c)), src + done, n);
+        arena.copy(cv.ptr(c, cv.chunk_off(at)), src + done, n);
         done += n;
     }
 }
@@ -363,7 +431,7 @@ struct UnitSpan
         Index const u = r / unit_rows;
         std::size_t const s = offset(u);
         std::size_t const c = cv->chunk_of(s);
-        return cv->ptr(c, s - cv->chunk_begin(c));
+        return cv->ptr(c, cv->chunk_off(s));
     }
 };
 
@@ -618,7 +686,7 @@ struct SliceStage
     {
         std::size_t const s = offset(panel);
         std::size_t const c = cv->chunk_of(s);
-        return cv->ptr(c, s - cv->chunk_begin(c));
+        return cv->ptr(c, cv->chunk_off(s));
     }
 };
 

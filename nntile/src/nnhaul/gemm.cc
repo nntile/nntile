@@ -910,34 +910,71 @@ void Gemm<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     cublasSetStream(handle, stream);
     // alpha and beta parameters of GEMM operation are on CPU host
     cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_HOST);
-    std::size_t const forced = gemm_forced_chunk_bytes();
-    if(buf_a->chunk_count() == 1 && buf_b->chunk_count() == 1
-        && buf_c->chunk_count() == 1 && forced == 0)
+
+    // ONE PATH (user directive): every operand's chunks are gathered
+    // into the engine's preallocated contiguous WORKSPACE - even a
+    // single-chunk operand - then the plain cuBLAS GEMM runs on
+    // contiguous matrices, then the output is scattered back into its
+    // chunks. There is no unchunked fast path and no native chunked
+    // panel driver: one code path for every shape.
+    auto align = [](std::size_t n)
+    { return (n + 255u) & ~std::size_t{255u}; };
+    std::size_t const a_b = buf_a->nbytes();
+    std::size_t const b_b = buf_b->nbytes();
+    std::size_t const c_b = buf_c->nbytes();
+    std::size_t const a_off = 0;
+    std::size_t const b_off = align(a_b);
+    std::size_t const c_off = b_off + align(b_b);
+    std::size_t const need = c_off + align(c_b);
+    void *ws = nullptr;
+    std::size_t ws_bytes = 0;
+    try
     {
-        const T *A = buf_a->get_ptr<T>();
-        const T *B = buf_b->get_ptr<T>();
-        T *C = buf_c->get_ptr<T>();
-        // Call corresponding cuBLAS routine
-        kernel::cublas::gemm<T>(
-            handle,
-            args->transA,
-            args->transB,
-            args->m,
-            args->n,
-            args->k,
-            args->batch,
-            args->alpha,
-            A,
-            B,
-            args->beta,
-            C,
-            args->broadcast_a,
-            args->broadcast_b
-        );
-        return;
+        ws = ::nnhaul::workspace_ptr();
+        ws_bytes = ::nnhaul::workspace_bytes();
     }
-    ArenaCuda<T> arena(stream);
-    gemm_chunked<T>(
+    catch (...)
+    {
+        ws = nullptr;
+    }
+    if (ws == nullptr || need > ws_bytes)
+    {
+        std::fprintf(stderr,
+            "nntile_gemm: workspace too small: need %zu bytes, have %zu "
+            "(NNHAUL_WORKSPACE_MB)\n", need, ws_bytes);
+        std::abort();
+    }
+    char *base = static_cast<char *>(ws);
+    // Per-chunk D2D copies: measured faster than the single-launch
+    // chunk kernel on this graph (the extra kernels deepen the compute
+    // queue). The single-launch helpers remain in nnhaul for the
+    // fully-async redesign.
+    auto gather = [&](::nnhaul::Buffer *buf, char *dst)
+    {
+        std::size_t off = 0;
+        for (std::size_t c = 0; c < buf->chunk_count(); ++c)
+        {
+            std::size_t const len = buf->chunk_bytes(c);
+            cudaMemcpyAsync(dst + off,
+                buf->get_chunk_ptr<char>(c), len,
+                cudaMemcpyDeviceToDevice, stream);
+            off += len;
+        }
+    };
+    // Two paths, split on whether C's prior bytes are an input:
+    //  - beta == 0: cuBLAS ignores C on entry, so only A and B are
+    //    gathered (one third fewer copies for the common case);
+    //  - beta != 0: C participates (accumulation), so its current
+    //    bytes are gathered too.
+    bool const c_is_input = !(args->beta == Scalar{0.0});
+    gather(buf_a, base + a_off);
+    gather(buf_b, base + b_off);
+    if(c_is_input)
+    {
+        gather(buf_c, base + c_off);
+    }
+    kernel::cublas::gemm<T>(
+        handle,
         args->transA,
         args->transB,
         args->m,
@@ -945,40 +982,20 @@ void Gemm<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         args->k,
         args->batch,
         args->alpha,
+        reinterpret_cast<T const *>(base + a_off),
+        reinterpret_cast<T const *>(base + b_off),
         args->beta,
+        reinterpret_cast<T *>(base + c_off),
         args->broadcast_a,
-        args->broadcast_b,
-        buf_a,
-        buf_b,
-        buf_c,
-        forced,
-        arena,
-        [&](Index mm, Index nn, Index kk, T const *pa, T const *pb, T *pc,
-            Scalar beta_eff) {
-            kernel::cublas::gemm<T>(
-                handle,
-                args->transA,
-                args->transB,
-                mm,
-                nn,
-                kk,
-                Index{1},
-                args->alpha,
-                pa,
-                pb,
-                beta_eff,
-                pc
-            );
-        });
-    if(arena.ok)
+        args->broadcast_b);
+    std::size_t off = 0;
+    for (std::size_t c = 0; c < buf_c->chunk_count(); ++c)
     {
-        note_gemm_native_chunked();
-    }
-    else
-    {
-        std::fprintf(stderr,
-            "nntile_gemm: chunked CUDA driver aborted after a stream "
-            "error; C left unwritten\n");
+        std::size_t const len = buf_c->chunk_bytes(c);
+        cudaMemcpyAsync(buf_c->get_chunk_ptr<char>(c),
+            base + c_off + off, len, cudaMemcpyDeviceToDevice,
+            stream);
+        off += len;
     }
 }
 #endif //NNTILE_USE_CUDA

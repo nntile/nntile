@@ -22,6 +22,8 @@
 
 // Other NNTile headers
 #include "nntile/kernel/multiply_inplace.hh"
+#include "nntile/kernel/nnhaul/chunk_ops.hh"
+#include "nntile/nnhaul/chunk_units.hh"
 
 namespace nntile::haul
 {
@@ -104,6 +106,15 @@ void MultiplyInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto dst = ::nntile::haul::buf_chunks<T>(buffers, 1);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
+    std::size_t const forced = chunkunits::forced_chunk_bytes();
+    if((src.count() > 1 || dst.count() > 1) && forced == 0)
+    {
+        // Chunked native path: one launch over the whole flat range,
+        // the chunk tables travel by value (no per-chunk host loop).
+        ::nntile::kernel::nnhaul::chunk_multiply_inplace(*src.buf, *dst.buf, nelems,
+            alpha, chunkunits::nnhaul_elem_type<T>());
+        return;
+    }
     // Launch kernel per flat chunk piece (single piece if unchunked)
     ::nntile::haul::for_each_flat_piece(
         nelems,

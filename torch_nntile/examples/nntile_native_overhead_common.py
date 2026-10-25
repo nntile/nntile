@@ -15,7 +15,8 @@ from typing import Any
 
 import torch
 from nntile_iter_phases import (
-    compile_run_wait_iter, compile_wait_run_iter, measure_isolated_nntile_iter,
+    compile_run_join_prev_iter, compile_run_wait_iter,
+    compile_wait_run_iter, measure_isolated_nntile_iter,
     print_nntile_iter_timings, print_nntile_phase_timings,
     print_nntile_prep_compute, wait_end, wait_then_start_timer)
 
@@ -225,7 +226,9 @@ def run_native_overhead(
                 step_torch_s = max(0.0, record_wall_s - step_nntile_s)
                 record_nntile_s += step_nntile_s
                 record_torch_s += step_torch_s
-                if args.wait_after_run:
+                if getattr(args, "join_predecessor", False):
+                    dc, dr, dw = compile_run_join_prev_iter(torch_nntile)
+                elif args.wait_after_run:
                     dc, dw, dr = compile_run_wait_iter(torch_nntile)
                 else:
                     dc, dw, dr = compile_wait_run_iter(torch_nntile)
@@ -233,6 +236,7 @@ def run_native_overhead(
                 wait_s += dw
                 run_s += dr
                 global_step += 1
+
                 is_last = (
                     epoch_idx == n_epoch_batches - 1
                     and batch_idx == n_batches - 1

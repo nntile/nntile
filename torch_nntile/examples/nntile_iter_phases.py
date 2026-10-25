@@ -57,6 +57,27 @@ def compile_run_wait_iter(
     return compile_s, wait_s, run_s
 
 
+def compile_run_join_prev_iter(
+    torch_nntile: Any,
+) -> tuple[float, float, float]:
+    """Compile, submit, then join the PREDECESSOR run (pipelined planning).
+
+    Returns (compile_s, run_s, join_s). The newest run stays in flight;
+    the next step's plan is built from its predecessor's boundary while
+    the newest executes.
+    """
+    t0 = time.perf_counter()
+    torch_nntile.compile_graph()
+    compile_s = time.perf_counter() - t0
+    t0 = time.perf_counter()
+    torch_nntile.run()
+    run_s = time.perf_counter() - t0
+    t0 = time.perf_counter()
+    torch_nntile.join_predecessor()
+    join_s = time.perf_counter() - t0
+    return compile_s, run_s, join_s
+
+
 def wait_then_start_timer(torch_nntile: Any) -> float:
     """Join StarPU, then start the train wall before the first record."""
     torch_nntile.wait()
@@ -174,6 +195,7 @@ def run_nntile_train_iters(
     steps: int,
     opt: torch.optim.Optimizer,
     torch_nntile: Any,
+    join_predecessor: bool = False,
 ) -> int:
     """Record/compile each step, wait, then run; wait after the last run."""
     if torch_nntile.has_pending_graph():
@@ -201,7 +223,10 @@ def run_nntile_train_iters(
         )
         record_nntile_s += step_nntile_s
         record_torch_s += max(0.0, record_wall_s - step_nntile_s)
-        dc, dw, dr = compile_wait_run_iter(torch_nntile)
+        if join_predecessor:
+            dc, dr, dw = compile_run_join_prev_iter(torch_nntile)
+        else:
+            dc, dw, dr = compile_wait_run_iter(torch_nntile)
         compile_s += dc
         wait_s += dw
         run_s += dr

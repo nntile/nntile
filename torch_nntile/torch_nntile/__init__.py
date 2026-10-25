@@ -228,6 +228,16 @@ def run() -> None:
     _C.run()
 
 
+def join_predecessor() -> int:
+    """Join the older of two in-flight runs without joining the newest.
+
+    Returns its batch sequence, or 0 when fewer than two runs are
+    un-retired. Completion is signaled by driver host functions; no event
+    is queried.
+    """
+    return int(_C.join_predecessor())
+
+
 def reset_graph_session() -> None:
     """Discard the compiled graph session and recorder state."""
     _C.reset_graph_session()

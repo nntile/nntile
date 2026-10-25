@@ -259,6 +259,10 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         &torch_nntile::run_graph,
         "Submit the compiled graph to StarPU (asynchronous; does not wait)");
     m.def(
+        "join_predecessor",
+        &torch_nntile::join_predecessor,
+        "Join the older of two in-flight runs without joining the newest");
+    m.def(
         "reset_graph_session",
         &torch_nntile::reset_graph_session,
         "Discard the compiled graph session and recorder state");

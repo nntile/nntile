@@ -409,6 +409,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--ncuda", type=int, default=1)
     parser.add_argument("--restrict-cuda", action="store_true")
     parser.add_argument("--restrict-cpu", action="store_true")
+    parser.add_argument("--join-predecessor", action="store_true")
     parser.add_argument("--wait-after-run", action="store_true")
     parser.add_argument("--no-shuffle", action="store_true")
     parser.add_argument("--no-save-checkpoint", action="store_true")

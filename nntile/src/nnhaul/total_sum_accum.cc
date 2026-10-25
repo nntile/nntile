@@ -23,6 +23,7 @@
 
 // Other NNTile headers
 #include "nntile/kernel/total_sum_accum.hh"
+#include "nntile/kernel/nnhaul/chunk_ops.hh"
 #include "nntile/nnhaul/chunk_units.hh"
 
 namespace nntile::haul
@@ -268,6 +269,18 @@ void TotalSumAccum<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         kernel::total_sum_accum::cuda<T>(stream, alpha, n_labels, n_outputs,
             ignore_index, buf_logsumexp->get_ptr<T>(), buf_src->get_ptr<T>(),
             buf_labels->get_ptr<nntile::int64_t>(), buf_val->get_ptr<float>());
+        return;
+    }
+    if(buf_logsumexp->chunk_count() > 1 || buf_src->chunk_count() > 1
+        || buf_labels->chunk_count() > 1 || buf_val->chunk_count() > 1)
+    {
+        // Chunked native path: one launch, every column addressed
+        // directly through the chunk tables.
+        ::nntile::kernel::nnhaul::chunk_total_sum_accum(*buf_logsumexp, *buf_src,
+            *buf_labels, *buf_val, alpha,
+            static_cast<std::size_t>(n_labels),
+            static_cast<std::size_t>(n_outputs), ignore_index,
+            chunkunits::nnhaul_elem_type<T>());
         return;
     }
     chunkunits::ArenaCuda<T> arena(stream);

@@ -25,6 +25,7 @@
 
 // Other NNTile headers
 #include "nntile/kernel/embedding.hh"
+#include "nntile/kernel/nnhaul/chunk_embedding.hh"
 
 namespace nntile::haul
 {
@@ -331,81 +332,15 @@ void Embedding<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         );
         return;
     }
-    // Fetch the tokens host-side (a pageable D2H cudaMemcpyAsync of the
-    // small m*n list synchronizes the host copy; the stream sync orders it
-    // after the task's earlier fetch work), validate, then enqueue the
-    // per-segment pitch copies stream-ordered.
-    std::vector<int64_t> index = index_to_host(
-        buf_index, args->m, args->n,
-        [&](void *dst, const void *src, std::size_t nbytes) {
-            cudaError_t const err = cudaMemcpyAsync(
-                dst, src, nbytes, cudaMemcpyDeviceToHost, stream);
-            if(err != cudaSuccess)
-            {
-                std::fprintf(stderr, "nntile_embedding: token fetch failed: "
-                        "%s\n", cudaGetErrorString(err));
-                std::abort();
-            }
-        });
-    cudaError_t const sync_err = cudaStreamSynchronize(stream);
-    if(sync_err != cudaSuccess)
-    {
-        std::fprintf(stderr, "nntile_embedding: token fetch sync failed: "
-                "%s\n", cudaGetErrorString(sync_err));
-        std::abort();
-    }
-    embedding_check_tokens(
-        args->m, args->n, args->index_range, index.data());
-    EmbChunkView<T> const vocab(buf_vocab);
-    EmbChunkView<T> const embed(buf_embed);
-    bool ok = true;
-    embedding_chunked<T>(
-        args->m,
-        args->n,
-        args->k,
-        args->k_start,
-        args->k_size,
-        index.data(),
-        vocab,
-        [&](const T *src, std::size_t dst0, std::size_t stride,
-            std::size_t len) {
-            if(!ok)
-            {
-                return;
-            }
-            // Split the strided run at the embed chunk boundaries; each
-            // piece is one element-wide 2D copy with the run's stride as
-            // the destination pitch.
-            std::size_t j = 0;
-            while(j < len)
-            {
-                std::size_t const e = dst0 + j * stride;
-                std::size_t const c = embed.chunk_of(e);
-                std::size_t run =
-                    (embed.chunk_end(c) - e + stride - 1) / stride;
-                if(run > len - j)
-                {
-                    run = len - j;
-                }
-                cudaError_t const err = cudaMemcpy2DAsync(
-                    embed.ptr(c, e - embed.chunk_begin(c)),
-                    stride * sizeof(T),
-                    src + j,
-                    sizeof(T),
-                    sizeof(T),
-                    run,
-                    cudaMemcpyDeviceToDevice,
-                    stream);
-                if(err != cudaSuccess)
-                {
-                    std::fprintf(stderr, "nntile_embedding: chunked gather "
-                            "copy failed: %s\n", cudaGetErrorString(err));
-                    ok = false;
-                    return;
-                }
-                j += run;
-            }
-        });
+    // Fully asynchronous: the token index stays on the device; one
+    // chunk-aware gather kernel (no D2H, no stream synchronization).
+    ::nntile::kernel::nnhaul::embedding_gather(*buf_index, *buf_vocab, *buf_embed,
+        static_cast<std::size_t>(args->m),
+        static_cast<std::size_t>(args->n),
+        static_cast<std::size_t>(args->k),
+        static_cast<std::size_t>(args->k_start),
+        static_cast<std::size_t>(args->k_size),
+        static_cast<std::size_t>(args->index_range), sizeof(T));
 }
 
 // Specializations of CUDA wrapper for accelerated types
