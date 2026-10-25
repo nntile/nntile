@@ -92,6 +92,9 @@ set(TESTS_TILE_CATCH2
 set(TESTS_TILE_ROOT_CATCH2
     "append_tensor_graph_phase"
     "chunked_big"
+    "chunked_conv_randn_ab"
+    "chunked_kernels_ab"
+    "chunked_units_math"
     "chunked_staged_probe"
     "daemon_robustness"
     "add_mixed_tile"

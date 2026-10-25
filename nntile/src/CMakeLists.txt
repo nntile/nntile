@@ -165,6 +165,15 @@ if(NOT HAVE_STARPU_SIMGRID)
             "kernel/swap_two_axes/cuda.cu"
             "kernel/isfinite/cuda.cu"
         )
+        if(NNTILE_USE_NNHAUL)
+            # Chunk-addressed kernels over the NNHaul chunk tables (the
+            # chunked device drivers call them directly).
+            list(APPEND KERNEL_CUDA_SRC
+                "kernel/nnhaul/chunk_ops.cu"
+                "kernel/nnhaul/chunk_copy.cu"
+                "kernel/nnhaul/chunk_embedding.cu"
+            )
+        endif()
         if(NNTILE_USE_FLASH_SDPA)
             list(APPEND KERNEL_CUDA_SRC
                 "kernel/flash_sdpa_fwd_cudnn/cuda.cc"
