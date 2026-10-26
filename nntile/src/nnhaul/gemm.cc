@@ -283,29 +283,38 @@ void gemm_workspace_staged(cublasHandle_t handle, TransOp transA,
             "11 -- no fallback exists)\n");
         std::abort();
     }
-    auto gather_one = [&](int i, std::size_t op_slot,
-        ::nnhaul::Buffer *buf) {
-        kernel::copy::chunked(
-            stream,
-            Index(buf->nbytes()),
-            ring.table_view<const unsigned char *>(ring_base, op_slot),
-            Index(buf->chunk_count()),
-            ring.table_view<unsigned char *>(ring_base, ws_off[i]),
-            Index(seg_nchunk[i]),
-            Index(chunkunits::kChunkClassBytes),
-            Index(chunkunits::kChunkClassBytes));
+    // ONE gather call for ALL staged input operands: the segments ride
+    // distinct ring-table slices but a single kernel launch (grid.y
+    // selects the segment, so no flat-range stitching and no per-operand
+    // launch).
+    kernel::copy::Segment segs[3];
+    int nseg = 0;
+    auto add_segment = [&](int i, ::nnhaul::Buffer *buf) {
+        kernel::copy::Segment &g = segs[nseg++];
+        g.src = ring.table_view<const unsigned char *>(ring_base,
+            slot_off[i]);
+        g.nsrc = Index(buf->chunk_count());
+        g.dst = ring.table_view<unsigned char *>(ring_base, ws_off[i]);
+        g.ndst = Index(seg_nchunk[i]);
+        g.nbytes = Index(buf->nbytes());
+        g.elems_src = Index(chunkunits::kChunkClassBytes);
+        g.elems_dst = Index(chunkunits::kChunkClassBytes);
     };
     if(stage_a)
     {
-        gather_one(0, slot_off[0], bufA);
+        add_segment(0, bufA);
     }
     if(stage_b)
     {
-        gather_one(1, slot_off[1], bufB);
+        add_segment(1, bufB);
     }
     if(stage_c && beta != Scalar{0})
     {
-        gather_one(2, slot_off[2], bufC);
+        add_segment(2, bufC);
+    }
+    if(nseg > 0)
+    {
+        kernel::copy::chunked_segments(stream, segs, nseg);
     }
     // (ii) the classic call itself, verbatim shape, on the
     // staged/contiguous pointers: same values, same layouts as the

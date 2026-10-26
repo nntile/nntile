@@ -29,4 +29,24 @@ void chunked(cudaStream_t stream, Index nbytes,
         Index elems_dst)
     noexcept;
 
+//! One of up to three discontiguous chunked byte ranges.
+struct Segment
+{
+    const unsigned char *const *src = nullptr; //!< device-ring src table
+    Index nsrc = 0;
+    unsigned char *const *dst = nullptr; //!< device-ring dst table
+    Index ndst = 0;
+    Index nbytes = 0;
+    Index elems_src = 0; //!< bytes in a full src chunk
+    Index elems_dst = 0; //!< bytes in a full dst chunk
+};
+
+//! Copy up to three discontiguous chunked byte ranges in ONE launch.
+/*! Equivalent to one chunked() call per segment, fused into a single
+ * kernel launch (grid.y selects the segment). The gemm staging path
+ * uses it to gather A, B and (when beta != 0) C together. */
+void chunked_segments(cudaStream_t stream, Segment const *segments,
+        int nsegments)
+    noexcept;
+
 } // namespace nntile::kernel::copy
