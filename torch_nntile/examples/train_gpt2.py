@@ -591,69 +591,82 @@ def train_nntile(args: argparse.Namespace) -> int:
             flush=True,
         )
         first_record_logged = False
-        for epoch_idx, epoch_data in enumerate(epoch_batches):
-            n_batches = len(epoch_data)
-            for batch_idx in range(n_batches):
+        # Group the minibatches into optimizer steps: each group records
+        # accum_steps forward+backward passes (gradients accumulate),
+        # then ONE optimizer step and ONE compile/wait/run.
+        flat_batches = []
+        for epoch_data in epoch_batches:
+            for batch_idx in range(len(epoch_data)):
                 inputs, labels = epoch_data[batch_idx]
                 epoch_data[batch_idx] = None
-                nntile_t0 = torch_nntile.record_nntile_seconds()
-                t_record0 = time.perf_counter()
+                flat_batches.append((inputs, labels))
+        accum = max(1, int(args.accum_steps))
+        opt_steps = (len(flat_batches) + accum - 1) // accum
+        n_steps = opt_steps
+        for step_idx in range(opt_steps):
+            lo = step_idx * accum
+            hi = min(lo + accum, len(flat_batches))
+            optimizer.zero_grad(set_to_none=True)
+            nntile_t0 = torch_nntile.record_nntile_seconds()
+            t_record0 = time.perf_counter()
+            step_loss = None
+            inputs = None
+            labels = None
+            for k in range(lo, hi):
+                inputs, labels = flat_batches[k]
                 loss = causal_lm_loss_nntile(model, inputs, labels)
                 loss.backward()
-                optimizer.step()
                 step_loss = loss.detach()
                 del loss
-                optimizer.zero_grad(set_to_none=True)
-                record_wall_s = time.perf_counter() - t_record0
-                if not first_record_logged:
-                    print(
-                        "timing nntile elapsed after first record: "
-                        f"{time.perf_counter() - t_train0:.3f}s "
-                        "(must be > 0 if the wall includes that record)",
-                        flush=True,
-                    )
-                    first_record_logged = True
-                step_nntile_s = max(
-                    0.0,
-                    torch_nntile.record_nntile_seconds() - nntile_t0,
+                flat_batches[k] = None
+            # One optimizer update over the accumulated gradients.
+            optimizer.step()
+            optimizer.zero_grad(set_to_none=True)
+            record_wall_s = time.perf_counter() - t_record0
+            if not first_record_logged:
+                print(
+                    "timing nntile elapsed after first record: "
+                    f"{time.perf_counter() - t_train0:.3f}s "
+                    "(must be > 0 if the wall includes that record)",
+                    flush=True,
                 )
-                step_torch_s = max(0.0, record_wall_s - step_nntile_s)
-                record_nntile_s += step_nntile_s
-                record_torch_s += step_torch_s
-                if args.wait_after_run:
-                    dc, dw, dr = compile_run_wait_iter(torch_nntile)
-                else:
-                    dc, dw, dr = compile_wait_run_iter(torch_nntile)
-                compile_s += dc
-                wait_s += dw
-                run_s += dr
-                global_step += 1
-                is_last = (
-                    epoch_idx == n_epoch_batches - 1
-                    and batch_idx == n_batches - 1
-                )
-                if is_last:
-                    if not args.wait_after_run:
-                        extra_wait = wait_end(torch_nntile)
-                        wait_s += extra_wait
-                        dw += extra_wait
-                    last_loss = step_loss
-                    last_inputs = inputs
-                    last_labels = labels
-                else:
-                    del step_loss
-                    del inputs
-                    del labels
-                print_nntile_iter_timings(
-                    global_step,
-                    n_steps,
-                    step_nntile_s,
-                    step_torch_s,
-                    dc,
-                    dr,
-                    dw,
-                    prep_compute=args.wait_after_run,
-                )
+                first_record_logged = True
+            step_nntile_s = max(
+                0.0,
+                torch_nntile.record_nntile_seconds() - nntile_t0,
+            )
+            step_torch_s = max(0.0, record_wall_s - step_nntile_s)
+            record_nntile_s += step_nntile_s
+            record_torch_s += step_torch_s
+            if args.wait_after_run:
+                dc, dw, dr = compile_run_wait_iter(torch_nntile)
+            else:
+                dc, dw, dr = compile_wait_run_iter(torch_nntile)
+            compile_s += dc
+            wait_s += dw
+            run_s += dr
+            global_step += 1
+            is_last = step_idx == opt_steps - 1
+            if is_last:
+                if not args.wait_after_run:
+                    extra_wait = wait_end(torch_nntile)
+                    wait_s += extra_wait
+                    dw += extra_wait
+                last_loss = step_loss
+                last_inputs = inputs
+                last_labels = labels
+            else:
+                del step_loss
+            print_nntile_iter_timings(
+                global_step,
+                n_steps,
+                step_nntile_s,
+                step_torch_s,
+                dc,
+                dr,
+                dw,
+                prep_compute=args.wait_after_run,
+            )
         train_wall_s = time.perf_counter() - t_train0
         if args.verbose:
             torch_nntile.print_info()
@@ -751,6 +764,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip writing checkpoint.pt (benchmark / overhead runs)",
     )
     train.add_argument("--epochs", type=int, default=1)
+    train.add_argument(
+        "--accum-steps",
+        type=int,
+        default=1,
+        help="minibatches recorded per optimizer step (gradient accumulation)",
+    )
     train.add_argument("--lr", type=float, default=1e-3)
     train.add_argument("--momentum", type=float, default=0.0)
     train.add_argument("--weight-decay", type=float, default=0.0)
