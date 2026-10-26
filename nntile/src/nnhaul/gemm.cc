@@ -43,7 +43,11 @@ template<typename T>
 Gemm<std::tuple<T>>::Gemm():
     codelet(
         "nntile_gemm",
+#ifdef NNTILE_USE_CBLAS
         &Gemm<std::tuple<T>>::cpu,
+#else
+        nullptr,
+#endif
 #ifdef NNTILE_USE_CUDA
         &Gemm<std::tuple<T>>::cuda,
 #else

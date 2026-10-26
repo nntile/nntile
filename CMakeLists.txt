@@ -289,6 +289,11 @@ endif()
 
 set(NNTILE_USE_CBLAS OFF)
 set(NNTILE_LINK_CBLAS OFF)
+# The NNHaul backend is CUDA-only: no CPU worker exists, so linking
+# OpenBLAS (and spawning its spinning thread pool) is dead weight.
+if(NNTILE_USE_NNHAUL)
+    set(USE_CBLAS OFF)
+endif()
 if(HAVE_STARPU_SIMGRID)
     if(USE_CBLAS)
         set(NNTILE_USE_CBLAS ON)
