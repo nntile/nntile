@@ -74,7 +74,8 @@ void gemm_ws_print()
         return;
     }
     std::fprintf(stderr,
-        "[gemm-ws] reserved_MiB=%zu peak_MiB=%zu borrowed=%d\n",
+        "[gemm-ws] workspace_reserved_MiB=%zu workspace_peak_MiB=%zu "
+        "borrowed=%d\n",
         w->bytes >> 20, w->peak_bytes >> 20, w->borrowed ? 1 : 0);
 }
 } // namespace
