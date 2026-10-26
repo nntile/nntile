@@ -41,6 +41,12 @@ struct Workspace
     unsigned char *base = nullptr; //!< device block (256-byte aligned)
     std::size_t bytes = 0; //!< capacity: 1 GiB default, env hook may shrink
     int device = -1; //!< the ONE GPU the block was allocated on
+    /*! True when the block is the NNHaul engine's preallocated
+     * workspace (borrowed under NNTILE_USE_NNHAUL), not a second
+     * cudaMalloc: one reservation serves both. */
+    bool borrowed = false;
+    /*! High-water of the staged bytes this workspace actually held. */
+    std::size_t peak_bytes = 0;
 };
 
 /*! The ONE workspace of the process. Declared here, defined (NOT
