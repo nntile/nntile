@@ -229,11 +229,11 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def(
         "restrict_cpu",
         &torch_nntile::restrict_cpu,
-        "Run StarPU codelets on CPU workers only");
+        "Pin codelets to CPU workers (StarPU only; raises on NNHaul, which has none)");
     m.def(
         "restrict_cuda",
         &torch_nntile::restrict_cuda,
-        "Run StarPU codelets on CUDA workers only");
+        "Pin codelets to CUDA workers");
     m.def(
         "restore_where",
         &torch_nntile::restore_where,

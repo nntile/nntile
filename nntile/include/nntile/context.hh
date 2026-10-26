@@ -65,9 +65,10 @@ public:
     //! Constructor of the context
     /*! The only way to initialize the context is to call this constructor.
     * @param[in] ncpu: number of CPU workers, -1 means that STARPU_NCPU env
-    *      variable is used
+    *      variable is used. Ignored by the GPU-only NNHaul backend, which
+    *      creates no CPU workers.
     * @param[in] ncuda: number of CUDA workers, -1 means that STARPU_NCUDA env
-    *      variable is used
+    *      variable is used. NNHaul always provides (at least) one.
     * @param[in] ooc: enable Out-of-Core (OOC) support
     * @param[in] ooc_path: path to the OOC disk
     * @param[in] ooc_size: size of the OOC disk in bytes

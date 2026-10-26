@@ -58,8 +58,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import time
 from pathlib import Path
+
+# NNHaul has no CPU workers; PyTorch's CPU BLAS pool would only spin
+# beside the single GPU issuer. Must be set before ``import torch``.
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("OMP_NUM_THREADS", "1")
 
 import torch
 from nntile_iter_phases import (
