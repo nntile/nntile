@@ -14,12 +14,13 @@
 
 // Corresponding header
 #include "nntile/nnhaul/ops/randn.hh"
-#include "nntile/nnhaul/stage.hh"
 
 // Standard libraries
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <type_traits>
 #include <vector>
 #include <stdexcept>
 
@@ -247,6 +248,101 @@ void randn_chunked(Index ndim, Index nelems, unsigned long long seed,
     }
 }
 
+// Chameleon LCG (external/random.h), reproduced here for the host-side
+// non-dense walk so the driver does not depend on the kernel TU's private
+// include path.
+inline unsigned long long rnd64_jump_hn(unsigned long long n,
+    unsigned long long seed) noexcept
+{
+    constexpr unsigned long long a = 6364136223846793005ULL;
+    constexpr unsigned long long c = 1ULL;
+    unsigned long long a_k = a, c_k = c, ran = seed;
+    n <<= 1;
+    for(int i = 0; n; n >>= 1, ++i)
+    {
+        if(n & 1)
+        {
+            ran = a_k * ran + c_k;
+        }
+        c_k *= (a_k + 1);
+        a_k *= a_k;
+    }
+    return ran;
+}
+
+inline float slaran_hn(unsigned long long &ran) noexcept
+{
+    float const value = ran * 5.4210108624275222e-20F;
+    ran = 6364136223846793005ULL * ran + 1ULL;
+    return value;
+}
+
+inline double dlaran_hn(unsigned long long &ran) noexcept
+{
+    double const value = ran * 5.4210108624275222e-20;
+    ran = 6364136223846793005ULL * ran + 1ULL;
+    return value;
+}
+
+template<typename Y>
+Y chameleon_randn_hn(unsigned long long &seed, Y mean, Y stddev) noexcept
+{
+    constexpr Y two = 2.0;
+    constexpr Y twopi = 6.2831853071795864769252867663;
+    if constexpr(std::is_same_v<Y, double>)
+    {
+        Y const t1 = dlaran_hn(seed);
+        Y const t2 = dlaran_hn(seed) * twopi;
+        return stddev * (std::sqrt(-two*std::log(t1)) * std::cos(t2)) + mean;
+    }
+    else
+    {
+        Y const t1 = slaran_hn(seed);
+        Y const t2 = slaran_hn(seed) * twopi;
+        return stddev * (std::sqrt(-two*std::log(t1)) * std::cos(t2)) + mean;
+    }
+}
+
+//! Host-side non-dense randn with the per-position PRNG and the chunk-view
+//! destination map, bitwise the classic CPU kernel.
+template<typename T>
+void randn_strided_chunked(Index ndim, Index nelems,
+    unsigned long long seed, Scalar mean_, Scalar stddev_,
+    const Index *start, const Index *shape,
+    const Index *underlying_shape, const Index *stride,
+    ::nnhaul::Buffer *buf_data)
+{
+    using Y = typename T::repr_t;
+    Y const mean{mean_};
+    Y const stddev{stddev_};
+    if(ndim <= 0 || nelems <= 0)
+    {
+        return;
+    }
+    chunkunits::ChunkView<T> const cv(buf_data);
+    for(Index i = 0; i < nelems; ++i)
+    {
+        Index lin = i;
+        Index offset = 0;
+        Index under = 0;
+        Index under_stride = 1;
+        for(Index d = 0; d < ndim; ++d)
+        {
+            Index const coord = lin % shape[d];
+            lin /= shape[d];
+            offset += coord * stride[d];
+            under += (coord + start[d]) * under_stride;
+            under_stride *= underlying_shape[d];
+        }
+        unsigned long long local = rnd64_jump_hn(
+            static_cast<unsigned long long>(under), seed);
+        Y const value = chameleon_randn_hn<Y>(local, mean, stddev);
+        std::size_t const at = static_cast<std::size_t>(offset);
+        std::size_t const c = cv.chunk_of(at);
+        *cv.ptr(c, at - cv.chunk_begin(c)) = T{value};
+    }
+}
+
 } // namespace
 
 //! Constructor
@@ -341,12 +437,20 @@ void Randn<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     }
     else
     {
-        // Unreachable through the public submit (non-dense geometries
-        // stage, and the staging scratch is unchunked); defensive no-op
-        // keeps the body total.
-        std::fprintf(stderr,
-            "nntile_randn: chunked non-dense geometry reached the native "
-            "driver; output left unwritten\n");
+        // Foreign strided output on a chunked buffer: per-position PRNG
+        // walk with the destination offset mapped through the chunk view
+        // (bitwise the classic CPU call).
+        randn_strided_chunked<T>(
+            ndim,
+            *nelems_ptr,
+            *seed_ptr,
+            *mean_ptr,
+            *stddev_ptr,
+            start,
+            shape,
+            underlying_shape,
+            stride,
+            buf_data);
     }
 }
 
@@ -426,9 +530,41 @@ void Randn<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     }
     else
     {
+        // Foreign strided output on a chunked buffer: one launch of the
+        // per-position kernel with the destination chunk table (bitwise
+        // the classic CUDA call).
+        chunkunits::ChunkView<T> const cv(buf_data);
+        chunkunits::RingTables &tabs = chunkunits::ring_tables();
+        tabs.clear();
+        std::size_t const o_dst = tabs.add(cv);
+        chunkunits::ChunkPtrRing &ring = chunkunits::chunk_ptr_ring();
+        if(ring.begin(stream))
+        {
+            void const *ring_base = ring.upload_tables(tabs);
+            if(ring_base != nullptr)
+            {
+                kernel::randn::chunked<T>(
+                    stream,
+                    ndim,
+                    *nelems_ptr,
+                    *seed_ptr,
+                    *mean_ptr,
+                    *stddev_ptr,
+                    start,
+                    shape,
+                    underlying_shape,
+                    stride,
+                    ring.table_view<T *>(ring_base, o_dst),
+                    Index(cv.nchunks),
+                    Index(cv.chunk_elems));
+                ring.end(stream);
+                return;
+            }
+        }
         std::fprintf(stderr,
-            "nntile_randn: chunked non-dense geometry reached the native "
-            "driver; output left unwritten\n");
+            "nntile_randn: chunk-ptr ring cannot serve this launch "
+            "(invariant violation; no staging fallback exists)\n");
+        std::abort();
     }
 }
 
@@ -486,22 +622,11 @@ void Randn<std::tuple<T>>::submit(int starpu_worker_hint,
 {
     double nflops = 2 * nelems;
     (void)nflops;
-    // Submit task: dense Fortran strides (every Tile payload) take the
-    // BODY's native chunked driver; foreign strided geometries keep the
-    // universal staging fallback (the flat enumeration the native driver
-    // factorizes does not exist for them).
-    if(dense_fortran_strides(ndim, shape.data(), stride.data()))
-    {
-        ::nntile::haul::insert_values(codelet.raw, starpu_worker_hint,
-            { { &ndim, sizeof(ndim) }, { &nelems, sizeof(nelems) }, { &seed, sizeof(seed) }, { &mean, sizeof(mean) }, { &stddev, sizeof(stddev) }, { &start[0], ndim*sizeof(start[0]) }, { &shape[0], ndim*sizeof(shape[0]) }, { &stride[0], ndim*sizeof(stride[0]) }, { &underlying_shape[0], ndim*sizeof(underlying_shape[0]) } },
-            { { STARPU_W, &data } });
-    }
-    else
-    {
-        ::nntile::haul::stage::staged_insert_values(codelet.raw, starpu_worker_hint,
-            { { &ndim, sizeof(ndim) }, { &nelems, sizeof(nelems) }, { &seed, sizeof(seed) }, { &mean, sizeof(mean) }, { &stddev, sizeof(stddev) }, { &start[0], ndim*sizeof(start[0]) }, { &shape[0], ndim*sizeof(shape[0]) }, { &stride[0], ndim*sizeof(stride[0]) }, { &underlying_shape[0], ndim*sizeof(underlying_shape[0]) } },
-            { { STARPU_W, &data } });
-    }
+    // Submit task: the body serves dense and foreign-strided geometries
+    // natively (chunked and unchunked); no staging either way.
+    ::nntile::haul::insert_values(codelet.raw, starpu_worker_hint,
+        { { &ndim, sizeof(ndim) }, { &nelems, sizeof(nelems) }, { &seed, sizeof(seed) }, { &mean, sizeof(mean) }, { &stddev, sizeof(stddev) }, { &start[0], ndim*sizeof(start[0]) }, { &shape[0], ndim*sizeof(shape[0]) }, { &stride[0], ndim*sizeof(stride[0]) }, { &underlying_shape[0], ndim*sizeof(underlying_shape[0]) } },
+        { { STARPU_W, &data } });
 }
 // Explicit instantiation
 // For some strange reason, the compiler does not instantiate the template

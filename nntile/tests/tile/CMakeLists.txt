@@ -93,6 +93,7 @@ set(TESTS_TILE_ROOT_CATCH2
     "append_tensor_graph_phase"
     "chunked_big"
     "chunked_staged_probe"
+    "chunked_swap_conv_randn_ab"
     "daemon_robustness"
     "add_mixed_tile"
     "execution_schedule"

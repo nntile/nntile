@@ -15,22 +15,29 @@
 
 // Corresponding header
 #include "nntile/nnhaul/ops/conv2d_bwd_weight_inplace.hh"
-#include "nntile/nnhaul/stage.hh"
 
 // Standard libraries
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <stdexcept>
 
 // Other NNTile headers
 #include "nntile/kernel/conv2d_bwd_weight_inplace.hh"
+#include "nntile/nnhaul/chunk_units.hh"
 
 namespace nntile::haul
 {
 // ---------------------------------------------------------------------------
-// DELIBERATELY STAGED (the family-3 derivation, docs/chunked-tiles.md
-// §4.3): conv2d_bwd_weight_inplace is NOT chunk-decomposable with the
-// existing kernel signature.
+// Native chunked driver (no staging): the kernel layer's chunked entry
+// addresses every src1/src2/dst offset through the device chunk-pointer
+// tables, so the full-tensor reduction per weight element is one launch
+// with the classic arithmetic. Bitwise the whole-buffer call; all-
+// unchunked buffers keep the classic call.
+//
+// (Historical staged derivation, retained for context:
+// conv2d_bwd_weight_inplace was not decomposable with the existing kernel
+// signature.
 //
 // Index map (kernel::conv2d_bwd_weight_inplace::cpu/cuda): dst(i,j,k,l)
 // (the WEIGHT grad, contiguous axis i) is the reduction
@@ -108,35 +115,90 @@ void Conv2dBwdWeightInplace<std::tuple<T>>::cuda(
     // Get arguments
     args_t const *args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    const T *src1 = ::nntile::haul::buf_as<T>(buffers, 0);
-    const T *src2 = ::nntile::haul::buf_as<T>(buffers, 1);
-    T *dst = ::nntile::haul::buf_as<T>(buffers, 2);
+    auto buf_src1 = static_cast<::nnhaul::Buffer *>(buffers[0]);
+    auto buf_src2 = static_cast<::nnhaul::Buffer *>(buffers[1]);
+    auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[2]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    // Launch kernel
-    kernel::conv2d_bwd_weight_inplace::cuda<T>(
-        stream,
-        args->src1_m,
-        args->src1_n,
-        args->src1_channels,
-        args->batch,
-        args->src2_m,
-        args->src2_n,
-        args->stride_m,
-        args->stride_n,
-        args->src2_channels,
-        args->offset_m,
-        args->offset_n,
-        args->alpha,
-        src1,
-        src2,
-        args->dst_m,
-        args->dst_n,
-        args->dilation_m,
-        args->dilation_n,
-        args->beta,
-        dst
-    );
+    if(buf_src1->chunk_count() == 1 && buf_src2->chunk_count() == 1
+        && buf_dst->chunk_count() == 1)
+    {
+        // Unchunked fast path: the historical single kernel call, bitwise.
+        kernel::conv2d_bwd_weight_inplace::cuda<T>(
+            stream,
+            args->src1_m,
+            args->src1_n,
+            args->src1_channels,
+            args->batch,
+            args->src2_m,
+            args->src2_n,
+            args->stride_m,
+            args->stride_n,
+            args->src2_channels,
+            args->offset_m,
+            args->offset_n,
+            args->alpha,
+            buf_src1->get_ptr<T>(),
+            buf_src2->get_ptr<T>(),
+            args->dst_m,
+            args->dst_n,
+            args->dilation_m,
+            args->dilation_n,
+            args->beta,
+            buf_dst->get_ptr<T>());
+        return;
+    }
+    // Chunked single-launch path.
+    chunkunits::ChunkView<T> const cv_src1(buf_src1);
+    chunkunits::ChunkView<T> const cv_src2(buf_src2);
+    chunkunits::ChunkView<T> const cv_dst(buf_dst);
+    chunkunits::RingTables &tabs = chunkunits::ring_tables();
+    tabs.clear();
+    std::size_t const o_src1 = tabs.add(cv_src1);
+    std::size_t const o_src2 = tabs.add(cv_src2);
+    std::size_t const o_dst = tabs.add(cv_dst);
+    chunkunits::ChunkPtrRing &ring = chunkunits::chunk_ptr_ring();
+    if(ring.begin(stream))
+    {
+        void const *ring_base = ring.upload_tables(tabs);
+        if(ring_base != nullptr)
+        {
+            kernel::conv2d_bwd_weight_inplace::chunked<T>(
+                stream,
+                args->src1_m,
+                args->src1_n,
+                args->src1_channels,
+                args->batch,
+                args->src2_m,
+                args->src2_n,
+                args->stride_m,
+                args->stride_n,
+                args->src2_channels,
+                args->offset_m,
+                args->offset_n,
+                args->alpha,
+                ring.table_view<T const *>(ring_base, o_src1),
+                Index(cv_src1.nchunks),
+                ring.table_view<T const *>(ring_base, o_src2),
+                Index(cv_src2.nchunks),
+                ring.table_view<T *>(ring_base, o_dst),
+                Index(cv_dst.nchunks),
+                args->dst_m,
+                args->dst_n,
+                args->dilation_m,
+                args->dilation_n,
+                args->beta,
+                Index(cv_src1.chunk_elems),
+                Index(cv_src2.chunk_elems),
+                Index(cv_dst.chunk_elems));
+            ring.end(stream);
+            return;
+        }
+    }
+    std::fprintf(stderr,
+        "nntile_conv2d_bwd_weight_inplace: chunk-ptr ring cannot serve this "
+        "launch (invariant violation; no staging fallback exists)\n");
+    std::abort();
 }
 #endif // NNTILE_USE_CUDA
 
@@ -201,8 +263,9 @@ void Conv2dBwdWeightInplace<std::tuple<T>>::submit(int starpu_worker_hint,
     {
         dst_mode = STARPU_W;
     }
-    // Submit task: staged by design (the family-3 derivation above).
-    ::nntile::haul::stage::staged_insert_task(codelet.raw, starpu_worker_hint,
+    // Submit task: the CUDA body serves chunked and unchunked operands
+    // natively (no staging).
+    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
         { { STARPU_R, &src1 }, { STARPU_R, &src2 }, { dst_mode, &dst } }, args, sizeof(*args));
     std::free(args);
 
