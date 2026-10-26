@@ -192,6 +192,13 @@ if(NNTILE_USE_NNHAUL)
         "${NNHAUL_INCLUDE_DIR}"
         ${CUDAToolkit_INCLUDE_DIRS}
         "${CUDNN_INCLUDE_DIR}")
+    # A build-directory NNHAUL_ROOT carries the CMake-generated
+    # nnhaul/defs.h (the configured chunk class) under its own include
+    # tree; an installed prefix already has it beside nnhaul.hh.
+    if(EXISTS "${NNHAUL_ROOT}/include/nnhaul/defs.h")
+        target_include_directories(nnhaul INTERFACE
+            "${NNHAUL_ROOT}/include")
+    endif()
     target_link_libraries(nnhaul INTERFACE
         CUDA::cudart
         CUDA::cublas
