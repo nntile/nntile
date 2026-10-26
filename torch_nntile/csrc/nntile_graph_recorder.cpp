@@ -40,6 +40,10 @@
 #include <starpu.h>
 #endif
 
+#ifdef NNTILE_USE_NNHAUL
+#include <nnhaul/nnhaul.hh>
+#endif
+
 namespace nntile
 {
 void apply_tiling_to_axis(
@@ -1319,6 +1323,14 @@ void run_graph_locked()
         g_exec->executed_op_end = g_exec->pending_exec_op_end;
         g_exec->pending_exec_op_begin = g_exec->pending_exec_op_end;
     }
+#ifdef NNTILE_USE_NNHAUL
+#ifdef NNHAUL_SIGNAL_GRAPH_END
+    // End-of-sequence hint: close, plan, check and issue this phase now,
+    // without waiting. The next phase's compile then overlaps this
+    // phase's GPU work; wait() remains the barrier.
+    ::nnhaul::signal_graph_end();
+#endif
+#endif
     g_run_cleanup_pending = true;
     compact_after_submit_locked();
 }
