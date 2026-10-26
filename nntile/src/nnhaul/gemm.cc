@@ -185,6 +185,10 @@ void gemm_workspace_staged(cublasHandle_t handle, TransOp transA,
     place(stage_a, bufA, 0);
     place(stage_b, bufB, 1);
     place(stage_c, bufC, 2);
+    if(used_chunks * cls > ws.peak_bytes)
+    {
+        ws.peak_bytes = used_chunks * cls;
+    }
     if(used_chunks * cls > ws.bytes)
     {
         std::string need;

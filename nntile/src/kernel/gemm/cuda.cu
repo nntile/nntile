@@ -54,9 +54,30 @@
 // Other NNTile headers
 #include "nntile/base_types.hh"
 #include "nntile/kernel/cuda.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include <nnhaul/nnhaul.hh>
+#endif
 
 namespace nntile::kernel::gemm
 {
+
+namespace
+{
+// atexit needs a plain function pointer; the workspace lives in the
+// function-local static below.
+Workspace *g_ws_for_print = nullptr;
+void gemm_ws_print()
+{
+    Workspace const *w = g_ws_for_print;
+    if(w == nullptr)
+    {
+        return;
+    }
+    std::fprintf(stderr,
+        "[gemm-ws] reserved_MiB=%zu peak_MiB=%zu borrowed=%d\n",
+        w->bytes >> 20, w->peak_bytes >> 20, w->borrowed ? 1 : 0);
+}
+} // namespace
 
 //! Test hook: NNHAUL_GEMM_WORKSPACE_BYTES shrinks the workspace so the
 //! wrapper's overflow check can be exercised cheaply. Read ONCE per
@@ -86,6 +107,27 @@ Workspace &workspace()
 {
     static Workspace w = []() {
         Workspace s;
+        int dev0 = -1;
+        if(cudaGetDevice(&dev0) != cudaSuccess)
+        {
+            dev0 = -1;
+        }
+#ifdef NNTILE_USE_NNHAUL
+        // ONE reservation: borrow the engine's preallocated workspace.
+        // NNHaul allocates it before the chunk arena, so its size is
+        // known to the arena budget and no second 1 GiB block exists.
+        void *nbase = nullptr;
+        std::size_t nbytes = 0;
+        if(::nnhaul::workspace_region(&nbase, &nbytes)
+            && nbase != nullptr && nbytes > 0)
+        {
+            s.base = static_cast<unsigned char *>(nbase);
+            s.bytes = nbytes;
+            s.device = dev0;
+            s.borrowed = true;
+            return s;
+        }
+#endif
         s.bytes = workspace_bytes_from_env();
         int dev = -1;
         cudaError_t const gd = cudaGetDevice(&dev);
@@ -109,6 +151,18 @@ Workspace &workspace()
         s.device = dev;
         return s;
     }();
+    // One summary line per process at exit (the harness sets
+    // NNHAUL_ALLOC_TRACE). Captures the constructed static, never a
+    // temporary.
+    static bool const ws_printer = []() {
+        if(std::getenv("NNHAUL_ALLOC_TRACE") != nullptr)
+        {
+            g_ws_for_print = &w;
+            std::atexit(gemm_ws_print);
+        }
+        return true;
+    }();
+    (void) ws_printer;
     int dev = -1;
     if(cudaGetDevice(&dev) == cudaSuccess && dev != w.device)
     {
