@@ -265,6 +265,16 @@ def restore_where() -> None:
     _C.restore_where()
 
 
+def join_predecessor() -> int:
+    """Join the older in-flight batch, leaving the newest running.
+
+    Returns the joined batch sequence, or 0 when there is no predecessor.
+    Used by the pipelined training loop to overlap the next phase's issue
+    with the previous phase's GPU work.
+    """
+    return int(_C.join_predecessor())
+
+
 def wait() -> None:
     """Join StarPU after :func:`run` for host-visible completion.
 
@@ -373,6 +383,7 @@ __all__ = [
     "init_context",
     "execute",
     "local_compiler_enabled",
+    "join_predecessor",
     "compile_graph",
     "run",
     "reset_graph_session",

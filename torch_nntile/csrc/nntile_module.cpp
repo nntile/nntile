@@ -255,6 +255,10 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         &torch_nntile::compile_graph,
         "Lower and compile the pending TensorGraph into a persistent session");
     m.def(
+        "join_predecessor",
+        &torch_nntile::join_predecessor,
+        "Join the older in-flight NNHaul batch, leaving the newest running");
+    m.def(
         "run",
         &torch_nntile::run_graph,
         "Submit the compiled graph to StarPU (asynchronous; does not wait)");

@@ -1482,6 +1482,16 @@ void run_graph()
     run_graph_locked();
 }
 
+std::uint64_t join_predecessor()
+{
+#ifdef NNTILE_USE_NNHAUL
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    return ::nnhaul::join_predecessor();
+#else
+    return 0;
+#endif
+}
+
 void wait_graph_session()
 {
     std::unique_lock<std::recursive_mutex> lock(g_recorder_mutex);

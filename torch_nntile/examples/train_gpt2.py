@@ -638,7 +638,20 @@ def train_nntile(args: argparse.Namespace) -> int:
             step_torch_s = max(0.0, record_wall_s - step_nntile_s)
             record_nntile_s += step_nntile_s
             record_torch_s += step_torch_s
-            if args.wait_after_run:
+            if accum > 1:
+                # Pipelined order: issue this optimizer step, then join
+                # the PREVIOUS one. The next step's record/compile/issue
+                # overlaps the previous step's GPU work.
+                t0 = time.perf_counter()
+                torch_nntile.compile_graph()
+                dc = time.perf_counter() - t0
+                t0 = time.perf_counter()
+                torch_nntile.run()
+                dr = time.perf_counter() - t0
+                t0 = time.perf_counter()
+                torch_nntile.join_predecessor()
+                dw = time.perf_counter() - t0
+            elif args.wait_after_run:
                 dc, dw, dr = compile_run_wait_iter(torch_nntile)
             else:
                 dc, dw, dr = compile_wait_run_iter(torch_nntile)
@@ -648,7 +661,7 @@ def train_nntile(args: argparse.Namespace) -> int:
             global_step += 1
             is_last = step_idx == opt_steps - 1
             if is_last:
-                if not args.wait_after_run:
+                if not args.wait_after_run or accum > 1:
                     extra_wait = wait_end(torch_nntile)
                     wait_s += extra_wait
                     dw += extra_wait

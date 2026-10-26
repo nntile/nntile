@@ -39,6 +39,12 @@ void run_graph();
 //! Prefer ``torch_nntile.wait()`` / ``wait_for_all()`` which call this.
 void wait_graph_session();
 
+/*! Join the OLDER of two in-flight NNHaul batches (the predecessor),
+ * leaving the just-issued one running. Returns the joined batch seq, or
+ * 0 when there is no predecessor. Only meaningful with NNTILE_USE_NNHAUL;
+ * the StarPU build returns 0. */
+std::uint64_t join_predecessor();
+
 void reset_graph_session();
 
 void shutdown_recorder();
