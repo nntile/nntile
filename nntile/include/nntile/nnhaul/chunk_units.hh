@@ -106,6 +106,7 @@ struct ChunkView
     std::size_t nchunks = 1;
     std::size_t total_elems = 0;
     bool real = false; //!< true: per-chunk pointers; false: one block
+    int shift = 0; //!< log2(chunk_elems) for a multi-chunk (class) buffer
 
     ChunkView() = default;
     explicit ChunkView(::nnhaul::Buffer *b):
@@ -125,6 +126,11 @@ struct ChunkView
                 std::abort();
             }
             chunk_elems = kChunkClassBytes / sizeof(T);
+            // The class is a power of two, so paging is shift/mask only.
+            for(std::size_t v = chunk_elems; (v >>= 1) != 0;)
+            {
+                ++shift;
+            }
             real = true;
         }
         else
@@ -135,17 +141,24 @@ struct ChunkView
         }
     }
 
+    //! Software paging: a one-chunk buffer is chunk 0 (no arithmetic);
+    //! a multi-chunk buffer is class-sized and a power of two, so the
+    //! chunk index is `elem >> shift` and the page offset `elem & mask`.
     std::size_t chunk_of(std::size_t elem) const noexcept
     {
-        return elem / chunk_elems;
+        return nchunks == 1 ? 0 : elem >> shift;
     }
     std::size_t chunk_begin(std::size_t c) const noexcept
     {
-        return c * chunk_elems;
+        return nchunks == 1 ? 0 : c << shift;
     }
     std::size_t chunk_end(std::size_t c) const noexcept
     {
-        std::size_t const e = (c + 1) * chunk_elems;
+        if(nchunks == 1)
+        {
+            return total_elems;
+        }
+        std::size_t const e = (c + 1) << shift;
         return e < total_elems ? e : total_elems;
     }
     //! Typed pointer at chunk c, off elements into that chunk.
