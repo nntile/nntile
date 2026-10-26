@@ -16,6 +16,9 @@
 #include "nntile/kernel/conv2d_inplace/cuda.hh"
 #include "nntile/kernel/cuda.hh"
 
+#include <cstdio>
+#include <cstdlib>
+
 namespace nntile::kernel::conv2d_inplace
 {
 
@@ -214,18 +217,52 @@ void cuda_kernel(Index src1_m, Index src1_n, Index src1_channels,
 namespace
 {
 
+//! Upper bound on the pointer slots a block stages into shared memory.
+//! 4096 slots is 32 KiB and covers a 64 TiB operand at the 16 MiB class;
+//! a larger operand is an invariant violation (no GPU can hold it).
+constexpr int kConvMaxSharedPtrs = 4096;
+
 template<typename T>
-struct Conv2dChunkTables
+struct Conv2dSharedTables
 {
     const T *const *src1;
     const T *const *src2;
     T *const *dst;
+    Index nsrc1;
+    Index nsrc2;
+    Index ndst;
     Index elems_src1;
     Index elems_src2;
     Index elems_dst;
     int shift_src1;
     int shift_src2;
     int shift_dst;
+
+    //! Stage the launch's pointer slices in shared memory once per block.
+    __device__ __forceinline__ void prepare() noexcept
+    {
+        extern __shared__ unsigned char c2d_smem[];
+        const T **s1 = reinterpret_cast<const T **>(c2d_smem);
+        const T **s2 = s1 + nsrc1;
+        T **sd = reinterpret_cast<T **>(c2d_smem
+            + (std::size_t(nsrc1) + std::size_t(nsrc2)) * sizeof(void *));
+        for(Index k = threadIdx.x; k < nsrc1; k += blockDim.x)
+        {
+            s1[k] = src1[k];
+        }
+        for(Index k = threadIdx.x; k < nsrc2; k += blockDim.x)
+        {
+            s2[k] = src2[k];
+        }
+        for(Index k = threadIdx.x; k < ndst; k += blockDim.x)
+        {
+            sd[k] = dst[k];
+        }
+        __syncthreads();
+        src1 = s1;
+        src2 = s2;
+        dst = sd;
+    }
 };
 
 static __device__ __forceinline__ long c2d_off(long f, Index elems,
@@ -238,12 +275,7 @@ template<typename T>
 static __device__ __forceinline__ T c2d_ld(const T *const *tab, long f,
     Index elems, int shift) noexcept
 {
-    // The pointer table is read-only; the read-only cache keeps the
-    // block's few distinct chunk bases resident.
-    unsigned long long const pv = __ldg(
-        reinterpret_cast<unsigned long long const *>(tab) + (f >> shift));
-    T const *p = reinterpret_cast<T const *>(pv);
-    return p[c2d_off(f, elems, shift)];
+    return tab[f >> shift][c2d_off(f, elems, shift)];
 }
 
 template<typename T>
@@ -254,14 +286,18 @@ static __device__ __forceinline__ T *c2d_dst(T *const *tab, long f,
 }
 
 template<typename T>
-static __global__
+static __global__ __launch_bounds__(256, 3)
 void chunked_cuda_kernel(Index src1_m, Index src1_n, Index src1_channels,
         Index batch, Index src2_m, Index src2_n, Index dilation_m,
         Index dilation_n, Index dst_channels, Index offset_m, Index offset_n,
         Scalar alpha, Index dst_m, Index dst_n, Index stride_m, Index stride_n,
-        Scalar beta, Conv2dChunkTables<T> t)
+        Scalar beta, Conv2dSharedTables<T> t)
 {
     using Y = typename T::repr_t;
+    t.prepare();
+    const T *const *s1 = t.src1;
+    const T *const *s2 = t.src2;
+    T *const *sd = t.dst;
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     Index dst_i = i % dst_m;
     i = i / dst_m;
@@ -283,7 +319,7 @@ void chunked_cuda_kernel(Index src1_m, Index src1_n, Index src1_channels,
     Index dst_end_n = ::min((offset_n+src1_n+stride_n-1)/stride_n, dst_n);
     Index const dst_flat =
         ((b*dst_channels+oc)*dst_n+dst_j)*dst_m + dst_i;
-    T *dst_val = c2d_dst(t.dst, dst_flat, t.elems_dst, t.shift_dst);
+    T *dst_val = c2d_dst(sd, dst_flat, t.elems_dst, t.shift_dst);
     if(dst_i >= dst_start_m and dst_i < dst_end_m and
             dst_j >= dst_start_n and dst_j < dst_end_n)
     {
@@ -335,18 +371,45 @@ void chunked_cuda_kernel(Index src1_m, Index src1_n, Index src1_channels,
                     (src1_i+offset_m-dst_i*stride_m) / dilation_m
                     + (src1_j+offset_n-dst_j*stride_n) / dilation_n * src2_m
                     + oc*src2_oc_step;
-                for(Index ic = 0; ic < src1_channels; ++ic)
+                long const f1 = long(s1_base);
+                long const f2 = long(s2_base);
+                long const f1n = f1
+                    + long(src1_step)*(src1_channels-1);
+                long const f2n = f2
+                    + long(src2_ic_step)*(src1_channels-1);
+                if((f1 >> t.shift_src1) == (f1n >> t.shift_src1)
+                    && (f2 >> t.shift_src2) == (f2n >> t.shift_src2))
                 {
-                    Y src1_val{c2d_ld(t.src1,
-                        long(s1_base) + long(src1_step)*ic,
-                        t.elems_src1, t.shift_src1)};
-                    Y src2_val{c2d_ld(t.src2,
-                        long(s2_base) + long(src2_ic_step)*ic,
-                        t.elems_src2, t.shift_src2)};
-                    y = src1_val*src2_val - c;
-                    t2 = conv + y;
-                    c = (t2-conv) - y;
-                    conv = t2;
+                    // Common case: the whole ic run lives in one chunk
+                    // of both operands. Hoist the two base pointers out
+                    // of the tap loop; the summation order is unchanged.
+                    T const *p1 = s1[f1 >> t.shift_src1]
+                        + c2d_off(f1, t.elems_src1, t.shift_src1);
+                    T const *p2 = s2[f2 >> t.shift_src2]
+                        + c2d_off(f2, t.elems_src2, t.shift_src2);
+                    for(Index ic = 0; ic < src1_channels; ++ic)
+                    {
+                        Y src1_val{p1[long(src1_step)*ic]};
+                        Y src2_val{p2[long(src2_ic_step)*ic]};
+                        y = src1_val*src2_val - c;
+                        t2 = conv + y;
+                        c = (t2-conv) - y;
+                        conv = t2;
+                    }
+                }
+                else
+                {
+                    for(Index ic = 0; ic < src1_channels; ++ic)
+                    {
+                        Y src1_val{c2d_ld(s1, f1 + long(src1_step)*ic,
+                            t.elems_src1, t.shift_src1)};
+                        Y src2_val{c2d_ld(s2, f2 + long(src2_ic_step)*ic,
+                            t.elems_src2, t.shift_src2)};
+                        y = src1_val*src2_val - c;
+                        t2 = conv + y;
+                        c = (t2-conv) - y;
+                        conv = t2;
+                    }
                 }
             }
         }
@@ -391,10 +454,13 @@ void chunked(cudaStream_t stream, Index src1_m, Index src1_n,
     {
         return;
     }
-    Conv2dChunkTables<T> t;
+    Conv2dSharedTables<T> t;
     t.src1 = src1_chunks;
     t.src2 = src2_chunks;
     t.dst = dst_chunks;
+    t.nsrc1 = nsrc1;
+    t.nsrc2 = nsrc2;
+    t.ndst = ndst;
     t.elems_src1 = elems_src1;
     t.elems_src2 = elems_src2;
     t.elems_dst = elems_dst;
@@ -404,9 +470,21 @@ void chunked(cudaStream_t stream, Index src1_m, Index src1_n,
         std::size_t(elems_src2), "nntile_conv2d_inplace");
     t.shift_dst = chunk_shift_of<T>(std::size_t(ndst),
         std::size_t(elems_dst), "nntile_conv2d_inplace");
+    std::size_t const total_ptrs = std::size_t(nsrc1) + std::size_t(nsrc2)
+        + std::size_t(ndst);
+    if(total_ptrs > std::size_t(kConvMaxSharedPtrs))
+    {
+        std::fprintf(stderr, "nntile_conv2d_inplace: %zu chunk pointers "
+            "exceed the %d-slot block table (invariant violation: the "
+            "operand would exceed 64 TiB)\n", total_ptrs,
+            kConvMaxSharedPtrs);
+        std::abort();
+    }
+    std::size_t const shared = total_ptrs * sizeof(void *);
     int nelems_dst = dst_m * dst_n * dst_channels * batch;
     dim3 blocks((nelems_dst+255)/256), threads(256);
-    chunked_cuda_kernel<T><<<blocks, threads, 0, stream>>>(src1_m, src1_n,
+    chunked_cuda_kernel<T>
+        <<<blocks, threads, shared, stream>>>(src1_m, src1_n,
             src1_channels, batch, src2_m, src2_n, dilation_m, dilation_n,
             dst_channels, offset_m, offset_n, alpha, dst_m, dst_n, stride_m,
             stride_n, beta, t);

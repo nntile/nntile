@@ -16,6 +16,9 @@
 #include "nntile/kernel/conv2d_bwd_weight_inplace/cuda.hh"
 #include "nntile/kernel/cuda.hh"
 
+#include <cstdio>
+#include <cstdlib>
+
 namespace nntile::kernel::conv2d_bwd_weight_inplace
 {
 
@@ -211,12 +214,17 @@ void cuda_kernel(Index src1_m, Index src1_n, Index src1_channels, Index batch,
 namespace
 {
 
+constexpr int kConvMaxSharedPtrs = 4096;
+
 template<typename T>
 struct Conv2dBwdWeightChunkTables
 {
     const T *const *src1;
     const T *const *src2;
     T *const *dst;
+    Index nsrc1;
+    Index nsrc2;
+    Index ndst;
     Index elems_src1;
     Index elems_src2;
     Index elems_dst;
@@ -254,6 +262,27 @@ void chunked_cuda_kernel(Index src1_m, Index src1_n, Index src1_channels,
         Index dilation_n, Scalar beta, Conv2dBwdWeightChunkTables<T> t)
 {
     using Y = typename T::repr_t;
+    // Block-local staging of the chunk-pointer slices: every tap lookup
+    // below is a shared-memory read instead of a dependent global load,
+    // with the shift/mask arithmetic unchanged.
+    extern __shared__ unsigned char cbdw_smem[];
+    const T **s1 = reinterpret_cast<const T **>(cbdw_smem);
+    const T **s2 = s1 + t.nsrc1;
+    T **sd = reinterpret_cast<T **>(cbdw_smem
+        + (std::size_t(t.nsrc1) + std::size_t(t.nsrc2)) * sizeof(void *));
+    for(Index k = threadIdx.x; k < t.nsrc1; k += blockDim.x)
+    {
+        s1[k] = t.src1[k];
+    }
+    for(Index k = threadIdx.x; k < t.nsrc2; k += blockDim.x)
+    {
+        s2[k] = t.src2[k];
+    }
+    for(Index k = threadIdx.x; k < t.ndst; k += blockDim.x)
+    {
+        sd[k] = t.dst[k];
+    }
+    __syncthreads();
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     Index dst_i = i % dst_m;
     i = i / dst_m;
@@ -277,7 +306,7 @@ void chunked_cuda_kernel(Index src1_m, Index src1_n, Index src1_channels,
             dst_n);
     Index const dst_flat =
         ((oc*src1_channels+ic)*dst_n+dst_j)*dst_m + dst_i;
-    T *dst_val = cbdw_dst(t.dst, dst_flat, t.elems_dst, t.shift_dst);
+    T *dst_val = cbdw_dst(sd, dst_flat, t.elems_dst, t.shift_dst);
     if(dst_i >= dst_start_m and dst_i < dst_end_m and
             dst_j >= dst_start_n and dst_j < dst_end_n)
     {
@@ -331,10 +360,10 @@ void chunked_cuda_kernel(Index src1_m, Index src1_n, Index src1_channels,
                       )*src2_m;
                 for(Index b = 0; b < batch; ++b)
                 {
-                    Y src1_val{cbdw_ld(t.src1,
+                    Y src1_val{cbdw_ld(s1,
                         long(s1_base) + long(src1_step)*b,
                         t.elems_src1, t.shift_src1)};
-                    Y src2_val{cbdw_ld(t.src2,
+                    Y src2_val{cbdw_ld(s2,
                         long(s2_base) + long(src2_step)*b,
                         t.elems_src2, t.shift_src2)};
                     y = src1_val*src2_val - c;
@@ -389,6 +418,9 @@ void chunked(cudaStream_t stream, Index src1_m, Index src1_n,
     t.src1 = src1_chunks;
     t.src2 = src2_chunks;
     t.dst = dst_chunks;
+    t.nsrc1 = nsrc1;
+    t.nsrc2 = nsrc2;
+    t.ndst = ndst;
     t.elems_src1 = elems_src1;
     t.elems_src2 = elems_src2;
     t.elems_dst = elems_dst;
@@ -398,9 +430,20 @@ void chunked(cudaStream_t stream, Index src1_m, Index src1_n,
         std::size_t(elems_src2), "nntile_conv2d_bwd_weight_inplace");
     t.shift_dst = chunk_shift_of<T>(std::size_t(ndst),
         std::size_t(elems_dst), "nntile_conv2d_bwd_weight_inplace");
+    std::size_t const total_ptrs = std::size_t(nsrc1) + std::size_t(nsrc2)
+        + std::size_t(ndst);
+    if(total_ptrs > std::size_t(kConvMaxSharedPtrs))
+    {
+        std::fprintf(stderr, "nntile_conv2d_bwd_weight_inplace: %zu chunk "
+            "pointers exceed the %d-slot block table (invariant violation: "
+            "the operand would exceed 64 TiB)\n", total_ptrs,
+            kConvMaxSharedPtrs);
+        std::abort();
+    }
+    std::size_t const shared = total_ptrs * sizeof(void *);
     int nelems_dst = dst_m * dst_n * src1_channels * src2_channels;
     dim3 blocks((nelems_dst+255)/256), threads(256);
-    chunked_cuda_kernel<T><<<blocks, threads, 0, stream>>>(src1_m, src1_n,
+    chunked_cuda_kernel<T><<<blocks, threads, shared, stream>>>(src1_m, src1_n,
             src1_channels, batch, src2_m, src2_n, stride_m, stride_n,
             src2_channels, offset_m, offset_n, alpha, dst_m, dst_n, dilation_m,
             dilation_n, beta, t);

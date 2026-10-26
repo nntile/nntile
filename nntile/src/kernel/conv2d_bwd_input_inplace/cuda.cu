@@ -16,6 +16,9 @@
 #include "nntile/kernel/conv2d_bwd_input_inplace/cuda.hh"
 #include "nntile/kernel/cuda.hh"
 
+#include <cstdio>
+#include <cstdlib>
+
 namespace nntile::kernel::conv2d_bwd_input_inplace
 {
 
@@ -194,12 +197,17 @@ void cuda_kernel(Index src1_m, Index src1_n, Index stride_m, Index stride_n,
 namespace
 {
 
+constexpr int kConvMaxSharedPtrs = 4096;
+
 template<typename T>
 struct Conv2dBwdInputChunkTables
 {
     const T *const *src1;
     const T *const *src2;
     T *const *dst;
+    Index nsrc1;
+    Index nsrc2;
+    Index ndst;
     Index elems_src1;
     Index elems_src2;
     Index elems_dst;
@@ -229,7 +237,7 @@ static __device__ __forceinline__ T *cbdi_dst(T *const *tab, long f,
 }
 
 template<typename T>
-static __global__
+static __global__ __launch_bounds__(256, 3)
 void chunked_cuda_kernel(Index src1_m, Index src1_n, Index stride_m,
         Index stride_n, Index src1_channels, Index batch, Index src2_m,
         Index src2_n, Index dilation_m, Index dilation_n, Index dst_channels,
@@ -237,6 +245,27 @@ void chunked_cuda_kernel(Index src1_m, Index src1_n, Index stride_m,
         Scalar beta, Conv2dBwdInputChunkTables<T> t)
 {
     using Y = typename T::repr_t;
+    // Block-local staging of the chunk-pointer slices: every tap lookup
+    // below is a shared-memory read instead of a dependent global load,
+    // with the shift/mask arithmetic unchanged.
+    extern __shared__ unsigned char cbdi_smem[];
+    const T **s1 = reinterpret_cast<const T **>(cbdi_smem);
+    const T **s2 = s1 + t.nsrc1;
+    T **sd = reinterpret_cast<T **>(cbdi_smem
+        + (std::size_t(t.nsrc1) + std::size_t(t.nsrc2)) * sizeof(void *));
+    for(Index k = threadIdx.x; k < t.nsrc1; k += blockDim.x)
+    {
+        s1[k] = t.src1[k];
+    }
+    for(Index k = threadIdx.x; k < t.nsrc2; k += blockDim.x)
+    {
+        s2[k] = t.src2[k];
+    }
+    for(Index k = threadIdx.x; k < t.ndst; k += blockDim.x)
+    {
+        sd[k] = t.dst[k];
+    }
+    __syncthreads();
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     Index dst_i = i % dst_m;
     i = i / dst_m;
@@ -258,7 +287,7 @@ void chunked_cuda_kernel(Index src1_m, Index src1_n, Index stride_m,
             dst_n);
     Index const dst_flat =
         ((b*dst_channels+oc)*dst_n+dst_j)*dst_m + dst_i;
-    T *dst_val = cbdi_dst(t.dst, dst_flat, t.elems_dst, t.shift_dst);
+    T *dst_val = cbdi_dst(sd, dst_flat, t.elems_dst, t.shift_dst);
     if(dst_i >= dst_start_m and dst_i < dst_end_m and
             dst_j >= dst_start_n and dst_j < dst_end_n)
     {
@@ -295,18 +324,73 @@ void chunked_cuda_kernel(Index src1_m, Index src1_n, Index stride_m,
                 Index const s2_base = tmp_i/dilation_m
                     + tmp_j/dilation_n*src2_m
                     + oc*src2_oc_step;
-                for(Index ic = 0; ic < src1_channels; ++ic)
+                long f1 = long(s1_base);
+                long f2 = long(s2_base);
+                long const span1 = long(src1_step)*(src1_channels-1);
+                long const span2 = long(src2_ic_step)*(src1_channels-1);
+                if(span1 < (1L << t.shift_src1)
+                    && span2 < (1L << t.shift_src2))
                 {
-                    Y src1_val{cbdi_ld(t.src1,
-                        long(s1_base) + long(src1_step)*ic,
-                        t.elems_src1, t.shift_src1)};
-                    Y src2_val{cbdi_ld(t.src2,
-                        long(s2_base) + long(src2_ic_step)*ic,
-                        t.elems_src2, t.shift_src2)};
-                    y = src1_val*src2_val - c;
-                    t2 = conv + y;
-                    c = (t2-conv) - y;
-                    conv = t2;
+                    // The whole ic run crosses at most one chunk boundary
+                    // per operand: walk it in (at most three) segments,
+                    // hoisting both base pointers per segment.
+                    Index ic = 0;
+                    while(ic < src1_channels)
+                    {
+                        Index const c1 = Index(f1 >> t.shift_src1);
+                        Index const c2 = Index(f2 >> t.shift_src2);
+                        long const o1 = cbdi_off(f1, t.elems_src1,
+                            t.shift_src1);
+                        long const o2 = cbdi_off(f2, t.elems_src2,
+                            t.shift_src2);
+                        long const avail1 = (1L << t.shift_src1) - o1;
+                        long const avail2 = (1L << t.shift_src2) - o2;
+                        Index n = src1_channels - ic;
+                        Index const n1 = Index(
+                            (avail1 + src1_step - 1) / src1_step);
+                        Index const n2 = Index(
+                            (avail2 + src2_ic_step - 1) / src2_ic_step);
+                        if(n1 < n)
+                        {
+                            n = n1;
+                        }
+                        if(n2 < n)
+                        {
+                            n = n2;
+                        }
+                        if(n < 1)
+                        {
+                            n = 1;
+                        }
+                        T const *p1 = s1[c1] + o1;
+                        T const *p2 = s2[c2] + o2;
+                        for(Index k = 0; k < n; ++k)
+                        {
+                            Y src1_val{p1[long(src1_step)*k]};
+                            Y src2_val{p2[long(src2_ic_step)*k]};
+                            y = src1_val*src2_val - c;
+                            t2 = conv + y;
+                            c = (t2-conv) - y;
+                            conv = t2;
+                        }
+                        ic += n;
+                        f1 += long(src1_step)*n;
+                        f2 += long(src2_ic_step)*n;
+                    }
+                }
+                else
+                {
+                    for(Index ic = 0; ic < src1_channels; ++ic)
+                    {
+                        Y src1_val{cbdi_ld(s1, f1 + long(src1_step)*ic,
+                            t.elems_src1, t.shift_src1)};
+                        Y src2_val{cbdi_ld(s2, f2 + long(src2_ic_step)*ic,
+                            t.elems_src2, t.shift_src2)};
+                        y = src1_val*src2_val - c;
+                        t2 = conv + y;
+                        c = (t2-conv) - y;
+                        conv = t2;
+                    }
                 }
             }
         }
@@ -355,6 +439,9 @@ void chunked(cudaStream_t stream, Index src1_m, Index src1_n, Index stride_m,
     t.src1 = src1_chunks;
     t.src2 = src2_chunks;
     t.dst = dst_chunks;
+    t.nsrc1 = nsrc1;
+    t.nsrc2 = nsrc2;
+    t.ndst = ndst;
     t.elems_src1 = elems_src1;
     t.elems_src2 = elems_src2;
     t.elems_dst = elems_dst;
@@ -364,9 +451,20 @@ void chunked(cudaStream_t stream, Index src1_m, Index src1_n, Index stride_m,
         std::size_t(elems_src2), "nntile_conv2d_bwd_input_inplace");
     t.shift_dst = chunk_shift_of<T>(std::size_t(ndst),
         std::size_t(elems_dst), "nntile_conv2d_bwd_input_inplace");
+    std::size_t const total_ptrs = std::size_t(nsrc1) + std::size_t(nsrc2)
+        + std::size_t(ndst);
+    if(total_ptrs > std::size_t(kConvMaxSharedPtrs))
+    {
+        std::fprintf(stderr, "nntile_conv2d_bwd_input_inplace: %zu chunk "
+            "pointers exceed the %d-slot block table (invariant violation: "
+            "the operand would exceed 64 TiB)\n", total_ptrs,
+            kConvMaxSharedPtrs);
+        std::abort();
+    }
+    std::size_t const shared = total_ptrs * sizeof(void *);
     int nelems_dst = dst_m * dst_n * dst_channels * batch;
     dim3 blocks((nelems_dst+255)/256), threads(256);
-    chunked_cuda_kernel<T><<<blocks, threads, 0, stream>>>(src1_m, src1_n,
+    chunked_cuda_kernel<T><<<blocks, threads, shared, stream>>>(src1_m, src1_n,
             stride_m, stride_n, src1_channels, batch, src2_m, src2_n,
             dilation_m, dilation_n, dst_channels, offset_m, offset_n, alpha,
             dst_m, dst_n, beta, t);
