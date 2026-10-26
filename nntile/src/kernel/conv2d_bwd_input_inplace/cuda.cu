@@ -185,6 +185,193 @@ void cuda_kernel(Index src1_m, Index src1_n, Index stride_m, Index stride_n,
     }
 }
 
+// ---------------------------------------------------------------------------
+// Chunk-addressed conv2d_bwd_input_inplace (cuda.hh chunked): the classic
+// kernel's exact index map and Kahan summation, with every operand offset
+// resolved through the device chunk-pointer tables.
+// ---------------------------------------------------------------------------
+
+namespace
+{
+
+template<typename T>
+struct Conv2dBwdInputChunkTables
+{
+    const T *const *src1;
+    const T *const *src2;
+    T *const *dst;
+    Index elems_src1;
+    Index elems_src2;
+    Index elems_dst;
+    int shift_src1;
+    int shift_src2;
+    int shift_dst;
+};
+
+static __device__ __forceinline__ long cbdi_off(long f, Index elems,
+    int shift) noexcept
+{
+    return shift == kChunkSingleShift ? f : (f & (long(elems) - 1));
+}
+
+template<typename T>
+static __device__ __forceinline__ T cbdi_ld(const T *const *tab, long f,
+    Index elems, int shift) noexcept
+{
+    return tab[f >> shift][cbdi_off(f, elems, shift)];
+}
+
+template<typename T>
+static __device__ __forceinline__ T *cbdi_dst(T *const *tab, long f,
+    Index elems, int shift) noexcept
+{
+    return tab[f >> shift] + cbdi_off(f, elems, shift);
+}
+
+template<typename T>
+static __global__
+void chunked_cuda_kernel(Index src1_m, Index src1_n, Index stride_m,
+        Index stride_n, Index src1_channels, Index batch, Index src2_m,
+        Index src2_n, Index dilation_m, Index dilation_n, Index dst_channels,
+        Index offset_m, Index offset_n, Scalar alpha, Index dst_m, Index dst_n,
+        Scalar beta, Conv2dBwdInputChunkTables<T> t)
+{
+    using Y = typename T::repr_t;
+    int i = threadIdx.x + blockIdx.x*blockDim.x;
+    Index dst_i = i % dst_m;
+    i = i / dst_m;
+    Index dst_j = i % dst_n;
+    i = i / dst_n;
+    Index oc = i % dst_channels;
+    Index b = i / dst_channels;
+    if(b >= batch)
+    {
+        return;
+    }
+    Index dst_start_m = ::max(-offset_m, Index(0));
+    Index dst_end_m = ::min(
+            dilation_m*(src2_m-1)+stride_m*(src1_m-1)-offset_m+1,
+            dst_m);
+    Index dst_start_n = ::max(-offset_n, Index(0));
+    Index dst_end_n = ::min(
+            dilation_n*(src2_n-1)+stride_n*(src1_n-1)-offset_n+1,
+            dst_n);
+    Index const dst_flat =
+        ((b*dst_channels+oc)*dst_n+dst_j)*dst_m + dst_i;
+    T *dst_val = cbdi_dst(t.dst, dst_flat, t.elems_dst, t.shift_dst);
+    if(dst_i >= dst_start_m and dst_i < dst_end_m and
+            dst_j >= dst_start_n and dst_j < dst_end_n)
+    {
+        Index src1_step = src1_n * src1_m;
+        Index src2_oc_step = src2_n * src2_m;
+        Index src2_ic_step = src2_oc_step * dst_channels;
+        Y conv{0.0}, c{0}, y, t2;
+        Index src1_start_m = (dst_i+offset_m-dilation_m*(src2_m-1)+stride_m-1)
+            / stride_m;
+        src1_start_m = ::max(src1_start_m, Index(0));
+        Index src1_end_m = ::min((dst_i+offset_m+stride_m) / stride_m, src1_m);
+        Index src1_start_n = (dst_j+offset_n-dilation_n*(src2_n-1)+stride_n-1)
+            / stride_n;
+        src1_start_n = ::max(src1_start_n, Index(0));
+        Index src1_end_n = ::min((dst_j+offset_n+stride_n) / stride_n, src1_n);
+        for(Index src1_i = src1_start_m; src1_i < src1_end_m;
+                ++src1_i)
+        {
+            Index tmp_i = dst_i+offset_m-stride_m*src1_i;
+            if(tmp_i % dilation_m != 0)
+            {
+                continue;
+            }
+            for(Index src1_j = src1_start_n;
+                    src1_j < src1_end_n; ++src1_j)
+            {
+                Index tmp_j = dst_j+offset_n-stride_n*src1_j;
+                if(tmp_j % dilation_n != 0)
+                {
+                    continue;
+                }
+                Index const s1_base = src1_i
+                    + (b*src1_channels*src1_n+src1_j)*src1_m;
+                Index const s2_base = tmp_i/dilation_m
+                    + tmp_j/dilation_n*src2_m
+                    + oc*src2_oc_step;
+                for(Index ic = 0; ic < src1_channels; ++ic)
+                {
+                    Y src1_val{cbdi_ld(t.src1,
+                        long(s1_base) + long(src1_step)*ic,
+                        t.elems_src1, t.shift_src1)};
+                    Y src2_val{cbdi_ld(t.src2,
+                        long(s2_base) + long(src2_ic_step)*ic,
+                        t.elems_src2, t.shift_src2)};
+                    y = src1_val*src2_val - c;
+                    t2 = conv + y;
+                    c = (t2-conv) - y;
+                    conv = t2;
+                }
+            }
+        }
+        if(beta == 0.0)
+        {
+            *dst_val = T{alpha * conv};
+        }
+        else
+        {
+            Y old{*dst_val};
+            *dst_val = T{(beta*old - alpha*c) + alpha*conv};
+        }
+    }
+    else
+    {
+        if(beta == 0.0)
+        {
+            *dst_val = T{Y{0.0}};
+        }
+        else if(beta != 1.0)
+        {
+            Y old{*dst_val};
+            *dst_val = T{beta * old};
+        }
+    }
+}
+
+} // namespace
+
+template<typename T>
+void chunked(cudaStream_t stream, Index src1_m, Index src1_n, Index stride_m,
+        Index stride_n, Index src1_channels, Index batch, Index src2_m,
+        Index src2_n, Index dilation_m, Index dilation_n, Index dst_channels,
+        Index offset_m, Index offset_n, Scalar alpha,
+        const T *const *src1_chunks, Index nsrc1,
+        const T *const *src2_chunks, Index nsrc2,
+        T *const *dst_chunks, Index ndst, Index dst_m, Index dst_n,
+        Scalar beta, Index elems_src1, Index elems_src2, Index elems_dst)
+    noexcept
+{
+    if(nsrc1 <= 0 || nsrc2 <= 0 || ndst <= 0)
+    {
+        return;
+    }
+    Conv2dBwdInputChunkTables<T> t;
+    t.src1 = src1_chunks;
+    t.src2 = src2_chunks;
+    t.dst = dst_chunks;
+    t.elems_src1 = elems_src1;
+    t.elems_src2 = elems_src2;
+    t.elems_dst = elems_dst;
+    t.shift_src1 = chunk_shift_of<T>(std::size_t(nsrc1),
+        std::size_t(elems_src1), "nntile_conv2d_bwd_input_inplace");
+    t.shift_src2 = chunk_shift_of<T>(std::size_t(nsrc2),
+        std::size_t(elems_src2), "nntile_conv2d_bwd_input_inplace");
+    t.shift_dst = chunk_shift_of<T>(std::size_t(ndst),
+        std::size_t(elems_dst), "nntile_conv2d_bwd_input_inplace");
+    int nelems_dst = dst_m * dst_n * dst_channels * batch;
+    dim3 blocks((nelems_dst+255)/256), threads(256);
+    chunked_cuda_kernel<T><<<blocks, threads, 0, stream>>>(src1_m, src1_n,
+            stride_m, stride_n, src1_channels, batch, src2_m, src2_n,
+            dilation_m, dilation_n, dst_channels, offset_m, offset_n, alpha,
+            dst_m, dst_n, beta, t);
+}
+
 template<typename T>
 void cuda(cudaStream_t stream, Index src1_m, Index src1_n, Index stride_m,
         Index stride_n, Index src1_channels, Index batch, Index src2_m,
@@ -258,5 +445,25 @@ void cuda<fp64_t>(cudaStream_t stream, Index src1_m, Index src1_n,
         const fp64_t *src1, const fp64_t *src2, Index dst_m, Index dst_n,
         Scalar beta, fp64_t *dst)
     noexcept;
+
+#define NNTILE_INSTANTIATE_CONV2D_BWD_INPUT_CHUNKED(T) \
+template \
+void chunked<T>(cudaStream_t stream, Index src1_m, Index src1_n, \
+        Index stride_m, Index stride_n, Index src1_channels, Index batch, \
+        Index src2_m, Index src2_n, Index dilation_m, Index dilation_n, \
+        Index dst_channels, Index offset_m, Index offset_n, Scalar alpha, \
+        const T *const *src1_chunks, Index nsrc1, \
+        const T *const *src2_chunks, Index nsrc2, \
+        T *const *dst_chunks, Index ndst, Index dst_m, Index dst_n, \
+        Scalar beta, Index elems_src1, Index elems_src2, Index elems_dst) \
+    noexcept;
+
+NNTILE_INSTANTIATE_CONV2D_BWD_INPUT_CHUNKED(bf16_t)
+NNTILE_INSTANTIATE_CONV2D_BWD_INPUT_CHUNKED(fp32_t)
+NNTILE_INSTANTIATE_CONV2D_BWD_INPUT_CHUNKED(fp32_fast_tf32_t)
+NNTILE_INSTANTIATE_CONV2D_BWD_INPUT_CHUNKED(fp32_fast_fp16_t)
+NNTILE_INSTANTIATE_CONV2D_BWD_INPUT_CHUNKED(fp32_fast_bf16_t)
+NNTILE_INSTANTIATE_CONV2D_BWD_INPUT_CHUNKED(fp64_t)
+#undef NNTILE_INSTANTIATE_CONV2D_BWD_INPUT_CHUNKED
 
 } // namespace nntile::kernel::conv2d_bwd_input_inplace

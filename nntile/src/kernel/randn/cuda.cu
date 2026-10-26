@@ -145,6 +145,91 @@ void cuda(cudaStream_t stream, Index ndim, Index nelems,
         nelems, seed, mean, stddev, geom, data);
 }
 
+// ---------------------------------------------------------------------------
+// Chunk-addressed randn (cuda.hh chunked): identical per-position PRNG and
+// index decode as cuda_kernel above, with the strided destination offset
+// resolved through the device chunk-pointer table.
+// ---------------------------------------------------------------------------
+
+namespace
+{
+
+template<typename T>
+struct RandnChunkTable
+{
+    T *const *dst; //!< device-ring view of dst's chunk pointers
+    Index elems_dst; //!< elements in a full dst chunk
+    int shift_dst; //!< class shift, or the single-chunk sentinel
+};
+
+template<typename T>
+static __global__
+void chunked_cuda_kernel(Index nelems, unsigned long long seed, Scalar mean_,
+        Scalar stddev_, RandnGeom geom, RandnChunkTable<T> t)
+{
+    Index i = threadIdx.x + blockIdx.x * blockDim.x;
+    if(i >= nelems)
+    {
+        return;
+    }
+    using Y = typename T::repr_t;
+    Y mean{mean_}, stddev{stddev_};
+    Index ndim = geom.ndim;
+    Index lin = i;
+    Index offset = 0;
+    Index under = 0;
+    Index under_stride = 1;
+    for(Index d = 0; d < ndim; ++d)
+    {
+        Index coord = lin % geom.shape[d];
+        lin /= geom.shape[d];
+        offset += coord * geom.stride[d];
+        under += (coord + geom.start[d]) * under_stride;
+        under_stride *= geom.underlying_shape[d];
+    }
+    unsigned long long local = device_rnd64_jump(
+        static_cast<unsigned long long>(under), seed);
+    long const f = static_cast<long>(offset);
+    long const off = t.shift_dst == kChunkSingleShift
+        ? f : (f & (long(t.elems_dst) - 1));
+    t.dst[f >> t.shift_dst][off] =
+        static_cast<T>(device_chameleon_randn(local, mean, stddev));
+}
+
+} // namespace
+
+template<typename T>
+void chunked(cudaStream_t stream, Index ndim, Index nelems,
+        unsigned long long seed, Scalar mean, Scalar stddev,
+        const Index *start, const Index *shape,
+        const Index *underlying_shape, const Index *stride,
+        T *const *dst_chunks, Index ndst, Index elems_dst)
+    noexcept
+{
+    if(ndim <= 0 || ndim > MAX_NDIM || nelems <= 0 || ndst <= 0)
+    {
+        return;
+    }
+    RandnGeom geom{};
+    geom.ndim = ndim;
+    for(Index d = 0; d < ndim; ++d)
+    {
+        geom.start[d] = start[d];
+        geom.shape[d] = shape[d];
+        geom.stride[d] = stride[d];
+        geom.underlying_shape[d] = underlying_shape[d];
+    }
+    RandnChunkTable<T> t;
+    t.dst = dst_chunks;
+    t.elems_dst = elems_dst;
+    t.shift_dst = chunk_shift_of<T>(std::size_t(ndst),
+        std::size_t(elems_dst), "nntile_randn");
+    dim3 threads(256);
+    dim3 blocks((nelems + 255) / 256);
+    (chunked_cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(
+        nelems, seed, mean, stddev, geom, t);
+}
+
 template
 void cuda<fp32_t>(cudaStream_t stream, Index ndim, Index nelems,
         unsigned long long seed, Scalar mean, Scalar stddev,
@@ -189,5 +274,21 @@ void cuda<bf16_t>(cudaStream_t stream, Index ndim, Index nelems,
         const Index *start, const Index *shape,
         const Index *underlying_shape, bf16_t *data, const Index *stride)
     noexcept;
+
+#define NNTILE_INSTANTIATE_RANDN_CHUNKED(T) \
+template \
+void chunked<T>(cudaStream_t stream, Index ndim, Index nelems, \
+        unsigned long long seed, Scalar mean, Scalar stddev, \
+        const Index *start, const Index *shape, \
+        const Index *underlying_shape, const Index *stride, \
+        T *const *dst_chunks, Index ndst, Index elems_dst) noexcept;
+
+NNTILE_INSTANTIATE_RANDN_CHUNKED(fp32_t)
+NNTILE_INSTANTIATE_RANDN_CHUNKED(fp64_t)
+NNTILE_INSTANTIATE_RANDN_CHUNKED(fp32_fast_tf32_t)
+NNTILE_INSTANTIATE_RANDN_CHUNKED(fp32_fast_fp16_t)
+NNTILE_INSTANTIATE_RANDN_CHUNKED(fp32_fast_bf16_t)
+NNTILE_INSTANTIATE_RANDN_CHUNKED(bf16_t)
+#undef NNTILE_INSTANTIATE_RANDN_CHUNKED
 
 } // namespace nntile::kernel::randn
