@@ -574,6 +574,11 @@ def train_nntile(args: argparse.Namespace) -> int:
                 "Per-iter record, compile_graph, run, wait "
                 "(wait joins this run; no overlap with record/compile)"
             )
+        elif args.pipelined_issue:
+            print(
+                "Per-iter record, compile_graph, run, join_predecessor "
+                "(previous GPU work + D2H drain overlap record/compile)"
+            )
         else:
             print(
                 "Per-iter record, compile_graph, wait, run "
@@ -596,6 +601,7 @@ def train_nntile(args: argparse.Namespace) -> int:
             "clock includes first record through final wait",
             flush=True,
         )
+        print(f"timing nntile train window start epoch={time.time():.6f}")
         first_record_logged = False
         # Group the minibatches into optimizer steps: each group records
         # accum_steps forward+backward passes (gradients accumulate),
@@ -613,6 +619,7 @@ def train_nntile(args: argparse.Namespace) -> int:
             lo = step_idx * accum
             hi = min(lo + accum, len(flat_batches))
             optimizer.zero_grad(set_to_none=True)
+            t_iter0 = time.perf_counter()
             nntile_t0 = torch_nntile.record_nntile_seconds()
             t_record0 = time.perf_counter()
             step_loss = None
@@ -644,10 +651,11 @@ def train_nntile(args: argparse.Namespace) -> int:
             step_torch_s = max(0.0, record_wall_s - step_nntile_s)
             record_nntile_s += step_nntile_s
             record_torch_s += step_torch_s
-            if accum > 1:
+            if accum > 1 or args.pipelined_issue:
                 # Pipelined order: issue this optimizer step, then join
                 # the PREVIOUS one. The next step's record/compile/issue
-                # overlaps the previous step's GPU work.
+                # overlaps the previous step's GPU work (and its D2H
+                # offload drain), so the GPU never idles on the host.
                 t0 = time.perf_counter()
                 torch_nntile.compile_graph()
                 dc = time.perf_counter() - t0
@@ -667,7 +675,9 @@ def train_nntile(args: argparse.Namespace) -> int:
             global_step += 1
             is_last = step_idx == opt_steps - 1
             if is_last:
-                if not args.wait_after_run or accum > 1:
+                if not args.wait_after_run or accum > 1 or (
+                    args.pipelined_issue
+                ):
                     extra_wait = wait_end(torch_nntile)
                     wait_s += extra_wait
                     dw += extra_wait
@@ -685,8 +695,10 @@ def train_nntile(args: argparse.Namespace) -> int:
                 dr,
                 dw,
                 prep_compute=args.wait_after_run,
+                iter_wall_s=time.perf_counter() - t_iter0,
             )
         train_wall_s = time.perf_counter() - t_train0
+        print(f"timing nntile train window end epoch={time.time():.6f}")
         if args.verbose:
             torch_nntile.print_info()
         if last_loss is None:
@@ -844,6 +856,15 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Wait() immediately after each run() so record "
             "and compile do not overlap GPU work. Prints prep vs compute."
+        ),
+    )
+    train.add_argument(
+        "--pipelined-issue",
+        action="store_true",
+        help=(
+            "Per-iteration pipelined order (record, compile, run, "
+            "join_predecessor): the previous step's GPU work and its "
+            "D2H offload drain overlap this step's record/compile/issue."
         ),
     )
     train.add_argument(

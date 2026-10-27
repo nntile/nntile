@@ -90,10 +90,13 @@ def print_nntile_iter_timings(
     wait_s: float,
     *,
     prep_compute: bool = False,
+    iter_wall_s: float | None = None,
 ) -> None:
     extra = ""
+    if iter_wall_s is not None:
+        extra = f" wall={iter_wall_s:.3f}s"
     if prep_compute:
-        extra = (
+        extra += (
             f" prep={record_nntile_s + record_torch_s + compile_s:.3f}s "
             f"compute={run_s + wait_s:.3f}s"
         )
