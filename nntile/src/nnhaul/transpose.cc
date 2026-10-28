@@ -388,30 +388,27 @@ void Transpose<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, 
     // (chunk_elems <= n) holds at most one dst row, so every window
     // degrades to one launch PER ELEMENT (3072x3072 fp32 at 12288-byte
     // chunks = 9.4M launches, whose enqueue alone stalls the runtime
-    // watchdog; the policy ladder never picks such a class for a real
-    // tile, but the driver must survive one). Estimate the launch count
-    // with the driver's own worst-case arithmetic - W = ceil(n / P) src
-    // windows of P = max(1, chunk_elems/m) columns, each refined into
+    // watchdog). Estimate the launch count with the driver's own
+    // worst-case arithmetic - W = ceil(n / P) src windows of
+    // P = max(1, chunk_elems/m) columns, each refined into
     // B = ceil(m / rows_per_chunk) row batches with
-    // rows_per_chunk = max(1, chunk_elems/n) - and route the submission
-    // through the staging fallback when it exceeds 1 Mi launches.
-    // Threshold rationale: the family-2 torture geometries (m=1000,
-    // n=777 at 12288-byte chunks ~ 86K launches) complete in well under
-    // a second and are pinned NATIVE by their tests, so the guard must
-    // sit at least an order of magnitude above them; the degenerate
-    // regime that motivated the guard measures 9.4M (~30 s of enqueue
-    // before the watchdog kills it), so the guard must sit an order of
-    // magnitude below that. Staging itself costs two buffer-sized
-    // copies plus one classic kernel. Unchunked or healthy-chunked
-    // submissions keep the native panel body, bitwise either way.
+    // rows_per_chunk = max(1, chunk_elems/n).
+    // (User order, 2026-10-28) Chunk classes are powers of two with a
+    // 1 MiB floor, so a class at or below one dst row cannot occur in
+    // production, and the historical staging valve for it is DELETED:
+    // the submission fails loudly instead of staging buffers and
+    // running a non-chunked kernel. The family-2 torture geometries
+    // (m=1000, n=777 at 12288-byte test classes ~ 86K launches) stay
+    // far below the threshold and keep the native panel body.
     (void)nflops;
     bool degenerate = false;
     std::size_t cb = 0;
+    std::size_t launches = 0;
     if(stage::handle_is_chunked(src) || stage::handle_is_chunked(dst))
     {
         // The REAL chunk class when the handle announced itself with its
         // size (tiles and the test factories), the policy replay below
-        // otherwise - a wrong estimate here either needlesssly stages a
+        // otherwise - a wrong estimate here either needlesssly rejects a
         // healthy geometry or, worse, lets the 9.4M-launch regime
         // through. Take the MIN over BOTH announced classes (0 = not
         // chunked = +inf): a mismatched-class pair must not bypass the
@@ -435,35 +432,30 @@ void Transpose<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, 
                 : std::size_t(m > 0 ? m : 1));
         std::size_t const W =
             (std::size_t(n > 0 ? n : 1) + P - 1) / P;
-        degenerate = W * B > (std::size_t{1} << 20);
+        launches = W * B;
+        degenerate = launches > (std::size_t{1} << 20);
     }
     if(degenerate)
     {
-        // The law is pointer math everywhere outside GEMM's workspace;
-        // this valve exists only so a pathological chunk class cannot
-        // stall the watchdog. The env probe makes any actual use
-        // visible in a run's log (a real geometry never trips it).
-        if (std::getenv("NNHAUL_TRANSPOSE_STATS") != nullptr)
-        {
-            std::fprintf(stderr,
-                "nntile_transpose: STAGED degenerate m=%lld n=%lld "
-                "chunk_bytes=%zu (the pointer-math law's only valve)\n",
-                static_cast<long long>(m), static_cast<long long>(n),
-                cb);
-        }
-        ::nntile::haul::stage::staged_insert_task(codelet.raw,
-            starpu_worker_hint,
-            { { STARPU_R, &src }, { STARPU_W, &dst } }, args,
-            sizeof(*args));
+        // (User order, 2026-10-28) Fail loudly: chunk classes are
+        // powers of two with a 1 MiB floor, so this geometry cannot
+        // occur in production, and staging buffers to run a
+        // non-chunked kernel is not an acceptable answer to it.
+        std::free(args);
+        throw std::runtime_error(
+            "nntile_transpose: degenerate chunked geometry m=" +
+            std::to_string(m) + " n=" + std::to_string(n) + " at " +
+            std::to_string(cb) + "-byte chunks would need ~" +
+            std::to_string(launches) +
+            " panel launches; chunk classes are powers of two with a "
+            "1 MiB floor, so this cannot occur in production -- "
+            "refusing to stage (no non-chunked fallback exists)");
     }
-    else
-    {
-        // Submit task: the BODY picks the unchunked fast path or the
-        // native chunked panel driver.
-        ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
-            { { STARPU_R, &src }, { STARPU_W, &dst } }, args,
-            sizeof(*args));
-    }
+    // Submit task: the BODY picks the unchunked fast path or the
+    // native chunked panel driver.
+    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
+        { { STARPU_R, &src }, { STARPU_W, &dst } }, args,
+        sizeof(*args));
     std::free(args);
 
 }
