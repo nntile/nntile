@@ -365,20 +365,53 @@ void gemm_workspace_staged(cublasHandle_t handle, TransOp transA,
 }
 #endif // NNTILE_USE_CUDA
 
-//! One stderr stats line for the degenerate all-1-chunk body.
+//! One stderr stats line for the direct (fast-forward) body: the
+//! all-1-chunk degenerate and the contiguous-chain fast path share it.
 void log_degenerate(TransOp transA, TransOp transB, Index m, Index n,
-    Index k, Index batch) noexcept
+    Index k, Index batch, std::size_t ca, std::size_t cb,
+    std::size_t cc) noexcept
 {
     if(gemm_stats())
     {
         std::fprintf(stderr,
             "nntile_gemm: path=F tA=%c tB=%c m=%lld n=%lld k=%lld "
-            "batch=%lld chunks=1/1/1 calls=1\n",
+            "batch=%lld chunks=%zu/%zu/%zu calls=1\n",
             transA.value == TransOp::Trans ? 'T' : 'N',
             transB.value == TransOp::Trans ? 'T' : 'N',
             static_cast<long long>(m), static_cast<long long>(n),
-            static_cast<long long>(k), static_cast<long long>(batch));
+            static_cast<long long>(k), static_cast<long long>(batch),
+            ca, cb, cc);
     }
+}
+
+//! The contiguous-chain fast-forward fact (user directive,
+//! 2026-10-28): a multi-chunk tile whose chunks sit at consecutive
+//! class-stride addresses IS the classic contiguous buffer — its
+//! chunk chain is a slice chain of one flat array — so cuBLAS runs
+//! on chunk 0's pointer directly, with the classic leading
+//! dimension, and no byte is staged. Pointer adjacency is checked,
+//! never chunk-id arithmetic (the fact must hold however the pool
+//! carved the arena). One compare per chunk, O(chunks) and tiny.
+template<typename T>
+bool chain_contiguous(::nnhaul::Buffer *buf) noexcept
+{
+    std::size_t const n = buf->chunk_count();
+    if (n <= 1)
+    {
+        return true;
+    }
+    char const *base =
+        reinterpret_cast<char const *>(buf->get_chunk_ptr<T>(0));
+    for (std::size_t i = 1; i < n; ++i)
+    {
+        char const *p =
+            reinterpret_cast<char const *>(buf->get_chunk_ptr<T>(i));
+        if (p != base + i * chunkunits::kChunkClassBytes)
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 } // namespace
@@ -579,13 +612,15 @@ void Gemm<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         );
         return;
     }
-    if(buf_a->chunk_count() == 1 && buf_b->chunk_count() == 1
-        && buf_c->chunk_count() == 1)
+    if(chain_contiguous<T>(buf_a) && chain_contiguous<T>(buf_b)
+        && chain_contiguous<T>(buf_c))
     {
-        // Degenerate all-1-chunk case (under the force flag): the
-        // plain cuBLAS call, argument-identical to the classic
-        // dispatch, so the flag-on run of a contiguous graph is
-        // bitwise the flag-off one.
+        // The fast-forward body (user directive, 2026-10-28): every
+        // operand is EITHER the all-1-chunk degenerate OR a
+        // contiguous multi-chunk chain — chunk 0's pointer IS the
+        // classic contiguous base, the argument-identical cuBLAS call
+        // runs on it, and no byte is staged. A flag-on run of a
+        // contiguous graph stays bitwise the flag-off one.
         kernel::cublas::gemm<T>(
             handle,
             args->transA,
@@ -595,15 +630,16 @@ void Gemm<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
             args->k,
             args->batch,
             args->alpha,
-            buf_a->get_ptr<T>(),
-            buf_b->get_ptr<T>(),
+            buf_a->get_chunk_ptr<T>(0),
+            buf_b->get_chunk_ptr<T>(0),
             args->beta,
-            buf_c->get_ptr<T>(),
+            buf_c->get_chunk_ptr<T>(0),
             args->broadcast_a,
             args->broadcast_b
         );
         log_degenerate(args->transA, args->transB, args->m, args->n,
-            args->k, args->batch);
+            args->k, args->batch, buf_a->chunk_count(),
+            buf_b->chunk_count(), buf_c->chunk_count());
         note_gemm_native_chunked();
         return;
     }
