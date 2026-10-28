@@ -154,6 +154,7 @@ float run_staged_gemm_graph(Index m, Index n, Index k)
     std::vector<fp32_t> bf(b.begin(), b.end());
     std::vector<fp32_t> c_ref(static_cast<std::size_t>(m * n),
         fp32_t(0.0f));
+#ifdef NNTILE_USE_CBLAS
     nntile::kernel::cblas::gemm<fp32_t>(
         nntile::TransOp(nntile::TransOp::NoTrans),
         nntile::TransOp(nntile::TransOp::NoTrans),
@@ -166,6 +167,24 @@ float run_staged_gemm_graph(Index m, Index n, Index k)
         bf.data(),
         Scalar{0.0},
         c_ref.data());
+#else
+    // The CUDA-only NNHaul build links no CBLAS: a naive reference
+    // serves the same purpose. Row-major throughout, matching the
+    // tile shapes: A is m by k, B is k by n, C is m by n.
+    for (Index i = 0; i < m; ++i)
+    {
+        for (Index j = 0; j < n; ++j)
+        {
+            float acc = 0.0f;
+            for (Index l = 0; l < k; ++l)
+            {
+                acc += a[static_cast<std::size_t>(i * k + l)] *
+                    b[static_cast<std::size_t>(l * n + j)];
+            }
+            c_ref[static_cast<std::size_t>(i * n + j)] = acc;
+        }
+    }
+#endif
 
     TileGraph graph("probe_gemm");
     auto *ta = graph.data({m, k}, "a", DataType::FP32);
@@ -282,17 +301,16 @@ std::uint64_t run_mixed_chain(bool print)
 TEST_CASE("probe b: mixed chain bitwise vs contiguous mode",
     "[chunked][probe]")
 {
-    // The contiguous-mode child re-enters this case with
-    // NNHAUL_CHUNK_TILES=0: it only prints its RESULT line (no
-    // grandchild).
-    char const *mode = ::getenv("NNHAUL_CHUNK_TILES");
-    bool const is_child = mode != nullptr && std::strcmp(mode, "0") == 0;
-    auto context = make_context();
-    std::uint64_t const hash = run_mixed_chain(is_child);
-    if (is_child)
-    {
-        return;
-    }
+    // RETIRED PREMISE: the child-side knob NNHAUL_CHUNK_TILES=0 is
+    // dead — the plan engine always uses the compile-time chunk class
+    // and prints a retirement warning where the child's RESULT parsing
+    // looked, so the "contiguous mode" half of the comparison no
+    // longer exists. Chunked-vs-classic parity is enforced in-process
+    // by chunked_ab (and probe a's reference check). Skipped, not red.
+    SKIP("NNHAUL_CHUNK_TILES=0 is retired: no contiguous-mode child "
+         "exists under the plan engine");
+}
+#if 0 // retired child-mode body, kept for reference
     char self_buf[4096];
     ssize_t const self_len =
         ::readlink("/proc/self/exe", self_buf, sizeof(self_buf) - 1);
@@ -343,21 +361,24 @@ TEST_CASE("probe b: mixed chain bitwise vs contiguous mode",
     REQUIRE(contiguous_hash != 0);
     REQUIRE(hash == contiguous_hash);
     std::cout << "probe b OK bitwise\n";
-}
+#endif // retired
 
-// (c) Scratch-pressure fan-out: staged swap_two_axes ops (transpose
-// became a native chunked op in family 2; the axis swap is still the
-// V1 staging fallback) on many distinct 2 MiB chunked tiles under a
-// tiny cap. Every scratch of every staged op stays alive until the
-// next idle drain (the stage lifetime scheme), so this exercises
-// eviction of idle scratch handles.
-TEST_CASE("probe c: ten staged ops under scratch pressure",
+// (c) Chunked fan-out under scratch pressure: many distinct 2 MiB
+// chunked swap_two_axes ops under a tiny cap. swap_two_axes (like
+// transpose and every other op except gemm) is a NATIVE chunk-addressed
+// kernel — the historical V1 staging fallback is gone — so this probe
+// now doubles as the law's enforcement: the whole-buffer staging
+// counter must not move (only gemm's workspace staging is sanctioned,
+// and it does not go through stage::staged_insert_task).
+TEST_CASE("probe c: ten chunked ops under scratch pressure",
     "[chunked][probe]")
 {
     auto context = make_context();
     Index const m = 512, n = 1024; // 2 MiB fp32 tiles
     char const *ce = std::getenv("PROBE_COUNT");
     int const count = ce == nullptr ? 10 : std::max(1, std::atoi(ce));
+    std::uint64_t const staged_before =
+        ::nntile::haul::stage::staged_submit_count();
     std::vector<std::vector<float>> srcs(static_cast<std::size_t>(count));
     for (int i = 0; i < count; ++i)
     {
@@ -409,6 +430,10 @@ TEST_CASE("probe c: ten staged ops under scratch pressure",
             std::vector<float>(ref.begin(), ref.end()));
         REQUIRE(diff == 0.0f);
     }
+    // The law (only gemm stages, through its workspace): the stage
+    // fallback counter must be exactly where it started.
+    REQUIRE(::nntile::haul::stage::staged_submit_count() ==
+        staged_before);
     std::cout << "probe c OK staged_submits="
               << ::nntile::haul::stage::staged_submit_count() << "\n";
 }
@@ -421,7 +446,7 @@ namespace
 // gemms alternating NoTrans/Trans use of the weights. On chunked tiles
 // every gemm takes the native panel driver; prints one RESULT line for
 // the bitwise comparison against the contiguous-mode child.
-std::uint64_t run_gemm_chain(bool print)
+[[maybe_unused]] std::uint64_t run_gemm_chain(bool print)
 {
     Index const m = 1024, d = 768, h = 3072;
     std::vector<float> w(static_cast<std::size_t>(d * h));
@@ -487,6 +512,12 @@ std::uint64_t run_gemm_chain(bool print)
 TEST_CASE("probe e: gemm-only chain bitwise vs contiguous mode",
     "[chunked][probe]")
 {
+    // RETIRED PREMISE (same as probe b): NNHAUL_CHUNK_TILES=0 is dead,
+    // no contiguous-mode child exists. The gemm-native/staged counter
+    // assertions live on in probe a; skipped, not red.
+    SKIP("NNHAUL_CHUNK_TILES=0 is retired: no contiguous-mode child "
+         "exists under the plan engine");
+#if 0 // retired child-mode body, kept for reference
     char const *mode = ::getenv("NNHAUL_CHUNK_TILES");
     bool const is_child = mode != nullptr && std::strcmp(mode, "0") == 0;
     if (is_child)
@@ -546,6 +577,7 @@ TEST_CASE("probe e: gemm-only chain bitwise vs contiguous mode",
         REQUIRE(hash == contiguous_hash);
         std::cout << "probe e OK policy=" << policy << "\n";
     }
+#endif // retired
 }
 
 namespace

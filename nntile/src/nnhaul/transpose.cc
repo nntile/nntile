@@ -406,6 +406,7 @@ void Transpose<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, 
     // submissions keep the native panel body, bitwise either way.
     (void)nflops;
     bool degenerate = false;
+    std::size_t cb = 0;
     if(stage::handle_is_chunked(src) || stage::handle_is_chunked(dst))
     {
         // The REAL chunk class when the handle announced itself with its
@@ -416,7 +417,7 @@ void Transpose<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, 
         // chunked = +inf): a mismatched-class pair must not bypass the
         // guard through the healthier operand's class.
         std::size_t const cb_dst = stage::handle_chunk_bytes(dst);
-        std::size_t cb = stage::handle_chunk_bytes(src);
+        cb = stage::handle_chunk_bytes(src);
         if(cb == 0 || (cb_dst != 0 && cb_dst < cb))
         {
             cb = cb_dst;
@@ -438,6 +439,18 @@ void Transpose<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, 
     }
     if(degenerate)
     {
+        // The law is pointer math everywhere outside GEMM's workspace;
+        // this valve exists only so a pathological chunk class cannot
+        // stall the watchdog. The env probe makes any actual use
+        // visible in a run's log (a real geometry never trips it).
+        if (std::getenv("NNHAUL_TRANSPOSE_STATS") != nullptr)
+        {
+            std::fprintf(stderr,
+                "nntile_transpose: STAGED degenerate m=%lld n=%lld "
+                "chunk_bytes=%zu (the pointer-math law's only valve)\n",
+                static_cast<long long>(m), static_cast<long long>(n),
+                cb);
+        }
         ::nntile::haul::stage::staged_insert_task(codelet.raw,
             starpu_worker_hint,
             { { STARPU_R, &src }, { STARPU_W, &dst } }, args,
