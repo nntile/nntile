@@ -154,20 +154,15 @@ void run_big_tile_chunked_graph()
     // with the MIDDLE axis k reduced; a tile-axis-0 reduction of an
     // {r, c} tile maps to (m=c, n=1, k=r).
     std::vector<fp32_t> c_ref(static_cast<std::size_t>(m * n), fp32_t(0.0f));
-#ifdef NNTILE_USE_CBLAS
-    nntile::kernel::cblas::gemm<fp32_t>(
-        nntile::TransOp(nntile::TransOp::NoTrans),
-        nntile::TransOp(nntile::TransOp::NoTrans),
-        m,
-        n,
-        k,
-        Index{1},
-        Scalar{1.0},
-        af.data(),
-        bf.data(),
-        Scalar{0.0},
-        c_ref.data());
-#else
+    // The haul tile layer stores tiles C-order (row-major, last axis
+    // contiguous; the kernel [m, k, n] map's m is the CONTIGUOUS
+    // extent). This reference walks the same convention: A {m, k} at
+    // i*k + l, B {k, n} at l*n + j, C {m, n} at i*n + j. The previous
+    // col-major strides computed a different product of the same
+    // buffers (the tile layer predates this test's fix); only the
+    // maxsumexp comparison was sharp enough to expose it — the
+    // gemm+softmax check's scale is floored at 1.0 and softmax over
+    // 1024 near-uniform elements cannot move it.
     for (Index i = 0; i < m; ++i)
     {
         for (Index j = 0; j < n; ++j)
@@ -175,13 +170,12 @@ void run_big_tile_chunked_graph()
             float acc = 0.0f;
             for (Index l = 0; l < k; ++l)
             {
-                acc += a[static_cast<std::size_t>(i + l * m)]
-                    * b[static_cast<std::size_t>(l + j * k)];
+                acc += a[static_cast<std::size_t>(i) * k + l]
+                    * b[static_cast<std::size_t>(l) * n + j];
             }
-            c_ref[static_cast<std::size_t>(i + j * m)] = fp32_t(acc);
+            c_ref[static_cast<std::size_t>(i) * n + j] = fp32_t(acc);
         }
     }
-#endif
     std::vector<fp32_t> mse_ref(static_cast<std::size_t>(2 * n), fp32_t(0.0f));
     nntile::kernel::maxsumexp::cpu<fp32_t>(
         n, Index{1}, m, c_ref.data(), Scalar{0.0}, mse_ref.data());
