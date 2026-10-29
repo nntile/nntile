@@ -177,6 +177,11 @@ inline constexpr std::size_t kChunkClassBytes = std::size_t{16} << 20;
 #endif
 
 //! Exact log2 of a power of two (constexpr, v must be a power of two).
+//! __host__ __device__: the chunked kernels call it from __global__
+//! code (a plain host constexpr needs nvcc's --expt-relaxed-constexpr,
+//! which torch extension builds inject by default but plain CMake
+//! builds do not).
+__host__ __device__
 inline constexpr int chunk_log2(std::size_t v) noexcept
 {
     int s = 0;
