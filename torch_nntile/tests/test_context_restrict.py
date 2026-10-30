@@ -14,7 +14,11 @@ import torch_nntile
 def test_init_context_before_ops():
     assert torch_nntile.is_context_initialized()
     assert not torch_nntile.is_cpu_fallback_enabled()
-    torch_nntile.restrict_cpu()
+    if torch_nntile.uses_nnhaul():
+        with pytest.raises(RuntimeError, match="no CPU workers"):
+            torch_nntile.restrict_cpu()
+    else:
+        torch_nntile.restrict_cpu()
     torch_nntile.restore_where()
 
 
@@ -27,8 +31,9 @@ def test_init_context_cpu_fallback_defaults_false():
 
 
 def test_restrict_restore_roundtrip():
-    torch_nntile.restrict_cpu()
-    torch_nntile.restore_where()
+    if not torch_nntile.uses_nnhaul():
+        torch_nntile.restrict_cpu()
+        torch_nntile.restore_where()
     torch_nntile.restrict_cuda()
     torch_nntile.restore_where()
 
@@ -38,8 +43,7 @@ def test_wait_for_all():
 
 
 def test_init_context_after_first_op_raises():
-    import torch
-
-    torch_nntile.restrict_cpu()
+    if not torch_nntile.uses_nnhaul():
+        torch_nntile.restrict_cpu()
     with pytest.raises(RuntimeError, match="init_context"):
         torch_nntile.init_context(ncpu=2, ncuda=0)

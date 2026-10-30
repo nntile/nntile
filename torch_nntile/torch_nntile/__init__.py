@@ -146,10 +146,10 @@ def init_context(
 ) -> None:
     """Configure StarPU workers, or connect to nntile-server.
 
-    On a CUDA build, ``ncpu`` defaults to **no CPU workers**: CUDA worker
-    0 is the default (and only) worker, so every codelet with a CUDA
-    kernel executes on the GPU and CPU-only codelets raise. Pass
-    ``ncpu >= 1`` explicitly to keep CPU workers for CPU-only codelets.
+    With the NNHaul backend, ``ncpu`` is ignored: libnnhaul is GPU-only
+    and creates exactly one CUDA worker. No CPU worker is ever recorded
+    in the schedule, so every codelet with a CUDA kernel executes on the
+    GPU and a codelet without one raises.
 
     When ``NNTILE_SERVER_SOCKET`` is set, this process is a platform
     kernel: no local StarPU, no hardware knobs. ``.to("nntile")``
@@ -251,7 +251,10 @@ def uses_nnhaul() -> bool:
 
 
 def restrict_cpu() -> None:
-    """Pin StarPU codelets to CPU workers (libnntile)."""
+    """Pin StarPU codelets to CPU workers (StarPU backend only).
+
+    Raises on NNHaul: that runtime has no CPU workers.
+    """
     _C.restrict_cpu()
 
 
@@ -263,6 +266,16 @@ def restrict_cuda() -> None:
 def restore_where() -> None:
     """Restore default StarPU codelet worker placement."""
     _C.restore_where()
+
+
+def join_predecessor() -> int:
+    """Join the older in-flight batch, leaving the newest running.
+
+    Returns the joined batch sequence, or 0 when there is no predecessor.
+    Used by the pipelined training loop to overlap the next phase's issue
+    with the previous phase's GPU work.
+    """
+    return int(_C.join_predecessor())
 
 
 def wait() -> None:
@@ -373,6 +386,7 @@ __all__ = [
     "init_context",
     "execute",
     "local_compiler_enabled",
+    "join_predecessor",
     "compile_graph",
     "run",
     "reset_graph_session",

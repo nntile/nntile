@@ -178,6 +178,14 @@ void drain_scratches();
 
 /*! insert_task with the universal chunked-tile fallback.
  *
+ * UNWIRED (user order, 2026-10-28): its last caller — transpose's
+ * degenerate-geometry valve — now fails loudly instead of staging
+ * (chunk classes are powers of two with a 1 MiB floor, so that
+ * geometry cannot occur in production). No driver calls this anymore;
+ * every chunked op is pointer math and only gemm stages, through its
+ * own workspace. The machinery and its counters stay so the probe
+ * tests can assert the counter never moves.
+ *
  * If no buffer's handle is chunked, this is exactly insert_task. If any
  * is, the op runs through staging: an unchunked scratch Handle (same
  * nbytes) is created for each distinct chunked handle; the converted

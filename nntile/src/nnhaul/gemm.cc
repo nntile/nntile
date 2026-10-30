@@ -43,7 +43,11 @@ template<typename T>
 Gemm<std::tuple<T>>::Gemm():
     codelet(
         "nntile_gemm",
+#ifdef NNTILE_USE_CBLAS
         &Gemm<std::tuple<T>>::cpu,
+#else
+        nullptr,
+#endif
 #ifdef NNTILE_USE_CUDA
         &Gemm<std::tuple<T>>::cuda,
 #else
@@ -56,20 +60,26 @@ Gemm<std::tuple<T>>::Gemm():
 }
 
 // ---------------------------------------------------------------------------
-// GEMM staging policy (user directive, 2026-10-19, "GEMM POLICY"):
+// GEMM staging policy (user directives, 2026-10-19 "GEMM POLICY" and
+// 2026-10-28 "per-operand staging"):
 //
 // A gemm task whose operands are chunked stages through the ONE gemm
 // WORKSPACE (kernel::gemm::workspace(), default 1 GiB, plain cudaMalloc,
 // allocated once per process, never freed, per-GPU, touched only by the
-// compute stream -- see the kernel's invariant block):
+// compute stream -- see the kernel's invariant block). The staging
+// decision is PER OPERAND (2026-10-28): an operand chains straight
+// through its leading chunk when its chunk chain is contiguous —
+// 1-chunk or multi-chunk — and only a SCATTERED operand pays a copy:
 //
-//   (i)   every MULTI-CHUNK input operand (A, B, and C when beta != 0)
+//   (i)   every SCATTERED input operand (A, B, and C when beta != 0)
 //         is gathered from its chunk chain into one contiguous
 //         workspace slot, the WHOLE gather being ONE fused kernel
 //         launch (segments [A bytes][B bytes][C bytes?], the chunk
 //         tables riding the device chunk-ptr ring as one merged
-//         launch table); contiguous (1-chunk) operands pass to cuBLAS
-//         directly and are never staged;
+//         launch table); contiguous operands pass to cuBLAS directly
+//         (their leading chunk IS the classic base) and are never
+//         staged; a scattered C always takes a workspace slot for the
+//         OUTPUT and scatters back after the call;
 //   (ii)  the EXISTING kernel::cublas::gemm entry -- the exact classic
 //         call -- runs once on the workspace/contiguous pointers, on
 //         the compute stream;
@@ -124,6 +134,37 @@ bool gemm_stats() noexcept
     return cached;
 }
 
+//! The contiguous-chain fact (user directives, 2026-10-28): a
+//! multi-chunk tile whose chunks sit at consecutive class-stride
+//! addresses IS the classic contiguous buffer — its chunk chain is a
+//! slice chain of one flat array. Pointer adjacency is checked, never
+//! chunk-id arithmetic (the fact must hold however the pool carved
+//! the arena). One compare per chunk, O(chunks) and tiny. The staging
+//! decision is PER OPERAND: an input chains straight through its
+//! leading chunk when contiguous and only a SCATTERED operand pays
+//! the workspace copy.
+template<typename T>
+bool chain_contiguous(::nnhaul::Buffer *buf) noexcept
+{
+    std::size_t const n = buf->chunk_count();
+    if (n <= 1)
+    {
+        return true;
+    }
+    char const *base =
+        reinterpret_cast<char const *>(buf->get_chunk_ptr<T>(0));
+    for (std::size_t i = 1; i < n; ++i)
+    {
+        char const *p =
+            reinterpret_cast<char const *>(buf->get_chunk_ptr<T>(i));
+        if (p != base + i * chunkunits::kChunkClassBytes)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 #ifdef NNTILE_USE_CUDA
 //! The workspace-staged chunked driver (see the policy block above).
 //! Throws nnhaul::Error when the staged bytes exceed the workspace
@@ -139,9 +180,15 @@ void gemm_workspace_staged(cublasHandle_t handle, TransOp transA,
     chunkunits::ChunkView<T> const cvA(bufA);
     chunkunits::ChunkView<T> const cvB(bufB);
     chunkunits::ChunkView<T> const cvC(bufC);
-    bool const stage_a = cvA.nchunks > 1;
-    bool const stage_b = cvB.nchunks > 1;
-    bool const stage_c = cvC.nchunks > 1;
+    // PER-OPERAND staging (user directive, 2026-10-28): an operand
+    // stages iff its OWN chain is scattered; a contiguous chain —
+    // 1-chunk or multi-chunk — passes through its leading chunk with
+    // no copy. A scattered C still takes a workspace slot (the output
+    // needs a contiguous home; it is gathered first only when
+    // beta != 0 reads it).
+    bool const stage_a = !chain_contiguous<T>(bufA);
+    bool const stage_b = !chain_contiguous<T>(bufB);
+    bool const stage_c = !chain_contiguous<T>(bufC);
     // (gemm critic C1, 2026-10-19) The scatter rewrites C's WHOLE flat
     // byte range with the gemm's logical output; a staged C larger than
     // m*n*batch elements would have its excess bytes overwritten with
@@ -325,13 +372,13 @@ void gemm_workspace_staged(cublasHandle_t handle, TransOp transA,
     // flag-off dispatch, hence bitwise its result.
     T const *pa = stage_a
         ? reinterpret_cast<T const *>(ws.base + seg_chunk[0] * cls)
-        : bufA->get_ptr<T>();
+        : bufA->get_chunk_ptr<T>(0);
     T const *pb = stage_b
         ? reinterpret_cast<T const *>(ws.base + seg_chunk[1] * cls)
-        : bufB->get_ptr<T>();
+        : bufB->get_chunk_ptr<T>(0);
     T *pc = stage_c
         ? reinterpret_cast<T *>(ws.base + seg_chunk[2] * cls)
-        : bufC->get_ptr<T>();
+        : bufC->get_chunk_ptr<T>(0);
     kernel::cublas::gemm<T>(handle, transA, transB, m, n, k, batch, alpha,
         pa, pb, beta, pc, broadcast_a, broadcast_b);
     if(stage_c)
@@ -351,29 +398,36 @@ void gemm_workspace_staged(cublasHandle_t handle, TransOp transA,
     {
         std::fprintf(stderr,
             "nntile_gemm: path=W tA=%c tB=%c m=%lld n=%lld k=%lld "
-            "batch=%lld chunks=%zu/%zu/%zu staged_bytes=%zu calls=1\n",
+            "batch=%lld chunks=%zu/%zu/%zu staged=%c%c%c "
+            "staged_bytes=%zu calls=1\n",
             transA.value == TransOp::Trans ? 'T' : 'N',
             transB.value == TransOp::Trans ? 'T' : 'N',
             static_cast<long long>(m), static_cast<long long>(n),
             static_cast<long long>(k), static_cast<long long>(batch),
-            cvA.nchunks, cvB.nchunks, cvC.nchunks, used_chunks * cls);
+            cvA.nchunks, cvB.nchunks, cvC.nchunks,
+            stage_a ? 'A' : '-', stage_b ? 'B' : '-',
+            stage_c ? 'C' : '-',
+            used_chunks * cls);
     }
 }
 #endif // NNTILE_USE_CUDA
 
-//! One stderr stats line for the degenerate all-1-chunk body.
+//! One stderr stats line for the direct (fast-forward) body: the
+//! all-1-chunk degenerate and the contiguous-chain fast path share it.
 void log_degenerate(TransOp transA, TransOp transB, Index m, Index n,
-    Index k, Index batch) noexcept
+    Index k, Index batch, std::size_t ca, std::size_t cb,
+    std::size_t cc) noexcept
 {
     if(gemm_stats())
     {
         std::fprintf(stderr,
             "nntile_gemm: path=F tA=%c tB=%c m=%lld n=%lld k=%lld "
-            "batch=%lld chunks=1/1/1 calls=1\n",
+            "batch=%lld chunks=%zu/%zu/%zu calls=1\n",
             transA.value == TransOp::Trans ? 'T' : 'N',
             transB.value == TransOp::Trans ? 'T' : 'N',
             static_cast<long long>(m), static_cast<long long>(n),
-            static_cast<long long>(k), static_cast<long long>(batch));
+            static_cast<long long>(k), static_cast<long long>(batch),
+            ca, cb, cc);
     }
 }
 
@@ -575,13 +629,15 @@ void Gemm<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         );
         return;
     }
-    if(buf_a->chunk_count() == 1 && buf_b->chunk_count() == 1
-        && buf_c->chunk_count() == 1)
+    if(chain_contiguous<T>(buf_a) && chain_contiguous<T>(buf_b)
+        && chain_contiguous<T>(buf_c))
     {
-        // Degenerate all-1-chunk case (under the force flag): the
-        // plain cuBLAS call, argument-identical to the classic
-        // dispatch, so the flag-on run of a contiguous graph is
-        // bitwise the flag-off one.
+        // The fast-forward body (user directive, 2026-10-28): every
+        // operand is EITHER the all-1-chunk degenerate OR a
+        // contiguous multi-chunk chain — chunk 0's pointer IS the
+        // classic contiguous base, the argument-identical cuBLAS call
+        // runs on it, and no byte is staged. A flag-on run of a
+        // contiguous graph stays bitwise the flag-off one.
         kernel::cublas::gemm<T>(
             handle,
             args->transA,
@@ -591,15 +647,16 @@ void Gemm<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
             args->k,
             args->batch,
             args->alpha,
-            buf_a->get_ptr<T>(),
-            buf_b->get_ptr<T>(),
+            buf_a->get_chunk_ptr<T>(0),
+            buf_b->get_chunk_ptr<T>(0),
             args->beta,
-            buf_c->get_ptr<T>(),
+            buf_c->get_chunk_ptr<T>(0),
             args->broadcast_a,
             args->broadcast_b
         );
         log_degenerate(args->transA, args->transB, args->m, args->n,
-            args->k, args->batch);
+            args->k, args->batch, buf_a->chunk_count(),
+            buf_b->chunk_count(), buf_c->chunk_count());
         note_gemm_native_chunked();
         return;
     }

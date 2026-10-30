@@ -362,12 +362,8 @@ namespace sched
 int count_execution_workers()
 {
 #ifdef NNTILE_USE_NNHAUL
-    if (!g_backend_ready)
-    {
-        return 1;
-    }
-    int const n = g_backend_ncuda + g_backend_ncpu;
-    return n > 0 ? n : 1;
+    // One CUDA worker, never a CPU worker.
+    return 1;
 #else
     if (!starpu_is_initialized())
     {
@@ -386,7 +382,7 @@ int count_execution_workers()
 int execution_ncuda()
 {
 #ifdef NNTILE_USE_NNHAUL
-    return g_backend_ready ? g_backend_ncuda : 0;
+    return 1;
 #else
     if (!starpu_is_initialized())
     {
@@ -409,17 +405,10 @@ bool tile_op_has_cuda_kernel(std::string const &tile_op_name)
 int logical_worker_to_starpu_id(int logical_worker, bool use_cuda_workers)
 {
 #ifdef NNTILE_USE_NNHAUL
+    // The only live worker is CUDA worker 0. Logical ids beyond it do
+    // not name a CPU worker (none exists); they alias the one GPU.
     (void)use_cuda_workers;
-    if (!g_backend_ready || logical_worker < 0)
-    {
-        return -1;
-    }
-    int const n = g_backend_ncuda + g_backend_ncpu;
-    if (n <= 0)
-    {
-        return -1;
-    }
-    return logical_worker % n;
+    return logical_worker < 0 ? -1 : 0;
 #else
     if (!starpu_is_initialized() || logical_worker < 0)
     {
@@ -449,7 +438,11 @@ int logical_worker_to_starpu_id(int logical_worker, bool use_cuda_workers)
 bool tile_op_requires_cpu_worker(std::string const &tile_op_name)
 {
 #ifdef NNTILE_USE_NNHAUL
-    return !tile_op_has_cuda_kernel(tile_op_name);
+    // No CPU worker exists, so no tile op can require one. An op with
+    // no CUDA kernel fails loudly at insert() instead of being sent to
+    // a worker that was never created.
+    (void)tile_op_name;
+    return false;
 #else
     return tile_op_name == "TILE_LOG_SCALAR" ||
         tile_op_name == "TILE_RANDN";
@@ -462,32 +455,14 @@ int starpu_worker_id_for_scheduled_op(
     std::string const &tile_op_name)
 {
 #ifdef NNTILE_USE_NNHAUL
+    // libnnhaul has exactly one worker (CUDA 0). Every schedulable op
+    // goes there. There is no CPU worker to fall back to: an op
+    // without a CUDA kernel is rejected by nnhaul::insert with its
+    // own error, which is the correct loud failure.
     (void)use_cuda_workers;
-    int const ncuda = g_backend_ready ? g_backend_ncuda : 0;
-    int ncpu = g_backend_ready ? g_backend_ncpu : 1;
-    if (ncpu < 1)
-    {
-        ncpu = 1;
-    }
-    bool const cpu_only =
-        !tile_op_has_cuda_kernel(tile_op_name) || ncuda <= 0;
-    if (cpu_only)
-    {
-        if (logical_worker >= ncuda &&
-            logical_worker < ncuda + ncpu)
-        {
-            return logical_worker;
-        }
-        int const slot =
-            logical_worker < 0 ? 0 : logical_worker % ncpu;
-        return ncuda + slot;
-    }
-    if (logical_worker >= 0 && logical_worker < ncuda)
-    {
-        return logical_worker;
-    }
-    int const slot = logical_worker < 0 ? 0 : logical_worker % ncuda;
-    return slot;
+    (void)tile_op_name;
+    (void)logical_worker;
+    return 0;
 #else
     if (tile_op_requires_cpu_worker(tile_op_name))
     {

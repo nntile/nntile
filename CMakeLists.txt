@@ -155,6 +155,13 @@ add_subdirectory("external")
 
 include(CheckSymbolExists)
 if(NNTILE_USE_NNHAUL)
+    # libnnhaul is a GPU-only runtime: one CUDA worker, no CPU workers.
+    # A CPU-only NNTile build has nothing to schedule on.
+    if(NOT USE_CUDA)
+        message(FATAL_ERROR
+            "NNTILE_USE_NNHAUL is CUDA-only: libnnhaul creates no CPU "
+            "workers. Enable USE_CUDA.")
+    endif()
     # Torch-native dispatch runs on NNHaul too: the graph IR
     # (TorchKind/TorchDispatchArgs and the tensor/tile layers) is
     # backend-neutral, and nntile/src/nnhaul/torch_dispatch.cc carries
@@ -289,6 +296,11 @@ endif()
 
 set(NNTILE_USE_CBLAS OFF)
 set(NNTILE_LINK_CBLAS OFF)
+# The NNHaul backend has no CPU worker, so no codelet can execute a
+# CPU (CBLAS) body. Do not link a BLAS that nothing can call.
+if(NNTILE_USE_NNHAUL)
+    set(USE_CBLAS OFF)
+endif()
 if(HAVE_STARPU_SIMGRID)
     if(USE_CBLAS)
         set(NNTILE_USE_CBLAS ON)

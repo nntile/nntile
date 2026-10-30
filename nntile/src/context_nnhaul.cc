@@ -32,24 +32,20 @@ ScheduleKindFilter g_schedule_kind_filter = ScheduleKindFilter::Any;
 
 std::vector<BackendWorker> backend_worker_list()
 {
+    // libnnhaul is GPU-only: it creates exactly one CUDA worker and no
+    // CPU workers. Never advertise a CPU worker here -- the scheduler
+    // would assign tiles to it and the hint would then be remapped,
+    // which is exactly the phantom-CPU-worker bug this list prevents.
     std::vector<BackendWorker> workers;
-    if (!g_backend_ready)
+    int const n = g_backend_ready ? g_backend_ncuda : 0;
+    if (n <= 0)
     {
-        workers.push_back(BackendWorker{0, "cpu", -1});
+        workers.push_back(BackendWorker{0, "cuda", 0});
         return workers;
     }
-    for (int i = 0; i < g_backend_ncuda; ++i)
+    for (int i = 0; i < n; ++i)
     {
         workers.push_back(BackendWorker{i, "cuda", i});
-    }
-    for (int i = 0; i < g_backend_ncpu; ++i)
-    {
-        workers.push_back(
-            BackendWorker{g_backend_ncuda + i, "cpu", -1});
-    }
-    if (workers.empty())
-    {
-        workers.push_back(BackendWorker{0, "cpu", -1});
     }
     return workers;
 }
@@ -126,15 +122,14 @@ Context::Context(
     }
     cuda_cap_bytes_each = 0;
 #else
-    // CUDA is the default worker: with no explicit ncpu the context
-    // creates no CPU workers, so every codelet that has a CUDA kernel
-    // executes on a GPU and CPU-only codelets fail loudly in resolve().
+    // libnnhaul is GPU-only: it creates one CUDA worker and no CPU
+    // workers. ``ncpu`` is accepted for source compatibility but is NOT
+    // recorded as a live worker -- advertising it would make the
+    // scheduler split tiles onto a CPU worker that does not exist.
     // Worker 0 is the default CUDA worker. Callers that pass ncuda <= 0
     // still get that worker, otherwise a CUDA codelet with no hint throws.
-    if (ncpu < 0)
-    {
-        ncpu = 0;
-    }
+    (void) ncpu;
+    ncpu = 0;
     if (ncuda < 1)
     {
         ncuda = 1;
@@ -169,17 +164,16 @@ Context::Context(
         cuda_cap_bytes_each);
 #ifdef NNTILE_USE_CUDA
     // CUDA codelets take this worker when insert has no worker hint.
-    // The first CPU worker stays the default for CPU-only codelets.
     ::nnhaul::set_default_cuda_worker(0);
 #endif
-    if (ncpu > 0)
-    {
-        ::nnhaul::set_default_cpu_worker(ncuda);
-    }
-    g_backend_ncpu = ncpu;
+    // No CPU worker exists in the runtime, so none may appear in the
+    // backend list or the schedule (see backend_worker_list above).
+    g_backend_ncpu = 0;
     g_backend_ncuda = ncuda;
     g_backend_ready = true;
-    g_schedule_kind_filter = ScheduleKindFilter::Any;
+    // GPU-only placement: refuse to build a schedule that names a CPU
+    // worker instead of silently remapping it to the GPU.
+    g_schedule_kind_filter = ScheduleKindFilter::Cuda;
     if (logger != 0)
     {
         logger::logger_init(logger_addr, logger_port);
@@ -191,7 +185,9 @@ Context::Context(
     initialized = 1;
     if (verbose > 0)
     {
-        std::cout << "NNTile context is initialized (NNHaul)\n";
+        std::cout << "NNTile context is initialized (NNHaul: ncuda="
+                  << g_backend_ncuda << ", ncpu=" << g_backend_ncpu
+                  << ")\n";
     }
 }
 
@@ -215,7 +211,11 @@ void Context::shutdown()
 
 void Context::restrict_cpu()
 {
-    g_schedule_kind_filter = ScheduleKindFilter::Cpu;
+    // There is no CPU worker to restrict codelets to. Failing here is
+    // the only honest answer: silently keeping the current placement
+    // would let the caller believe CPU execution happened.
+    throw std::runtime_error(
+        "NNTile/libnnhaul is GPU-only: there are no CPU workers");
 }
 
 void Context::restrict_cuda()
@@ -225,7 +225,8 @@ void Context::restrict_cuda()
 
 void Context::restore_where()
 {
-    g_schedule_kind_filter = ScheduleKindFilter::Any;
+    // The only placement this backend supports is CUDA.
+    g_schedule_kind_filter = ScheduleKindFilter::Cuda;
 }
 
 //! ExecutionDaemon self-configuration (NNTILE_DAEMON_RESTRICT_CUDA=1):
