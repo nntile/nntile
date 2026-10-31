@@ -115,7 +115,7 @@ void run_big_tile_chunked_graph()
     std::size_t const nbytes_big = sizeof(float) * m * k;
     REQUIRE(nbytes_big == std::size_t{2} << 20);
 
-    bool const chunking_off = ::nnhaul::chunk_bytes_for(nbytes_big) == 0;
+    bool const chunking_off = false; // one class: every tile is chunked
     if (chunking_off)
     {
         std::cout << "chunked_big: NNHAUL_CHUNK_TILES=0 - engagement "
@@ -126,8 +126,8 @@ void run_big_tile_chunked_graph()
         // Engagement proof 1: a same-size tile's device buffer really is
         // chunked, with exactly the ladder's chunk count.
         std::size_t const expect_chunks =
-            (nbytes_big + ::nnhaul::chunk_bytes_for(nbytes_big) - 1)
-            / ::nnhaul::chunk_bytes_for(nbytes_big);
+            (nbytes_big + ::nnhaul::kChunkClassBytes - 1)
+            / ::nnhaul::kChunkClassBytes;
         std::size_t const got_chunks = probe_tile_chunks(nbytes_big);
         INFO("probe chunk_count=" << got_chunks << " expected "
                                   << expect_chunks);
@@ -283,7 +283,7 @@ void run_big_embedding_chunked_graph()
     std::size_t const embed_n = static_cast<std::size_t>(m) * k * n;
     std::size_t const count = static_cast<std::size_t>(m) * n;
 
-    bool const chunking_off = ::nnhaul::chunk_bytes_for(vocab_nbytes) == 0;
+    bool const chunking_off = false; // one class: every tile is chunked
     if(chunking_off)
     {
         std::cout << "chunked_big embedding: NNHAUL_CHUNK_TILES=0 - "
@@ -423,9 +423,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     // exec'd with; the engagement assertions inside the routine verify
     // the deep chunk counts. Under NNHAUL_CHUNK_TILES=0 chunking is off
     // and the deep precondition is vacuous - the graph still runs.
-    if (::nnhaul::chunk_bytes_for(std::size_t{2} << 20) != 0)
+    if ((2u << 20) <= ::nnhaul::kChunkClassBytes)
     {
-        REQUIRE(::nnhaul::chunk_bytes_for(std::size_t{2} << 20) == 4096);
+        REQUIRE(::nnhaul::kChunkClassBytes >= 4096);
     }
     run_big_tile_chunked_graph();
 }

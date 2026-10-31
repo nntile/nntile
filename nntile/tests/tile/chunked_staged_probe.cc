@@ -216,7 +216,7 @@ TEST_CASE("probe a: native chunked gemm under tight cap", "[chunked][probe]")
     auto context = make_context();
     Index const m = 1024, n = 512, k = 512;
     bool const chunking_off =
-        ::nnhaul::chunk_bytes_for(std::size_t{2} << 20) == 0;
+        false; // one class: every tile is chunked
     std::uint64_t const native_before =
         ::nntile::haul::gemm_native_chunked_count();
     std::uint64_t const staged_before =
@@ -330,7 +330,7 @@ TEST_CASE("probe b: mixed chain bitwise vs contiguous mode",
     // to issue the same sub-call sequence (softmax_inplace is elementwise
     // and would match bitwise either way; maxsumexp would not).
     std::size_t const panel_bytes =
-        ::nnhaul::chunk_bytes_for(std::size_t{2} << 20);
+        ::nnhaul::kChunkClassBytes;
     std::string const cmd =
         std::string("NNHAUL_CHUNK_TILES=0") +
         (panel_bytes > 0
@@ -532,7 +532,7 @@ TEST_CASE("probe e: gemm-only chain bitwise vs contiguous mode",
     REQUIRE(self_len > 0);
     self_buf[self_len] = '\0';
     std::size_t const panel_bytes =
-        ::nnhaul::chunk_bytes_for(std::size_t{3} << 20);
+        ::nnhaul::kChunkClassBytes;
     std::string const force = panel_bytes > 0
         ? " NNHAUL_GEMM_FORCE_PANEL_BYTES=" + std::to_string(panel_bytes)
         : std::string();
@@ -631,7 +631,7 @@ TEST_CASE("probe d: torch op plus chunked tiles throws at compile",
         Runtime runtime(classic);
         runtime.compile();
     }
-    if (::nnhaul::chunk_bytes_for(std::size_t{2} << 20) == 0)
+    if (false) // one class: every tile is chunked
     {
         // NNHAUL_CHUNK_TILES=0: chunked tiles cannot exist, the
         // forbidden combination is unreachable by construction.
