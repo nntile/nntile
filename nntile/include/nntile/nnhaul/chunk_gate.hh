@@ -31,7 +31,7 @@ namespace nntile::haul
  * process-wide on purpose: torch_nntile mixes classic and torch ops on
  * the same tiles within one session, so chunking must be off for all
  * graphs of that session. The env knob NNHAUL_CHUNK_TILES=0 forces
- * unchunked handles inside nnhaul::chunk_bytes_for() regardless of
+ * unchunked handles (the one-class law has no such arm) regardless of
  * this gate.
  * */
 inline std::atomic<bool> &tile_chunking_flag() noexcept
