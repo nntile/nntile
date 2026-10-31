@@ -86,6 +86,15 @@ jobs:
           echo "STARPU_PREFIX=${RUNNER_TEMP}/starpu" >> "${GITHUB_ENV}"
           echo "PKG_CONFIG_PATH=${RUNNER_TEMP}/starpu/lib/pkgconfig" >> "${GITHUB_ENV}"
 
+      - name: Use Python 3.12
+        # macos-15's default python3 is newer than the wheel's cp312
+        # toolchain and resolves torch pins against cp313+ indexes
+        # where 2.9.1 does not exist; pin the venv's interpreter to
+        # the version the wheel builds.
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Install cibuildwheel
         run: |
           python3 -m venv "${RUNNER_TEMP}/cibw-venv"
