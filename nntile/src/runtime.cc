@@ -203,7 +203,7 @@ void Runtime::compile()
     // could hand a chunked buffer to a torch kernel. The gate flip below
     // only affects future allocations and would silently leave the old
     // chunked tiles consumable, hence the throw. NNHAUL_CHUNK_TILES=0
-    // also forces unchunked handles inside nnhaul::chunk_bytes_for().
+    // also forces unchunked handles (the one-class law has no such arm).
     if (graph_has_torch_ops_
         && ::nntile::haul::stage::chunked_handle_count() != 0)
     {
