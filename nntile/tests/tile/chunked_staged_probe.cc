@@ -214,7 +214,12 @@ float run_staged_gemm_graph(Index m, Index n, Index k)
 TEST_CASE("probe a: native chunked gemm under tight cap", "[chunked][probe]")
 {
     auto context = make_context();
-    Index const m = 1024, n = 512, k = 512;
+    // Class-relative geometry: k scaled so the m*k operand exceeds the
+    // compile-time chunk class by 2x (multi-chunk under any class; the
+    // CI default is 4 MiB and the old fixed 512 sized tiles below it).
+    Index const m = 1024, n = 512;
+    Index const k = static_cast<Index>(
+        (2 * ::nnhaul::kChunkClassBytes / sizeof(float)) / m);
     bool const chunking_off =
         false; // one class: every tile is chunked
     std::uint64_t const native_before =

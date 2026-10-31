@@ -111,9 +111,15 @@ float max_rel_diff(std::vector<float> const &got, std::vector<fp32_t> const &ref
 // the cpu kernels) on the same inputs.
 void run_big_tile_chunked_graph()
 {
-    Index const m = 1024, n = 512, k = 512;
-    std::size_t const nbytes_big = sizeof(float) * m * k;
-    REQUIRE(nbytes_big == std::size_t{2} << 20);
+    // Class-relative geometry: the big operands are 2x the chunk
+    // class (multi-chunk under any configured class; the old fixed
+    // 2 MiB sized below the 4 MiB default and the engagement proof
+    // went vacuous).
+    Index const m = 1024, n = 512;
+    std::size_t const nbytes_big = 2 * ::nnhaul::kChunkClassBytes;
+    Index const k = static_cast<Index>(
+        nbytes_big / (sizeof(float) * static_cast<std::size_t>(m)));
+    REQUIRE(sizeof(float) * m * k == nbytes_big);
 
     bool const chunking_off = false; // one class: every tile is chunked
     if (chunking_off)
