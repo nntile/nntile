@@ -9,7 +9,7 @@ repo_root="$(cd "${package_dir}/.." && pwd)"
 build_dir="${NNTILE_BUILD_DIR:-${repo_root}/build/torch_nntile_wheel}"
 starpu_prefix="${STARPU_PREFIX:-/opt/starpu}"
 
-export MACOSX_DEPLOYMENT_TARGET=14.0
+export MACOSX_DEPLOYMENT_TARGET=15.0
 
 # Locate torch/lib so delocate can resolve @rpath links from _C.so.
 # Those dylibs are excluded from the wheel (provided by the torch dependency).

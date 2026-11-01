@@ -71,11 +71,11 @@ class Tile: public TileTraits
     {
         payload_ = std::make_shared<Payload>();
         std::size_t const nbytes = storage_bytes(nelems);
-        // Classic-stack chunked tiles: cache-chunk storage with the
-        // nnhaul ladder policy. Disabled for torch_dispatch graphs via
-        // the haul gate, and by NNHAUL_CHUNK_TILES=0 inside the policy.
+        // Classic-stack chunked tiles: one chunk class under the new
+        // nnhaul engine (every tile decomposes into whole class chunks).
+        // Disabled for torch_dispatch graphs via the haul gate.
         std::size_t const chunk_bytes = ::nntile::haul::tile_chunking_enabled()
-            ? ::nnhaul::chunk_bytes_for(nbytes)
+            ? ::nnhaul::kChunkClassBytes
             : 0;
         payload_->handle =
             std::make_unique<::nnhaul::Handle>(nbytes, chunk_bytes);

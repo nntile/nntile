@@ -16,6 +16,7 @@
 #include "nntile/nnhaul/ops/gemm.hh"
 
 // Standard libraries
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -122,6 +123,82 @@ Gemm<std::tuple<T>>::Gemm():
 namespace
 {
 
+//! (owner order, 2026-10-31) The per-run GEMM staging meters: how the
+//! gemm calls split between the CONTIGUOUS direct paths (the all-1-
+//! chunk classic dispatch and the contiguous-chain fast-forward -- no
+//! byte staged, plain cuBLAS) and the CHUNKED/STAGED workspace path,
+//! with the per-operand staged counts (A/B/C) and the IN-NODE staging
+//! volume the staged path moves (the gathers of scattered INPUT
+//! operands into the workspace plus the scatter of a staged OUTPUT C
+//! back into its chunks -- separate from the engine's cross-node COPY
+//! ops the [nnhaul-counters] line reports). Relaxed atomics (the gemm
+//! body is device-lane code); the summary prints once at process exit
+//! under NNHAUL_GEMM_SUMMARY=1 (the [nnhaul-counters] pattern: one
+//! greppable key=value line, diagnostics only, never control flow).
+struct GemmStagingMeters
+{
+    std::atomic<std::uint64_t> calls{0};      // every CUDA gemm body
+    std::atomic<std::uint64_t> contiguous{0}; // classic + fast-forward
+    std::atomic<std::uint64_t> staged{0};     // workspace-staged path
+    std::atomic<std::uint64_t> staged_a{0};   // per-operand staging
+    std::atomic<std::uint64_t> staged_b{0};
+    std::atomic<std::uint64_t> staged_c{0};
+    std::atomic<std::uint64_t> gather_bytes{0};  // inputs -> workspace
+    std::atomic<std::uint64_t> scatter_bytes{0}; // workspace -> C
+};
+
+GemmStagingMeters &gemm_meters() noexcept
+{
+    static GemmStagingMeters m;
+    return m;
+}
+
+//! The exit-time summary: one line, key=value, after the run's own
+//! output (a static destructor runs at process exit; the driver's
+//! counters are final by then).
+struct GemmStagingReport
+{
+    ~GemmStagingReport()
+    {
+        char const *e = std::getenv("NNHAUL_GEMM_SUMMARY");
+        if(e == nullptr || std::atoi(e) == 0)
+        {
+            return;
+        }
+        GemmStagingMeters const &m = gemm_meters();
+        std::uint64_t const calls = m.calls.load(
+            std::memory_order_relaxed);
+        std::uint64_t const contig = m.contiguous.load(
+            std::memory_order_relaxed);
+        std::uint64_t const staged = m.staged.load(
+            std::memory_order_relaxed);
+        std::uint64_t const sa = m.staged_a.load(
+            std::memory_order_relaxed);
+        std::uint64_t const sb = m.staged_b.load(
+            std::memory_order_relaxed);
+        std::uint64_t const sc = m.staged_c.load(
+            std::memory_order_relaxed);
+        std::uint64_t const gb = m.gather_bytes.load(
+            std::memory_order_relaxed);
+        std::uint64_t const sbt = m.scatter_bytes.load(
+            std::memory_order_relaxed);
+        std::fprintf(stderr,
+            "[gemm-stats] calls=%llu contiguous=%llu staged=%llu "
+            "staged_A=%llu staged_B=%llu staged_C=%llu "
+            "gather_MiB=%.1f scatter_MiB=%.1f\n",
+            static_cast<unsigned long long>(calls),
+            static_cast<unsigned long long>(contig),
+            static_cast<unsigned long long>(staged),
+            static_cast<unsigned long long>(sa),
+            static_cast<unsigned long long>(sb),
+            static_cast<unsigned long long>(sc),
+            static_cast<double>(gb) / (1024.0 * 1024.0),
+            static_cast<double>(sbt) / (1024.0 * 1024.0));
+    }
+};
+
+GemmStagingReport const gemm_staging_report;
+
 //! Test/diagnostics hook: one stderr line per chunked body (path,
 //! chunk counts, sub-call count) - the launch-count evidence for the
 //! chunked checks.
@@ -189,6 +266,38 @@ void gemm_workspace_staged(cublasHandle_t handle, TransOp transA,
     bool const stage_a = !chain_contiguous<T>(bufA);
     bool const stage_b = !chain_contiguous<T>(bufB);
     bool const stage_c = !chain_contiguous<T>(bufC);
+    // The staging meters (owner order, 2026-10-31): one staged call,
+    // the per-operand staging flags, and the in-node staging volume --
+    // the gathers of every staged INPUT operand (C reads its slot only
+    // when beta != 0) plus the scatter of the staged OUTPUT back into
+    // its chunks.
+    {
+        GemmStagingMeters &m = gemm_meters();
+        m.staged.fetch_add(1, std::memory_order_relaxed);
+        if(stage_a)
+        {
+            m.staged_a.fetch_add(1, std::memory_order_relaxed);
+            m.gather_bytes.fetch_add(bufA->nbytes(),
+                std::memory_order_relaxed);
+        }
+        if(stage_b)
+        {
+            m.staged_b.fetch_add(1, std::memory_order_relaxed);
+            m.gather_bytes.fetch_add(bufB->nbytes(),
+                std::memory_order_relaxed);
+        }
+        if(stage_c)
+        {
+            m.staged_c.fetch_add(1, std::memory_order_relaxed);
+            m.scatter_bytes.fetch_add(bufC->nbytes(),
+                std::memory_order_relaxed);
+            if(beta != Scalar{0})
+            {
+                m.gather_bytes.fetch_add(bufC->nbytes(),
+                    std::memory_order_relaxed);
+            }
+        }
+    }
     // (gemm critic C1, 2026-10-19) The scatter rewrites C's WHOLE flat
     // byte range with the gemm's logical output; a staged C larger than
     // m*n*batch elements would have its excess bytes overwritten with
@@ -601,12 +710,14 @@ void Gemm<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     cublasSetStream(handle, stream);
     // alpha and beta parameters of GEMM operation are on CPU host
     cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_HOST);
+    gemm_meters().calls.fetch_add(1, std::memory_order_relaxed);
     if((buf_a->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_b->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
         && (buf_c->chunk_count() == 1 && !chunkunits::force_chunked_kernels()))
     {
         // Classic contiguous dispatch: illegal under the force flag
         // (the tripwire proves it never happens in a flag-on run).
         chunkunits::classic_dispatch_tripwire("nntile_gemm", false);
+        gemm_meters().contiguous.fetch_add(1, std::memory_order_relaxed);
         const T *A = buf_a->get_ptr<T>();
         const T *B = buf_b->get_ptr<T>();
         T *C = buf_c->get_ptr<T>();
@@ -638,6 +749,7 @@ void Gemm<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         // classic contiguous base, the argument-identical cuBLAS call
         // runs on it, and no byte is staged. A flag-on run of a
         // contiguous graph stays bitwise the flag-off one.
+        gemm_meters().contiguous.fetch_add(1, std::memory_order_relaxed);
         kernel::cublas::gemm<T>(
             handle,
             args->transA,
