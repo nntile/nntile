@@ -55,11 +55,22 @@ struct ChunkTables
     int shift_data; //!< class shift (multi-chunk) or the 62 single-chunk sentinel
 };
 
-//! Chunk index of a flat element offset (power-of-two shift when possible).
-static __device__ __forceinline__ long fill_chunk_index(long f, Index elems,
-    int shift) noexcept
+//! Streaming store (STG.CS, evict-first) for the bulk fill path: the
+//! filled bytes are identical, but a fill larger than the L2 marks its
+//! lines evict-first so the write flood does not evict the operand's own
+//! chunk-table line -- tail-wave blocks then still hit it in L2 instead
+//! of re-fetching it from DRAM at the kernel end (a stable p90 tail on
+//! the 6 MiB wpe fill). Only the fp32 storage instantiation takes the
+//! intrinsic; every other element type keeps the plain store.
+template<typename T>
+static __device__ __forceinline__ void fill_store(T *p, T v)
 {
-    return f >> shift;
+    p[0] = v;
+}
+
+static __device__ __forceinline__ void fill_store(fp32_t *p, fp32_t v)
+{
+    __stcs(reinterpret_cast<float *>(p), v.value);
 }
 
 //! Chunk-aware fill: the SAME flat thread mapping (i = tid + bid*256) and
@@ -67,6 +78,14 @@ static __device__ __forceinline__ long fill_chunk_index(long f, Index elems,
 //! resolved through its chunk table read straight from the device ring
 //! (piece 9 / rule 10: no staging, no table __syncthreads). The result
 //! is bitwise cuda()'s.
+//!
+//! A block whose 256-element window lies inside one chunk (the common
+//! case: full chunks hold 2^20 elements, a multiple of the block size)
+//! resolves its chunk base ONCE per block -- the sgd_step pattern -- so
+//! the per-element address work is the classic kernel's own one IMAD and
+//! the ring table is read one pointer per block, not per element.
+//! Straddling windows (only possible inside the short tail chunk of a
+//! non-full allocation) resolve every element through the table directly.
 template<typename T>
 static __global__
 void chunked_cuda_kernel(Index nelems, Scalar val_, ChunkTables<T> t)
@@ -74,11 +93,49 @@ void chunked_cuda_kernel(Index nelems, Scalar val_, ChunkTables<T> t)
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     using Y = typename T::repr_t;
     const Y val{val_};
-    if(i < nelems)
+    if(i >= nelems)
+    {
+        return;
+    }
+    long const w0 = long(blockIdx.x)*long(blockDim.x);
+    long const off = w0 & ((1LL << t.shift_data) - 1);
+    if(off + long(blockDim.x) <= long(t.elems_data))
+    {
+        // Whole block window inside chunk w0 >> shift: one base pointer,
+        // then the classic kernel's per-element store (streaming, see
+        // fill_store).
+        T *p = t.data[w0 >> t.shift_data] + off + threadIdx.x;
+        fill_store(p, T{val});
+    }
+    else
     {
         long const f = long(i);
-        Index const c = Index(fill_chunk_index(f, t.elems_data, t.shift_data));
+        long const c = f >> t.shift_data;
         t.data[c][f - c * long(t.elems_data)] = T{val};
+    }
+}
+
+//! Single-chunk fill (both the whole range and its own table's chunk 0):
+//! the classic kernel's statement stream with the base pointer resolved
+//! through ONE ring-table load issued as the very first statement (via
+//! the read-only data path: the table is never written by this kernel),
+//! so the launch floor pays exactly one dependent load and nothing else.
+//! The fill value arrives pre-converted to the representation type
+//! (exactly the conversion the classic kernel performs in-kernel, done
+//! host-side once -- the sgd_step pattern), so the kernel body is guard +
+//! store only. Threads past nelems issue the same broadcast table load
+//! but no store; the stored bytes are bitwise cuda()'s.
+template<typename T>
+static __global__
+void chunked_single_kernel(Index nelems, typename T::repr_t val_,
+    T* const* data_tab)
+{
+    T *data = reinterpret_cast<T *>(__ldg(reinterpret_cast<
+        const unsigned long long *>(data_tab)));
+    int i = threadIdx.x + blockIdx.x*blockDim.x;
+    if(i < nelems)
+    {
+        data[i] = T{val_};
     }
 }
 
@@ -89,6 +146,15 @@ void chunked(cudaStream_t stream, Index nelems, Scalar val,
 {
     if(nelems <= 0 || ndata <= 0)
     {
+        return;
+    }
+    if(ndata == 1)
+    {
+        // Dispatch by chunk count only. Same 256-thread geometry as the
+        // whole-buffer entry.
+        dim3 blocks((nelems+255)/256), threads(256);
+        (chunked_single_kernel<T>)<<<blocks, threads, 0, stream>>>(
+            nelems, typename T::repr_t(val), data_chunks);
         return;
     }
     ChunkTables<T> t;

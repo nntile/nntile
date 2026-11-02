@@ -245,6 +245,93 @@ void panel(cudaStream_t stream, Index m, Index n, Index nr, Index nc,
             nc, alpha, src, dst);
 }
 
+//! Single-chunk transpose tile kernel: both operands sit inside their
+//! chunk 0 (each ring holds one chunk, i.e. any contiguous buffer below
+//! the chunk class, e.g. every GPT-2 transpose_heads call). The two
+//! ring[0] bases are resolved once per block (a block-uniform read of
+//! two pointers; the table itself is device memory, so this is the
+//! earliest place a host launch can resolve it) and everything after is
+//! the whole-buffer kernel's tile code VERBATIM, so the launch is the
+//! classic one plus two pointer loads per block -- no per-tile chunk
+//! resolution, no 64-bit span arithmetic, no table reads in the element
+//! loops. Bitwise the whole-buffer call: the per-element expression and
+//! its association are exactly cuda_kernel's, and retiling cannot change
+//! the values of a pure alpha-scaled copy anyway.
+template<typename T, int BLOCK_ROW, int BLOCK_COL, int BLOCK_LOOP>
+static __global__
+void single_chunk_cuda_kernel(Index m, Index n, Scalar alpha_,
+    const T* const* src_tab, T* const* dst_tab)
+//! Transpose a one-chunk ring on CUDA
+/*! dst[i,j] = alpha * src[j,i], tiles and expression of cuda_kernel
+ *
+ * @param[in] m: Number of rows of src and columns of dst
+ * @param[in] n: Number of columns of src and rows of dst
+ * @param[in] alpha_: Scalar multiplier
+ * @param[in] src_tab: Device array holding the one src chunk base
+ * @param[out] dst_tab: Device array holding the one dst chunk base
+ * */
+{
+    const T *src = src_tab[0];
+    T *dst = dst_tab[0];
+    Index src_i = threadIdx.x % BLOCK_ROW;
+    Index src_j = threadIdx.x / BLOCK_ROW;
+    Index src_griddim_row = (m+BLOCK_ROW-1) / BLOCK_ROW;
+    Index src_block_i = blockIdx.x % src_griddim_row;
+    Index src_block_j = blockIdx.x / src_griddim_row;
+    Index global_src_i = src_i + src_block_i*BLOCK_ROW;
+    Index global_src_j = src_j + src_block_j*BLOCK_COL;
+    using Y = typename T::repr_t;
+    const Y alpha{alpha_};
+
+    if((src_block_i+1)*BLOCK_ROW <= m and (src_block_j+1)*BLOCK_COL <= n)
+    {
+        __shared__ T block[BLOCK_ROW][BLOCK_COL+1];
+        const T *src_slice = src + global_src_i + global_src_j*m;
+        constexpr int BLOCK_COL_STEP = BLOCK_COL / BLOCK_LOOP;
+        for(int k = 0; k < BLOCK_COL; k += BLOCK_COL_STEP)
+        {
+            block[src_i][src_j+k] = T{alpha * Y{src_slice[k*m]}};
+        }
+        Index dst_i = threadIdx.x % BLOCK_COL;
+        Index dst_j = threadIdx.x / BLOCK_COL;
+        Index dst_block_i = src_block_j;
+        Index dst_block_j = src_block_i;
+        Index global_dst_i = dst_i + dst_block_i*BLOCK_COL;
+        Index global_dst_j = dst_j + dst_block_j*BLOCK_ROW;
+        T *dst_slice = dst + global_dst_i + global_dst_j*n;
+        __syncthreads();
+        constexpr int BLOCK_ROW_STEP = BLOCK_ROW / BLOCK_LOOP;
+        for(int k = 0; k < BLOCK_ROW; k += BLOCK_ROW_STEP)
+        {
+            dst_slice[k*n] = block[dst_j+k][dst_i];
+        }
+    }
+    else if(global_src_i < m)
+    {
+        constexpr int BLOCK_COL_STEP = BLOCK_COL / BLOCK_LOOP;
+        for(Index new_j = 0; new_j < BLOCK_COL; new_j += BLOCK_COL_STEP)
+        {
+            if(global_src_j+new_j >= n)
+            {
+                break;
+            }
+            dst[global_src_j+new_j+global_src_i*n] =
+                 T{alpha * Y{src[global_src_i+(global_src_j+new_j)*m]}};
+        }
+    }
+}
+
+//! Launch single_chunk_cuda_kernel with a given tile.
+template<typename T, int BR, int BC, int BL>
+static void launch_single_chunk(cudaStream_t stream, Index m, Index n,
+    Scalar alpha, const T* const* src_tab, T* const* dst_tab)
+{
+    dim3 threads(BR * BC / BL);
+    dim3 blocks(((m+BR-1)/BR) * ((n+BC-1)/BC));
+    (single_chunk_cuda_kernel<T, BR, BC, BL>)<<<blocks, threads, 0, stream>>>(
+            m, n, alpha, src_tab, dst_tab);
+}
+
 //! Chunk descriptors for the one-launch chunked transpose (see cuda.hh).
 template<typename T>
 struct ChunkTables
@@ -453,6 +540,148 @@ void chunked(cudaStream_t stream, Index m, Index n, Scalar alpha,
 {
     if(m <= 0 || n <= 0 || nsrc <= 0 || ndst <= 0)
     {
+        return;
+    }
+    if(nsrc == 1 and ndst == 1)
+    {
+        // Every operand inside its chunk 0 (each ring holds one chunk,
+        // i.e. any contiguous buffer below the chunk class). Resolve the
+        // two ring[0] bases once per block and run the whole-buffer tile
+        // code, so the launch is the classic one plus two pointer loads
+        // per block -- no per-tile chunk resolution, no table reads in
+        // the element loops. Tile choice (by aspect only, never by chunk
+        // count beyond this guard):
+        // * short first operand (m < n): the src columns are only m
+        //   elements long, so the load phase's widest possible segment
+        //   is BLOCK_ROW elements; prefer BLOCK_ROW DIVIDING m from the
+        //   same 12/8/6/4/3/2 refinement the other orientation already
+        //   uses, so every row block is a full tile (no half-idle edge
+        //   block) and a warp's loads are one contiguous run (the load
+        //   address is base + tid + k*m when BLOCK_ROW == m's divisor
+        //   covering the column pitch). The pow2-divisor choice (4 rows
+        //   for m=12) halves the load width of the 8-row whole-buffer
+        //   tile and measured ~1.06-1.08x the classic split call.
+        // * otherwise: the multi-chunk ladder's shapes, which on the
+        //   m >= n side divide the narrow n exactly where they can
+        //   (64x12 on the GPT-2 merge shape is ~0.79x classic).
+        if(m < n)
+        {
+            if(m >= 32)
+            {
+                launch_single_chunk<T, 32, 32, 4>(stream, m, n, alpha,
+                        src_chunks, dst_chunks);
+            }
+            else if(m == 1)
+            {
+                launch_single_chunk<T, 2, 256, 2>(stream, m, n, alpha,
+                        src_chunks, dst_chunks);
+            }
+            else if(m % 16 == 0)
+            {
+                launch_single_chunk<T, 16, 64, 4>(stream, m, n, alpha,
+                        src_chunks, dst_chunks);
+            }
+            else if(m % 12 == 0)
+            {
+                launch_single_chunk<T, 12, 64, 4>(stream, m, n, alpha,
+                        src_chunks, dst_chunks);
+            }
+            else if(m % 8 == 0)
+            {
+                launch_single_chunk<T, 8, 128, 4>(stream, m, n, alpha,
+                        src_chunks, dst_chunks);
+            }
+            else if(m % 6 == 0)
+            {
+                launch_single_chunk<T, 6, 64, 2>(stream, m, n, alpha,
+                        src_chunks, dst_chunks);
+            }
+            else if(m % 4 == 0)
+            {
+                launch_single_chunk<T, 4, 256, 4>(stream, m, n, alpha,
+                        src_chunks, dst_chunks);
+            }
+            else if(m % 3 == 0)
+            {
+                launch_single_chunk<T, 3, 64, 1>(stream, m, n, alpha,
+                        src_chunks, dst_chunks);
+            }
+            else if(m % 2 == 0)
+            {
+                launch_single_chunk<T, 2, 256, 2>(stream, m, n, alpha,
+                        src_chunks, dst_chunks);
+            }
+            else if(m < 8)
+            {
+                // No divisor tile fits (odd m): keep the whole-buffer
+                // aspect choice and pay its ragged edge block.
+                launch_single_chunk<T, 4, 256, 4>(stream, m, n, alpha,
+                        src_chunks, dst_chunks);
+            }
+            else if(m < 16)
+            {
+                launch_single_chunk<T, 8, 128, 4>(stream, m, n, alpha,
+                        src_chunks, dst_chunks);
+            }
+            else
+            {
+                launch_single_chunk<T, 16, 64, 4>(stream, m, n, alpha,
+                        src_chunks, dst_chunks);
+            }
+        }
+        else if(n < 4)
+        {
+            launch_single_chunk<T, 256, 2, 2>(stream, m, n, alpha,
+                    src_chunks, dst_chunks);
+        }
+        else if(n < 8)
+        {
+            launch_single_chunk<T, 256, 4, 4>(stream, m, n, alpha,
+                    src_chunks, dst_chunks);
+        }
+        else if(n < 16)
+        {
+            // Prefer BC dividing n so every column block is a full tile
+            // and the store phase is linear in the destination's
+            // contiguous axis (the fixed 128x8 tile leaves a ragged edge
+            // whenever 8 does not divide n; 64x12 measured ~0.79x the
+            // classic merge call on the GPT-2 shape).
+            if(n % 12 == 0)
+            {
+                launch_single_chunk<T, 64, 12, 4>(stream, m, n, alpha,
+                        src_chunks, dst_chunks);
+            }
+            else if(n % 8 == 0)
+            {
+                launch_single_chunk<T, 128, 8, 4>(stream, m, n, alpha,
+                        src_chunks, dst_chunks);
+            }
+            else if(n % 4 == 0)
+            {
+                launch_single_chunk<T, 256, 4, 4>(stream, m, n, alpha,
+                        src_chunks, dst_chunks);
+            }
+            else if(n % 2 == 0)
+            {
+                launch_single_chunk<T, 256, 2, 2>(stream, m, n, alpha,
+                        src_chunks, dst_chunks);
+            }
+            else
+            {
+                launch_single_chunk<T, 128, 8, 4>(stream, m, n, alpha,
+                        src_chunks, dst_chunks);
+            }
+        }
+        else if(n < 32)
+        {
+            launch_single_chunk<T, 64, 16, 4>(stream, m, n, alpha,
+                    src_chunks, dst_chunks);
+        }
+        else
+        {
+            launch_single_chunk<T, 32, 32, 4>(stream, m, n, alpha,
+                    src_chunks, dst_chunks);
+        }
         return;
     }
     ChunkTables<T> t;

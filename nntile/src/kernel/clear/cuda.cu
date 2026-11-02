@@ -7,12 +7,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/kernel/clear/cuda.cu
- * The ONE-launch chunked clear (user directive 2026-10-19: a single
- * kernel, because per-chunk cudaMemsetAsync does not scale -- a 16 MiB
- * chunk is ~4 us of fill at H200's 3.6 TB/s, where launch overhead
- * dominates).
+ * The ONE-launch chunked clear (a single kernel: the chunk table is
+ * device-resident, so the host cannot issue per-chunk cudaMemsetAsync
+ * without a synchronizing copy).
  *
- * @version 1.3.0
+ * @version 1.4.0
  * */
 
 #include "nntile/kernel/clear/cuda.hh"
@@ -27,39 +26,53 @@ struct ChunkTables
     unsigned char *const* data; //!< device-ring view of the data ptr array
     Index ndata;
     Index elems_data; //!< bytes in a full data chunk
-    int shift_data; //!< class shift (multi-chunk)
+    int shift_data; //!< class shift (multi-chunk) or the 62 sentinel
 };
 
-/*! Branch-free one-unit-per-touch kernel: the clear size ROUNDS UP to a
- * 16-byte multiple (the pool's chunk blocks and cudaMalloc's 256-byte
- * granularity absorb the <=15-byte overclear), so EVERY unit is a full,
- * unconditional, warp-coalesced uint4 store resolved through the chunk
- * table -- no tail predicate, no per-byte path, no branch in the loop.
- * Four units per thread per pass, interleaved at the grid stride (u,
- * u+N, u+2N, u+3N): each store instruction is coalesced and the table
- * read amortizes 4x. */
+/*! Memset-shaped flat walk. Measured structure race on the 37-chunk
+ * 147 MiB wte-grad shape and the 3-chunk 9 MiB mlp-w shape (RTX 2080 Ti,
+ * .zcode/bench-kernel/live/laneB/p14/clr_micro.cu): within one store
+ * instruction the 32 lanes must cover CONSECUTIVE 16-byte units (512B
+ * per warp instruction, every 32-byte sector fully written) -- that is
+ * the memset pattern; any per-thread-consecutive multi-store span
+ * (32/64/128B per thread) halves sector fills per instruction and loses
+ * 2-80% (128B/thread: 479us vs 268us memset), and loop/span forms with
+ * per-unit branch chains lose another ~10%. Straight-line 2-unit ILP
+ * ties the one-unit form on the big shape and costs ~4% on the
+ * latency-sensitive 9 MiB shape, so the winner is the leanest possible
+ * flat form: ONE unit per thread, one guard, one resolve, one store
+ * (the old walk's 4x grid-stride unroll never fired at its sized grid
+ * and its machinery measured ~free but the guard cost did not).
+ * Remaining gap to the classic cudaMemsetAsync (268.3us): the driver's
+ * fill runs on a faster path than any SM store sequence can reach -- an
+ * SM kernel over the SAME contiguous buffer with ZERO table work floors
+ * at 281.3us (540 GB/s vs 566 GB/s), so the last ~5% is not reachable
+ * from device code. The clear size still ROUNDS UP to a 16-byte
+ * multiple (the pool's chunk blocks and cudaMalloc's 256-byte
+ * granularity absorb the <=15-byte overclear), so every unit is a full,
+ * unconditional uint4 store. MULTI=false (single-chunk operand, the
+ * sentinel shift 62) strips the chunk arithmetic to one broadcast table
+ * read per thread. */
+template<bool MULTI>
 static __global__
 void chunked_cuda_kernel(Index nbytes, ChunkTables t)
 {
-    long const nthreads = long(blockDim.x) * long(gridDim.x);
     long const units = (long(nbytes) + 15) / 16; // rounded up (padding)
-    for(long pass = long(threadIdx.x) + long(blockIdx.x)*blockDim.x;
-        pass < units; pass += 4*nthreads)
+    long const u = long(threadIdx.x) + long(blockIdx.x)*blockDim.x;
+    if(u >= units)
     {
-        #pragma unroll
-        for(int j = 0; j < 4; ++j)
-        {
-            long const u = pass + long(j)*nthreads;
-            if(u >= units)
-            {
-                break;
-            }
-            long const f = u * 16;
-            Index const c = Index(f >> t.shift_data);
-            *reinterpret_cast<uint4 *>(t.data[c]
-                + (f - c * long(t.elems_data)))
-                = make_uint4(0, 0, 0, 0);
-        }
+        return;
+    }
+    long const f = u * 16;
+    if constexpr(MULTI)
+    {
+        Index const c = Index(f >> t.shift_data);
+        *reinterpret_cast<uint4 *>(t.data[c]
+            + (f - long(c) * long(t.elems_data))) = make_uint4(0, 0, 0, 0);
+    }
+    else
+    {
+        *reinterpret_cast<uint4 *>(t.data[0] + f) = make_uint4(0, 0, 0, 0);
     }
 }
 
@@ -79,8 +92,16 @@ void chunked(cudaStream_t stream, Index nbytes,
         "nntile_clear");
     Index const units = (nbytes + 15) / 16;
     dim3 blocks((units+255)/256), threads(256);
-    (chunked_cuda_kernel)<<<blocks, threads, 0, stream>>>(
-        nbytes, t);
+    if(t.ndata == 1)
+    {
+        (chunked_cuda_kernel<false>)<<<blocks, threads, 0, stream>>>(
+            nbytes, t);
+    }
+    else
+    {
+        (chunked_cuda_kernel<true>)<<<blocks, threads, 0, stream>>>(
+            nbytes, t);
+    }
 }
 
 } // namespace nntile::kernel::clear

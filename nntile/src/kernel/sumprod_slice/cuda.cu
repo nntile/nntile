@@ -252,99 +252,220 @@ static __device__ __forceinline__ T sps_at(const T* const* table, long f,
     return table[c][f - c * long(elems)];
 }
 
-//! Chunk-aware m==1 kernel: the SAME geometry and accumulation order as
+//! Per-thread partial sum of one output column of the chunked m==1
+//! kernel: the row lies inside one chunk of BOTH sources (every
+//! single-chunk operand and every interior row of a class-chunked one).
+//! Resolve the two chunk homes ONCE into virtual contiguous bases
+//! q = chunk_base - chunk*elems (the element at flat f is q[f]) and run
+//! cuda_kernel_m1's two loops VERBATIM through them -- the piece-4
+//! "single-run fast path" of multiply_slice. Same elements, same
+//! per-thread ascending order, same val1*val2 statements as the classic
+//! kernel, hence a bitwise-identical partial.
+template<typename T, int BLOCK_ROW, int LOOP>
+static __device__ __forceinline__
+typename T::repr_t chunked_m1_single_run(
+        SumProdSliceChunkTables<T> const &t, Index j, long c1, long c2)
+{
+    using Y = typename T::repr_t;
+    constexpr int BLOCK_ROW_STEP = BLOCK_ROW / LOOP;
+    long const base = long(j) * long(t.k);
+    T const *q1 = t.src1[c1] - c1 * long(t.elems_src1);
+    T const *q2 = t.src2[c2] - c2 * long(t.elems_src2);
+    Y dst_val = 0.0;
+    Index const src_l_block_end = (t.k/BLOCK_ROW) * BLOCK_ROW;
+    for(Index src_l = threadIdx.x; src_l < src_l_block_end;
+            src_l += BLOCK_ROW)
+    {
+        const T *src1_fiber = q1 + src_l + base;
+        const T *src2_fiber = q2 + src_l + base;
+        for(int c = 0; c < BLOCK_ROW; c += BLOCK_ROW_STEP)
+        {
+            Y val1 = static_cast<Y>(src1_fiber[c]);
+            Y val2 = static_cast<Y>(src2_fiber[c]);
+            dst_val += val1 * val2;
+        }
+    }
+    // Pointer to a corresponding fiber of the input arrays
+    Index const src_l = threadIdx.x + src_l_block_end;
+    const T *src1_fiber = q1 + base;
+    const T *src2_fiber = q2 + base;
+    for(Index c = src_l; c < t.k; c += BLOCK_ROW_STEP)
+    {
+        Y val1 = static_cast<Y>(src1_fiber[c]);
+        Y val2 = static_cast<Y>(src2_fiber[c]);
+        dst_val += val1 * val2;
+    }
+    return dst_val;
+}
+
+//! Cold path of the same partial: a straddling row (crosses a chunk
+//! boundary of at least one source). One affine walk over the offsets
+//! tid + step*i < k with the chunk pointers rebased only on a boundary
+//! crossing (see sum_slice's chunked_m1_kernel); the walk visits the
+//! same elements in the same ascending order as the classic loops.
+//! (Deliberately NOT __noinline__: in the shipped build an outlined
+//! device call materializes the whole 120-byte table struct through a
+//! local-memory stack frame, which costs 5-7x.)
+template<typename T, int BLOCK_ROW, int LOOP>
+static __device__ __forceinline__
+typename T::repr_t chunked_m1_straddle(
+        SumProdSliceChunkTables<T> const &t, Index j)
+{
+    using Y = typename T::repr_t;
+    constexpr int BLOCK_ROW_STEP = BLOCK_ROW / LOOP;
+    Index const e1 = t.elems_src1, e2 = t.elems_src2;
+    int const shf1 = t.shift_src1, shf2 = t.shift_src2;
+    Y dst_val = 0.0;
+    long const base = long(j) * long(t.k);
+    long const step = BLOCK_ROW_STEP;
+    long f = base + long(threadIdx.x);
+    long const end = base + long(t.k);
+    if(threadIdx.x < t.k)
+    {
+        Index cl1 = Index(f >> shf1);
+        Index cl2 = Index(f >> shf2);
+        long off1 = f - (long(cl1) << shf1);
+        long off2 = f - (long(cl2) << shf2);
+        T const *p1 = t.src1[cl1];
+        T const *p2 = t.src2[cl2];
+        for(; f < end; f += step)
+        {
+            dst_val += Y{p1[off1]} * Y{p2[off2]};
+            if(f + step >= end) { break; }
+            off1 += step;
+            off2 += step;
+            if(off1 >= e1)
+            {
+                do { off1 -= e1; ++cl1; } while(off1 >= e1);
+                p1 = t.src1[cl1];
+            }
+            if(off2 >= e2)
+            {
+                do { off2 -= e2; ++cl2; } while(off2 >= e2);
+                p2 = t.src2[cl2];
+            }
+        }
+    }
+    return dst_val;
+}
+
+//! Chunk-aware m==1 kernel: the SAME per-output accumulation order as
 //! cuda_kernel_m1 above, reads resolved through the two src chunk tables
 //! and the write through the dst table. Deterministic (no atomics), so
-//! bitwise cuda()->m1.
+//! bitwise cuda()->m1. Each 256-thread block FUSES two consecutive
+//! output columns (jA = 2*blockIdx.x, jB = jA+1): both per-thread
+//! partials accumulate first (independent loads interleave, which hides
+//! the chunk-table load latency), then ONE reduction pass serves both
+//! columns with the classic add tree per column (write, barrier,
+//! +128-step, barrier, +64-step, barrier, then the 32..1 warp tree) --
+//! the tree shape, element set and FMA order per output are exactly
+//! cuda_kernel_m1's, so the results are bitwise-identical while the
+//! per-block start cost and barrier count are halved per column.
+//! The in-warp tail of the tree runs in registers through
+//! __shfl_down_sync (x = v[i]+v[i+32] then offsets 16,8,4,2,1), which
+//! performs the identical association as the classic volatile
+//! shared-memory loop.
 template<typename T, int BLOCK_ROW, int LOOP>
 static __global__
 void chunked_m1_kernel(SumProdSliceChunkTables<T> t)
 {
     Index const e1 = t.elems_src1, e2 = t.elems_src2, ed = t.elems_dst;
     int const shf1 = t.shift_src1, shf2 = t.shift_src2, shfd = t.shift_dst;
-    Index const j = blockIdx.x;
     using Y = typename T::repr_t;
     const Y alpha{t.alpha};
     const Y beta{t.beta};
     constexpr int BLOCK_ROW_STEP = BLOCK_ROW / LOOP;
-    volatile __shared__ Y dst_block[BLOCK_ROW_STEP];
-    Y dst_val = 0.0;
-    long const base = long(j) * long(t.k);
-    long const step = BLOCK_ROW_STEP;
-    // Collapse the two original loops into one affine walk (offsets
-    // tid + step*i < k) and rebase the chunk pointers only on a boundary
-    // crossing (see sum_slice's chunked_m1_kernel).
-    long f = base + long(threadIdx.x);
-    long const end = base + long(t.k);
-    if(shf1 >= 0 && shf2 >= 0)
+    __shared__ Y dstb[2][BLOCK_ROW_STEP];
+    Index const jA = blockIdx.x * 2;
+    Index const jB = jA + 1;
+    bool const hasB = jB < t.n;
+    // Both columns' partials, then the row's chunk homes (shift/mask, no
+    // divisors); single-chunk-row fast path or the straddling walk.
+    long const baseA = long(jA) * long(t.k);
+    long const c1A = baseA >> shf1, c2A = baseA >> shf2;
+    long const off1A = baseA - c1A * long(e1);
+    long const off2A = baseA - c2A * long(e2);
+    Y va = (off1A + long(t.k) <= long(e1)
+            and off2A + long(t.k) <= long(e2))
+        ? chunked_m1_single_run<T, BLOCK_ROW, LOOP>(t, jA, c1A, c2A)
+        : chunked_m1_straddle<T, BLOCK_ROW, LOOP>(t, jA);
+    Y vb = 0.0;
+    if(hasB)
     {
-        if(threadIdx.x < t.k)
-        {
-            Index cl1 = Index(f >> shf1);
-            Index cl2 = Index(f >> shf2);
-            long off1 = f - (long(cl1) << shf1);
-            long off2 = f - (long(cl2) << shf2);
-            T const *p1 = t.src1[cl1];
-            T const *p2 = t.src2[cl2];
-            for(; f < end; f += step)
-            {
-                dst_val += Y{p1[off1]} * Y{p2[off2]};
-                if(f + step >= end) { break; }
-                off1 += step;
-                off2 += step;
-                if(off1 >= e1)
-                {
-                    do { off1 -= e1; ++cl1; } while(off1 >= e1);
-                    p1 = t.src1[cl1];
-                }
-                if(off2 >= e2)
-                {
-                    do { off2 -= e2; ++cl2; } while(off2 >= e2);
-                    p2 = t.src2[cl2];
-                }
-            }
-        }
+        long const baseB = long(jB) * long(t.k);
+        long const c1B = baseB >> shf1, c2B = baseB >> shf2;
+        long const off1B = baseB - c1B * long(e1);
+        long const off2B = baseB - c2B * long(e2);
+        vb = (off1B + long(t.k) <= long(e1)
+                and off2B + long(t.k) <= long(e2))
+            ? chunked_m1_single_run<T, BLOCK_ROW, LOOP>(t, jB, c1B, c2B)
+            : chunked_m1_straddle<T, BLOCK_ROW, LOOP>(t, jB);
     }
-    else
+    // The classic reduction, one fused pass for both columns.
+    dstb[0][threadIdx.x] = alpha * va;
+    if(hasB)
     {
-        for(; f < end; f += step)
-        {
-            long const c1 = sps_chunk_of(f, e1, shf1);
-            long const c2 = sps_chunk_of(f, e2, shf2);
-            dst_val += Y{t.src1[c1][f - c1 * long(e1)]}
-                * Y{t.src2[c2][f - c2 * long(e2)]};
-        }
+        dstb[1][threadIdx.x] = alpha * vb;
     }
-    dst_block[threadIdx.x] = alpha * dst_val;
     __syncthreads();
     for(int c = BLOCK_ROW_STEP>>1; c > 32; c >>= 1)
     {
         if(threadIdx.x < c)
         {
-            dst_block[threadIdx.x] += dst_block[threadIdx.x+c];
+            dstb[0][threadIdx.x] += dstb[0][threadIdx.x+c];
+            if(hasB)
+            {
+                dstb[1][threadIdx.x] += dstb[1][threadIdx.x+c];
+            }
         }
         __syncthreads();
     }
     if(threadIdx.x < 32)
     {
-        for(int c = 32; c > 0; c >>= 1)
+        Y x = dstb[0][threadIdx.x] + dstb[0][threadIdx.x+32];
+        #pragma unroll
+        for(int c = 16; c > 0; c >>= 1)
         {
-            dst_block[threadIdx.x] += dst_block[threadIdx.x+c];
+            x += __shfl_down_sync(0xffffffffu, x, c);
+        }
+        if(threadIdx.x == 0)
+        {
+            long const g = long(jA);
+            long const cd = sps_chunk_of(g, ed, shfd);
+            T *dp = t.dst[cd] + (g - cd * long(ed));
+            if(beta == 0.0)
+            {
+                dp[0] = T{Y(x)};
+            }
+            else
+            {
+                Y v = beta * Y{dp[0]};
+                dp[0] = T{v + x};
+            }
         }
     }
-    if(threadIdx.x == 0)
+    if(threadIdx.x < 32 and hasB)
     {
-        long const g = long(j);
-        long const cd = sps_chunk_of(g, ed, shfd);
-        T *dp = t.dst[cd] + (g - cd * long(ed));
-        if(beta == 0.0)
+        Y x = dstb[1][threadIdx.x] + dstb[1][threadIdx.x+32];
+        #pragma unroll
+        for(int c = 16; c > 0; c >>= 1)
         {
-            dp[0] = T{Y(dst_block[0])};
+            x += __shfl_down_sync(0xffffffffu, x, c);
         }
-        else
+        if(threadIdx.x == 0)
         {
-            Y v = beta * Y{dp[0]};
-            dp[0] = T{v + dst_block[0]};
+            long const g = long(jB);
+            long const cd = sps_chunk_of(g, ed, shfd);
+            T *dp = t.dst[cd] + (g - cd * long(ed));
+            if(beta == 0.0)
+            {
+                dp[0] = T{Y(x)};
+            }
+            else
+            {
+                Y v = beta * Y{dp[0]};
+                dp[0] = T{v + x};
+            }
         }
     }
 }
@@ -429,11 +550,12 @@ void chunked(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
     t.k = k;
     t.alpha = alpha;
     t.beta = beta;
-    // Mirror cuda()'s branch selection and geometry.
+    // Mirror cuda()'s branch selection and geometry; the m1 kernel fuses
+    // two columns per block (see chunked_m1_kernel).
     if(m == 1)
     {
         dim3 threads(256);
-        dim3 blocks(n);
+        dim3 blocks((n + 1) / 2);
         (chunked_m1_kernel<T, 1024, 4>)<<<blocks, threads, 0,
             stream>>>(t);
     }

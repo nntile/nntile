@@ -98,6 +98,37 @@ void chunked_cuda_kernel(Index nelems, ChunkTables<T> t)
     }
 }
 
+//! Single-chunk logsumexp (both operands are chunk 0 of their tables):
+//! the classic kernel's statement stream verbatim with the two base
+//! pointers resolved through two ring-table loads issued as the very
+//! first statements (via the read-only data path: the tables are never
+//! written by this kernel; the loads are independent, one broadcast
+//! transaction per warp each), so the launch-floor shape runs the
+//! shortest possible instruction stream for this API -- two dependent
+//! table loads on the critical path and no shift/mask work (the sentinel
+//! contract makes every flat offset chunk 0; the even/odd pair at 2i,
+//! 2i+1 stays inside chunk 0 by construction). The stored bytes are
+//! bitwise cuda()'s (an add of a log() call, so there is no
+//! FMA-contraction freedom).
+template<typename T>
+static __global__
+void chunked_single_kernel(Index nelems, const T* const* mse_tab,
+        T* const* lse_tab)
+{
+    const T *maxsumexp = reinterpret_cast<const T *>(__ldg(
+        reinterpret_cast<const unsigned long long *>(mse_tab)));
+    T *logsumexp = reinterpret_cast<T *>(__ldg(reinterpret_cast<
+        const unsigned long long *>(lse_tab)));
+    int i = threadIdx.x + blockIdx.x*blockDim.x;
+    using Y = typename T::repr_t;
+    if(i < nelems)
+    {
+        Y maxsumexp_even = Y{maxsumexp[2*i]};
+        Y maxsumexp_odd = Y{maxsumexp[2*i+1]};
+        logsumexp[i] = maxsumexp_even + ::log(maxsumexp_odd);
+    }
+}
+
 template<typename T>
 void chunked(cudaStream_t stream, Index nelems,
         const T* const* maxsumexp_chunks, Index nmse,
@@ -107,6 +138,15 @@ void chunked(cudaStream_t stream, Index nelems,
 {
     if(nelems <= 0 || nmse <= 0 || nlse <= 0)
     {
+        return;
+    }
+    if(nmse == 1 && nlse == 1)
+    {
+        // Dispatch by chunk counts only. Same 32-thread geometry as the
+        // whole-buffer entry.
+        dim3 blocks((nelems+31)/32), threads(32);
+        (chunked_single_kernel<T>)<<<blocks, threads, 0, stream>>>(
+            nelems, maxsumexp_chunks, logsumexp_chunks);
         return;
     }
     ChunkTables<T> t;

@@ -297,6 +297,246 @@ void chunked_cuda_kernel(Tab t)
     }
 }
 
+//! Single-chunk pure SGD step (momentum == 0 and weight_decay == 0, both
+//! resolved HOST-side exactly like the kernel's own scalar branches): no
+//! velocity access at all, so the velocity table is not even passed. The
+//! update is the classic kernel's momentum==0 path statement-for-statement
+//! (p - lr*grad as one fused FFMA), with TWO table loads (grad, p) and no
+//! branch machinery: the launch-floor shapes (a few hundred elements) run
+//! the shortest possible instruction stream for this API.
+template<typename T>
+static __global__
+void chunked_cuda_kernel_one_pure(Index num_elems, typename T::repr_t lr,
+        const T *const *grad, T *const *p)
+{
+    int i = threadIdx.x + blockIdx.x*blockDim.x;
+    if(i >= num_elems)
+    {
+        return;
+    }
+    using Y = typename T::repr_t;
+    const T *g = grad[0];
+    T *pp = p[0];
+    // Read values (param+grad) from RAM only once
+    Y p_val = static_cast<Y>(pp[i]), grad_val = static_cast<Y>(g[i]);
+    pp[i] = static_cast<T>(p_val - lr * grad_val);
+}
+
+//! Same pure step as chunked_cuda_kernel_one_pure, walked in aligned
+//! float4 quads (4-byte element types and a 4-multiple element count
+//! only, dispatch guard in chunked()); alignment argument as for
+//! chunked_cuda_kernel_one_v4 below. The thread geometry is the classic
+//! kernel's 32-bit one (int q). Reserved for the larger single-chunk
+//! shapes: beyond ~16K elements the memory pipe, not the launch floor,
+//! bounds the kernel and the quad walk's four-times-fewer memory
+//! instructions win; below it chunked() keeps the classic scalar walk.
+template<typename T>
+static __global__
+void chunked_cuda_kernel_one_v4_pure(Index num_elems, typename T::repr_t lr,
+        const T *const *grad, T *const *p)
+{
+    using Y = typename T::repr_t;
+    using V = float4;
+    int const q = threadIdx.x + blockIdx.x*blockDim.x;
+    // Resolve the two chunk-0 bases first: the tables always hold at
+    // least one chunk (guaranteed by chunked()'s guards), so every
+    // thread of a possibly padded tail block may read them.
+    const V * const gv = reinterpret_cast<const V *>(grad[0]);
+    V * const pv = reinterpret_cast<V *>(p[0]);
+    if(q >= int(num_elems >> 2))
+    {
+        return;
+    }
+    V const g4 = gv[q];
+    V const p4 = pv[q];
+    V o4;
+    o4.x = p4.x - lr * Y{g4.x};
+    o4.y = p4.y - lr * Y{g4.y};
+    o4.z = p4.z - lr * Y{g4.z};
+    o4.w = p4.w - lr * Y{g4.w};
+    pv[q] = o4;
+}
+
+//! Single-chunk weight-decay SGD step (momentum == 0, weight_decay != 0,
+//! both resolved HOST-side): the classic kernel's momentum==0 path with
+//! the weight-decay FFMA, statement-for-statement, walked in aligned
+//! float4 quads (4-byte element types and a 4-multiple element count
+//! only).
+template<typename T>
+static __global__
+void chunked_cuda_kernel_one_v4_wd(Index num_elems,
+        typename T::repr_t weight_decay, typename T::repr_t lr,
+        const T *const *grad, T *const *p)
+{
+    using Y = typename T::repr_t;
+    using V = float4;
+    long const q = long(threadIdx.x) + long(blockIdx.x)*long(blockDim.x);
+    long const nquads = long(num_elems) >> 2;
+    if(q >= nquads)
+    {
+        return;
+    }
+    V const g4 = reinterpret_cast<const V *>(grad[0])[q];
+    V const p4 = reinterpret_cast<const V *>(p[0])[q];
+    V o4;
+    Y g_val, p_val;
+    p_val = Y{p4.x};
+    g_val = Y{g4.x} + weight_decay * p_val;
+    o4.x = p_val - lr * g_val;
+    p_val = Y{p4.y};
+    g_val = Y{g4.y} + weight_decay * p_val;
+    o4.y = p_val - lr * g_val;
+    p_val = Y{p4.z};
+    g_val = Y{g4.z} + weight_decay * p_val;
+    o4.z = p_val - lr * g_val;
+    p_val = Y{p4.w};
+    g_val = Y{g4.w} + weight_decay * p_val;
+    o4.w = p_val - lr * g_val;
+    reinterpret_cast<V *>(p[0])[q] = o4;
+}
+
+//! Single-chunk chunked sgd_step: every operand sits inside its chunk 0
+//! (each ring holds one chunk, i.e. any contiguous buffer below the chunk
+//! class -- e.g. every GPT-2 attention weight block or bias vector). The
+//! three chunk-0 base pointers are resolved once per thread (warp-uniform
+//! broadcast loads) and the body is the classic kernel's verbatim with the
+//! same exact-rounding pin as the multi-chunk kernel's fast branch, so the
+//! per-element instruction stream is the classic kernel's and the whole
+//! range stays bitwise one cuda() call -- without the multi-chunk kernel's
+//! fat parameter struct, per-block window checks and shift/mask walk.
+template<typename T>
+static __global__
+void chunked_cuda_kernel_one(Index num_iter, Index num_elems,
+        typename T::repr_t momentum, typename T::repr_t lr,
+        typename T::repr_t weight_decay, typename T::repr_t dampening,
+        bool nesterov, const T *const *grad, T *const *velocity, T *const *p)
+{
+    int i = threadIdx.x + blockIdx.x*blockDim.x;
+    if(i >= num_elems)
+    {
+        return;
+    }
+    const T *g = grad[0];
+    T *v = velocity[0];
+    T *pp = p[0];
+    using Y = typename T::repr_t;
+    // Read values (param+grad) from RAM only once
+    Y p_val = static_cast<Y>(pp[i]), grad_val = static_cast<Y>(g[i]);
+    if (weight_decay != 0)
+    {
+        grad_val += weight_decay * p_val;
+    }
+    if (momentum != 0.0)
+    {
+        Y velocity_val;
+        if (num_iter == 1)
+        {
+            velocity_val = grad_val;
+        }
+        else
+        {
+            // The exact-rounding pin of the multi-chunk kernel's fast
+            // branch (see there): the classic kernel's as-compiled
+            // arithmetic of the momentum update.
+            Y const damp_term = static_cast<Y>(1.0 - dampening);
+            velocity_val = sgs_fma(damp_term, grad_val,
+                sgs_mul(momentum, static_cast<Y>(v[i])));
+        }
+        v[i] = static_cast<T>(velocity_val);
+        if (nesterov)
+        {
+            grad_val += momentum * velocity_val;
+        }
+        else
+        {
+            grad_val = velocity_val;
+        }
+    }
+    pp[i] = static_cast<T>(p_val - lr * grad_val);
+}
+
+//! Single-chunk chunked sgd_step on a 4-multiple element count (4-byte
+//! element types only, dispatch guard in chunked()): the flat space is
+//! walked in aligned float4 quads, one quad per thread -- 16 bytes per
+//! load/store, a quarter of the memory instructions of the scalar walk
+//! for exactly the same bytes. Chunk bases come from the engine's chunk
+//! allocator (one arena cudaMalloc, every chunk base a multiple of the
+//! 4 MiB class from an at least 256-byte-aligned base; the bench's plain
+//! cudaMalloc tables are at least 256-byte aligned too) and a
+//! single-chunk operand spans its whole chunk from the base, so every
+//! quad access is 16-byte aligned. The per-element arithmetic and its
+//! association are exactly the classic kernel's: every lane runs the
+//! same statements as chunked_cuda_kernel_one (the lane lambda below
+//! inlines to them verbatim), including the momentum-update pin.
+template<typename T>
+static __global__
+void chunked_cuda_kernel_one_v4(Index num_iter, Index num_elems,
+        typename T::repr_t momentum, typename T::repr_t lr,
+        typename T::repr_t weight_decay, typename T::repr_t dampening,
+        bool nesterov, const T *const *grad, T *const *velocity, T *const *p)
+{
+    using Y = typename T::repr_t;
+    using V = float4;
+    long const q = long(threadIdx.x) + long(blockIdx.x)*long(blockDim.x);
+    long const nquads = long(num_elems) >> 2;
+    if(q >= nquads)
+    {
+        return;
+    }
+    const V * const gv = reinterpret_cast<const V *>(grad[0]) + q;
+    V * const pv = reinterpret_cast<V *>(p[0]) + q;
+    V * const vv = reinterpret_cast<V *>(velocity[0]) + q;
+    V const g4 = gv[0];
+    V const p4 = pv[0];
+    V v4{};
+    if (momentum != 0.0)
+    {
+        v4 = vv[0];
+    }
+    V o4;
+    V vo4;
+    Y const damp_term = static_cast<Y>(1.0 - dampening);
+    auto lane = [&](Y g_val, Y p_val, Y vin, Y &vout) -> Y
+    {
+        if (weight_decay != 0)
+        {
+            g_val += weight_decay * p_val;
+        }
+        if (momentum != 0.0)
+        {
+            Y velocity_val;
+            if (num_iter == 1)
+            {
+                velocity_val = g_val;
+            }
+            else
+            {
+                velocity_val = sgs_fma(damp_term, g_val,
+                    sgs_mul(momentum, vin));
+            }
+            vout = velocity_val;
+            if (nesterov)
+            {
+                g_val += momentum * velocity_val;
+            }
+            else
+            {
+                g_val = velocity_val;
+            }
+        }
+        return p_val - lr * g_val;
+    };
+    o4.x = lane(Y{g4.x}, Y{p4.x}, Y{v4.x}, vo4.x);
+    o4.y = lane(Y{g4.y}, Y{p4.y}, Y{v4.y}, vo4.y);
+    o4.z = lane(Y{g4.z}, Y{p4.z}, Y{v4.z}, vo4.z);
+    o4.w = lane(Y{g4.w}, Y{p4.w}, Y{v4.w}, vo4.w);
+    if (momentum != 0.0)
+    {
+        vv[0] = vo4;
+    }
+    pv[0] = o4;
+}
+
 template<typename T>
 void chunked(cudaStream_t stream, Index num_iter, Index num_elems,
         Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening,
@@ -307,6 +547,82 @@ void chunked(cudaStream_t stream, Index num_iter, Index num_elems,
 {
     if(num_elems <= 0 || ngrad <= 0 || nvel <= 0 || np <= 0)
     {
+        return;
+    }
+    if(ngrad == 1 and nvel == 1 and np == 1)
+    {
+        // Every operand inside its chunk 0 (each ring holds one chunk,
+        // i.e. any contiguous buffer below the chunk class). The scalar
+        // branches of the classic kernel that the HOST can already
+        // resolve (momentum/weight_decay exactly zero -- the same
+        // predicates the kernel itself tests) select a branch-free
+        // kernel with the fewest table loads and parameters: momentum==0
+        // drops the velocity operand entirely. The walk itself keeps the
+        // classic kernel's geometry -- one element per thread, 32-bit
+        // loads -- up to the memory-bound sizes, where a 4-multiple
+        // element count on a 4-byte type switches to the float4 quad
+        // walk (four times fewer memory instructions). The launch-floor
+        // shapes (a few hundred elements) run the classic instruction
+        // stream plus the two chunk-0 table loads and nothing else.
+        using Y = typename T::repr_t;
+        constexpr Index kQuadMinElems = 16384;
+        if constexpr(sizeof(T) == 4)
+        {
+            bool const quad_ok = (num_elems % 4 == 0)
+                and (num_elems >= kQuadMinElems);
+            if(Y{momentum} == Y{0.0})
+            {
+                if(Y{weight_decay} == Y{0.0})
+                {
+                    if(quad_ok)
+                    {
+                        Index const nquads = num_elems >> 2;
+                        dim3 threads(256);
+                        dim3 blocks(unsigned((nquads+255)/256));
+                        (chunked_cuda_kernel_one_v4_pure<T>)<<<blocks, threads,
+                            0, stream>>>(num_elems, Y{lr}, grad_chunks,
+                            p_chunks);
+                        return;
+                    }
+                    dim3 blocks((num_elems+255)/256), threads(256);
+                    (chunked_cuda_kernel_one_pure<T>)<<<blocks, threads, 0,
+                        stream>>>(num_elems, Y{lr}, grad_chunks, p_chunks);
+                    return;
+                }
+                if(quad_ok)
+                {
+                    Index const nquads = num_elems >> 2;
+                    dim3 threads(256);
+                    dim3 blocks(unsigned((nquads+255)/256));
+                    (chunked_cuda_kernel_one_v4_wd<T>)<<<blocks, threads, 0,
+                        stream>>>(num_elems, Y{weight_decay}, Y{lr},
+                        grad_chunks, p_chunks);
+                    return;
+                }
+            }
+            else if(quad_ok)
+            {
+                Index const nquads = num_elems >> 2;
+                dim3 threads(256);
+                dim3 blocks(unsigned((nquads+255)/256));
+                (chunked_cuda_kernel_one_v4<T>)<<<blocks, threads, 0,
+                    stream>>>(num_iter, num_elems, Y{momentum}, Y{lr},
+                    Y{weight_decay}, Y{dampening}, nesterov, grad_chunks,
+                    vel_chunks, p_chunks);
+                return;
+            }
+        }
+        else if(Y{momentum} == Y{0.0} and Y{weight_decay} == Y{0.0})
+        {
+            dim3 blocks((num_elems+255)/256), threads(256);
+            (chunked_cuda_kernel_one_pure<T>)<<<blocks, threads, 0,
+                stream>>>(num_elems, Y{lr}, grad_chunks, p_chunks);
+            return;
+        }
+        dim3 blocks((num_elems+255)/256), threads(256);
+        (chunked_cuda_kernel_one<T>)<<<blocks, threads, 0, stream>>>(
+            num_iter, num_elems, Y{momentum}, Y{lr}, Y{weight_decay},
+            Y{dampening}, nesterov, grad_chunks, vel_chunks, p_chunks);
         return;
     }
     SgdStepChunkTables<T> t;

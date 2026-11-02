@@ -112,36 +112,31 @@ void cuda(
 }
 
 //! Chunk descriptors for the one-launch chunked add_fiber (see cuda.hh).
+//! The per-operand chunk shifts are precomputed on the host (they are
+//! the class shift for a multi-chunk operand, the single-chunk sentinel
+//! 62 otherwise), and the ==1 / dst-reuse facts are precomputed bools,
+//! so the kernels never re-derive them and the parameter block stays
+//! small.
 template<typename T>
 struct AddFiberChunkTables
 {
     const T* const* src1; //!< device-ring view of the src1 pointer array
-    Index nsrc1;
     const T* const* src2; //!< device-ring view of the src2 pointer array
-    Index nsrc2;
     T* const* dst; //!< device-ring view of the dst pointer array
-    Index ndst;
-    Index elems_src1; //!< elements in a full src1 chunk
-    Index elems_src2; //!< elements in a full src2 chunk
-    Index elems_dst; //!< elements in a full dst chunk
-    int shift_src1; //!< log2(elems_src1) on a power of two, else -1
-    int shift_src2; //!< log2(elems_src2) on a power of two, else -1
-    int shift_dst; //!< log2(elems_dst) on a power of two, else -1
+    bool one1; //!< src1 is a single chunk (chunk 0 for every element)
+    bool one2; //!< src2 is a single chunk
+    bool one_d; //!< dst is a single chunk
+    bool dst_reuse; //!< src2 and dst share a chunking, so chunk idx too
+    int shift_src1; //!< log2 of src2 full-chunk elems (62 if one chunk)
+    int shift_src2; //!< log2 of src2 full-chunk elems (62 if one chunk)
+    int shift_dst; //!< log2 of dst full-chunk elems (62 if one chunk)
     Index m;
     Index n;
     Index k;
     Index batch;
-    long total; //!< m*n*k*batch, the flat element-space size
     Scalar alpha;
     Scalar beta;
 };
-
-//! Chunk index of a flat element offset (shift on a power-of-two elems).
-static __device__ __forceinline__ Index adfb_chunk_of(long f, Index elems,
-    int shift)
-{
-    return Index(f >> shift);
-}
 
 //! Correctly-rounded FMA, to pin the association nvcc chose for cuda().
 static __device__ __forceinline__ float adfb_fma(float a, float b, float c)
@@ -154,80 +149,194 @@ static __device__ __forceinline__ double adfb_fma(double a, double b,
     return __fma_rn(a, b, c);
 }
 
-//! In-chunk element offset of flat offset f (mask when elems is pow2).
-static __device__ __forceinline__ long adfb_off(long f, Index elems, int shift,
-    Index c)
+//! Chunked add_fiber with every operand inside its chunk 0 (each ring
+//! holds one chunk, so every flat offset is a plain element offset of
+//! ring[0]).  Geometry matches cuda(): thread .x walks the contiguous
+//! i2 fiber (the src1 mode), blockIdx.y is i0 and blockIdx.z walks the
+//! i1 rows with a grid stride so any n fits; each thread loops over
+//! batch with all invariants hoisted, so the inner loop is pointer
+//! bumps only and matches the cuda() inner loop instruction for
+//! instruction.  The per-element expression and its association are
+//! exactly cuda()'s: fl(beta*src2) first, then a correctly-rounded
+//! fma(alpha, src1, .).
+template<typename T>
+struct AddFiberOneChunk
 {
-    return f & ((1LL << shift) - 1);
-}
+    const T* const* src1;
+    const T* const* src2;
+    T* const* dst;
+    Index m;
+    Index n;
+    Index k;
+    Index batch;
+    Scalar alpha;
+    Scalar beta;
+};
 
-//! Variant of chunked_cuda_kernel without the per-block shared-memory
-//! staging: src2/dst chunk pointers are read straight from the read-only
-//! device ring (L2-resident, warp-uniform, so the load broadcasts) and
-//! the src1 table is read directly.  Removes one __syncthreads and one
-//! shared-memory fill per block.  Same per-element expression and same
-//! result as the staged form (both go through the ring view), so it is
-//! bitwise cuda()'s.
 template<typename T>
 static __global__
-void chunked_cuda_kernel(AddFiberChunkTables<T> t)
+void chunked_cuda_kernel_one(AddFiberOneChunk<T> t)
 {
-    long const stride = (long)gridDim.x*blockDim.x;
     using Y = typename T::repr_t;
     const Y alpha = t.alpha;
     const Y beta = t.beta;
-    for(long f = (long)blockIdx.x*blockDim.x + threadIdx.x;
-            f < t.total; f += stride)
+    Index const i2 = threadIdx.x + blockIdx.x*blockDim.x;
+    // Hoisted per thread: the three chunk-0 bases (warp-uniform loads)
+    // and the flat-offset stride of one batch step.
+    const T * const ps1_0 = t.src1[0] + long(i2);
+    const T * const ps2_0 = t.src2[0];
+    T * const pd_0 = t.dst[0];
+    long const fstep = long(t.m)*long(t.k)*long(t.n);
+    if(i2 >= t.k)
     {
-        // Flat element index f = i0 + m*(i2 + k*(i1 + n*b)); resolve the
-        // chunk of each operand from f (src1 flat is i2 + k*b).  The
-        // GPT-2 shapes are m == 1 (the fiber is the contiguous mode), so
-        // specialise that away from the divisions-by-m/n; the branch is
-        // uniform across the block.
-        Index i2;
-        Index b;
-        if(t.m == 1)
+        return;
+    }
+    // i0 grid-strides over m and i1 over n, so any m/n fits the grid.
+    for(Index i0 = blockIdx.y; i0 < t.m; i0 += gridDim.y)
+    {
+        for(Index i1 = blockIdx.z; i1 < t.n; i1 += gridDim.z)
         {
-            long const r2 = f / long(t.k);
-            i2 = Index(f - r2*long(t.k));
-            b = Index(t.n == 1 ? r2 : r2 / long(t.n));
+            // Flat element offset of (i0, i2, i1, b=0):
+            // f = i0 + m*(i2 + k*(i1 + n*b)).
+            long const f0 = long(i0) + long(t.m)*(long(i2)
+                + long(t.k)*long(i1));
+            const T *ps2 = ps2_0 + f0;
+            T *pd = pd_0 + f0;
+            const T *ps1 = ps1_0;
+            for(Index b = 0; b < t.batch; ++b)
+            {
+                // Same association as cuda_kernel: fl(beta*src2), then
+                // fma(alpha, src1, .).
+                Y const pr = beta * static_cast<Y>(ps2[0]);
+                Y const out = adfb_fma(alpha, static_cast<Y>(ps1[0]),
+                    pr);
+                pd[0] = static_cast<T>(out);
+                ps1 += long(t.k);
+                ps2 += fstep;
+                pd += fstep;
+            }
         }
-        else
+    }
+}
+
+//! Chunked add_fiber with m == 1, k a multiple of 4 and every operand
+//! inside its chunk 0 (each ring holds one chunk).  m == 1 makes the
+//! i2 fiber the contiguous mode, so a thread can own one aligned quad
+//! of 4 consecutive elements and move 16 bytes per load/store instead
+//! of 4 -- a quarter of the memory instructions of the scalar walk for
+//! exactly the same bytes and exactly the same per-element expression
+//! (each lane keeps cuda()'s association: fl(beta*src2) first, then a
+//! correctly-rounded fma(alpha, src1, .)).  Only reachable for
+//! 4-byte element types (dispatch guard in chunked()).
+template<typename T>
+static __global__
+void chunked_cuda_kernel_one_v4(AddFiberOneChunk<T> t)
+{
+    using Y = typename T::repr_t;
+    using V = float4;
+    const Y alpha = t.alpha;
+    const Y beta = t.beta;
+    // Quad index inside the i2 fiber (k/4 quads), guarded because the
+    // last block along x may stick out.
+    Index const q = threadIdx.x + blockIdx.x*blockDim.x;
+    Index const kq = t.k >> 2;
+    if(q >= kq)
+    {
+        return;
+    }
+    // Quads per batch step of the flat space (k*n elements).
+    long const rowq = long(kq)*long(t.n);
+    // Chunk-0 bases, hoisted once per thread (warp-uniform loads).
+    const V * const ps1_0 = reinterpret_cast<const V *>(t.src1[0]) + q;
+    const V * const ps2_0 = reinterpret_cast<const V *>(t.src2[0]) + q;
+    V * const pd_0 = reinterpret_cast<V *>(t.dst[0]) + q;
+    // batch is split across gridDim.y and the i1 rows across the z
+    // grid blocks (grid stride), so any batch/n fits and the launch
+    // covers the whole element space with full warps.
+    for(Index b = blockIdx.y; b < t.batch; b += gridDim.y)
+    {
+        long const boff = long(b)*rowq;
+        for(Index i1 = Index(blockIdx.z)*blockDim.y + threadIdx.y;
+                i1 < t.n; i1 += Index(gridDim.z)*blockDim.y)
         {
-            long const r = f / long(t.m);
-            i2 = Index(r % long(t.k));
-            long const r2 = r / long(t.k);
-            b = Index(r2 / long(t.n));
+            long const off = long(i1)*long(kq) + boff;
+            V const s1 = ps1_0[long(b)*long(kq)];
+            V const s2 = ps2_0[off];
+            V o;
+            o.x = adfb_fma(alpha, s1.x, beta*s2.x);
+            o.y = adfb_fma(alpha, s1.y, beta*s2.y);
+            o.z = adfb_fma(alpha, s1.z, beta*s2.z);
+            o.w = adfb_fma(alpha, s1.w, beta*s2.w);
+            pd_0[off] = o;
         }
-        long const f1 = long(i2) + long(b)*long(t.k);
-        Y s1;
-        if(t.nsrc1 == 1)
+    }
+}
+
+//! Chunked add_fiber with at least one operand spanning several chunks.
+//! Same geometry as chunked_cuda_kernel_one, but each element's chunk
+//! is resolved from its flat offset by a pure shift/mask on the chunk
+//! class (never a runtime division) and the chunk base is read from the
+//! ring; per-thread invariants -- the hoisted chunk-0 bases, the
+//! batch-stride, the src1 step and the shift/mask constants -- stay out
+//! of the inner loop.  Same per-element expression as cuda().
+template<typename T>
+static __global__
+void chunked_cuda_kernel_many(AddFiberChunkTables<T> t)
+{
+    using Y = typename T::repr_t;
+    const Y alpha = t.alpha;
+    const Y beta = t.beta;
+    Index const i2 = threadIdx.x + blockIdx.x*blockDim.x;
+    const T * const p1_0 = t.src1[0];
+    const T * const p2_0 = t.src2[0];
+    T * const pd_0 = t.dst[0];
+    long const fstep = long(t.m)*long(t.k)*long(t.n);
+    long const m1 = (1LL << t.shift_src1) - 1;
+    long const m2 = (1LL << t.shift_src2) - 1;
+    long const md = (1LL << t.shift_dst) - 1;
+    if(i2 >= t.k)
+    {
+        return;
+    }
+    // i0 grid-strides over m and i1 over n, so any m/n fits the grid.
+    for(Index i0 = blockIdx.y; i0 < t.m; i0 += gridDim.y)
+    {
+        for(Index i1 = blockIdx.z; i1 < t.n; i1 += gridDim.z)
         {
-            s1 = Y{t.src1[0][f1]};
-        }
-        else
-        {
-            Index const c1 = adfb_chunk_of(f1, t.elems_src1, t.shift_src1);
-            s1 = Y{t.src1[c1][adfb_off(f1, t.elems_src1, t.shift_src1, c1)]};
-        }
-        Index const c2 = adfb_chunk_of(f, t.elems_src2, t.shift_src2);
-        const Y s2 = Y{t.src2[c2][adfb_off(f, t.elems_src2,
-            t.shift_src2, c2)]};
-        // Same association as cuda_kernel: fl(beta*src2), then
-        // fma(alpha, src1, .).
-        Y pr = beta * s2;
-        Y const out = adfb_fma(alpha, s1, pr);
-        // src2 and dst share a chunking in every driver call site; when
-        // their chunk_elems match, reuse c2's chunk index and offset.
-        if(t.elems_src2 == t.elems_dst && t.shift_src2 == t.shift_dst)
-        {
-            t.dst[c2][adfb_off(f, t.elems_dst, t.shift_dst, c2)] = T{out};
-        }
-        else
-        {
-            Index const cd = adfb_chunk_of(f, t.elems_dst, t.shift_dst);
-            t.dst[cd][adfb_off(f, t.elems_dst, t.shift_dst, cd)] =
-                T{out};
+            // Flat element offset of (i0, i2, i1, b=0), and src1's
+            // flat offset i2 + k*b.
+            long f = long(i0) + long(t.m)*(long(i2)
+                + long(t.k)*long(i1));
+            long f1 = long(i2);
+            for(Index b = 0; b < t.batch; ++b)
+            {
+                // A single-chunk operand keeps its hoisted chunk-0
+                // base; a multi-chunk one reads the chunk base from the
+                // ring.
+                const T * const ps1 = t.one1 ? p1_0
+                    : t.src1[Index(f1 >> t.shift_src1)];
+                Y const s1 = static_cast<Y>(ps1[f1 & m1]);
+                Index const c2 = Index(f >> t.shift_src2);
+                const T * const ps2 = t.one2 ? p2_0 : t.src2[c2];
+                Y const pr = beta * static_cast<Y>(ps2[f & m2]);
+                Y const out = adfb_fma(alpha, s1, pr);
+                // src2 and dst share a chunking in every driver call
+                // site; when their chunk_elems match, dst's chunk index
+                // and in-chunk offset are src2's.
+                T *based;
+                if(t.dst_reuse)
+                {
+                    based = t.one_d ? pd_0 : t.dst[c2];
+                }
+                else
+                {
+                    Index const cd = Index(f >> t.shift_dst);
+                    based = t.one_d ? pd_0 : t.dst[cd];
+                }
+                based[f & md] = static_cast<T>(out);
+                f += fstep;
+                f1 += long(t.k);
+            }
         }
     }
 }
@@ -244,33 +353,89 @@ void chunked(cudaStream_t stream, Index m, Index n, Index k, Index batch,
     {
         return;
     }
+    // cuda()'s geometry: thread .x is the contiguous i2 fiber, blockIdx.y
+    // is i0 and blockIdx.z walks the i1 rows (grid-stride, so any n
+    // fits).  Each thread then loops over batch with every chunk and
+    // stride invariant hoisted, which is what closes the gap to cuda()
+    // on the GPT-2 shapes -- the earlier flat walk over f paid two
+    // runtime 64-bit divisions (f/k, then /n) plus three ring-table
+    // loads per element.
+    int const tx = int(k < 1024 ? k : 1024);
+    dim3 threads(tx, 1, 1);
+    dim3 blocks(unsigned((k + tx - 1)/tx),
+            unsigned(m < 65535 ? m : 65535),
+            unsigned(n < 65535 ? n : 65535));
+    if constexpr(sizeof(T) == 4)
+    {
+        // m == 1 with a 4-multiple k and every operand inside its
+        // chunk 0 (any such tensor below the chunk class): the quad
+        // kernel moves 16 bytes per access with the same per-element
+        // expression.  Block: quads along x, a few i1 rows along y;
+        // batch is split across gridDim.y, i1 rows across gridDim.z.
+        if(m == 1 and (k & 3) == 0 and nsrc1 == 1 and nsrc2 == 1
+            and ndst == 1)
+        {
+            Index const kq = k >> 2;
+            int const qx = int(kq < 128 ? kq : 128);
+            int const ry = int(std::min<Index>(std::max<Index>(128/qx, 1),
+                n));
+            dim3 qthreads(qx, ry, 1);
+            dim3 qblocks(unsigned((kq + qx - 1)/qx),
+                    unsigned(batch < 65535 ? batch : 65535),
+                    unsigned((n + ry - 1)/ry));
+            AddFiberOneChunk<T> t;
+            t.src1 = src1_chunks;
+            t.src2 = src2_chunks;
+            t.dst = dst_chunks;
+            t.m = m;
+            t.n = n;
+            t.k = k;
+            t.batch = batch;
+            t.alpha = alpha;
+            t.beta = beta;
+            (chunked_cuda_kernel_one_v4<T>)<<<qblocks, qthreads, 0,
+                stream>>>(t);
+            return;
+        }
+    }
+    if(nsrc1 == 1 and nsrc2 == 1 and ndst == 1)
+    {
+        // Every operand inside its chunk 0 (any tensor below the chunk
+        // class, e.g. every GPT-2 add_fiber call): the minimal
+        // pointer-bump kernel, cuda()'s inner loop plus one ring
+        // dereference per thread.
+        AddFiberOneChunk<T> t;
+        t.src1 = src1_chunks;
+        t.src2 = src2_chunks;
+        t.dst = dst_chunks;
+        t.m = m;
+        t.n = n;
+        t.k = k;
+        t.batch = batch;
+        t.alpha = alpha;
+        t.beta = beta;
+        (chunked_cuda_kernel_one<T>)<<<blocks, threads, 0, stream>>>(t);
+        return;
+    }
     AddFiberChunkTables<T> t;
     t.src1 = src1_chunks;
-    t.nsrc1 = nsrc1;
     t.src2 = src2_chunks;
-    t.nsrc2 = nsrc2;
     t.dst = dst_chunks;
-    t.ndst = ndst;
-    t.elems_src1 = elems_src1;
-    t.elems_src2 = elems_src2;
-    t.elems_dst = elems_dst;
-    t.shift_src1 = chunk_shift_of<T>(t.nsrc1, elems_src1, "nntile_add_fiber");
-    t.shift_src2 = chunk_shift_of<T>(t.nsrc2, elems_src2, "nntile_add_fiber");
-    t.shift_dst = chunk_shift_of<T>(t.ndst, elems_dst, "nntile_add_fiber");
+    t.one1 = (nsrc1 == 1);
+    t.one2 = (nsrc2 == 1);
+    t.one_d = (ndst == 1);
+    t.shift_src1 = chunk_shift_of<T>(nsrc1, elems_src1, "nntile_add_fiber");
+    t.shift_src2 = chunk_shift_of<T>(nsrc2, elems_src2, "nntile_add_fiber");
+    t.shift_dst = chunk_shift_of<T>(ndst, elems_dst, "nntile_add_fiber");
+    t.dst_reuse = (elems_src2 == elems_dst
+        && t.shift_src2 == t.shift_dst);
     t.m = m;
     t.n = n;
     t.k = k;
     t.batch = batch;
-    t.total = long(m)*long(n)*long(k)*long(batch);
     t.alpha = alpha;
     t.beta = beta;
-    // Flat grid-stride over the whole element space: coalesced access and
-    // far fewer blocks than the per-(i0,i1,i2) geometry, which measured
-    // ~1.7x chunked vs ~1.04x here on the GPT-2 add_fiber shape.
-    int const threads = 256;
-    long const want = (t.total + threads - 1) / threads;
-    int const blocks = want > 2048 ? 2048 : int(want > 0 ? want : 1);
-    (chunked_cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(t);
+    (chunked_cuda_kernel_many<T>)<<<blocks, threads, 0, stream>>>(t);
 }
 
 // Explicit instantiation
