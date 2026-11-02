@@ -178,6 +178,97 @@ void chunked_cuda_kernel(AddChunkTables<T> t)
     }
 }
 
+//! Chunked add with every operand inside its chunk 0 (each ring holds
+//! one chunk, so every flat offset is a plain element offset of
+//! ring[0]).  The three chunk-0 bases are resolved once per thread
+//! (warp-uniform loads hoisted out of the loop) and the body is
+//! cuda_kernel's verbatim -- same flat thread mapping, same unrolled
+//! loop, same per-element expression and therefore the same float
+//! association nvcc chose for cuda() -- so the per-element instruction
+//! stream matches the classic kernel's and the per-element ring loads
+//! and shift/mask of the multi-chunk walk are gone.
+template<typename T, int BLOCK, int LOOP>
+static __global__
+void chunked_cuda_kernel_one(Index nelems, Scalar alpha,
+        const T* const* src1, Scalar beta, const T* const* src2, T* const* dst)
+{
+    int i = threadIdx.x + blockIdx.x*BLOCK;
+    using Y = typename T::repr_t;
+    const T * const src1_ = src1[0];
+    const T * const src2_ = src2[0];
+    T * const dst_ = dst[0];
+    Y dst_block[LOOP];
+    Y src_block[LOOP];
+    const Y alpha_ = alpha;
+    const Y beta_ = beta;
+    constexpr int BLOCK_STEP = BLOCK / LOOP;
+    if((blockIdx.x+1)*BLOCK <= nelems)
+    {
+        for(int j = 0; j < LOOP; ++j)
+        {
+            src_block[j] = static_cast<Y>(src1_[i+j*BLOCK_STEP]);
+            dst_block[j] = static_cast<Y>(src2_[i+j*BLOCK_STEP]);
+            dst_block[j] = alpha_ * src_block[j] + beta_ * dst_block[j];
+            dst_[i+j*BLOCK_STEP] = static_cast<T>(dst_block[j]);
+        }
+    }
+    else
+    {
+        int j_max = (nelems-i+BLOCK_STEP-1) / BLOCK_STEP;
+        for(int j = 0; j < j_max; ++j)
+        {
+            src_block[j] = static_cast<Y>(src1_[i+j*BLOCK_STEP]);
+            dst_block[j] = static_cast<Y>(src2_[i+j*BLOCK_STEP]);
+            dst_block[j] = alpha_ * src_block[j] + beta_ * dst_block[j];
+            dst_[i+j*BLOCK_STEP] = static_cast<T>(dst_block[j]);
+        }
+    }
+}
+
+//! Chunked add with every operand inside its chunk 0 and a 4-multiple
+//! element count (4-byte element types only, dispatch guard in
+//! chunked()): the flat space is walked in aligned float4 quads, one
+//! quad per thread -- 16 bytes per load/store, a quarter of the memory
+//! instructions of the scalar walk for exactly the same bytes.  Chunk
+//! bases come from the engine's chunk allocator (cudaMalloc, at least
+//! 256-byte aligned) and a single-chunk operand spans its whole chunk
+//! from the base, so every quad access is 16-byte aligned.  The
+//! per-element expression and its association are exactly cuda()'s:
+//! fl(beta*src2) first, then a correctly-rounded fma(alpha, src1, .).
+template<typename T>
+static __global__
+void chunked_cuda_kernel_one_v4(Index nelems, Scalar alpha_,
+        const T* const* src1, Scalar beta_, const T* const* src2,
+        T* const* dst)
+{
+    using Y = typename T::repr_t;
+    using V = float4;
+    long const q = long(threadIdx.x) + long(blockIdx.x)*long(blockDim.x);
+    long const nquads = long(nelems) >> 2;
+    if(q >= nquads)
+    {
+        return;
+    }
+    const Y alpha = Y{alpha_};
+    const Y beta = Y{beta_};
+    const V * const ps1 = reinterpret_cast<const V *>(src1[0]) + q;
+    const V * const ps2 = reinterpret_cast<const V *>(src2[0]) + q;
+    V * const pd = reinterpret_cast<V *>(dst[0]) + q;
+    V const s1 = ps1[0];
+    V const s2 = ps2[0];
+    V o;
+    Y pr;
+    pr = beta * s2.x;
+    o.x = add_fma(alpha, s1.x, pr);
+    pr = beta * s2.y;
+    o.y = add_fma(alpha, s1.y, pr);
+    pr = beta * s2.z;
+    o.z = add_fma(alpha, s1.z, pr);
+    pr = beta * s2.w;
+    o.w = add_fma(alpha, s1.w, pr);
+    pd[0] = o;
+}
+
 template<typename T>
 void chunked(cudaStream_t stream, Index nelems, Scalar alpha,
         const T* const* src1_chunks, Index nsrc1, Scalar beta,
@@ -187,6 +278,33 @@ void chunked(cudaStream_t stream, Index nelems, Scalar alpha,
 {
     if(nelems <= 0 || nsrc1 <= 0 || nsrc2 <= 0 || ndst <= 0)
     {
+        return;
+    }
+    if(nsrc1 == 1 and nsrc2 == 1 and ndst == 1)
+    {
+        // Every operand inside its chunk 0 (each ring holds one chunk,
+        // i.e. any contiguous buffer below the chunk class, e.g. every
+        // GPT-2 add_residual call).  A 4-multiple element count on a
+        // 4-byte type takes the quad kernel; anything else takes the
+        // classic body over the ring[0] bases, resolved once per thread.
+        if constexpr(sizeof(T) == 4)
+        {
+            if((nelems & 3) == 0)
+            {
+                Index const nquads = nelems >> 2;
+                dim3 threads(256);
+                dim3 blocks(unsigned((nquads+255)/256));
+                (chunked_cuda_kernel_one_v4<T>)<<<blocks, threads, 0,
+                    stream>>>(nelems, alpha, src1_chunks, beta, src2_chunks,
+                    dst_chunks);
+                return;
+            }
+        }
+        dim3 threads(256);
+        dim3 blocks((nelems+1023)/1024);
+        (chunked_cuda_kernel_one<T, 1024, 4>)<<<blocks, threads, 0,
+            stream>>>(nelems, alpha, src1_chunks, beta, src2_chunks,
+            dst_chunks);
         return;
     }
     AddChunkTables<T> t;

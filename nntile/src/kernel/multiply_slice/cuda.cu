@@ -223,6 +223,24 @@ void chunked_cuda_kernel(Index m, Index n, Index k, Scalar alpha_,
 //! cuda_kernel_m1 geometry, but each src/dst element is resolved through its
 //! chunk table. The per-element arithmetic is exactly the classic kernel's,
 //! so the result is bitwise cuda()'s m==1 branch.
+//! Piece 4, residual parity: the classic kernel pays one block-wide
+//! __syncthreads to broadcast the staged alpha*src row (BLOCK_COL values)
+//! through shared memory, and stages dst through shared behind the same
+//! barrier. The chunked kernel cannot stage src that cheaply -- its staging
+//! load runs through the chunk table (a dependent table->element load chain
+//! that stretched every block's barrier wait), and dst staging via the
+//! per-thread chunk walk also had to resolve the table. Since dst rows are
+//! thread-private in this geometry (dst_l == threadIdx.x) and every thread
+//! of a block reads the SAME BLOCK_COL src values, the shared staging buys
+//! nothing that L1 does not: resolving each operand's home chunk ONCE per
+//! thread through the virtual contiguous base (the element at flat f is
+//! q[f]) and reading src per thread directly (L1-resident 32 bytes) removes
+//! the barrier, the shared arrays and the staging phases completely. The
+//! full-row fast path is a straight line of BLOCK_COL independent
+//! load/multiply/store triples with the compile-time trip count, unrolled
+//! and register-resident; straddling spans and ragged tails fall back to a
+//! per-column walk with per-column chunk resolution. Same per-element
+//! expression in the same order, so the result is unchanged bitwise.
 template<typename T, int BLOCK_ROW, int BLOCK_COL, int BLOCK_LOOP>
 static __global__
 void chunked_cuda_kernel_m1(Index n, Index k, Scalar alpha_,
@@ -235,94 +253,69 @@ void chunked_cuda_kernel_m1(Index n, Index k, Scalar alpha_,
     Index dst_block_j = blockIdx.x / dst_griddim_row;
     Index global_dst_l = dst_l + dst_block_l*BLOCK_ROW;
     Index global_dst_j = dst_block_j*BLOCK_COL;
+    if(global_dst_l >= k)
+    {
+        return;
+    }
     using Y = typename T::repr_t;
     const Y alpha{alpha_};
-    __shared__ Y src_block[BLOCK_COL];
-    __shared__ T dst_block[BLOCK_ROW][BLOCK_COL];
-    Index src_j = dst_block_j*BLOCK_COL + threadIdx.x;
-    if(src_j < n and threadIdx.x < BLOCK_COL)
+    constexpr int BLOCK_COL_STEP = BLOCK_COL / BLOCK_LOOP;
+    // Full row of columns vs ragged tail of the last block column.
+    bool const full = ((dst_block_j+1)*BLOCK_COL <= n);
+    Index const ncols = full ? Index(BLOCK_COL) : n - global_dst_j;
+    // m == 1: this thread's columns live at dst's flat offsets
+    // fe0 + c*k and read src's flat offsets fs0 + c (c in [0, ncols)).
+    // Resolve each operand's home pointer ONCE through its virtual
+    // contiguous base (the element at flat f is q[f]); rebase only when
+    // the walk crosses a chunk boundary -- the per-element table
+    // resolution sat in the middle of the column loops.
+    long const fe0 = long(global_dst_l) + long(global_dst_j)*long(k);
+    long const c_d0 = fe0 >> shift_dst;
+    T *qd = t.dst[c_d0] - c_d0 * elems_dst;
+    long const fs0 = long(global_dst_j);
+    long const c_s0 = fs0 >> shift_src;
+    T const *qs = t.src[c_s0] - c_s0 * elems_src;
+    // Single-run fast path: this thread's whole column range stays inside
+    // one dst chunk AND one src chunk (every 1-chunk operand, and interior
+    // spans) -> barrier-free straight line; the full-row branch carries the
+    // compile-time trip count BLOCK_COL exactly like the classic kernel's
+    // unrolled fast branch. Per-element expression and evaluation order are
+    // the classic kernel's: dst = T{dst * (alpha * src)}.
+    if((fe0 + long(ncols - 1) * long(k)) >> shift_dst == c_d0
+        and (fs0 + long(ncols - 1)) >> shift_src == c_s0)
     {
-        // m == 1: src's flat offset of element j is j * 1 = j.
-        src_block[threadIdx.x] = alpha * static_cast<Y>(
-            *chunked_src_ptr(t.src, elems_src, shift_src, long(src_j)));
-    }
-    __syncthreads();
-    if(global_dst_l < k)
-    {
-        constexpr int BLOCK_COL_STEP = BLOCK_COL / BLOCK_LOOP;
-        // Classic two-phase staging (load dst into shared, then write);
-        // dst_block[dst_l] is thread-private (dst_l == threadIdx.x for
-        // the m==1 launch geometry), so no barrier is needed between the
-        // phases -- exactly like the classic kernel. Piece 4: this
-        // thread's columns live at the flat offsets fe0 + c*k, a
-        // per-thread walk; resolve the dst home pointer ONCE through the
-        // virtual contiguous base q = chunk_base - chunk*elems (the
-        // element at flat f is q[f]) and rebase only when the walk
-        // crosses a chunk boundary -- the per-element table resolution
-        // (a 64-bit divmod whenever the chunk size is not a power of
-        // two, which is every 1-chunk operand) sat in the middle of both
-        // column loops. Same elements in the same order, so the result
-        // is unchanged bitwise.
-        Index const ncols = (dst_block_j+1)*BLOCK_COL <= n
-            ? Index(BLOCK_COL) : n - global_dst_j;
-        long const fe0 = long(global_dst_l) + long(global_dst_j)*long(k);
-        long const step_col = long(BLOCK_COL_STEP) * long(k);
-        // Single-run fast path: this thread's whole column range inside
-        // one dst chunk (every 1-chunk operand, and interior spans) ->
-        // the classic two-phase loops verbatim through the virtual
-        // contiguous base (the element at flat f is q[f]).
-        long const c_d0 = fe0 >> shift_dst;
-        if((fe0 + long(ncols - 1) * long(k)) >> shift_dst == c_d0)
+        if(full)
         {
-            T *qd = t.dst[c_d0] - c_d0 * elems_dst;
-            for(int c = 0; c < ncols; c += BLOCK_COL_STEP)
+#pragma unroll
+            for(int c = 0; c < BLOCK_COL; c += BLOCK_COL_STEP)
             {
-                dst_block[dst_l][c] = qd[fe0 + long(c) * long(k)];
-            }
-            for(int c = 0; c < ncols; c += BLOCK_COL_STEP)
-            {
-                qd[fe0 + long(c) * long(k)] = static_cast<T>(src_block[c] *
-                    static_cast<Y>(dst_block[dst_l][c]));
+                qd[fe0 + c*k] = static_cast<T>(static_cast<Y>(qd[fe0 + c*k])
+                    * (alpha * static_cast<Y>(qs[fs0 + c])));
             }
         }
         else
-        for(int phase = 0; phase < 2; ++phase)
         {
-            long c_d = fe0 >> shift_dst;
-            long off_d = fe0 - c_d * elems_dst;
-            T *qd = t.dst[c_d] - c_d * elems_dst;
-            Index c = 0;
-            long fe = fe0;
-            while(c < ncols)
+            for(Index c = 0; c < ncols; c += BLOCK_COL_STEP)
             {
-                // Columns before the next chunk boundary.
-                long const room = (elems_dst - off_d + step_col - 1)
-                    / step_col;
-                long const run = room * BLOCK_COL_STEP;
-                Index const run_cols = run < long(ncols - c)
-                    ? Index(run) : ncols - c;
-                for(Index i = 0; i < run_cols; i += BLOCK_COL_STEP)
-                {
-                    if(phase == 0)
-                    {
-                        dst_block[dst_l][c] = qd[fe];
-                    }
-                    else
-                    {
-                        qd[fe] = static_cast<T>(src_block[c] *
-                            static_cast<Y>(dst_block[dst_l][c]));
-                    }
-                    fe += step_col;
-                    off_d += step_col;
-                    c += BLOCK_COL_STEP;
-                }
-                if(off_d >= elems_dst)
-                {
-                    c_d = fe >> shift_dst;
-                    off_d = fe - c_d * elems_dst;
-                    qd = t.dst[c_d] - c_d * elems_dst;
-                }
+                qd[fe0 + c*k] = static_cast<T>(static_cast<Y>(qd[fe0 + c*k])
+                    * (alpha * static_cast<Y>(qs[fs0 + c])));
             }
+        }
+    }
+    else
+    {
+        // Column walk with per-column chunk resolution: rows whose dst or
+        // src span straddles a chunk boundary, and any ragged tail.
+        for(Index c = 0; c < ncols; c += BLOCK_COL_STEP)
+        {
+            long const fs = fs0 + c;
+            long const c_s = fs >> shift_src;
+            T const *sp = t.src[c_s] + (fs - c_s * elems_src);
+            long const fe = fe0 + c*k;
+            long const c_d = fe >> shift_dst;
+            T *dp = t.dst[c_d] + (fe - c_d * elems_dst);
+            *dp = static_cast<T>(static_cast<Y>(*dp)
+                * (alpha * static_cast<Y>(*sp)));
         }
     }
 }

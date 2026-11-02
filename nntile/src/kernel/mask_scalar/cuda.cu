@@ -77,114 +77,226 @@ void cuda(cudaStream_t stream, Index nrows, Index ncols, const bool_t *mask_,
             ncols, mask, val, data);
 }
 
-//! Chunk descriptors for the one-launch chunked mask_scalar (see cuda.hh).
-template<typename T>
-struct ChunkTables
-{
-    T *const *data; //!< device-ring view of the data chunk-pointer array
-    const bool_t *const *mask; //!< device-ring view of the mask table
-    Index ndata;
-    Index nmask;
-    Index elems_data; //!< elements in a full data chunk
-    Index elems_mask; //!< elements in a full mask chunk
-    Index nrows;
-    Index ncols;
-    Scalar val;
-    int shift_data; //!< class shift (multi-chunk) or the 62 single-chunk sentinel
-    int shift_mask; //!< class shift (multi-chunk) or the 62 single-chunk sentinel
-};
-
-//! Chunk-aware mask-scalar kernel: exactly the classic cuda_kernel2
-//! geometry ((i, j) work assignment, shared row-mask load, LOOP column
-//! steps), but each operand is addressed through its chunk table. Piece 9
-//! (rule 10): the tables are read straight from the device chunk-pointer
-//! ring by EVERY thread that needs an entry -- no shared-memory staging,
-//! no table __syncthreads (the piece-7 staging predates the rule-7
-//! compile-time shifts and was a workaround for runtime shifts). The
-//! per-operand chunk shifts stay COMPILE-TIME template constants (the
-//! DATA1/MASK1 flags pick the sentinel 62 for a 1-chunk operand -- no
-//! chunk arithmetic at all for it -- or the rule-7 class shift), so the
-//! store loop's shift/mask lower to immediates. U32 selects the 32-bit
-//! incremental column walk (valid whenever the whole tile spans fewer
-//! than 2^32 elements, host-checked); the U32=false instantiation keeps
-//! 64-bit flat offsets for arbitrarily large tiles (the ring's no-cap
-//! contract). Writes are idempotent val assignments and the pointer
-//! VALUES are the staged form's own, so the result is bitwise the staged
-//! form's and the whole-buffer cuda() call's.
-template<typename T, typename Tab, int BLOCK_ROW, int BLOCK_COL, int LOOP,
+//! Chunk-aware mask-scalar kernel: EXACTLY the classic cuda_kernel2's
+//! generated code shape, with the two operands addressed through their
+//! device-ring chunk tables. The parity-relevant facts (all verified in
+//! SASS): (1) the classic kernel stages the row-mask byte into shared
+//! memory but never READS the staged value (its branch re-reads
+//! mask[global_i] from global), so nvcc's dead-store elimination
+//! deletes the staging load/store AND the shared array -- only a
+//! vestigial __syncthreads survives -- and the classic hot path is one
+//! mask byte load per thread. The previous chunked kernel READ the
+//! staged byte (mask_block[i]), which kept the staging alive: a
+//! dependent table load -> byte load -> STS chain, the block-wide
+//! barrier, and an LDS on every thread's exit path. On the attention
+//! bench (an all-true 1 MiB mask, so every thread takes the
+//! keep-the-row exit) that live barrier + double-indirect load was the
+//! entire ~13% parity gap: the kernel is latency-bound on the mask
+//! reads, and the chunked form paid table-load latency SERIALLY before
+//! the byte load plus a barrier before any thread could exit. This
+//! kernel mirrors the classic's post-DSE form: NO shared array, NO
+//! barrier, ONE mask byte load per thread.
+//! (2) The mask operand's virtual contiguous base (the pointer q with
+//! the element at flat offset u living at q[u]) is resolved ONCE per
+//! thread and, for a 1-chunk mask (MASK1), the table-slot-0 load is
+//! issued as the kernel's FIRST statement -- its address is the table
+//! parameter itself, so the load leaves the core immediately and its
+//! latency hides under the grid-index division math (a runtime
+//! 64-bit division both kernels pay identically). A multi-chunk mask
+//! resolves its slot from global_i after the bounds check (the slot
+//! index of an out-of-range row could read past the table, so the
+//! resolution stays guarded exactly like the classic's loads).
+//! (3) The store walk keeps the classic (i, j) geometry and column
+//! stepping; each RUN of columns that lands inside one data chunk uses
+//! that chunk's virtual contiguous base (a straight q[f] store, the
+//! classic's own addressing once the base is in a register -- no
+//! per-store table traffic), and a run that would cross a chunk
+//! boundary rebases through the table (rule 7: shift/mask on the
+//! compile-time class shift, or the sentinel 62 for a 1-chunk operand,
+//! which the compiler folds to an unconditional single-chunk fast
+//! path). The rebase load for the NEXT store is issued only when that
+//! store will actually happen, so the flat offset handed to the table
+//! is always a real in-buffer element offset (no out-of-range table
+//! slot is ever read, even when the last column step overshoots the
+//! buffer). U32 selects the 32-bit walk (host-guaranteed by
+//! nrows*ncols < 2^32); U32=false keeps 64-bit flat offsets for
+//! arbitrarily large tiles (the ring's no-cap contract). The stores
+//! are the classic's idempotent conditional val assignments to the
+//! classic's exact element set in the classic's exact order, so the
+//! result is bitwise the whole-buffer cuda() call's, in-place dst
+//! aliasing included.
+template<typename T, int BLOCK_ROW, int BLOCK_COL, int LOOP,
     bool DATA1, bool MASK1, bool U32>
 static __global__
-void chunked_cuda_kernel(Tab t)
+void chunked_cuda_kernel(Index nrows, Index ncols, Scalar val_,
+    T *const *data_tab, const bool_t *const *mask_tab)
 {
     // Rule-7 restatement: the multi-chunk full-chunk shift IS the class
     // shift (chunk_shift_of validated it host-side and aborts otherwise);
     // a 1-chunk operand uses the sentinel. Compile-time constants, so the
-    // store loop's shift/mask lower to immediates.
+    // chunk divmod lowers to shift/mask immediates.
     constexpr int SHIFT_DATA = DATA1 ? nntile::kernel::kChunkSingleShift
         : nntile::kernel::chunk_log2(
             nntile::kernel::kChunkClassBytes / sizeof(T));
     constexpr int SHIFT_MASK = MASK1 ? nntile::kernel::kChunkSingleShift
         : nntile::kernel::chunk_log2(
             nntile::kernel::kChunkClassBytes / sizeof(nntile::bool_t));
-    Index griddim_row = (t.nrows+BLOCK_ROW-1) / BLOCK_ROW;
+    using Y = typename T::repr_t;
+    const T val = static_cast<T>(static_cast<Y>(val_));
+    constexpr int BLOCK_COL_STEP = BLOCK_COL / LOOP;
+    // Single-chunk mask: the base is table slot 0 and its address is the
+    // table parameter -- issue the load FIRST so its latency overlaps the
+    // grid-index division below (a warp-uniform, L1-resident load).
+    // nvcc schedules an ordinary table load just before its use, which
+    // puts the load's full latency on the exit path of every row-kept
+    // thread (this kernel is latency-bound on the mask reads), so the
+    // early issue is pinned with a volatile inline-PTX ld.global.u64 --
+    // the SAME 8-byte load the portable form issues, only hoisted above
+    // the division math.
+    const bool *mq;
+    if constexpr(MASK1)
+    {
+        unsigned long long mq_bits;
+        asm volatile("ld.global.u64 %0, [%1];"
+            : "=l"(mq_bits)
+            : "l"(mask_tab)
+            : "memory");
+        mq = reinterpret_cast<const bool *>(mq_bits);
+    }
+    Index griddim_row = (nrows+BLOCK_ROW-1) / BLOCK_ROW;
     Index block_i = blockIdx.x % griddim_row;
     Index block_j = blockIdx.x / griddim_row;
     Index i = threadIdx.x % BLOCK_ROW;
     Index j = threadIdx.x / BLOCK_ROW;
     Index global_i = block_i*BLOCK_ROW + i;
-    using Y = typename T::repr_t;
-    const T val = static_cast<T>(static_cast<Y>(t.val));
-    __shared__ bool mask_block[BLOCK_ROW];
-    constexpr int BLOCK_COL_STEP = BLOCK_COL / LOOP;
-    if(threadIdx.x < BLOCK_ROW and global_i < t.nrows)
+    if(global_i < nrows)
     {
-        // Per-thread direct ring read (rule 10); a 1-chunk mask operand
-        // resolves to table slot 0 with no chunk arithmetic (shift 62).
-        unsigned const u_i = unsigned(global_i);
-        mask_block[threadIdx.x] = reinterpret_cast<const bool *>(
-            t.mask[u_i >> SHIFT_MASK])[u_i & ((1u << SHIFT_MASK) - 1u)];
-    }
-    __syncthreads();
-    if(global_i < t.nrows)
-    {
-        // The row's mask bit was resolved once per block above (the classic
-        // kernel re-reads it from global memory here); use the shared copy
-        // so the chunk-table lookup happens once per row per block.
-        if(!mask_block[i])
+        // Multi-chunk mask: resolve the row's chunk after the bounds
+        // check (an out-of-range row's slot could sit past the table).
+        if constexpr(!MASK1)
         {
-            if(U32)
+            long const c = long(global_i) >> SHIFT_MASK;
+            mq = reinterpret_cast<const bool *>(mask_tab[c])
+                - c*(std::size_t(1) << SHIFT_MASK);
+        }
+        // The classic kernel's branch load (its staging copy was dead
+        // code); one byte load per thread through the resolved base.
+        if(!mq[global_i])
+        {
+            if constexpr(U32)
             {
-                // 32-bit incremental walk: f advances by the constant
-                // column step (no per-store 64-bit multiply), the chunk
-                // index is an immediate shift of a 32-bit value, and the
-                // data chunk pointer is loaded straight from the ring
-                // table per store (L1-resident, a handful of entries).
-                unsigned const nrows32 = unsigned(t.nrows);
+                // 32-bit incremental walk.
+                unsigned const nrows32 = unsigned(nrows);
                 unsigned const step = unsigned(BLOCK_COL_STEP) * nrows32;
-                unsigned const jend = ::min(
-                    unsigned((block_j+1)*BLOCK_COL), unsigned(t.ncols));
+                unsigned jend = unsigned(block_j+1)*unsigned(BLOCK_COL);
+                if(jend > unsigned(ncols))
+                {
+                    jend = unsigned(ncols);
+                }
                 unsigned j32 = unsigned(block_j*BLOCK_COL+j);
                 unsigned f = j32*nrows32 + unsigned(global_i);
-                for(; j32 < jend; j32 += BLOCK_COL_STEP, f += step)
+                if(j32 < jend)
                 {
-                    t.data[f >> SHIFT_DATA]
-                        [f & ((1u << SHIFT_DATA) - 1u)] = val;
+                    // Store count of this thread's column walk (>= 1).
+                    unsigned const nsteps =
+                        (jend-j32+unsigned(BLOCK_COL_STEP)-1)
+                        / unsigned(BLOCK_COL_STEP);
+                    unsigned const fhi = f + (nsteps-1)*step;
+                    unsigned const c0 = f >> SHIFT_DATA;
+                    if(DATA1 or (fhi >> SHIFT_DATA) == c0)
+                    {
+                        // Whole walk inside one chunk (always for a
+                        // 1-chunk data operand): the classic's straight
+                        // q[f] store loop off a virtual contiguous base.
+                        T *q = DATA1
+                            ? data_tab[0]
+                            : data_tab[c0]
+                                - c0*(std::size_t(1) << SHIFT_DATA);
+                        for(; j32 < jend; j32 += BLOCK_COL_STEP, f += step)
+                        {
+                            q[f] = val;
+                        }
+                    }
+                    else
+                    {
+                        // Per-RUN rebase walk: off advances by the
+                        // constant column step and the table is touched
+                        // only when the next store crosses a chunk
+                        // boundary, and only when a next store exists.
+                        unsigned off = f - (c0 << SHIFT_DATA);
+                        T *q = data_tab[c0];
+                        for(; j32 < jend;)
+                        {
+                            q[off] = val;
+                            j32 += BLOCK_COL_STEP;
+                            if(j32 >= jend)
+                            {
+                                break;
+                            }
+                            f += step;
+                            off += step;
+                            if(off >> SHIFT_DATA != 0)
+                            {
+                                unsigned const c = f >> SHIFT_DATA;
+                                q = data_tab[c];
+                                off = f - (c << SHIFT_DATA);
+                            }
+                        }
+                    }
                 }
             }
             else
             {
-                // 64-bit fallback for tiles beyond 2^32 elements; same
-                // incremental walk, same direct ring reads.
-                long const nrows64 = long(t.nrows);
+                // 64-bit walk for tiles beyond 2^32 elements.
+                long const nrows64 = long(nrows);
                 long const step = long(BLOCK_COL_STEP) * nrows64;
-                long const jend = ::min(long((block_j+1)*BLOCK_COL),
-                    long(t.ncols));
+                long jend = long(block_j+1)*long(BLOCK_COL);
+                if(jend > long(ncols))
+                {
+                    jend = long(ncols);
+                }
                 long j64 = long(block_j*BLOCK_COL+j);
                 long f = j64*nrows64 + long(global_i);
-                for(; j64 < jend; j64 += BLOCK_COL_STEP, f += step)
+                if(j64 < jend)
                 {
-                    t.data[f >> SHIFT_DATA]
-                        [f & ((1LL << SHIFT_DATA) - 1)] = val;
+                    long const nsteps =
+                        (jend-j64+long(BLOCK_COL_STEP)-1)
+                        / long(BLOCK_COL_STEP);
+                    long const fhi = f + (nsteps-1)*step;
+                    long const c0 = f >> SHIFT_DATA;
+                    if(DATA1 or (fhi >> SHIFT_DATA) == c0)
+                    {
+                        T *q = DATA1
+                            ? data_tab[0]
+                            : data_tab[c0]
+                                - c0*(std::size_t(1) << SHIFT_DATA);
+                        for(; j64 < jend; j64 += BLOCK_COL_STEP, f += step)
+                        {
+                            q[f] = val;
+                        }
+                    }
+                    else
+                    {
+                        long off = f - (c0 << SHIFT_DATA);
+                        T *q = data_tab[c0];
+                        for(; j64 < jend;)
+                        {
+                            q[off] = val;
+                            j64 += BLOCK_COL_STEP;
+                            if(j64 >= jend)
+                            {
+                                break;
+                            }
+                            f += step;
+                            off += step;
+                            if(off >> SHIFT_DATA != 0)
+                            {
+                                long const c = f >> SHIFT_DATA;
+                                q = data_tab[c];
+                                off = f - (c << SHIFT_DATA);
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -192,20 +304,30 @@ void chunked_cuda_kernel(Tab t)
 }
 
 //! Launch the chunk-aware kernel with the whole-buffer entry's geometry.
-//! Rule 10: one instantiation cross on (DATA1, MASK1, U32) -- all direct
-//! ring reads; U32 is host-guaranteed by nrows*ncols < 2^32.
-template<typename T, typename Tab>
-static void launch_mask_chunked(cudaStream_t stream, Tab const &t)
+//! Rule 10: one instantiation cross on (DATA1, MASK1, U32); U32 is
+//! host-guaranteed by nrows*ncols < 2^32. The rule-7 validation
+//! (chunk_shift_of) runs host-side and aborts loudly on a non-class
+//! multi-chunk operand.
+template<typename T>
+static void launch_mask_chunked(cudaStream_t stream, Index nrows,
+    Index ncols, Scalar val, T *const *data_chunks, Index ndata,
+    Index elems_data, const bool_t *const *mask_chunks, Index nmask,
+    Index elems_mask)
 {
+    (void) chunk_shift_of<T>(std::size_t(ndata), std::size_t(elems_data),
+        "nntile_mask_scalar");
+    (void) chunk_shift_of<::nntile::bool_t>(std::size_t(nmask),
+        std::size_t(elems_mask), "nntile_mask_scalar");
     dim3 threads(256);
-    dim3 blocks(((t.nrows+127)/128) * ((t.ncols+31)/32));
-    bool const data1 = t.ndata <= 1;
-    bool const mask1 = t.nmask <= 1;
-    bool const u32 = static_cast<unsigned long long>(t.nrows)
-        *static_cast<unsigned long long>(t.ncols) < (1ull << 32);
+    dim3 blocks(((nrows+127)/128) * ((ncols+31)/32));
+    bool const data1 = ndata <= 1;
+    bool const mask1 = nmask <= 1;
+    bool const u32 = static_cast<unsigned long long>(nrows)
+        *static_cast<unsigned long long>(ncols) < (1ull << 32);
 #define NNHAUL_MASK_LAUNCH(D1, M1, U) \
-    (chunked_cuda_kernel<T, Tab, 128, 32, 16, D1, M1, U>) \
-        <<<blocks, threads, 0, stream>>>(t)
+    (chunked_cuda_kernel<T, 128, 32, 16, D1, M1, U>) \
+        <<<blocks, threads, 0, stream>>>(nrows, ncols, val, data_chunks, \
+            mask_chunks)
     if(u32)
     {
         if(data1)
@@ -247,19 +369,8 @@ void chunked(cudaStream_t stream, Index nrows, Index ncols, Scalar val,
     {
         return;
     }
-    ChunkTables<T> t;
-    t.data = data_chunks;
-    t.mask = mask_chunks;
-    t.ndata = ndata;
-    t.nmask = nmask;
-    t.elems_data = elems_data;
-    t.elems_mask = elems_mask;
-    t.nrows = nrows;
-    t.ncols = ncols;
-    t.val = val;
-    t.shift_data = chunk_shift_of<T>(t.ndata, elems_data, "nntile_mask_scalar");
-    t.shift_mask = chunk_shift_of<::nntile::bool_t>(t.nmask, elems_mask, "nntile_mask_scalar");
-    launch_mask_chunked<T, ChunkTables<T>>(stream, t);
+    launch_mask_chunked<T>(stream, nrows, ncols, val, data_chunks, ndata,
+        elems_data, mask_chunks, nmask, elems_mask);
 }
 
 // Explicit instantiation

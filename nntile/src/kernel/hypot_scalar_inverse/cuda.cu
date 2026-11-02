@@ -103,6 +103,35 @@ void chunked_cuda_kernel(Index nelems, Scalar eps_, Scalar alpha_,
     }
 }
 
+//! Single-chunk hypot_scalar_inverse (the whole range is chunk 0 of its
+//! table): the classic kernel's statement stream verbatim with the base
+//! pointer resolved through ONE ring-table load issued as the very first
+//! statement (via the read-only data path: the table is never written by
+//! this kernel), so the launch-floor shapes run the shortest possible
+//! instruction stream for this API -- one dependent table load on the
+//! critical path and no shift/mask work (the sentinel contract makes
+//! every flat offset chunk 0). eps/alpha arrive pre-converted to the
+//! representation type (exactly the conversion the classic kernel
+//! performs in-kernel, done host-side once -- the sgd_step pattern). The
+//! stored bytes are bitwise cuda()'s (hypot is a libdevice call, so
+//! there is no FMA-contraction freedom).
+template<typename T>
+static __global__
+void chunked_single_kernel(Index nelems, typename T::repr_t eps_,
+        typename T::repr_t alpha_, T* const* dst_tab)
+{
+    T *dst = reinterpret_cast<T *>(__ldg(reinterpret_cast<
+        const unsigned long long *>(dst_tab)));
+    int i = threadIdx.x + blockIdx.x*blockDim.x;
+    using Y = typename T::repr_t;
+    const Y alpha{alpha_};
+    const Y eps{eps_};
+    if(i < nelems)
+    {
+        dst[i] = T{Y{1.0} / ::hypot(alpha*Y{dst[i]}, eps)};
+    }
+}
+
 template<typename T>
 void chunked(cudaStream_t stream, Index nelems, Scalar eps, Scalar alpha,
         T* const* dst_chunks, Index ndst, Index elems_dst)
@@ -110,6 +139,16 @@ void chunked(cudaStream_t stream, Index nelems, Scalar eps, Scalar alpha,
 {
     if(nelems <= 0 || ndst <= 0)
     {
+        return;
+    }
+    if(ndst == 1)
+    {
+        // Dispatch by chunk count only. Same 256-thread geometry as the
+        // whole-buffer entry.
+        dim3 blocks((nelems+255)/256), threads(256);
+        (chunked_single_kernel<T>)<<<blocks, threads, 0, stream>>>(
+            nelems, typename T::repr_t(eps), typename T::repr_t(alpha),
+            dst_chunks);
         return;
     }
     ChunkTables<T> t;

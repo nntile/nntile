@@ -269,6 +269,82 @@ static __device__ __forceinline__ long nsl_chunk_of(long f, Index elems,
     return f >> shift;
 }
 
+//! (piece 16) Slim m==1 variant for the BOTH-operands-single-chunk case
+//! (host-checked: nsrc == 1 && ndst == 1, the sentinel shift): the two
+//! chunk bases are one uniform table-slot load each, and the body is the
+//! SAME instruction stream as cuda_kernel_m1 above -- no chunk arithmetic
+//! in the fiber walk at all. Same geometry, same accumulation order, no
+//! atomics: bitwise cuda()->m1.
+template<typename T, int BLOCK_ROW, int LOOP>
+static __global__
+void chunked_m1_single_kernel(Index n, Index k, Scalar alpha_,
+        const T *const *src_t, Scalar beta_, T *const *dst_t)
+{
+    Index src_l_block_end = (k/BLOCK_ROW) * BLOCK_ROW;
+    const T *src = src_t[0];
+    T *dst = dst_t[0];
+    using Y = typename T::repr_t;
+    const Y alpha{alpha_};
+    const Y beta{beta_};
+    constexpr int BLOCK_ROW_STEP = BLOCK_ROW / LOOP;
+    volatile __shared__ Y dst_block[BLOCK_ROW_STEP];
+    Y dst_val = 0.0;
+    // Pointer to a corresponding fiber of the input arrays
+    for(Index src_l = threadIdx.x; src_l < src_l_block_end;
+            src_l += BLOCK_ROW)
+    {
+        const T *src_fiber = src + src_l + blockIdx.x*k;
+        for(int c = 0; c < BLOCK_ROW; c += BLOCK_ROW_STEP)
+        {
+            Y val = static_cast<Y>(src_fiber[c]);
+            dst_val = ::hypot(dst_val, val);
+        }
+    }
+    // Pointer to a corresponding fiber of the input arrays
+    Index src_l = threadIdx.x + src_l_block_end;
+    const T *src_fiber = src + blockIdx.x*k;
+    for(Index c = src_l; c < k; c += BLOCK_ROW_STEP)
+    {
+        Y val = static_cast<Y>(src_fiber[c]);
+        dst_val = ::hypot(dst_val, val);
+    }
+    // Put calculated value into shared memory
+    dst_block[threadIdx.x] = ::fabs(alpha) * dst_val;
+    __syncthreads();
+    // Inter-warp reduction
+    for(int c = BLOCK_ROW_STEP>>1; c > 32; c >>= 1)
+    {
+        if(threadIdx.x < c)
+        {
+            dst_block[threadIdx.x] = ::hypot(
+                    dst_block[threadIdx.x], dst_block[threadIdx.x+c]);
+        }
+        __syncthreads();
+    }
+    // Reduction within a single warp
+    if(threadIdx.x < 32)
+    {
+        for(int c = 32; c > 0; c >>= 1)
+        {
+            dst_block[threadIdx.x] = ::hypot(
+                    dst_block[threadIdx.x], dst_block[threadIdx.x+c]);
+        }
+    }
+    // Write output
+    if(threadIdx.x == 0)
+    {
+        if(beta == 0.0)
+        {
+            dst[blockIdx.x] = static_cast<T>(static_cast<Y>(dst_block[0]));
+        }
+        else
+        {
+            dst_val = beta * static_cast<Y>(dst[blockIdx.x]);
+            dst[blockIdx.x] = static_cast<T>(::hypot(dst_val, dst_block[0]));
+        }
+    }
+}
+
 //! Chunk-aware m==1 kernel: the SAME geometry and accumulation order as
 //! cuda_kernel_m1 above, reads resolved through the src chunk table and
 //! the write through the dst table. Deterministic (no atomics), so bitwise
@@ -465,8 +541,19 @@ void chunked(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
     {
         dim3 threads(256);
         dim3 blocks(n);
-        (chunked_m1_kernel<T, 1024, 4>)<<<blocks, threads, 0,
-            stream>>>(t);
+        if(nsrc == 1 && ndst == 1)
+        {
+            // Piece 16: both operands single-chunk -- the slim variant
+            // mirrors cuda_kernel_m1's instruction stream with one uniform
+            // table-slot load per base.
+            (chunked_m1_single_kernel<T, 1024, 4>)<<<blocks, threads, 0,
+                stream>>>(n, k, alpha, src_chunks, beta, dst_chunks);
+        }
+        else
+        {
+            (chunked_m1_kernel<T, 1024, 4>)<<<blocks, threads, 0,
+                stream>>>(t);
+        }
     }
     else
     {

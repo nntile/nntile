@@ -144,13 +144,6 @@ struct SumFiberChunkTables
     Scalar beta;
 };
 
-//! Chunk index of a flat element offset (power-of-two shift when possible).
-static __device__ __forceinline__ Index sf_chunk_of(long f, Index elems,
-    int shift)
-{
-    return Index(f >> shift);
-}
-
 //! Chunk-aware sum_fiber: the SAME thread/block geometry and the SAME
 //! per-thread accumulation order (i1 outer, i0 inner) as cuda_kernel above,
 //! with each element's src (and the writer's dst) resolved through its
@@ -158,6 +151,23 @@ static __device__ __forceinline__ Index sf_chunk_of(long f, Index elems,
 //! identical, the shared-memory atomicAdd reduction produces cuda()'s
 //! result up to the same intra-block atomic ordering nondeterminism cuda()
 //! already has.
+//!
+//! The two table loads of a thread (its first src run base and the
+//! writer's dst base) are the only global loads whose results gate later
+//! memory operations, so both are issued with the first instructions:
+//! the dst base (which the classic kernel gets for free from its param
+//! pointer) would otherwise stall every block's tail AFTER the
+//! __syncthreads reduction, and the run-base divmod would delay the
+//! first src load. The walk itself keeps the piece-4 structure -- i1
+//! major, the i0 fiber inside each i1 step, a virtual contiguous base
+//! q = chunk_base - chunk*elems (the element at flat f is q[f]) -- but
+//! replaces the per-run room divmod with a per-i1-step span check:
+//! an i1 step whose whole i0 span [base, base+m) lies inside the
+//! current chunk reads through q, any other step resolves per element,
+//! and the rebase fires exactly when the flat offset leaves the chunk.
+//! Same elements in the same order, so the per-thread accumulation is
+//! unchanged bitwise; no runtime 64-bit division remains on the address
+//! path.
 template<typename T>
 static __global__
 void chunked_cuda_kernel(SumFiberChunkTables<T> t)
@@ -173,66 +183,47 @@ void chunked_cuda_kernel(SumFiberChunkTables<T> t)
     Y sum = zero;
     if(b < t.batch)
     {
-        // Run-structured in-chunk walk (piece 4): the double loop reads,
-        // per thread, i1-major with the i0 fiber inside each i1 step.
-        // Walk the outer axis through a virtual contiguous base
-        // q = chunk_base - chunk*elems (the element at flat f is q[f]),
-        // rebasing (one divmod) only between runs; the span-start
-        // divmod runs once per thread. A run is cut so that every i1
-        // step it covers has its whole i0 span [base, base+m) inside
-        // one chunk; an i1 step whose i0 span itself straddles a chunk
-        // boundary falls back to the per-element resolution (same
-        // arithmetic as before). Same elements in the same order, so
-        // the per-thread accumulation is unchanged bitwise.
         long const stride = long(i1_step) * long(t.k) * long(t.m);
         long f1 = (long(i1_start) + long(b)*long(t.n)) * long(t.k)
             * long(t.m) + long(i2) * long(t.m);
         long const i1_end = (long(t.n) + long(b)*long(t.n)) * long(t.k)
             * long(t.m) + long(i2) * long(t.m);
+        // Writer's dst base, issued before the walk so its table-load
+        // latency hides behind the accumulation loop.
+        long const g = long(i2_batched);
+        long const cd = g >> t.shift_dst;
+        T *dp = t.dst[cd] + (g - cd * long(t.elems_dst));
+        // First run base.
         long c1 = f1 >> t.shift_src;
-        long off1 = f1 - c1 * t.elems_src;
-        T const *q1 = t.src[c1] - c1 * t.elems_src;
+        long off1 = f1 - c1 * long(t.elems_src);
+        T const *q1 = t.src[c1] - c1 * long(t.elems_src);
         while(f1 < i1_end)
         {
-            // Outer steps whose base AND full i0 span stay in-chunk.
-            long room = (t.elems_src - off1 - long(t.m)) / stride + 1;
-            if(room < 1)
+            if(off1 + long(t.m) <= long(t.elems_src))
             {
-                room = 1;
-            }
-            long run_end = f1 + room * stride;
-            if(run_end > i1_end)
-            {
-                run_end = i1_end;
-            }
-            for(; f1 < run_end; f1 += stride)
-            {
-                if(off1 + long(t.m) <= t.elems_src)
+                // Cycle over the first axis of input buffer
+                for(Index i0 = i0_start; i0 < t.m; i0 += i0_step)
                 {
-                    // Cycle over the first axis of input buffer
-                    for(Index i0 = i0_start; i0 < t.m; i0 += i0_step)
-                    {
-                        sum += Y{q1[f1 + long(i0)]};
-                    }
+                    sum += Y{q1[f1 + long(i0)]};
                 }
-                else
-                {
-                    // Straddling i0 span: per-element resolution.
-                    for(Index i0 = i0_start; i0 < t.m; i0 += i0_step)
-                    {
-                        long const f = f1 + long(i0);
-                        Index const c = sf_chunk_of(f, t.elems_src,
-                            t.shift_src);
-                        sum += Y{t.src[c][f - long(c) * long(t.elems_src)]};
-                    }
-                }
-                off1 += stride;
             }
-            if(f1 < i1_end)
+            else
+            {
+                // Straddling i0 span: per-element resolution.
+                for(Index i0 = i0_start; i0 < t.m; i0 += i0_step)
+                {
+                    long const f = f1 + long(i0);
+                    long const c = f >> t.shift_src;
+                    sum += Y{t.src[c][f - c * long(t.elems_src)]};
+                }
+            }
+            f1 += stride;
+            off1 += stride;
+            if(f1 < i1_end && off1 >= long(t.elems_src))
             {
                 c1 = f1 >> t.shift_src;
-                off1 = f1 - c1 * t.elems_src;
-                q1 = t.src[c1] - c1 * t.elems_src;
+                off1 = f1 - c1 * long(t.elems_src);
+                q1 = t.src[c1] - c1 * long(t.elems_src);
             }
         }
         __shared__ Y block_sum[1];
@@ -248,9 +239,6 @@ void chunked_cuda_kernel(SumFiberChunkTables<T> t)
         {
             // Save result
             sum = block_sum[threadIdx.x];
-            long const g = long(i2_batched);
-            Index const cd = sf_chunk_of(g, t.elems_dst, t.shift_dst);
-            T *dp = t.dst[cd] + (g - long(cd) * long(t.elems_dst));
             if(t.beta == zero)
             {
                 sum *= t.alpha;

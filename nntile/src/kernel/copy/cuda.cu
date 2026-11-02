@@ -89,6 +89,48 @@ void chunked_cuda_kernel(Index nbytes, ChunkTables t)
     }
 }
 
+//! Single-chunk copy kernel: both operands are chunk 0 of their tables.
+//! With the single-chunk sentinel shift the table-walk kernel has
+//! cs=cd=0 and offs=offd=f for every 16-byte unit, so it degenerated to
+//! this memcpy plus a per-thread read of two table entries. The tables
+//! are device memory (the ring upload and the callers' chunk buffers are
+//! cudaMalloc'd arrays), so a launch cannot resolve the two chunk bases
+//! any earlier than this block-uniform load -- the same constraint the
+//! transpose single-chunk kernel documents. Dropping the fat ChunkTables
+//! param and the per-unit shift/mask work leaves the unit walk of the
+//! classic memcpy: same units, same uint4/byte split over the same
+//! [f, f+16) windows, same byte tail. The landed bytes are bitwise the
+//! table-walk kernel's (a copy has no value freedom); the elems guards
+//! of the walk only picked the access width inside the same window, so
+//! dropping them changes no byte and no identity-overlap behavior.
+static __global__ __launch_bounds__(128)
+void chunked_single_kernel(long nbytes,
+    const unsigned char *const* src_tab, unsigned char *const* dst_tab)
+{
+    long const u = long(threadIdx.x) + long(blockIdx.x) * blockDim.x;
+    long const f = u * 16;
+    if(f >= nbytes)
+    {
+        return;
+    }
+    const unsigned char *s = src_tab[0] + f;
+    unsigned char *d = dst_tab[0] + f;
+    long const rem = nbytes - f;
+    if(rem >= 16
+        && (reinterpret_cast<std::uintptr_t>(s) & 15) == 0
+        && (reinterpret_cast<std::uintptr_t>(d) & 15) == 0)
+    {
+        *reinterpret_cast<uint4 *>(d) = *reinterpret_cast<const uint4 *>(s);
+    }
+    else
+    {
+        for(long b = 0; b < rem; ++b)
+        {
+            d[b] = s[b];
+        }
+    }
+}
+
 void chunked(cudaStream_t stream, Index nbytes,
         const unsigned char* const* src_chunks, Index nsrc,
         unsigned char* const* dst_chunks, Index ndst, Index elems_src,
@@ -97,6 +139,18 @@ void chunked(cudaStream_t stream, Index nbytes,
 {
     if(nbytes <= 0 || nsrc <= 0 || ndst <= 0)
     {
+        return;
+    }
+    if(nsrc == 1 && ndst == 1)
+    {
+        // (piece C13) Both operands are chunk 0 of their device tables:
+        // dispatch by chunk counts only. 128-thread blocks measured best
+        // at both the launch-floor 12 KiB shape and the 3-4 MiB
+        // single-chunk sizes.
+        long const units = (long(nbytes) + 15) / 16;
+        dim3 blocks(dim3((units + 127) / 128)), threads(128);
+        (chunked_single_kernel)<<<blocks, threads, 0, stream>>>(
+            long(nbytes), src_chunks, dst_chunks);
         return;
     }
     ChunkTables t;

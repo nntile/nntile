@@ -374,6 +374,98 @@ void chunked_run_cuda_kernel(EmbChunkTables<T> t)
     }
 }
 
+//! Row-copy form for m == 1 (the piece-B run form's lanes run along i0,
+//! so an m == 1 shape degenerates its launch to tx = 1: 8-thread blocks,
+//! 25% warp occupancy, and per-element stores 64 bytes apart -- what the
+//! chunked path lost to the classic kernel on the GPT-2 embedding
+//! shapes). With m == 1 the gather IS a pure row copy per token:
+//!      embed[i1*k + k_start .. +k_size) = vocab[k_size*token(i1) ..]
+//! Each thread moves NVEC consecutive 16-byte vectors in LINEAR output
+//! order (linear id over n * ceil(k_size/VW/NVEC) groups), so a warp's
+//! lanes cover contiguous runs of both operands: full 128-byte
+//! transactions on the embed side and row-contiguous vocab reads, in
+//! 256-thread blocks. The per-vector chunk resolution is the run form's
+//! (a vector's in-chunk offset is a multiple of VW and VW divides the
+//! class element count, so a 16-byte vector can never straddle a
+//! full-chunk boundary); token validation matches the classic kernel
+//! exactly. Dispatched only when m == 1 AND k_size/k/k_start keep every
+//! touched offset 16-byte aligned (k_size % VW == 0, k % VW == 0,
+//! k_start % VW == 0) AND every flat span fits 32 bits; other shapes
+//! keep the forms above. A pure byte copy: bitwise the classic kernel.
+template<typename T, bool IDX1, bool EMB1, bool VOC1>
+static __global__
+void chunked_row1_cuda_kernel(EmbChunkTables<T> t)
+{
+    using I = typename CUDAComputeType<int64_t>::value;
+    constexpr int VW = int(16 / sizeof(T)); //!< elements per 16-byte vector
+    constexpr int NVEC = 4; //!< vectors per thread (64 bytes for <=4B T)
+    constexpr int IDX_SHIFT = IDX1 ? kChunkSingleShift
+        : chunk_log2(kChunkClassBytes / sizeof(I));
+    constexpr int VOC_SHIFT = VOC1 ? kChunkSingleShift
+        : chunk_log2(kChunkClassBytes / sizeof(T));
+    constexpr int EMB_SHIFT = EMB1 ? kChunkSingleShift
+        : chunk_log2(kChunkClassBytes / sizeof(T));
+    constexpr unsigned VOC_MASK = VOC1 ? 0xffffffffu
+        : (1u << VOC_SHIFT) - 1u;
+    constexpr unsigned EMB_MASK = EMB1 ? 0xffffffffu
+        : (1u << EMB_SHIFT) - 1u;
+    unsigned const ksv = unsigned(t.k_size) / unsigned(VW); //!< vectors/row
+    unsigned const gpr = (ksv + unsigned(NVEC) - 1u) / unsigned(NVEC);
+    unsigned const total = unsigned(t.n) * gpr;
+    unsigned const l = threadIdx.x + blockIdx.x*blockDim.x;
+    if(l >= total)
+    {
+        return;
+    }
+    unsigned const i1 = l / gpr;
+    unsigned const iv0 = (l - i1*gpr) * unsigned(NVEC);
+    // One token per thread, read and validated exactly like the classic
+    // kernel (the flat index offset is i1*1 + 0 at m == 1).
+    unsigned const u_fi = i1;
+    I const *ip = IDX1
+        ? reinterpret_cast<I const *>(t.index[0]) + u_fi
+        : reinterpret_cast<I const *>(t.index[u_fi >> IDX_SHIFT])
+            + (u_fi & ((1u << IDX_SHIFT) - 1u));
+    const long long token = static_cast<long long>(ip[0]);
+    if(token < 0 or token >= static_cast<long long>(t.index_range))
+    {
+        printf("nntile embedding: token id %lld is outside the "
+                "vocabulary range [0, %lld)\n", token,
+                static_cast<long long>(t.index_range));
+        __trap();
+    }
+    unsigned const fv0 = unsigned(t.k_size) * unsigned(token);
+    unsigned const fe0 = i1*unsigned(t.k) + unsigned(t.k_start)
+        + iv0*unsigned(VW);
+    uint4 raw[NVEC];
+#pragma unroll
+    for(int v = 0; v < NVEC; ++v)
+    {
+        unsigned const iv = iv0 + unsigned(v);
+        if(iv >= ksv)
+        {
+            break;
+        }
+        unsigned const fv = fv0 + iv*unsigned(VW);
+        raw[v] = *reinterpret_cast<uint4 const *>(VOC1
+                ? t.vocab[0] + fv
+                : t.vocab[fv >> VOC_SHIFT] + (fv & VOC_MASK));
+    }
+#pragma unroll
+    for(int v = 0; v < NVEC; ++v)
+    {
+        unsigned const iv = iv0 + unsigned(v);
+        if(iv >= ksv)
+        {
+            return;
+        }
+        unsigned const fe = fe0 + unsigned(v)*unsigned(VW);
+        *reinterpret_cast<uint4 *>(EMB1
+                ? t.embed[0] + fe
+                : t.embed[fe >> EMB_SHIFT] + (fe & EMB_MASK)) = raw[v];
+    }
+}
+
 template<typename T>
 void chunked(cudaStream_t stream, Index m, Index n, Index k, Index k_start,
         Index k_size, Index index_range,
@@ -434,6 +526,52 @@ void chunked(cudaStream_t stream, Index m, Index n, Index k, Index k_start,
     // keeps every vocab-row vector (and its 16-byte alignment) inside
     // one chunk/row; other shapes keep the elementwise body.
     int const vw = int(16 / sizeof(T));
+    // Row-copy fast path for m == 1 (chunked_row1_cuda_kernel above): the
+    // i0-lane forms degenerate to tiny blocks when m == 1. Alignment
+    // preconditions keep every touched offset 16-byte aligned (kernel's
+    // NVEC is 4 -- keep the gpr formula in sync with it).
+    if(m == 1 and u32 and t.k_size >= Index(vw)
+            and t.k_size % Index(vw) == 0
+            and t.k % Index(vw) == 0
+            and t.k_start % Index(vw) == 0)
+    {
+        unsigned const ksv = unsigned(t.k_size) / unsigned(vw);
+        unsigned const gpr = (ksv + 3u) / 4u;
+        unsigned const total = unsigned(t.n) * gpr;
+        dim3 const threads(256);
+        dim3 const blocks((total + 255u) / 256u);
+#define NNHAUL_EMB_ROW1_LAUNCH(I1, E1, V1) \
+    (chunked_row1_cuda_kernel<T, I1, E1, V1>)<<<blocks, threads, 0, \
+        stream>>>(t)
+        if(idx1)
+        {
+            if(emb1)
+            {
+                if(voc1) { NNHAUL_EMB_ROW1_LAUNCH(true, true, true); }
+                else { NNHAUL_EMB_ROW1_LAUNCH(true, true, false); }
+            }
+            else
+            {
+                if(voc1) { NNHAUL_EMB_ROW1_LAUNCH(true, false, true); }
+                else { NNHAUL_EMB_ROW1_LAUNCH(true, false, false); }
+            }
+        }
+        else
+        {
+            if(emb1)
+            {
+                if(voc1) { NNHAUL_EMB_ROW1_LAUNCH(false, true, true); }
+                else { NNHAUL_EMB_ROW1_LAUNCH(false, true, false); }
+            }
+            else
+            {
+                if(voc1) { NNHAUL_EMB_ROW1_LAUNCH(false, false, true); }
+                else { NNHAUL_EMB_ROW1_LAUNCH(false, false, false); }
+            }
+        }
+#undef NNHAUL_EMB_ROW1_LAUNCH
+        return;
+    }
     // (review-540 v3 #1) The run-form launch also needs n <= 65535
     // (gridDim.y) and blocks.z <= 64; shapes beyond fall through to the
     // elementwise body, which serves them exactly (the classic path's

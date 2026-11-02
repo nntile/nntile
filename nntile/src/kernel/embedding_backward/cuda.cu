@@ -296,6 +296,10 @@ void chunked_strided_cuda_kernel(EmbBwdChunkTables<T> t, Scalar alpha_)
     // branches disappear -- the classic loop body verbatim. The embed
     // side keeps its per-iteration rebase (its per-block spread is
     // m*k elements and crosses chunk boundaries routinely).
+    // Launch-constant chunk bases: hoisted so the walk's advance never
+    // re-reads the (aliasing-opaque) chunk table.
+    T *const voc0 = t.vocab[0];
+    T const *const emb0 = t.embed[0];
     bool const voc_fast = [&]() -> bool {
         if constexpr(VOC1)
         {
@@ -314,7 +318,7 @@ void chunked_strided_cuda_kernel(EmbBwdChunkTables<T> t, Scalar alpha_)
     {
         if constexpr(VOC1)
         {
-            vbp = t.vocab[0] + fv;
+            vbp = voc0 + fv;
         }
         else if(voc_fast)
         {
@@ -328,7 +332,7 @@ void chunked_strided_cuda_kernel(EmbBwdChunkTables<T> t, Scalar alpha_)
             vbp = t.vocab[fv >> VOC_SHIFT] + (fv & VOC_MASK);
         }
         ebp = EMB1
-            ? t.embed[0] + fe
+            ? emb0 + fe
             : t.embed[fe >> EMB_SHIFT] + (fe & EMB_MASK);
     }
     for(Index i2 = threadIdx.x; i2 < t.k_size; i2 += Index(step_v))
@@ -342,7 +346,7 @@ void chunked_strided_cuda_kernel(EmbBwdChunkTables<T> t, Scalar alpha_)
             fe += step_e;
             if constexpr(VOC1)
             {
-                vbp = t.vocab[0] + fv;
+                vbp = voc0 + fv;
             }
             else if(voc_fast)
             {
@@ -358,7 +362,7 @@ void chunked_strided_cuda_kernel(EmbBwdChunkTables<T> t, Scalar alpha_)
             }
             if constexpr(EMB1)
             {
-                ebp = t.embed[0] + fe;
+                ebp = emb0 + fe;
             }
             else if((fe & EMB_MASK) < step_e)
             {
@@ -447,7 +451,9 @@ void chunked(cudaStream_t stream, Index m, Index n, Index k, Index k_start,
         bool const emb1 = t.nembed <= 1;
         bool const voc1 = t.nvocab <= 1;
         // One 256-thread block per (i0, i1); lanes walk the k axis in
-        // blockDim.x strides (the classic per-instruction patterns).
+        // blockDim.x strides (the classic per-instruction patterns). A
+        // full-width (k_size-thread) block was measured 30% slower: the
+        // single-iteration walk cannot cover the block latency.
         dim3 const sblocks(1, unsigned(m), unsigned(n));
 #define NNHAUL_EMBBWD_LAUNCH(I1, E1, V1) \
     (chunked_strided_cuda_kernel<T, I1, E1, V1>)<<<sblocks, threads, 0, \

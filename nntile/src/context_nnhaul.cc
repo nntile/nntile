@@ -17,6 +17,7 @@
 
 #include <nnhaul/nnhaul.hh>
 
+#include <cstdlib>
 #include <iostream>
 #include <stdexcept>
 #include <thread>
@@ -144,7 +145,26 @@ Context::Context(
         {
             throw std::runtime_error("cudaMemGetInfo failed");
         }
-        cuda_cap_bytes_each = free_bytes - free_bytes / 10;
+        // The chunks live in the arena; the fixed per-device
+        // workspaces (the GEMM gather/scatter workspace, the cuBLAS
+        // workspace, the copy-descriptor scratch) live BESIDE it and
+        // are claimed after it. The default chunk budget is therefore
+        // 90% of the free VRAM MINUS the workspace size, so the arena
+        // can never starve those cudaMallocs (before this, the 90%
+        // arena left an uncapped init failing on its own workspace or
+        // on nntile's 8-MiB chunk-pointer ring).
+        std::size_t workspace_bytes = std::size_t{1024} << 20;
+        if (char const *ws = std::getenv("NNHAUL_WORKSPACE_MB"))
+        {
+            long const mib = std::strtol(ws, nullptr, 10);
+            if (mib > 0)
+            {
+                workspace_bytes = static_cast<std::size_t>(mib) << 20;
+            }
+        }
+        std::size_t const ninety = free_bytes - free_bytes / 10;
+        cuda_cap_bytes_each =
+            ninety > workspace_bytes ? ninety - workspace_bytes : 0;
         if (cuda_cap_bytes_each == 0)
         {
             throw std::runtime_error("NNHaul CUDA cap is zero");

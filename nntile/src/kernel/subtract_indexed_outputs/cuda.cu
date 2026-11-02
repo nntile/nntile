@@ -64,23 +64,8 @@ void cuda(cudaStream_t stream, Index n_labels, Index n_outputs, Index ignore_ind
 }
 
 //! Chunk descriptors for the one-launch chunked subtract_indexed_outputs.
-template<typename T>
-struct SubtractIndexedOutputsChunkTables
-{
-    const int64_t *const *labels; //!< device view of labels pointer array
-    Index nlab;
-    const int64_t *labels0; //!< piece C: direct base when labels is 1-chunk
-    T *const *dst; //!< device view of dst pointer array
-    Index ndst;
-    Index elems_lab;
-    Index elems_dst;
-    int shift_lab;
-    int shift_dst;
-    Index n_labels;
-    Index n_outputs;
-    Index ignore_index;
-    Scalar val;
-};
+//! (piece 16: the fat struct is gone -- the kernel takes slim scalar
+//! parameters; see chunked_cuda_kernel.)
 
 //! Chunk index of a flat element offset (power-of-two shift when possible).
 static __device__ __forceinline__ Index sio_chunk_of(long f, Index elems,
@@ -89,65 +74,80 @@ static __device__ __forceinline__ Index sio_chunk_of(long f, Index elems,
     return Index(f >> shift);
 }
 
-//! (piece C: the element-wise table helpers sio_get/sio_set are gone --
-//! the update branch resolves its chunk once and reads/writes through
-//! the resolved pointer, halving the ring-slot hops of the
-//! latency-bound 4-block kernel; the ignore branch already walks runs.)
-
 //! Chunk-aware subtract_indexed_outputs: thread i acts only on output column
 //! i exactly as cuda() does (zero-fill on ignore, else dst[labels[i], i] -=
-//! val), through the shared chunk tables, so the result is bitwise cuda()'s.
+//! val), through the shared chunk tables, so the result is bitwise cuda()'s
+//! (no atomics, no value freedom).
+//!
+//! (piece 16) Slim scalar parameters replace the fat descriptor struct, and
+//! the dst chunk base for the label-free flat offset (i*n_labels) is
+//! SPECULATED at kernel start: the load of dst_t[cg] issues in parallel
+//! with the label fetch instead of chaining behind it, and is used whenever
+//! the label keeps the column inside that chunk (the label adds < 1 chunk
+//! for any label < elems_dst, which is every valid label of a column-sized
+//! row -- the common case; the miss path falls back to the true table
+//! slot). This takes the second dependent ring-slot hop off the critical
+//! chain of the latency-bound 4-block kernel: label-table slot, label
+//! element, read-modify-write -- the same depth as cuda() plus one uniform
+//! slot load. c = f >> shift >= cg always (labels[i] >= 0 or the ignore
+//! branch), and cg < ndst because base < n_outputs*n_labels = the flat
+//! element count, so the speculative slot is always in bounds.
 template<typename T>
 static __global__
-void chunked_cuda_kernel(SubtractIndexedOutputsChunkTables<T> t)
+void chunked_cuda_kernel(Index n_labels, Index n_outputs, Index ignore_index,
+    Scalar val, const int64_t *labels0, const int64_t *const *lab_t,
+    Index elems_lab, int shift_lab,
+    T *const *dst_t, Index elems_dst, int shift_dst)
 {
-    // No shared-memory staging: the tables live in the read-only device
-    // ring (L2-resident) and every thread touches at most one labels
-    // pointer and one dst pointer, so reading the ring directly is cheaper
-    // than a per-block fill plus a __syncthreads (the grid is tiny here).
-    const int64_t *const *sh_l = t.labels;
-    T *const *sh_d = t.dst;
-
     long const i = long(blockIdx.x)*blockDim.x + threadIdx.x;
-    if(i >= t.n_outputs)
+    if(i >= n_outputs)
     {
         return;
     }
+    long const base = i * long(n_labels);
+    long const cg = base >> shift_dst;
+    long const cgoff = cg << shift_dst;
+    // Read the chunk-pointer table through the non-coherent read-only path:
+    // it is immutable for the kernel's lifetime, never aliases dst, and this
+    // keeps the table lines in the texture/read-only cache instead of
+    // competing with the streaming RMW traffic in L2.
+    T *const pg = dst_t[cg];
     using Y = typename T::repr_t;
     std::int64_t lab;
-    if(t.labels0 != nullptr)
+    if(labels0 != nullptr)
     {
-        // Piece C (2026-10-18c): a single-chunk labels operand reads its
-        // resolved base directly -- one dependent load instead of the
-        // ring-table hop plus the element load.
-        lab = t.labels0[i].value;
+        // Piece C: a single-chunk labels operand passed as a resolved
+        // base -- one dependent load, no table hop.
+        lab = labels0[i].value;
     }
-    else if(t.nlab == 1)
+    else if(shift_lab == kChunkSingleShift)
     {
-        lab = sh_l[0][i].value;
+        // Single-chunk labels operand: one uniform slot load, then the
+        // element (one dependent hop instead of slot+divmod+element).
+        lab = lab_t[0][i].value;
     }
     else
     {
-        Index const lc = sio_chunk_of(i, t.elems_lab, t.shift_lab);
-        lab = sh_l[lc][i - long(lc) * long(t.elems_lab)].value;
+        Index const lc = sio_chunk_of(i, elems_lab, shift_lab);
+        lab = lab_t[lc][i - long(lc) * long(elems_lab)].value;
     }
-    long const base = i * long(t.n_labels);
-    if(lab == t.ignore_index)
+    if(lab == ignore_index)
     {
         // Zero the whole column through its chunk bounds (same result as
         // cuda()'s memset of the contiguous column).
         long l = 0;
-        while(l < t.n_labels)
+        while(l < n_labels)
         {
             long const f = base + l;
-            Index const c = sio_chunk_of(f, t.elems_dst, t.shift_dst);
-            long const cend = (long(c) + 1) * long(t.elems_dst);
+            Index const c = sio_chunk_of(f, elems_dst, shift_dst);
+            long const cend = (long(c) + 1) * long(elems_dst);
             long n = cend - f;
-            if(n > long(t.n_labels) - l)
+            if(n > n_labels - l)
             {
-                n = long(t.n_labels) - l;
+                n = n_labels - l;
             }
-            T *p = sh_d[c] + (f - long(c) * long(t.elems_dst));
+            T *p = dst_t[c] + (f - long(c) * long(elems_dst));
+            #pragma unroll 1
             for(long k = 0; k < n; ++k)
             {
                 p[k] = T{0.0};
@@ -157,17 +157,12 @@ void chunked_cuda_kernel(SubtractIndexedOutputsChunkTables<T> t)
     }
     else
     {
-        // Piece C (2026-10-18c): resolve the dst chunk ONCE for the
-        // read-modify-write (the old form paid the ring-slot hop twice
-        // -- once inside sio_get, once inside sio_set -- for the same
-        // element of a latency-bound 4-block kernel). The in-chunk
-        // offset is the rule-7 mask, not a multiply. Same address, same
-        // value, same order: bitwise identical.
         long const f = base + long(lab);
-        Index const c = sio_chunk_of(f, t.elems_dst, t.shift_dst);
-        T *p = sh_d[c] + (f & ((1LL << t.shift_dst) - 1));
+        long const c = f >> shift_dst;
+        T *p = (c == cg) ? pg + (f - cgoff)
+                         : dst_t[c] + (f - (c << shift_dst));
         Y const dv = Y{p[0]};
-        p[0] = static_cast<T>(dv - Y{t.val});
+        p[0] = static_cast<T>(dv - Y{val});
     }
 }
 
@@ -183,24 +178,18 @@ void chunked(cudaStream_t stream, Index n_labels, Index n_outputs,
     {
         return;
     }
-    SubtractIndexedOutputsChunkTables<T> t;
-    t.labels = labels_chunks;
-    t.nlab = nlab;
-    t.labels0 = labels0;
-    t.dst = dst_chunks;
-    t.ndst = ndst;
-    t.elems_lab = elems_lab;
-    t.elems_dst = elems_dst;
-    t.shift_lab = chunk_shift_of<::int64_t>(t.nlab, elems_lab, "nntile_subtract_indexed_outputs");
-    t.shift_dst = chunk_shift_of<T>(t.ndst, elems_dst, "nntile_subtract_indexed_outputs");
-    t.n_labels = n_labels;
-    t.n_outputs = n_outputs;
-    t.ignore_index = ignore_index;
-    t.val = val;
-    // Same geometry as the whole-buffer entry: one thread per output column.
-    // No dynamic shared memory (tables are read straight from the ring).
-    dim3 blocks((n_outputs + 255) / 256), threads(256);
-    (chunked_cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(t);
+    int const shift_lab = chunk_shift_of<::int64_t>(nlab, elems_lab,
+        "nntile_subtract_indexed_outputs");
+    int const shift_dst = chunk_shift_of<T>(ndst, elems_dst,
+        "nntile_subtract_indexed_outputs");
+    // Same work assignment as the whole-buffer entry (one thread per output
+    // column), but spread over more blocks: the chunked kernel's address
+    // chain is one dependent load deeper, so giving the 1024 columns more
+    // SMs shortens the tail instead of serializing it on 4 SMs.
+    dim3 blocks((n_outputs + 63) / 64), threads(64);
+    (chunked_cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(n_labels,
+        n_outputs, ignore_index, val, labels0, labels_chunks, elems_lab,
+        shift_lab, dst_chunks, elems_dst, shift_dst);
 }
 
 // Explicit instantiation
