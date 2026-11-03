@@ -21,12 +21,14 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <type_traits>
 
 // Third-party headers
 
 // Other NNTile headers
 #include "nntile/kernel/cblas.hh"
 #include "nntile/kernel/cublas.hh"
+#include "nntile/kernel/gemm_chunked/cuda.hh"
 #include "nntile/kernel/copy/cuda.hh"
 #include "nntile/nnhaul/chunk_units.hh"
 
@@ -139,6 +141,7 @@ struct GemmStagingMeters
 {
     std::atomic<std::uint64_t> calls{0};      // every CUDA gemm body
     std::atomic<std::uint64_t> contiguous{0}; // classic + fast-forward
+    std::atomic<std::uint64_t> native{0};     // native chunked kernels
     std::atomic<std::uint64_t> staged{0};     // workspace-staged path
     std::atomic<std::uint64_t> staged_a{0};   // per-operand staging
     std::atomic<std::uint64_t> staged_b{0};
@@ -180,14 +183,17 @@ struct GemmStagingReport
             std::memory_order_relaxed);
         std::uint64_t const gb = m.gather_bytes.load(
             std::memory_order_relaxed);
+        std::uint64_t const nat = m.native.load(std::memory_order_relaxed);
         std::uint64_t const sbt = m.scatter_bytes.load(
             std::memory_order_relaxed);
         std::fprintf(stderr,
-            "[gemm-stats] calls=%llu contiguous=%llu staged=%llu "
+            "[gemm-stats] calls=%llu contiguous=%llu native=%llu "
+            "staged=%llu "
             "staged_A=%llu staged_B=%llu staged_C=%llu "
             "gather_MiB=%.1f scatter_MiB=%.1f\n",
             static_cast<unsigned long long>(calls),
             static_cast<unsigned long long>(contig),
+            static_cast<unsigned long long>(nat),
             static_cast<unsigned long long>(staged),
             static_cast<unsigned long long>(sa),
             static_cast<unsigned long long>(sb),
@@ -243,6 +249,127 @@ bool chain_contiguous(::nnhaul::Buffer *buf) noexcept
 }
 
 #ifdef NNTILE_USE_CUDA
+//! Kill switch for the native kernel family (default on): read once per
+//! process, the ring-hook pattern. The staged path is the fallback.
+bool gemm_native_enabled() noexcept
+{
+    static bool const cached = [] {
+        char const *e = std::getenv("NNHAUL_GEMM_NATIVE");
+        return e == nullptr || std::atoi(e) != 0;
+    }();
+    return cached;
+}
+
+//! The NATIVE chunked-kernel driver: kernel::gemm_chunked consumes the
+//! operands' chunk tables IN PLACE (or a flat base for a contiguous
+//! chain) -- zero gather/scatter bytes, one kernel launch whose tables
+//! ride the chunk-ptr ring as one merged upload. fp32 only (the
+//! campaign's dtype; every other repr type keeps the staged path).
+//! Returns false without side effects when the picker does not own the
+//! shape (the caller falls through to the workspace-staged path).
+template<typename T>
+bool gemm_kernel_native(TransOp transA, TransOp transB, Index m, Index n,
+    Index k, Index batch, Scalar alpha, Scalar beta, bool broadcast_a,
+    bool broadcast_b, ::nnhaul::Buffer *bufA, ::nnhaul::Buffer *bufB,
+    ::nnhaul::Buffer *bufC, cudaStream_t stream)
+{
+    if constexpr(std::is_same_v<T, fp32_t>)
+    {
+        if(!gemm_native_enabled())
+        {
+            return false;
+        }
+        using kernel::gemm_chunked::Operand;
+        using kernel::gemm_chunked::Op;
+        Op const ta = transA.value == TransOp::NoTrans ? Op::NoTrans
+                                                       : Op::Trans;
+        Op const tb = transB.value == TransOp::NoTrans ? Op::NoTrans
+                                                       : Op::Trans;
+        if(!kernel::gemm_chunked::supports(ta, tb, m, n, k, batch))
+        {
+            return false;
+        }
+        chunkunits::ChunkView<T> const cv_a(bufA);
+        chunkunits::ChunkView<T> const cv_b(bufB);
+        chunkunits::ChunkView<T> const cv_c(bufC);
+        // A contiguous chain IS the flat buffer: chunk 0 is the base and
+        // the kernel adds element offsets with no indirection.
+        bool const flat_a = !cv_a.real || chain_contiguous<T>(bufA);
+        bool const flat_b = !cv_b.real || chain_contiguous<T>(bufB);
+        bool const flat_c = !cv_c.real || chain_contiguous<T>(bufC);
+        chunkunits::RingTables &tabs = chunkunits::ring_tables();
+        tabs.clear();
+        std::size_t off_a = 0, off_b = 0, off_c = 0;
+        if(!flat_a)
+        {
+            off_a = tabs.add(cv_a);
+        }
+        if(!flat_b)
+        {
+            off_b = tabs.add(cv_b);
+        }
+        if(!flat_c)
+        {
+            off_c = tabs.add(cv_c);
+        }
+        chunkunits::ChunkPtrRing &ring = chunkunits::chunk_ptr_ring();
+        if(!ring.begin(stream))
+        {
+            return false;
+        }
+        void const *ring_base = ring.upload_tables(tabs);
+        if(ring_base == nullptr)
+        {
+            return false;
+        }
+        Operand const oa{flat_a ? reinterpret_cast<void const *>(
+                                     bufA->get_chunk_ptr<T>(0))
+                                : reinterpret_cast<void const *>(
+                                     const_cast<float const **>(
+                                         chunkunits::ChunkPtrRing::
+                                             table_view<float const *>(
+                                                 ring_base, off_a))),
+            flat_a ? 0 : cv_a.shift};
+        Operand const ob{flat_b ? reinterpret_cast<void const *>(
+                                     bufB->get_chunk_ptr<T>(0))
+                                : reinterpret_cast<void const *>(
+                                     const_cast<float const **>(
+                                         chunkunits::ChunkPtrRing::
+                                             table_view<float const *>(
+                                                 ring_base, off_b))),
+            flat_b ? 0 : cv_b.shift};
+        Operand const oc{flat_c ? reinterpret_cast<void *>(
+                                     bufC->get_chunk_ptr<T>(0))
+                                : reinterpret_cast<void *>(
+                                     const_cast<float **>(
+                                         chunkunits::ChunkPtrRing::
+                                             table_view<float *>(
+                                                 ring_base, off_c))),
+            flat_c ? 0 : cv_c.shift};
+        long long const sa =
+            broadcast_a ? 0LL : static_cast<long long>(m) * k;
+        long long const sb =
+            broadcast_b ? 0LL : static_cast<long long>(k) * n;
+        long long const sc = static_cast<long long>(m) * n;
+        bool const launched = kernel::gemm_chunked::launch(ta, tb,
+            static_cast<int>(m), static_cast<int>(n), static_cast<int>(k),
+            static_cast<int>(batch), static_cast<float>(alpha), oa, ob,
+            static_cast<float>(beta), oc, sa, sb, sc, stream);
+        ring.end(stream);
+        if(launched)
+        {
+            gemm_meters().native.fetch_add(1, std::memory_order_relaxed);
+            note_gemm_kernel_native();
+        }
+        return launched;
+    }
+    else
+    {
+        (void)stream;
+        return false;
+    }
+}
+
 //! The workspace-staged chunked driver (see the policy block above).
 //! Throws nnhaul::Error when the staged bytes exceed the workspace
 //! (nominal: the codelet is noexcept, so the throw terminates the
@@ -769,6 +896,13 @@ void Gemm<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         log_degenerate(args->transA, args->transB, args->m, args->n,
             args->k, args->batch, buf_a->chunk_count(),
             buf_b->chunk_count(), buf_c->chunk_count());
+        note_gemm_native_chunked();
+        return;
+    }
+    if(gemm_kernel_native<T>(args->transA, args->transB, args->m, args->n,
+        args->k, args->batch, args->alpha, args->beta, args->broadcast_a,
+        args->broadcast_b, buf_a, buf_b, buf_c, stream))
+    {
         note_gemm_native_chunked();
         return;
     }
