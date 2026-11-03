@@ -271,7 +271,7 @@ template<typename T>
 bool gemm_kernel_native(TransOp transA, TransOp transB, Index m, Index n,
     Index k, Index batch, Scalar alpha, Scalar beta, bool broadcast_a,
     bool broadcast_b, ::nnhaul::Buffer *bufA, ::nnhaul::Buffer *bufB,
-    ::nnhaul::Buffer *bufC, cudaStream_t stream)
+    ::nnhaul::Buffer *bufC, cudaStream_t stream, bool force = false)
 {
     if constexpr(std::is_same_v<T, fp32_t>)
     {
@@ -351,10 +351,16 @@ bool gemm_kernel_native(TransOp transA, TransOp transB, Index m, Index n,
         long long const sb =
             broadcast_b ? 0LL : static_cast<long long>(k) * n;
         long long const sc = static_cast<long long>(m) * n;
-        bool const launched = kernel::gemm_chunked::launch(ta, tb,
-            static_cast<int>(m), static_cast<int>(n), static_cast<int>(k),
-            static_cast<int>(batch), static_cast<float>(alpha), oa, ob,
-            static_cast<float>(beta), oc, sa, sb, sc, stream);
+        bool const launched = force
+            ? kernel::gemm_chunked::launch_forced(ta, tb,
+                static_cast<int>(m), static_cast<int>(n),
+                static_cast<int>(k), static_cast<int>(batch),
+                static_cast<float>(alpha), oa, ob, static_cast<float>(beta),
+                oc, sa, sb, sc, stream)
+            : kernel::gemm_chunked::launch(ta, tb, static_cast<int>(m),
+                static_cast<int>(n), static_cast<int>(k),
+                static_cast<int>(batch), static_cast<float>(alpha), oa, ob,
+                static_cast<float>(beta), oc, sa, sb, sc, stream);
         ring.end(stream);
         if(launched)
         {
@@ -905,6 +911,38 @@ void Gemm<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     {
         note_gemm_native_chunked();
         return;
+    }
+    // Workspace-overflow rescue: a call whose staged bytes exceed the
+    // gemm workspace would THROW (the staged path's rule-11 error, no
+    // fallback) — the native kernel has no such cap, so it owns the
+    // call whatever the ownership policy says.
+    {
+        auto const padded = [](std::size_t nbytes) {
+            return (nbytes + 15) / 16 * 16;
+        };
+        std::size_t need = 0;
+        if(!chain_contiguous<T>(buf_a))
+        {
+            need += padded(buf_a->nbytes());
+        }
+        if(!chain_contiguous<T>(buf_b))
+        {
+            need += padded(buf_b->nbytes());
+        }
+        if(!chain_contiguous<T>(buf_c))
+        {
+            need += padded(buf_c->nbytes());
+        }
+        if(need > 0 && need > kernel::gemm::workspace().bytes
+            && gemm_kernel_native<T>(args->transA, args->transB, args->m,
+                args->n, args->k, args->batch, args->alpha, args->beta,
+                args->broadcast_a, args->broadcast_b, buf_a, buf_b, buf_c,
+                stream, true))
+        {
+            note_gemm_kernel_native();
+            note_gemm_native_chunked();
+            return;
+        }
     }
     gemm_workspace_staged<T>(handle, args->transA, args->transB, args->m,
         args->n, args->k, args->batch, args->alpha, args->beta,

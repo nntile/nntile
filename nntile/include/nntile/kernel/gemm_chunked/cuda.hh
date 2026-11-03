@@ -73,6 +73,15 @@ bool supports(Op transA, Op transB, int m, int n, int k, int batch) noexcept;
 const char *pick_name(Op transA, Op transB, int m, int n, int k,
     int batch) noexcept;
 
+//! Launch the best native configuration for the shape REGARDLESS of
+//! the ownership policy — the workspace-overflow rescue (a staged call
+//! whose bytes exceed the gemm workspace has no other path). Same
+//! contract as launch() otherwise; returns false when unsupported.
+bool launch_forced(Op transA, Op transB, int m, int n, int k, int batch,
+    float alpha, const Operand &a, const Operand &b, float beta,
+    const Operand &c, long long stride_a, long long stride_b,
+    long long stride_c, cudaStream_t stream) noexcept;
+
 //! Launch the picked native kernel on `stream`. The operand strides are
 //! in ELEMENTS per batch index (0 = broadcast, matching the cuBLAS
 //! wrapper's stride semantics). `alpha`/`beta` are host scalars.

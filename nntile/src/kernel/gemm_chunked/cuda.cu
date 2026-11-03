@@ -177,8 +177,9 @@ __device__ __forceinline__ int swz_col(int col, int row)
 //! orientation with an XOR swizzle, so every load, store and FFMA read
 //! finds its 4-groups contiguous in exactly one direction.
 template <int TA, int TB, int BM, int BN, int BK, int TM, int TN,
-    int THREADS>
-__global__ __launch_bounds__(THREADS) void sgemm_chunked_kernel(Params p)
+    int THREADS, int MINB = 1>
+__global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel(
+    Params p)
 {
     constexpr int kLanes = 32;
     constexpr int kLRows = 8;
@@ -192,7 +193,14 @@ __global__ __launch_bounds__(THREADS) void sgemm_chunked_kernel(Params p)
     static_assert(BM % kWarpM == 0 && BN % kWarpN == 0, "tile split");
     constexpr int kRunsA = BM * BK / 16 / THREADS;
     constexpr int kRunsB = BK * BN / 16 / THREADS;
-    static_assert(kRunsA >= 1 && kRunsB >= 1, "loader under-subscribed");
+    //! Split-loader mode (the 2-CTA/SM config): the A panel's runs
+    //! (BM*BK/16) and B panel's (BK*BN/16) together equal THREADS, so
+    //! the first threads own A whole-panel runs and the rest own B's —
+    //! one Run16 per thread per panel, half the register staging.
+    constexpr bool kSplit = (BM * BK / 16) + (BK * BN / 16) == THREADS
+        && (BM * BK / 16) < THREADS;
+    static_assert(
+        (kRunsA >= 1 && kRunsB >= 1) || kSplit, "loader under-subscribed");
 
     extern __shared__ float smem[];
     float *As = smem;
@@ -208,20 +216,107 @@ __global__ __launch_bounds__(THREADS) void sgemm_chunked_kernel(Params p)
     int const thr_m0 = warp_row * kWarpM + lane_row * TM;
     int const thr_n0 = warp_col * kWarpN + lane_col * TN;
 
-    int const m0 = blockIdx.y * BM;
-    int const n0 = blockIdx.x * BN;
-    int const bi = blockIdx.z;
-    long long const a_base = bi * p.sa;
-    long long const b_base = bi * p.sb;
-    long long const c_base = bi * p.sc;
+    float areg[kRunsA > 0 ? kRunsA : 1][16];
+    float breg[kRunsB > 0 ? kRunsB : 1][16];
 
-    int const npanels = (p.k + BK - 1) / BK;
-
-    float areg[kRunsA][16];
-    float breg[kRunsB][16];
-
-    auto load_panel = [&](int panel) {
+    //! Load one operand panel into the staging registers. General mode:
+    //! every thread loads kRunsA runs of A and kRunsB runs of B. Split
+    //! mode (kSplit): the A panel's BM*BK/16 runs go to the low threads
+    //! and B's to the rest — one run per thread, halving the staging
+    //! registers (the 2-CTA/SM budget).
+    auto load_panel = [&](int panel, int m0, int n0, long long a_base,
+                          long long b_base) {
         int const k0 = panel * BK;
+        if constexpr(kSplit)
+        {
+            constexpr int kARuns = BM * BK / 16;
+            if(tid < kARuns)
+            {
+                if(TA == 0)
+                {
+                    // Whole 16-k run of row m0+tid.
+                    int const grow = m0 + tid;
+                    long long const elem0 = a_base
+                        + static_cast<long long>(grow) * p.k + k0;
+                    Run16 const run = load_run16(p.a, p.a_shift, elem0,
+                        [&](int i) {
+                            return grow < p.m && k0 + i < p.k;
+                        });
+#pragma unroll
+                    for(int q = 0; q < 4; ++q)
+                    {
+                        areg[0][q * 4 + 0] = run.v[q].x;
+                        areg[0][q * 4 + 1] = run.v[q].y;
+                        areg[0][q * 4 + 2] = run.v[q].z;
+                        areg[0][q * 4 + 3] = run.v[q].w;
+                    }
+                }
+                else
+                {
+                    // 16-m run of k row k0 + (tid>>3).
+                    int const kk = tid >> 3;
+                    int const mm0 = (tid & 7) * 16;
+                    int const gk = k0 + kk;
+                    long long const elem0 = a_base
+                        + static_cast<long long>(gk) * p.m + m0 + mm0;
+                    Run16 const run = load_run16(p.a, p.a_shift, elem0,
+                        [&](int i) {
+                            return gk < p.k && m0 + mm0 + i < p.m;
+                        });
+#pragma unroll
+                    for(int q = 0; q < 4; ++q)
+                    {
+                        areg[0][q * 4 + 0] = run.v[q].x;
+                        areg[0][q * 4 + 1] = run.v[q].y;
+                        areg[0][q * 4 + 2] = run.v[q].z;
+                        areg[0][q * 4 + 3] = run.v[q].w;
+                    }
+                }
+            }
+            else
+            {
+                int const t = tid - kARuns;
+                if(TB == 0)
+                {
+                    int const kk = t >> 3;
+                    int const nn0 = (t & 7) * 16;
+                    int const gk = k0 + kk;
+                    long long const elem0 = b_base
+                        + static_cast<long long>(gk) * p.n + n0 + nn0;
+                    Run16 const run = load_run16(p.b, p.b_shift, elem0,
+                        [&](int i) {
+                            return gk < p.k && n0 + nn0 + i < p.n;
+                        });
+#pragma unroll
+                    for(int q = 0; q < 4; ++q)
+                    {
+                        breg[0][q * 4 + 0] = run.v[q].x;
+                        breg[0][q * 4 + 1] = run.v[q].y;
+                        breg[0][q * 4 + 2] = run.v[q].z;
+                        breg[0][q * 4 + 3] = run.v[q].w;
+                    }
+                }
+                else
+                {
+                    int const gn = n0 + t;
+                    long long const elem0 = b_base
+                        + static_cast<long long>(gn) * p.k + k0;
+                    Run16 const run = load_run16(p.b, p.b_shift, elem0,
+                        [&](int i) {
+                            return gn < p.n && k0 + i < p.k;
+                        });
+#pragma unroll
+                    for(int q = 0; q < 4; ++q)
+                    {
+                        breg[0][q * 4 + 0] = run.v[q].x;
+                        breg[0][q * 4 + 1] = run.v[q].y;
+                        breg[0][q * 4 + 2] = run.v[q].z;
+                        breg[0][q * 4 + 3] = run.v[q].w;
+                    }
+                }
+            }
+            return;
+        }
         if(TA == 0)
         {
             // A stored [m,k]: runs of consecutive k inside one row.
@@ -332,9 +427,70 @@ __global__ __launch_bounds__(THREADS) void sgemm_chunked_kernel(Params p)
         }
     };
 
-    auto store_panel = [&](int stage) {
+    //! Store the staged runs into the swizzled panel layouts, mirroring
+    //! the loader's ownership (split mode: only the owning half moves).
+    auto store_panel = [&](int stage, int m0, int n0) {
         float *as = As + stage * BM * BK;
         float *bs = Bs + stage * BK * BN;
+        if constexpr(kSplit)
+        {
+            constexpr int kARuns = BM * BK / 16;
+            if(tid < kARuns)
+            {
+                if(TA == 0)
+                {
+#pragma unroll
+                    for(int q = 0; q < 4; ++q)
+                    {
+                        int const kk = q * 4;
+                        *reinterpret_cast<float4 *>(
+                            as + tid * BK + swz_col<BK, 3>(kk, tid))
+                            = *reinterpret_cast<float4 *>(areg[0] + q * 4);
+                    }
+                }
+                else
+                {
+                    int const kk = tid >> 3;
+                    int const mm0 = (tid & 7) * 16;
+#pragma unroll
+                    for(int q = 0; q < 4; ++q)
+                    {
+                        int const mm = mm0 + q * 4;
+                        *reinterpret_cast<float4 *>(
+                            as + kk * BM + swz_col<BM>(mm, kk))
+                            = *reinterpret_cast<float4 *>(areg[0] + q * 4);
+                    }
+                }
+            }
+            else
+            {
+                int const t = tid - kARuns;
+                if(TB == 0)
+                {
+                    int const kk = t >> 3;
+                    int const nn0 = (t & 7) * 16;
+#pragma unroll
+                    for(int q = 0; q < 4; ++q)
+                    {
+                        *reinterpret_cast<float4 *>(
+                            bs + kk * BN + nn0 + q * 4)
+                            = *reinterpret_cast<float4 *>(breg[0] + q * 4);
+                    }
+                }
+                else
+                {
+#pragma unroll
+                    for(int q = 0; q < 4; ++q)
+                    {
+                        int const kk = q * 4;
+                        *reinterpret_cast<float4 *>(
+                            bs + t * BK + swz_col<BK, 3>(kk, t))
+                            = *reinterpret_cast<float4 *>(breg[0] + q * 4);
+                    }
+                }
+            }
+            return;
+        }
         if(TA == 0)
         {
             constexpr int kTPR = THREADS / BM;
@@ -423,23 +579,504 @@ __global__ __launch_bounds__(THREADS) void sgemm_chunked_kernel(Params p)
         }
     }
 
-    load_panel(0);
-    for(int panel = 0; panel < npanels; ++panel)
+    // Persistent tile loop: the launcher caps the grid at the SM count
+    // times the co-residency (2 CTAs/SM for the split config); blocks
+    // grid-stride over the (n, m, batch) tile space, n-fastest so
+    // consecutive blocks share A row bands. For grids at or below the
+    // cap this executes exactly one iteration — the same code path.
+    int const tiles_x = (p.n + BN - 1) / BN;
+    int const tiles_y = (p.m + BM - 1) / BM;
+    long long const ntiles = static_cast<long long>(tiles_x) * tiles_y
+        * p.batch;
+    for(long long tile = static_cast<long long>(blockIdx.x)
+                       + static_cast<long long>(blockIdx.y) * gridDim.x;
+        tile < ntiles;
+        tile += static_cast<long long>(gridDim.x) * gridDim.y)
     {
-        int const stage = panel & 1;
-        store_panel(stage);
-        if(panel + 1 < npanels)
+        long long const rem = tile / p.batch;
+        int const bi = static_cast<int>(tile % p.batch);
+        int const m0 = static_cast<int>(rem % tiles_y) * BM;
+        int const n0 = static_cast<int>(rem / tiles_y) * BN;
+        long long const a_base = bi * p.sa;
+        long long const b_base = bi * p.sb;
+        long long const c_base = bi * p.sc;
+
+        int const npanels = (p.k + BK - 1) / BK;
+
+        load_panel(0, m0, n0, a_base, b_base);
+        for(int panel = 0; panel < npanels; ++panel)
         {
-            load_panel(panel + 1);
+            int const stage = panel & 1;
+            store_panel(stage, m0, n0);
+            if(panel + 1 < npanels)
+            {
+                load_panel(panel + 1, m0, n0, a_base, b_base);
+            }
+            __syncthreads();
+            float const *as = As + stage * BM * BK;
+            float const *bs = Bs + stage * BK * BN;
+            // Vectorized FFMA loop, k in steps of 4: the swizzle keeps
+            // every 4-group contiguous along exactly one axis per
+            // layout (NoTrans A along k, Trans A along m, NoTrans B
+            // along n, Trans B along k), so LDS.128 replaces four
+            // LDS.32 issue slots.
+#pragma unroll
+            for(int kk = 0; kk < BK; kk += 4)
+            {
+                float4 av4[TM];
+                if(TA == 0)
+                {
+#pragma unroll
+                    for(int i = 0; i < TM; ++i)
+                    {
+                        av4[i] = *reinterpret_cast<const float4 *>(
+                            as + (thr_m0 + i) * BK
+                                + swz_col<BK, 3>(kk, thr_m0 + i));
+                    }
+                }
+                float4 bv4[TN];
+                if(TB == 1)
+                {
+#pragma unroll
+                    for(int j = 0; j < TN; ++j)
+                    {
+                        bv4[j] = *reinterpret_cast<const float4 *>(
+                            bs + (thr_n0 + j) * BK
+                                + swz_col<BK, 3>(kk, thr_n0 + j));
+                    }
+                }
+#pragma unroll
+                for(int q = 0; q < 4; ++q)
+                {
+                    float av[TM];
+                    float bv[TN];
+                    if(TA == 0)
+                    {
+#pragma unroll
+                        for(int i = 0; i < TM; ++i)
+                        {
+                            av[i] = (&av4[i].x)[q];
+                        }
+                    }
+                    else
+                    {
+#pragma unroll
+                        for(int g = 0; g < TM; g += 4)
+                        {
+                            float4 const a =
+                                *reinterpret_cast<const float4 *>(
+                                    as + (kk + q) * BM
+                                        + swz_col<BM>(thr_m0 + g, kk + q));
+                            av[g + 0] = a.x;
+                            av[g + 1] = a.y;
+                            av[g + 2] = a.z;
+                            av[g + 3] = a.w;
+                        }
+                    }
+                    if(TB == 0)
+                    {
+#pragma unroll
+                        for(int g = 0; g < TN; g += 4)
+                        {
+                            float4 const b =
+                                *reinterpret_cast<const float4 *>(
+                                    bs + (kk + q) * BN + thr_n0 + g);
+                            bv[g + 0] = b.x;
+                            bv[g + 1] = b.y;
+                            bv[g + 2] = b.z;
+                            bv[g + 3] = b.w;
+                        }
+                    }
+                    else
+                    {
+#pragma unroll
+                        for(int j = 0; j < TN; ++j)
+                        {
+                            bv[j] = (&bv4[j].x)[q];
+                        }
+                    }
+#pragma unroll
+                    for(int i = 0; i < TM; ++i)
+                    {
+#pragma unroll
+                        for(int j = 0; j < TN; ++j)
+                        {
+                            acc[i][j] += av[i] * bv[j];
+                        }
+                    }
+                }
+            }
+            __syncthreads();
         }
-        __syncthreads();
-        float const *as = As + stage * BM * BK;
-        float const *bs = Bs + stage * BK * BN;
-        // Vectorized FFMA loop, k in steps of 4: the swizzle keeps
-        // every 4-group contiguous along exactly one axis per layout
-        // (NoTrans A along k, Trans A along m, NoTrans B along n,
-        // Trans B along k), so LDS.128 replaces four LDS.32 slots.
-#pragma unroll 4
+
+        // ---- epilogue: alpha/beta and the chunk-resolved C store. The
+        // C row may straddle chunk boundaries (odd n guarantees it), so
+        // every 4-element group resolves its own base exactly like the
+        // loaders; the vectorized store only fires when the whole group
+        // lies in one chunk at a 16B-aligned offset. ----
+        bool const beta_zero = (p.beta == 0.f);
+#pragma unroll
+        for(int i = 0; i < TM; ++i)
+        {
+            int const gm = m0 + thr_m0 + i;
+            if(gm >= p.m)
+            {
+                continue;
+            }
+#pragma unroll
+            for(int j = 0; j < TN; j += 4)
+            {
+                int const gn = n0 + thr_n0 + j;
+                if(gn >= p.n)
+                {
+                    continue;
+                }
+                long long const elem0 = c_base
+                    + static_cast<long long>(gm) * p.n + gn;
+                float v[4];
+                v[0] = p.alpha * acc[i][j + 0];
+                v[1] = p.alpha * acc[i][j + 1];
+                v[2] = p.alpha * acc[i][j + 2];
+                v[3] = p.alpha * acc[i][j + 3];
+                // Group fully in bounds, 16B-aligned, one chunk?
+                int const span = gn + 3 < p.n ? 4 : p.n - gn;
+                bool const same_chunk = p.c_shift == 0
+                    || p.c_shift >= 62
+                    || ((elem0 >> p.c_shift)
+                        == ((elem0 + 3) >> p.c_shift));
+                if(span == 4 && (elem0 & 3) == 0 && same_chunk)
+                {
+                    float4 *dst = reinterpret_cast<float4 *>(
+                        chunk_at_mut(p.c, p.c_shift, elem0));
+                    if(!beta_zero)
+                    {
+                        float4 const old = *dst;
+                        v[0] += p.beta * old.x;
+                        v[1] += p.beta * old.y;
+                        v[2] += p.beta * old.z;
+                        v[3] += p.beta * old.w;
+                    }
+                    *dst = make_float4(v[0], v[1], v[2], v[3]);
+                }
+                else
+                {
+#pragma unroll
+                    for(int e = 0; e < 4; ++e)
+                    {
+                        if(gn + e < p.n)
+                        {
+                            float *el = chunk_at_mut(p.c, p.c_shift,
+                                elem0 + e);
+                            if(!beta_zero)
+                            {
+                                v[e] += p.beta * (*el);
+                            }
+                            *el = v[e];
+                        }
+                    }
+                }
+            }
+        }
+        // Reset the accumulators for the next grid-stride tile.
+#pragma unroll
+        for(int i = 0; i < TM; ++i)
+        {
+#pragma unroll
+            for(int j = 0; j < TN; ++j)
+            {
+                acc[i][j] = 0.f;
+            }
+        }
+    }
+}
+
+//! Generalized run loader: R consecutive elements (R in {4,8,16}) with
+//! EXACTLY the addressing semantics of load_run16 — a run takes the
+//! float4 vector path only when every element is valid AND the whole
+//! run sits inside one chunk at a 16B-aligned offset; anything else
+//! (straddle, tail, misalignment) resolves per element through
+//! chunk_at, zero-filling rejected elements and never resolving an
+//! out-of-table index.
+template <int R, class Ok>
+__device__ __forceinline__ void load_run(const void *tab, int shift,
+    long long elem0, Ok ok, float *dst)
+{
+    bool all = true;
+#pragma unroll
+    for(int i = 0; i < R; ++i)
+    {
+        all = all && ok(i);
+    }
+    if(all)
+    {
+        long long split = R;
+        if(shift > 0 && shift < 62)
+        {
+            long long const b = ((elem0 >> shift) + 1) << shift;
+            long long const s = b - elem0;
+            split = s < R ? s : R;
+        }
+        if(split == R && (elem0 & 3) == 0)
+        {
+            const float *q0 = chunk_at(tab, shift, elem0);
+#pragma unroll
+            for(int q = 0; q < R / 4; ++q)
+            {
+                *reinterpret_cast<float4 *>(dst + q * 4)
+                    = *reinterpret_cast<const float4 *>(q0 + q * 4);
+            }
+        }
+        else
+        {
+#pragma unroll
+            for(int i = 0; i < R; ++i)
+            {
+                dst[i] = *chunk_at(tab, shift, elem0 + i);
+            }
+        }
+    }
+    else
+    {
+#pragma unroll
+        for(int i = 0; i < R; ++i)
+        {
+            dst[i] = ok(i) ? *chunk_at(tab, shift, elem0 + i) : 0.f;
+        }
+    }
+}
+
+//! Multi-stage thin-panel variant of the kernel family (the sm75 SIMT
+//! direction): same lane grid (8x4), thread tile and swizzled smem
+//! layout as sgemm_chunked_kernel, but panels are BK=8/16-deep, smem
+//! holds S stages, and the global->register->smem pipeline keeps TWO
+//! panels of loads in flight: the loader for panel q issues at the top
+//! of panel q-2's compute and its smem store lands at the end of panel
+//! q-1 (two full panels of latency runway per load). The main loop is
+//! unrolled by 2 so the register staging buffers rotate with
+//! compile-time indices. Loader granularity generalizes the 16-float
+//! run to RUN floats (RUN=8 for BK=16, RUN=4 for BK=8) with identical
+//! chunk addressing semantics (see load_run above).
+template <int TA, int TB, int BM, int BN, int BK, int TM, int TN,
+    int THREADS, int RUN, int S, int MINB>
+__global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel_ms(
+    Params p)
+{
+    constexpr int kLanes = 32;
+    constexpr int kLRows = 8;
+    constexpr int kLCols = 4;
+    constexpr int kWarpM = kLRows * TM;
+    constexpr int kWarpN = kLCols * TN;
+    constexpr int kWRows = BM / kWarpM;
+    constexpr int kWCols = BN / kWarpN;
+    constexpr int kWarps = kWRows * kWCols;
+    static_assert(kWarps * kLanes == THREADS, "thread count mismatch");
+    static_assert(BM % kWarpM == 0 && BN % kWarpN == 0, "tile split");
+    constexpr int kRunsA = BM * BK / RUN / THREADS;
+    constexpr int kRunsB = BK * BN / RUN / THREADS;
+    static_assert(kRunsA >= 1 && kRunsB >= 1, "loader under-subscribed");
+    static_assert(RUN == 4 || RUN == 8 || RUN == 16, "run width");
+    static_assert(S >= 2, "need at least two stages");
+
+    extern __shared__ float smem[];
+    float *As = smem;
+    float *Bs = smem + S * BM * BK;
+
+    int const tid = threadIdx.x;
+    int const warp = tid >> 5;
+    int const lane = tid & 31;
+    int const warp_row = warp / kWCols;
+    int const warp_col = warp % kWCols;
+    int const lane_row = lane >> 2;
+    int const lane_col = lane & 3;
+    int const thr_m0 = warp_row * kWarpM + lane_row * TM;
+    int const thr_n0 = warp_col * kWarpN + lane_col * TN;
+
+    int const m0 = blockIdx.y * BM;
+    int const n0 = blockIdx.x * BN;
+    int const bi = blockIdx.z;
+    long long const a_base = bi * p.sa;
+    long long const b_base = bi * p.sb;
+    long long const c_base = bi * p.sc;
+
+    int const npanels = (p.k + BK - 1) / BK;
+
+    float areg[2][kRunsA][RUN];
+    float breg[2][kRunsB][RUN];
+
+    auto ld = [&](int panel, int buf) {
+        int const k0 = panel * BK;
+        if(TA == 0)
+        {
+            constexpr int kTPR = THREADS / BM;
+            int const mm = tid / kTPR;
+            int const slot = tid % kTPR;
+#pragma unroll
+            for(int r = 0; r < kRunsA; ++r)
+            {
+                int const kk0 = slot * (BK / kTPR) + r * RUN;
+                int const grow = m0 + mm;
+                long long const elem0 = a_base
+                    + static_cast<long long>(grow) * p.k + k0 + kk0;
+                load_run<RUN>(p.a, p.a_shift, elem0,
+                    [&](int i) {
+                        return grow < p.m && k0 + kk0 + i < p.k;
+                    },
+                    areg[buf][r]);
+            }
+        }
+        else
+        {
+            constexpr int kTPR = THREADS / BK;
+            int const kk = tid / kTPR;
+            int const slot = tid % kTPR;
+#pragma unroll
+            for(int r = 0; r < kRunsA; ++r)
+            {
+                int const mm0 = slot * (BM / kTPR) + r * RUN;
+                int const gk = k0 + kk;
+                long long const elem0 = a_base
+                    + static_cast<long long>(gk) * p.m + m0 + mm0;
+                load_run<RUN>(p.a, p.a_shift, elem0,
+                    [&](int i) {
+                        return gk < p.k && m0 + mm0 + i < p.m;
+                    },
+                    areg[buf][r]);
+            }
+        }
+        if(TB == 0)
+        {
+            constexpr int kTPR = THREADS / BK;
+            int const kk = tid / kTPR;
+            int const slot = tid % kTPR;
+#pragma unroll
+            for(int r = 0; r < kRunsB; ++r)
+            {
+                int const nn0 = slot * (BN / kTPR) + r * RUN;
+                int const gk = k0 + kk;
+                long long const elem0 = b_base
+                    + static_cast<long long>(gk) * p.n + n0 + nn0;
+                load_run<RUN>(p.b, p.b_shift, elem0,
+                    [&](int i) {
+                        return gk < p.k && n0 + nn0 + i < p.n;
+                    },
+                    breg[buf][r]);
+            }
+        }
+        else
+        {
+            constexpr int kTPR = THREADS / BN;
+            int const nn = tid / kTPR;
+            int const slot = tid % kTPR;
+#pragma unroll
+            for(int r = 0; r < kRunsB; ++r)
+            {
+                int const kk0 = slot * (BK / kTPR) + r * RUN;
+                int const gn = n0 + nn;
+                long long const elem0 = b_base
+                    + static_cast<long long>(gn) * p.k + k0 + kk0;
+                load_run<RUN>(p.b, p.b_shift, elem0,
+                    [&](int i) {
+                        return gn < p.n && k0 + kk0 + i < p.k;
+                    },
+                    breg[buf][r]);
+            }
+        }
+    };
+
+    auto st = [&](int panel, int buf) {
+        float *as = As + (panel % S) * BM * BK;
+        float *bs = Bs + (panel % S) * BK * BN;
+        if(TA == 0)
+        {
+            constexpr int kTPR = THREADS / BM;
+            int const mm = tid / kTPR;
+            int const slot = tid % kTPR;
+#pragma unroll
+            for(int r = 0; r < kRunsA; ++r)
+            {
+                int const kk0 = slot * (BK / kTPR) + r * RUN;
+#pragma unroll
+                for(int q = 0; q < RUN / 4; ++q)
+                {
+                    int const kk = kk0 + q * 4;
+                    *reinterpret_cast<float4 *>(
+                        as + mm * BK + swz_col<BK, 3>(kk, mm))
+                        = *reinterpret_cast<float4 *>(areg[buf][r] + q * 4);
+                }
+            }
+        }
+        else
+        {
+            constexpr int kTPR = THREADS / BK;
+            int const kk = tid / kTPR;
+            int const slot = tid % kTPR;
+#pragma unroll
+            for(int r = 0; r < kRunsA; ++r)
+            {
+                int const mm0 = slot * (BM / kTPR) + r * RUN;
+#pragma unroll
+                for(int q = 0; q < RUN / 4; ++q)
+                {
+                    int const mm = mm0 + q * 4;
+                    *reinterpret_cast<float4 *>(
+                        as + kk * BM + swz_col<BM>(mm, kk))
+                        = *reinterpret_cast<float4 *>(areg[buf][r] + q * 4);
+                }
+            }
+        }
+        if(TB == 0)
+        {
+            constexpr int kTPR = THREADS / BK;
+            int const kk = tid / kTPR;
+            int const slot = tid % kTPR;
+#pragma unroll
+            for(int r = 0; r < kRunsB; ++r)
+            {
+                int const nn0 = slot * (BN / kTPR) + r * RUN;
+#pragma unroll
+                for(int q = 0; q < RUN / 4; ++q)
+                {
+                    *reinterpret_cast<float4 *>(bs + kk * BN + nn0 + q * 4)
+                        = *reinterpret_cast<float4 *>(breg[buf][r] + q * 4);
+                }
+            }
+        }
+        else
+        {
+            constexpr int kTPR = THREADS / BN;
+            int const nn = tid / kTPR;
+            int const slot = tid % kTPR;
+#pragma unroll
+            for(int r = 0; r < kRunsB; ++r)
+            {
+                int const kk0 = slot * (BK / kTPR) + r * RUN;
+#pragma unroll
+                for(int q = 0; q < RUN / 4; ++q)
+                {
+                    int const kk = kk0 + q * 4;
+                    *reinterpret_cast<float4 *>(
+                        bs + nn * BK + swz_col<BK, 3>(kk, nn))
+                        = *reinterpret_cast<float4 *>(breg[buf][r] + q * 4);
+                }
+            }
+        }
+    };
+
+    float acc[TM][TN];
+#pragma unroll
+    for(int i = 0; i < TM; ++i)
+    {
+#pragma unroll
+        for(int j = 0; j < TN; ++j)
+        {
+            acc[i][j] = 0.f;
+        }
+    }
+
+    auto compute = [&](int panel) {
+        float const *as = As + (panel % S) * BM * BK;
+        float const *bs = Bs + (panel % S) * BK * BN;
+#pragma unroll
         for(int kk = 0; kk < BK; kk += 4)
         {
             float4 av4[TM];
@@ -480,7 +1117,7 @@ __global__ __launch_bounds__(THREADS) void sgemm_chunked_kernel(Params p)
                 else
                 {
 #pragma unroll
-                    for(int g = 0; g < TM; g += 8)
+                    for(int g = 0; g < TM; g += 4)
                     {
                         float4 const a = *reinterpret_cast<const float4 *>(
                             as + (kk + q) * BM
@@ -523,14 +1160,50 @@ __global__ __launch_bounds__(THREADS) void sgemm_chunked_kernel(Params p)
                 }
             }
         }
+    };
+
+    // Prologue: panels 0,1 into staging buffers 0,1; panel 0 lands in
+    // smem stage 0. Main loop (unrolled by 2 for compile-time buffer
+    // rotation): at panel q, issue the loader for q+2 (top), compute q
+    // (middle, between barriers), store q+1 from the other buffer
+    // (end). Two panels of global loads are in flight throughout.
+    ld(0, 0);
+    if(1 < npanels)
+    {
+        ld(1, 1);
+    }
+    st(0, 0);
+    int base = 0;
+    for(; base + 1 < npanels; base += 2)
+    {
+        if(base + 2 < npanels)
+        {
+            ld(base + 2, 0);
+        }
+        __syncthreads();
+        compute(base);
+        __syncthreads();
+        st(base + 1, 1);
+        if(base + 3 < npanels)
+        {
+            ld(base + 3, 1);
+        }
+        __syncthreads();
+        compute(base + 1);
+        __syncthreads();
+        if(base + 2 < npanels)
+        {
+            st(base + 2, 0);
+        }
+    }
+    if(base < npanels)
+    {
+        __syncthreads();
+        compute(base);
         __syncthreads();
     }
 
-    // ---- epilogue: alpha/beta and the chunk-resolved C store. The C
-    // row may straddle chunk boundaries (odd n guarantees it), so every
-    // 4-element group resolves its own base exactly like the loaders;
-    // the vectorized store only fires when the whole group lies in one
-    // chunk at a 16B-aligned offset. ----
+    // ---- epilogue: identical to sgemm_chunked_kernel ----
     bool const beta_zero = (p.beta == 0.f);
 #pragma unroll
     for(int i = 0; i < TM; ++i)
@@ -555,9 +1228,6 @@ __global__ __launch_bounds__(THREADS) void sgemm_chunked_kernel(Params p)
             v[1] = p.alpha * acc[i][j + 1];
             v[2] = p.alpha * acc[i][j + 2];
             v[3] = p.alpha * acc[i][j + 3];
-            // Group fully in bounds, 16B-aligned, one chunk? (the
-            // alignment law holds in EVERY addressing mode; odd n
-            // simply takes the scalar path more often)
             int const span = gn + 3 < p.n ? 4 : p.n - gn;
             bool const same_chunk = p.c_shift == 0 || p.c_shift >= 62
                 || ((elem0 >> p.c_shift)
@@ -602,9 +1272,8 @@ __global__ __launch_bounds__(THREADS) void sgemm_chunked_kernel(Params p)
 //! 1: 8x16x32 over 128 threads (half the smem traffic per FMA)
 //! 2: 8x16x16 over 128 threads (thin panels, two blocks per SM)
 constexpr int kCfgA88 = 0;
-constexpr int kCfgB816 = 1;
-constexpr int kCfgB816k16 = 2;
-constexpr int kCfgCount = 3;
+constexpr int kCfgMsWgrad = 4;
+constexpr int kCfgMsSmall = 5;
 
 template <int CFG>
 struct CfgTraits;
@@ -613,37 +1282,45 @@ template <>
 struct CfgTraits<kCfgA88>
 {
     static constexpr int BM = 128, BN = 128, BK = 32, TM = 8, TN = 8,
-        THREADS = 256;
+        THREADS = 256, MINB = 1;
 };
 
-template <>
-struct CfgTraits<kCfgB816>
-{
-    static constexpr int BM = 128, BN = 128, BK = 32, TM = 8, TN = 16,
-        THREADS = 128;
-};
+
+
 
 template <>
-struct CfgTraits<kCfgB816k16>
+struct CfgTraits<kCfgMsWgrad>
 {
-    static constexpr int BM = 128, BN = 128, BK = 16, TM = 8, TN = 16,
-        THREADS = 128;
+    static constexpr int BM = 128, BN = 64, BK = 16, TM = 8, TN = 4,
+        THREADS = 256, RUN = 4, STAGES = 2, MINB = 2;
+};
+template <>
+struct CfgTraits<kCfgMsSmall>
+{
+    static constexpr int BM = 64, BN = 64, BK = 16, TM = 4, TN = 8,
+        THREADS = 128, RUN = 8, STAGES = 2, MINB = 4;
 };
 
 template <int TA, int TB, int CFG>
-bool launch_cfg(Params &p, cudaStream_t stream)
+constexpr auto kKernelOf = sgemm_chunked_kernel<TA, TB,
+    CfgTraits<CFG>::BM, CfgTraits<CFG>::BN, CfgTraits<CFG>::BK,
+    CfgTraits<CFG>::TM, CfgTraits<CFG>::TN, CfgTraits<CFG>::THREADS,
+    CfgTraits<CFG>::MINB>;
+
+template <int TA, int TB, int CFG>
+bool launch_cfg_ms(Params &p, cudaStream_t stream)
 {
     using T = CfgTraits<CFG>;
-    constexpr int kSmem
-        = 2 * (T::BM * T::BK + T::BK * T::BN) * int(sizeof(float));
+    constexpr int kSmem = T::STAGES
+        * (T::BM * T::BK + T::BK * T::BN) * int(sizeof(float));
     dim3 const grid((p.n + T::BN - 1) / T::BN, (p.m + T::BM - 1) / T::BM,
         p.batch);
-    auto kernel = sgemm_chunked_kernel<TA, TB, T::BM, T::BN, T::BK, T::TM,
-        T::TN, T::THREADS>;
+    auto kernel = sgemm_chunked_kernel_ms<TA, TB, T::BM, T::BN, T::BK,
+        T::TM, T::TN, T::THREADS, T::RUN, T::STAGES, T::MINB>;
     static bool configured = [] {
         return cudaFuncSetAttribute(
-            sgemm_chunked_kernel<TA, TB, T::BM, T::BN, T::BK, T::TM,
-                T::TN, T::THREADS>,
+            sgemm_chunked_kernel_ms<TA, TB, T::BM, T::BN, T::BK, T::TM,
+                T::TN, T::THREADS, T::RUN, T::STAGES, T::MINB>,
             cudaFuncAttributeMaxDynamicSharedMemorySize,
             kSmem <= 48 * 1024 ? 48 * 1024 : kSmem) == cudaSuccess;
     }();
@@ -658,37 +1335,144 @@ bool launch_cfg(Params &p, cudaStream_t stream)
     return err == cudaSuccess;
 }
 
+template <int TA, int TB, int CFG>
+bool launch_cfg(Params &p, cudaStream_t stream)
+{
+    using T = CfgTraits<CFG>;
+    constexpr int kSmem
+        = 2 * (T::BM * T::BK + T::BK * T::BN) * int(sizeof(float));
+    constexpr auto kernel = kKernelOf<TA, TB, CFG>;
+    static bool configured = [] {
+        return cudaFuncSetAttribute(
+            sgemm_chunked_kernel<TA, TB, T::BM, T::BN, T::BK, T::TM,
+                T::TN, T::THREADS, T::MINB>,
+            cudaFuncAttributeMaxDynamicSharedMemorySize,
+            kSmem <= 48 * 1024 ? 48 * 1024 : kSmem) == cudaSuccess;
+    }();
+    if(!configured)
+    {
+        return false;
+    }
+    // Occupancy-driven grid: enough blocks to fill every slot the SMs
+    // can co-reside, one linear launch; the kernel grid-strides over
+    // the tile space (a single iteration when tiles <= blocks).
+    static int blocks_per_sm = [] {
+        int b = 0;
+        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&b,
+            reinterpret_cast<void const *>(kernel), T::THREADS, kSmem);
+        return b > 0 ? b : 1;
+    }();
+    static int sm_count = [] {
+        int d = 0;
+        if(cudaGetDevice(&d) != cudaSuccess)
+        {
+            return 1;
+        }
+        int n = 0;
+        cudaDeviceProp prop;
+        if(cudaGetDeviceProperties(&prop, d) != cudaSuccess)
+        {
+            return 1;
+        }
+        n = prop.multiProcessorCount;
+        return n > 0 ? n : 1;
+    }();
+    long long const tiles = static_cast<long long>(
+        (p.n + T::BN - 1) / T::BN)
+        * ((p.m + T::BM - 1) / T::BM) * p.batch;
+    long long const want
+        = static_cast<long long>(sm_count) * blocks_per_sm;
+    int const grid_x = static_cast<int>(tiles < want ? tiles : want);
+    void *args[] = {&p};
+    auto err = cudaLaunchKernel(
+        reinterpret_cast<void const *>(kernel), dim3(grid_x, 1, 1),
+        dim3(T::THREADS), args, kSmem, stream);
+    return err == cudaSuccess;
+}
+
+//! One dispatch chain per config id; the multi-stage configs route to
+//! their own launcher, the classic family to launch_cfg.
+template <int CFG, bool MS>
+struct CfgDispatch;
+
+template <int CFG>
+struct CfgDispatch<CFG, false>
+{
+    static bool run(int ta, int tb, Params &p, cudaStream_t stream)
+    {
+        if(ta == 0 && tb == 0)
+        {
+            return launch_cfg<0, 0, CFG>(p, stream);
+        }
+        if(ta == 0 && tb == 1)
+        {
+            return launch_cfg<0, 1, CFG>(p, stream);
+        }
+        if(ta == 1 && tb == 0)
+        {
+            return launch_cfg<1, 0, CFG>(p, stream);
+        }
+        return launch_cfg<1, 1, CFG>(p, stream);
+    }
+};
+
+template <int CFG>
+struct CfgDispatch<CFG, true>
+{
+    static bool run(int ta, int tb, Params &p, cudaStream_t stream)
+    {
+        if(ta == 0 && tb == 0)
+        {
+            return launch_cfg_ms<0, 0, CFG>(p, stream);
+        }
+        if(ta == 0 && tb == 1)
+        {
+            return launch_cfg_ms<0, 1, CFG>(p, stream);
+        }
+        if(ta == 1 && tb == 0)
+        {
+            return launch_cfg_ms<1, 0, CFG>(p, stream);
+        }
+        return launch_cfg_ms<1, 1, CFG>(p, stream);
+    }
+};
+
+template <int CFG>
+bool dispatch_cfg(int ta, int tb, Params &p, cudaStream_t stream)
+{
+    constexpr bool kMs = CFG == kCfgMsWgrad || CFG == kCfgMsSmall;
+    return CfgDispatch<CFG, kMs>::run(ta, tb, p, stream);
+}
+
+template <int CFG>
+bool dispatch_cfg_ms(int ta, int tb, Params &p, cudaStream_t stream)
+{
+    if(ta == 0 && tb == 0)
+    {
+        return launch_cfg_ms<0, 0, CFG>(p, stream);
+    }
+    if(ta == 0 && tb == 1)
+    {
+        return launch_cfg_ms<0, 1, CFG>(p, stream);
+    }
+    if(ta == 1 && tb == 0)
+    {
+        return launch_cfg_ms<1, 0, CFG>(p, stream);
+    }
+    return launch_cfg_ms<1, 1, CFG>(p, stream);
+}
+
+
 } // namespace
 
 bool supports(Op transA, Op transB, int m, int n, int k, int batch) noexcept
 {
-    if(m <= 0 || n <= 0 || k <= 0 || batch <= 0)
-    {
-        return false;
-    }
-    // Vectorized loader paths need the CONTIGUOUS leading dimension of
-    // each storage layout to be a multiple of 4 (chunk bases are 4
-    // MiB-aligned, so every run start is then 16B-aligned; straddling
-    // runs resolve element-wise and stay correct). C always has a
-    // guarded scalar fallback, so n itself may be arbitrary (lm_head's
-    // 50257 vocab).
-    if(transA == Op::NoTrans && k % 4 != 0)
-    {
-        return false;
-    }
-    if(transA == Op::Trans && m % 4 != 0)
-    {
-        return false;
-    }
-    if(transB == Op::NoTrans && n % 4 != 0)
-    {
-        return false;
-    }
-    if(transB == Op::Trans && k % 4 != 0)
-    {
-        return false;
-    }
-    return true;
+    (void)transA;
+    (void)transB;
+    // Any positive geometry is covered: runs whose leading dimension is
+    // not 4-aligned (odd vocab rows and friends) resolve element-wise
+    // inside load_run16 and the epilogue — correct, merely unvectorized.
+    return m > 0 && n > 0 && k > 0 && batch > 0;
 }
 
 namespace
@@ -711,13 +1495,24 @@ int forced_cfg() noexcept
 //! baseline); the thin-panel 8x16x16 variant wins on small-k shapes
 //! where the 32-deep k panel cannot amortize its pipeline. Specialized
 //! families (batched-small, odd-N lm_head) slot in here as they land.
-int pick_cfg(Op, Op, int, int, int k, int) noexcept
+//! The measured ownership policy (GPT-2 training set, 2080 Ti pinned
+//! at 1350 MHz, scattered 4 MiB chunks). The native kernel OWNS a call
+//! only where it beats the production alternative — the workspace-
+//! staged cuBLAS path (cuBLAS plus gather/scatter traffic): the
+//! batched small-n family (attention projections and their grads),
+//! where staging costs more than the whole GEMM. Everywhere else the
+//! campaign has not yet closed the gap to the cuBLAS bar, the picker
+//! returns -1 and the staged path stays in charge. The
+//! NNHAUL_GEMM_CHUNKED_CFG pin overrides the policy for measurement.
+int pick_cfg(Op, Op, int m, int n, int k, int batch) noexcept
 {
-    if(k < 32)
+    (void)m;
+    (void)k;
+    if(batch >= 2 && n <= 64)
     {
-        return kCfgB816k16;
+        return kCfgMsSmall;
     }
-    return kCfgB816;
+    return -1;
 }
 
 } // namespace
@@ -736,13 +1531,16 @@ const char *pick_name(Op transA, Op transB, int m, int n, int k,
     {
         case kCfgA88:
             return "chunked-128x128x32-8x8-256t";
-        case kCfgB816:
-            return "chunked-128x128x32-8x16-128t";
-        case kCfgB816k16:
-            return "chunked-128x128x16-8x16-128t";
+        case kCfgMsWgrad:
+            return "chunked-ms-128x64x16-s2-8x4-256t";
+        case kCfgMsSmall:
+            return "chunked-ms-64x64x16-s2-8x8-128t";
     }
     return "chunked-?";
 }
+
+bool launch_with_cfg(int cfg, Op transA, Op transB, Params &p,
+    cudaStream_t stream) noexcept;
 
 bool launch(Op transA, Op transB, int m, int n, int k, int batch,
     float alpha, const Operand &a, const Operand &b, float beta,
@@ -769,56 +1567,82 @@ bool launch(Op transA, Op transB, int m, int n, int k, int batch,
     p.sc = stride_c;
     p.alpha = alpha;
     p.beta = beta;
-    int const cfg = forced_cfg() >= 0 ? forced_cfg()
-                                      : pick_cfg(transA, transB, m, n, k,
-                                            batch);
+    int const picked = pick_cfg(transA, transB, m, n, k, batch);
+    int const cfg = forced_cfg() >= 0 ? forced_cfg() : picked;
+    if(cfg < 0)
+    {
+        return false;
+    }
+    return launch_with_cfg(cfg, transA, transB, p, stream);
+}
+
+//! The best native configuration for a shape the ownership policy
+//! declined — launch_forced()'s choice.
+int pick_cfg_best(Op ta, Op tb, int m, int n, int k, int batch) noexcept
+{
+    if(batch >= 2 && n <= 64)
+    {
+        return kCfgMsSmall;
+    }
+    if(ta == Op::Trans && k >= 1024)
+    {
+        return kCfgMsWgrad;
+    }
+    return kCfgA88;
+}
+
+
+
+//! Launch with the best configuration for the shape REGARDLESS of the
+//! ownership policy — the workspace-overflow rescue (a call whose
+//! staged bytes exceed the gemm workspace must run natively; there is
+//! no third path). Same contract as launch() otherwise.
+bool launch_forced(Op transA, Op transB, int m, int n, int k, int batch,
+    float alpha, const Operand &a, const Operand &b, float beta,
+    const Operand &c, long long stride_a, long long stride_b,
+    long long stride_c, cudaStream_t stream) noexcept
+{
+    if(!supports(transA, transB, m, n, k, batch))
+    {
+        return false;
+    }
+    Params p;
+    p.a = a.ptr;
+    p.a_shift = a.shift;
+    p.b = b.ptr;
+    p.b_shift = b.shift;
+    p.c = const_cast<void *>(c.ptr);
+    p.c_shift = c.shift;
+    p.m = m;
+    p.n = n;
+    p.k = k;
+    p.batch = batch;
+    p.sa = stride_a;
+    p.sb = stride_b;
+    p.sc = stride_c;
+    p.alpha = alpha;
+    p.beta = beta;
+    int const cfg = pick_cfg_best(transA, transB, m, n, k, batch);
+    return launch_with_cfg(cfg, transA, transB, p, stream);
+}
+
+//! Launch with an explicit configuration id — the campaign pin and the
+//! rescue path above.
+bool launch_with_cfg(int cfg, Op transA, Op transB, Params &p,
+    cudaStream_t stream) noexcept
+{
     int const ta = static_cast<int>(transA);
     int const tb = static_cast<int>(transB);
-    if(cfg == kCfgA88)
+    switch(cfg)
     {
-        if(ta == 0 && tb == 0)
-        {
-            return launch_cfg<0, 0, kCfgA88>(p, stream);
-        }
-        if(ta == 0 && tb == 1)
-        {
-            return launch_cfg<0, 1, kCfgA88>(p, stream);
-        }
-        if(ta == 1 && tb == 0)
-        {
-            return launch_cfg<1, 0, kCfgA88>(p, stream);
-        }
-        return launch_cfg<1, 1, kCfgA88>(p, stream);
+        case kCfgA88:
+            return dispatch_cfg<kCfgA88>(ta, tb, p, stream);
+        case kCfgMsWgrad:
+            return dispatch_cfg<kCfgMsWgrad>(ta, tb, p, stream);
+        case kCfgMsSmall:
+            return dispatch_cfg<kCfgMsSmall>(ta, tb, p, stream);
     }
-    if(cfg == kCfgB816k16)
-    {
-        if(ta == 0 && tb == 0)
-        {
-            return launch_cfg<0, 0, kCfgB816k16>(p, stream);
-        }
-        if(ta == 0 && tb == 1)
-        {
-            return launch_cfg<0, 1, kCfgB816k16>(p, stream);
-        }
-        if(ta == 1 && tb == 0)
-        {
-            return launch_cfg<1, 0, kCfgB816k16>(p, stream);
-        }
-        return launch_cfg<1, 1, kCfgB816k16>(p, stream);
-    }
-    if(ta == 0 && tb == 0)
-    {
-        return launch_cfg<0, 0, kCfgB816>(p, stream);
-    }
-    if(ta == 0 && tb == 1)
-    {
-        return launch_cfg<0, 1, kCfgB816>(p, stream);
-    }
-    if(ta == 1 && tb == 0)
-    {
-        return launch_cfg<1, 0, kCfgB816>(p, stream);
-    }
-    return launch_cfg<1, 1, kCfgB816>(p, stream);
+    return dispatch_cfg<kCfgA88>(ta, tb, p, stream);
 }
 
 } // namespace nntile::kernel::gemm_chunked

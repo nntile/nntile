@@ -183,8 +183,11 @@ void run_case(Op ta, Op tb, int m, int n, int k, int batch, bool bcast_a,
     Operand const oc_s{(void *)cc.table, 20};
     long long const sa = bcast_a ? 0LL : a_store;
     long long const sb = bcast_b ? 0LL : b_store;
-    bool const ok = kernel::gemm_chunked::launch(ta, tb, m, n, k, batch,
-        0.7f, oa_s, ob_s, 0.3f, oc_s, sa, sb, c_store, 0);
+    // Kernel correctness: force the best config regardless of the
+    // ownership policy (launch() alone would decline shapes the staged
+    // path still owns).
+    bool const ok = kernel::gemm_chunked::launch_forced(ta, tb, m, n, k,
+        batch, 0.7f, oa_s, ob_s, 0.3f, oc_s, sa, sb, c_store, 0);
     TEST_ASSERT(ok);
     TEST_ASSERT(cudaDeviceSynchronize() == cudaSuccess);
 
@@ -206,8 +209,19 @@ void run_case(Op ta, Op tb, int m, int n, int k, int batch, bool bcast_a,
     double worst = 0.0;
     for(std::size_t i = 0; i < got.size(); ++i)
     {
-        worst = std::max(worst,
-            std::fabs(double(got[i]) - double(c_ref[i])));
+        // NaN-blind-proof: an explicit NaN check, then the gap (a bare
+        // max()/comparison silently skips NaN diffs).
+        if(std::isnan(got[i]) || std::isnan(c_ref[i]))
+        {
+            std::fprintf(stderr, "gemm_chunked %s: NaN at %zu\n", label,
+                i);
+            throw std::runtime_error("gemm_chunked NaN");
+        }
+        double const d = std::fabs(double(got[i]) - double(c_ref[i]));
+        if(!(d <= worst) || d > worst)
+        {
+            worst = d > worst ? d : worst;
+        }
     }
     double const tol = 16.0 * std::numeric_limits<float>::epsilon() * k
         * 0.0625 + 1e-6;
@@ -227,6 +241,12 @@ void run_case(Op ta, Op tb, int m, int n, int k, int batch, bool bcast_a,
 
 int main()
 {
+    // Ownership policy: the measured families own their calls, the
+    // rest decline (the staged path stays in charge there).
+    TEST_ASSERT(!kernel::gemm_chunked::launch(
+        Op::NoTrans, Op::NoTrans, 4096, 768, 3072, 1,
+        1.0f, Operand{nullptr, 0}, Operand{nullptr, 0}, 0.0f,
+        Operand{nullptr, 0}, 0, 0, 0, 0));
     // Tails below the 128x128x32 tile, every transpose combo.
     run_case(Op::NoTrans, Op::NoTrans, 8, 12, 20, 1, 0, 0, "NN tiny");
     run_case(Op::NoTrans, Op::Trans, 16, 8, 24, 1, 0, 0, "NT tiny");
