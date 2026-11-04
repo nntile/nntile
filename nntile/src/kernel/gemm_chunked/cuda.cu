@@ -970,10 +970,17 @@ __global__ D_LB_QUALS void sgemm_chunked_kernel(Params p)
 //! (straddle, tail, misalignment) resolves per element through
 //! chunk_at, zero-filling rejected elements and never resolving an
 //! out-of-table index.
-template <int R, class Ok>
-__device__ __forceinline__ void load_run(const void *tab, int shift,
-    long long elem0, Ok ok, float *dst)
+template <int R>
+struct alignas(16) Run
 {
+    float4 v[R / 4];
+};
+
+template <int R, class Ok>
+__device__ __forceinline__ Run<R> load_run(const void *tab, int shift,
+    long long elem0, Ok ok)
+{
+    Run<R> r;
     bool all = true;
 #pragma unroll
     for(int i = 0; i < R; ++i)
@@ -995,8 +1002,7 @@ __device__ __forceinline__ void load_run(const void *tab, int shift,
 #pragma unroll
             for(int q = 0; q < R / 4; ++q)
             {
-                *reinterpret_cast<float4 *>(dst + q * 4)
-                    = *reinterpret_cast<const float4 *>(q0 + q * 4);
+                r.v[q] = *reinterpret_cast<const float4 *>(q0 + q * 4);
             }
         }
         else
@@ -1004,7 +1010,8 @@ __device__ __forceinline__ void load_run(const void *tab, int shift,
 #pragma unroll
             for(int i = 0; i < R; ++i)
             {
-                dst[i] = *chunk_at(tab, shift, elem0 + i);
+                (&r.v[i >> 2].x)[i & 3]
+                    = *chunk_at(tab, shift, elem0 + i);
             }
         }
     }
@@ -1013,9 +1020,11 @@ __device__ __forceinline__ void load_run(const void *tab, int shift,
 #pragma unroll
         for(int i = 0; i < R; ++i)
         {
-            dst[i] = ok(i) ? *chunk_at(tab, shift, elem0 + i) : 0.f;
+            (&r.v[i >> 2].x)[i & 3]
+                = ok(i) ? *chunk_at(tab, shift, elem0 + i) : 0.f;
         }
     }
+    return r;
 }
 
 //! Multi-stage thin-panel variant of the kernel family (the sm75 SIMT
@@ -1090,11 +1099,17 @@ __global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel_ms(
                 int const grow = m0 + mm;
                 long long const elem0 = a_base
                     + static_cast<long long>(grow) * p.k + k0 + kk0;
-                load_run<RUN>(p.a, p.a_shift, elem0,
+                Run<RUN> const run = load_run<RUN>(p.a,
+                    p.a_shift, elem0,
                     [&](int i) {
                         return grow < p.m && k0 + kk0 + i < p.k;
-                    },
-                    areg[buf][r]);
+                    });
+#pragma unroll
+                for(int q = 0; q < RUN / 4; ++q)
+                {
+                    *reinterpret_cast<float4 *>(&areg[buf][r][q * 4])
+                        = run.v[q];
+                }
             }
         }
         else
@@ -1109,11 +1124,16 @@ __global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel_ms(
                 int const gk = k0 + kk;
                 long long const elem0 = a_base
                     + static_cast<long long>(gk) * p.m + m0 + mm0;
-                load_run<RUN>(p.a, p.a_shift, elem0,
+                Run<RUN> const run = load_run<RUN>(p.a, p.a_shift, elem0,
                     [&](int i) {
                         return gk < p.k && m0 + mm0 + i < p.m;
-                    },
-                    areg[buf][r]);
+                    });
+                    #pragma unroll
+                    for(int q = 0; q < RUN / 4; ++q)
+                    {
+                        *reinterpret_cast<float4 *>(&areg[buf][r][q * 4])
+                            = run.v[q];
+                    }
             }
         }
         if(TB == 0)
@@ -1128,11 +1148,17 @@ __global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel_ms(
                 int const gk = k0 + kk;
                 long long const elem0 = b_base
                     + static_cast<long long>(gk) * p.n + n0 + nn0;
-                load_run<RUN>(p.b, p.b_shift, elem0,
+                Run<RUN> const run = load_run<RUN>(p.b,
+                    p.b_shift, elem0,
                     [&](int i) {
                         return gk < p.k && n0 + nn0 + i < p.n;
-                    },
-                    breg[buf][r]);
+                    });
+#pragma unroll
+                for(int q = 0; q < RUN / 4; ++q)
+                {
+                    *reinterpret_cast<float4 *>(&breg[buf][r][q * 4])
+                        = run.v[q];
+                }
             }
         }
         else
@@ -1147,11 +1173,16 @@ __global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel_ms(
                 int const gn = n0 + nn;
                 long long const elem0 = b_base
                     + static_cast<long long>(gn) * p.k + k0 + kk0;
-                load_run<RUN>(p.b, p.b_shift, elem0,
+                Run<RUN> const run = load_run<RUN>(p.b, p.b_shift, elem0,
                     [&](int i) {
                         return gn < p.n && k0 + kk0 + i < p.k;
-                    },
-                    breg[buf][r]);
+                    });
+                    #pragma unroll
+                    for(int q = 0; q < RUN / 4; ++q)
+                    {
+                        *reinterpret_cast<float4 *>(&breg[buf][r][q * 4])
+                            = run.v[q];
+                    }
             }
         }
     };
