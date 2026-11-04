@@ -14,6 +14,7 @@
  * @version 1.0.0
  * */
 
+#include "nntile/base_types.hh"
 #include "nntile/kernel/gemm_chunked/cuda.hh"
 #include "../testing.hh"
 
@@ -26,10 +27,11 @@
 #include <vector>
 
 using namespace nntile;
-using kernel::gemm_chunked::Operand;
-using kernel::gemm_chunked::Op;
 
 #ifdef NNTILE_USE_CUDA
+
+using kernel::gemm_chunked::Operand;
+using kernel::gemm_chunked::Op;
 
 namespace
 {
