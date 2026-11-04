@@ -177,7 +177,7 @@ __device__ __forceinline__ int swz_col(int col, int row)
 //! orientation with an XOR swizzle, so every load, store and FFMA read
 //! finds its 4-groups contiguous in exactly one direction.
 template <int TA, int TB, int BM, int BN, int BK, int TM, int TN,
-    int THREADS, int MINB = 1>
+    int THREADS, int MINB = 1, int STAGES = 2>
 __global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel(
     Params p)
 {
@@ -204,7 +204,7 @@ __global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel(
 
     extern __shared__ float smem[];
     float *As = smem;
-    float *Bs = smem + 2 * BM * BK;
+    float *Bs = smem + STAGES * BM * BK;
 
     int const tid = threadIdx.x;
     int const warp = tid >> 5;
@@ -579,11 +579,185 @@ __global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel(
         }
     }
 
+    auto compute = [&](int panel) {
+        float const *as = As + (panel % STAGES) * BM * BK;
+        float const *bs = Bs + (panel % STAGES) * BK * BN;
+        //! Two-step-deep shared-load pipeline: the vectorized operand
+        //! fragments (av4 for NoTrans A, bv4 for Trans B) are held in
+        //! DOUBLE register sets; the LDS.128 group feeding k-step s+1
+        //! is issued BEFORE the 256-FFMA block of step s, so every
+        //! shared load has a full FFMA block of latency cover instead
+        //! of stalling the warp on the scoreboard (the campaign's
+        //! short_scoreboard killer). The transposed per-q loads
+        //! (Trans A / NoTrans B) are already interleaved with the FFMAs
+        //! and stay as they were. Costs 64 extra registers — the
+        //! MINB=1 budget (255) absorbs them on the 128x128x32 tile.
+        float4 av4[2][TM];
+        float4 bv4[2][TN];
+        if(TA == 0)
+        {
+#pragma unroll
+            for(int i = 0; i < TM; ++i)
+            {
+                av4[0][i] = *reinterpret_cast<const float4 *>(
+                    as + (thr_m0 + i) * BK + swz_col<BK, 3>(0, thr_m0 + i));
+            }
+        }
+        if(TB == 1)
+        {
+#pragma unroll
+            for(int j = 0; j < TN; ++j)
+            {
+                bv4[0][j] = *reinterpret_cast<const float4 *>(
+                    bs + (thr_n0 + j) * BK + swz_col<BK, 3>(0, thr_n0 + j));
+            }
+        }
+        // Vectorized FFMA loop, k in steps of 4: the swizzle keeps
+        // every 4-group contiguous along exactly one axis per
+        // layout (NoTrans A along k, Trans A along m, NoTrans B
+        // along n, Trans B along k), so LDS.128 replaces four
+        // LDS.32 issue slots. The s^1 fragment group feeding the
+        // NEXT k-step is loaded before this step's FFMA block.
+#pragma unroll
+            for(int kk = 0; kk < BK; kk += 4)
+            {
+                int const s = (kk >> 2) & 1;
+                if(kk + 4 < BK)
+                {
+                    if(TA == 0)
+                    {
+#pragma unroll
+                        for(int i = 0; i < TM; ++i)
+                        {
+                            av4[s ^ 1][i] =
+                                *reinterpret_cast<const float4 *>(as
+                                    + (thr_m0 + i) * BK
+                                    + swz_col<BK, 3>(kk + 4, thr_m0 + i));
+                        }
+                    }
+                    if(TB == 1)
+                    {
+#pragma unroll
+                        for(int j = 0; j < TN; ++j)
+                        {
+                            bv4[s ^ 1][j] =
+                                *reinterpret_cast<const float4 *>(bs
+                                    + (thr_n0 + j) * BK
+                                    + swz_col<BK, 3>(kk + 4, thr_n0 + j));
+                        }
+                    }
+                }
+                //! Transposed-side fragments (Trans A reads along m,
+                //! NoTrans B along n) rotate ONE q-step ahead of their
+                //! consumers: the LDS.128 group feeding q+1 is issued
+                //! before q's 64-FFMA block (the same latency-runway
+                //! treatment the vectorized av4/bv4 groups get at
+                //! kk-step granularity).
+                float4 af[2][TM / 4];
+                float4 bf[2][TN / 4];
+                if(TA == 1)
+                {
+#pragma unroll
+                    for(int g = 0; g < TM; g += 4)
+                    {
+                        af[0][g >> 2] = *reinterpret_cast<const float4 *>(
+                            as + kk * BM
+                                + swz_col<BM>(thr_m0 + g, kk));
+                    }
+                }
+                if(TB == 0)
+                {
+#pragma unroll
+                    for(int g = 0; g < TN; g += 4)
+                    {
+                        bf[0][g >> 2] = *reinterpret_cast<const float4 *>(
+                            bs + kk * BN + thr_n0 + g);
+                    }
+                }
+#pragma unroll
+                for(int q = 0; q < 4; ++q)
+                {
+                    float av[TM];
+                    float bv[TN];
+                    if(TA == 0)
+                    {
+#pragma unroll
+                        for(int i = 0; i < TM; ++i)
+                        {
+                            av[i] = (&av4[s][i].x)[q];
+                        }
+                    }
+                    else
+                    {
+                        if(q + 1 < 4)
+                        {
+#pragma unroll
+                            for(int g = 0; g < TM; g += 4)
+                            {
+                                af[(q + 1) & 1][g >> 2] =
+                                    *reinterpret_cast<const float4 *>(
+                                        as + (kk + q + 1) * BM
+                                            + swz_col<BM>(thr_m0 + g,
+                                                kk + q + 1));
+                            }
+                        }
+#pragma unroll
+                        for(int g = 0; g < TM; g += 4)
+                        {
+                            float4 const a = af[q & 1][g >> 2];
+                            av[g + 0] = a.x;
+                            av[g + 1] = a.y;
+                            av[g + 2] = a.z;
+                            av[g + 3] = a.w;
+                        }
+                    }
+                    if(TB == 0)
+                    {
+                        if(q + 1 < 4)
+                        {
+#pragma unroll
+                            for(int g = 0; g < TN; g += 4)
+                            {
+                                bf[(q + 1) & 1][g >> 2] =
+                                    *reinterpret_cast<const float4 *>(
+                                        bs + (kk + q + 1) * BN + thr_n0 + g);
+                            }
+                        }
+#pragma unroll
+                        for(int g = 0; g < TN; g += 4)
+                        {
+                            float4 const b = bf[q & 1][g >> 2];
+                            bv[g + 0] = b.x;
+                            bv[g + 1] = b.y;
+                            bv[g + 2] = b.z;
+                            bv[g + 3] = b.w;
+                        }
+                    }
+                    else
+                    {
+#pragma unroll
+                        for(int j = 0; j < TN; ++j)
+                        {
+                            bv[j] = (&bv4[s][j].x)[q];
+                        }
+                    }
+#pragma unroll
+                    for(int i = 0; i < TM; ++i)
+                    {
+#pragma unroll
+                        for(int j = 0; j < TN; ++j)
+                        {
+                            acc[i][j] += av[i] * bv[j];
+                        }
+                    }
+                }
+            }
+        };
     // Persistent tile loop: the launcher caps the grid at the SM count
-    // times the co-residency (2 CTAs/SM for the split config); blocks
-    // grid-stride over the (n, m, batch) tile space, n-fastest so
-    // consecutive blocks share A row bands. For grids at or below the
-    // cap this executes exactly one iteration — the same code path.
+    // times the co-residency; blocks grid-stride over the (n, m, batch)
+    // tile space, n-fastest so consecutive blocks share A row bands.
+    // For grids at or below the cap this executes exactly one
+    // iteration — the same code path.
     int const tiles_x = (p.n + BN - 1) / BN;
     int const tiles_y = (p.m + BM - 1) / BM;
     long long const ntiles = static_cast<long long>(tiles_x) * tiles_y
@@ -603,110 +777,55 @@ __global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel(
 
         int const npanels = (p.k + BK - 1) / BK;
 
-        load_panel(0, m0, n0, a_base, b_base);
-        for(int panel = 0; panel < npanels; ++panel)
+        if constexpr(STAGES == 1)
         {
-            int const stage = panel & 1;
-            store_panel(stage, m0, n0);
-            if(panel + 1 < npanels)
+            //! Triton-shape pipeline (the 2-CTA/SM configuration): ONE
+            //! smem panel per operand (32 KiB) co-resides with a second
+            //! CTA on the SM, so the co-resident CTA's FFMA stream hides
+            //! each CTA's barrier and smem-load latencies. The panel's
+            //! global->register fetch is issued a FULL PANEL of compute
+            //! before its smem store; the store only overwrites the
+            //! live buffer after a barrier separates it from the
+            //! compute that just read it. Two barriers per panel, same
+            //! as the double-buffered shape, and ascending-k order is
+            //! untouched.
+            load_panel(0, m0, n0, a_base, b_base);
+            store_panel(0, m0, n0);
+            if(1 < npanels)
             {
-                load_panel(panel + 1, m0, n0, a_base, b_base);
+                load_panel(1, m0, n0, a_base, b_base);
             }
             __syncthreads();
-            float const *as = As + stage * BM * BK;
-            float const *bs = Bs + stage * BK * BN;
-            // Vectorized FFMA loop, k in steps of 4: the swizzle keeps
-            // every 4-group contiguous along exactly one axis per
-            // layout (NoTrans A along k, Trans A along m, NoTrans B
-            // along n, Trans B along k), so LDS.128 replaces four
-            // LDS.32 issue slots.
-#pragma unroll
-            for(int kk = 0; kk < BK; kk += 4)
+            for(int panel = 0; panel < npanels; ++panel)
             {
-                float4 av4[TM];
-                if(TA == 0)
+                compute(panel);
+                if(panel + 1 < npanels)
                 {
-#pragma unroll
-                    for(int i = 0; i < TM; ++i)
+                    __syncthreads();
+                    store_panel(0, m0, n0);
+                    if(panel + 2 < npanels)
                     {
-                        av4[i] = *reinterpret_cast<const float4 *>(
-                            as + (thr_m0 + i) * BK
-                                + swz_col<BK, 3>(kk, thr_m0 + i));
+                        load_panel(panel + 2, m0, n0, a_base, b_base);
                     }
-                }
-                float4 bv4[TN];
-                if(TB == 1)
-                {
-#pragma unroll
-                    for(int j = 0; j < TN; ++j)
-                    {
-                        bv4[j] = *reinterpret_cast<const float4 *>(
-                            bs + (thr_n0 + j) * BK
-                                + swz_col<BK, 3>(kk, thr_n0 + j));
-                    }
-                }
-#pragma unroll
-                for(int q = 0; q < 4; ++q)
-                {
-                    float av[TM];
-                    float bv[TN];
-                    if(TA == 0)
-                    {
-#pragma unroll
-                        for(int i = 0; i < TM; ++i)
-                        {
-                            av[i] = (&av4[i].x)[q];
-                        }
-                    }
-                    else
-                    {
-#pragma unroll
-                        for(int g = 0; g < TM; g += 4)
-                        {
-                            float4 const a =
-                                *reinterpret_cast<const float4 *>(
-                                    as + (kk + q) * BM
-                                        + swz_col<BM>(thr_m0 + g, kk + q));
-                            av[g + 0] = a.x;
-                            av[g + 1] = a.y;
-                            av[g + 2] = a.z;
-                            av[g + 3] = a.w;
-                        }
-                    }
-                    if(TB == 0)
-                    {
-#pragma unroll
-                        for(int g = 0; g < TN; g += 4)
-                        {
-                            float4 const b =
-                                *reinterpret_cast<const float4 *>(
-                                    bs + (kk + q) * BN + thr_n0 + g);
-                            bv[g + 0] = b.x;
-                            bv[g + 1] = b.y;
-                            bv[g + 2] = b.z;
-                            bv[g + 3] = b.w;
-                        }
-                    }
-                    else
-                    {
-#pragma unroll
-                        for(int j = 0; j < TN; ++j)
-                        {
-                            bv[j] = (&bv4[j].x)[q];
-                        }
-                    }
-#pragma unroll
-                    for(int i = 0; i < TM; ++i)
-                    {
-#pragma unroll
-                        for(int j = 0; j < TN; ++j)
-                        {
-                            acc[i][j] += av[i] * bv[j];
-                        }
-                    }
+                    __syncthreads();
                 }
             }
-            __syncthreads();
+        }
+        else
+        {
+            load_panel(0, m0, n0, a_base, b_base);
+            for(int panel = 0; panel < npanels; ++panel)
+            {
+                int const stage = panel & 1;
+                store_panel(stage, m0, n0);
+                if(panel + 1 < npanels)
+                {
+                    load_panel(panel + 1, m0, n0, a_base, b_base);
+                }
+                __syncthreads();
+                compute(panel);
+                __syncthreads();
+            }
         }
 
         // ---- epilogue: alpha/beta and the chunk-resolved C store. The
@@ -1269,9 +1388,11 @@ __global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel_ms(
 
 //! Kernel configuration ids (the picker's currency).
 //! 0: 8x8x32 over 256 threads (baseline)
-//! 1: 8x16x32 over 128 threads (half the smem traffic per FMA)
-//! 2: 8x16x16 over 128 threads (thin panels, two blocks per SM)
+//! 1: 8x8x32 over 128 threads on a 128x64 tile, single-buffered
+//!    (the Triton shape: 24 KiB smem, 2 CTAs/SM, deep register
+//!    prefetch with a full panel of latency runway)
 constexpr int kCfgA88 = 0;
+constexpr int kCfgT1 = 1;
 constexpr int kCfgMsWgrad = 4;
 constexpr int kCfgMsSmall = 5;
 
@@ -1282,7 +1403,20 @@ template <>
 struct CfgTraits<kCfgA88>
 {
     static constexpr int BM = 128, BN = 128, BK = 32, TM = 8, TN = 8,
-        THREADS = 256, MINB = 1;
+        THREADS = 256, MINB = 1, STAGES = 2;
+};
+
+//! The Triton-shape configuration: 128x64x32 tile, 8x8 thread tile
+//! over 128 threads (4 warps of 64x32), ONE smem stage (24 KiB) and
+//! two CTAs per SM — 16 warps/SM hide each CTA's barrier and
+//! shared-memory latencies, and the 256-register budget of
+//! __launch_bounds__(128, 2) fits the 64 accumulators + 48 staging +
+//! compute transients without spilling.
+template <>
+struct CfgTraits<kCfgT1>
+{
+    static constexpr int BM = 128, BN = 64, BK = 32, TM = 8, TN = 8,
+        THREADS = 128, MINB = 2, STAGES = 1;
 };
 
 
@@ -1305,7 +1439,7 @@ template <int TA, int TB, int CFG>
 constexpr auto kKernelOf = sgemm_chunked_kernel<TA, TB,
     CfgTraits<CFG>::BM, CfgTraits<CFG>::BN, CfgTraits<CFG>::BK,
     CfgTraits<CFG>::TM, CfgTraits<CFG>::TN, CfgTraits<CFG>::THREADS,
-    CfgTraits<CFG>::MINB>;
+    CfgTraits<CFG>::MINB, CfgTraits<CFG>::STAGES>;
 
 template <int TA, int TB, int CFG>
 bool launch_cfg_ms(Params &p, cudaStream_t stream)
@@ -1340,12 +1474,12 @@ bool launch_cfg(Params &p, cudaStream_t stream)
 {
     using T = CfgTraits<CFG>;
     constexpr int kSmem
-        = 2 * (T::BM * T::BK + T::BK * T::BN) * int(sizeof(float));
+        = T::STAGES * (T::BM * T::BK + T::BK * T::BN) * int(sizeof(float));
     constexpr auto kernel = kKernelOf<TA, TB, CFG>;
     static bool configured = [] {
         return cudaFuncSetAttribute(
             sgemm_chunked_kernel<TA, TB, T::BM, T::BN, T::BK, T::TM,
-                T::TN, T::THREADS, T::MINB>,
+                T::TN, T::THREADS, T::MINB, T::STAGES>,
             cudaFuncAttributeMaxDynamicSharedMemorySize,
             kSmem <= 48 * 1024 ? 48 * 1024 : kSmem) == cudaSuccess;
     }();
@@ -1504,15 +1638,18 @@ int forced_cfg() noexcept
 //! campaign has not yet closed the gap to the cuBLAS bar, the picker
 //! returns -1 and the staged path stays in charge. The
 //! NNHAUL_GEMM_CHUNKED_CFG pin overrides the policy for measurement.
-int pick_cfg(Op, Op, int m, int n, int k, int batch) noexcept
+int pick_cfg(Op transA, Op, int m, int n, int k, int batch) noexcept
 {
     (void)m;
-    (void)k;
     if(batch >= 2 && n <= 64)
     {
         return kCfgMsSmall;
     }
-    return -1;
+    if(transA == Op::Trans && k >= 1024)
+    {
+        return kCfgMsWgrad;
+    }
+    return kCfgA88;
 }
 
 } // namespace
@@ -1531,6 +1668,8 @@ const char *pick_name(Op transA, Op transB, int m, int n, int k,
     {
         case kCfgA88:
             return "chunked-128x128x32-8x8-256t";
+        case kCfgT1:
+            return "chunked-128x64x32-s1-8x8-128t";
         case kCfgMsWgrad:
             return "chunked-ms-128x64x16-s2-8x4-256t";
         case kCfgMsSmall:
@@ -1637,6 +1776,8 @@ bool launch_with_cfg(int cfg, Op transA, Op transB, Params &p,
     {
         case kCfgA88:
             return dispatch_cfg<kCfgA88>(ta, tb, p, stream);
+        case kCfgT1:
+            return dispatch_cfg<kCfgT1>(ta, tb, p, stream);
         case kCfgMsWgrad:
             return dispatch_cfg<kCfgMsWgrad>(ta, tb, p, stream);
         case kCfgMsSmall:
