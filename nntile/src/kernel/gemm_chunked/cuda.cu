@@ -81,6 +81,15 @@ __device__ __forceinline__ int nv_of(bool outer, int limit)
     return nv < 0 ? 0 : (nv > 16 ? 16 : nv);
 }
 
+//! The 128-bit intra-chunk law (owner observation, round 5): chunk
+//! classes are power-of-two byte sizes (>= 4 MiB) and chunk bases are
+//! class-aligned, so every 16-byte-ALIGNED 128-bit access lies wholly
+//! inside ONE chunk -- a straddle would need the access start within 16
+//! bytes of a power-of-two class boundary, which alignment forbids.
+//! Consequence: the loaders' only fast-path predicate is (elem0 & 3) ==
+//! 0 plus shape bounds; boundary-distance arithmetic is unnecessary for
+//! aligned vector accesses. Unaligned runs (odd leading dims, e.g. the
+//! 50257-wide vocab rows) and tails still resolve element-wise.
 struct Run16
 {
     float4 v[4];
