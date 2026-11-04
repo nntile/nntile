@@ -1563,6 +1563,83 @@ __device__ __forceinline__ Run8 load_run8(const void *tab, int shift,
     return load_run8_cold(tab, shift, elem0, nvalid);
 }
 
+//! Round 8 — the carried-pointer discipline (owner's lemma): chunk
+//! classes are >= 1 MiB = 2^18 floats, so a thread marching one operand
+//! row along the panel loop crosses a chunk boundary once per
+//! 2^18/stride panels — almost never. The loader carries the RESOLVED
+//! run base pointer across the k march (resolved once at tile start,
+//! advanced by plain pointer arithmetic each panel) and pays the
+//! chunk-table indirection only when the chunk index actually changes.
+//! This removes the dependent table load from the address chain of the
+//! run's data loads: the LDG.128s issue straight off the carried
+//! pointer after one integer add. ci fits int32 because chunks are
+//! >= 2^18 floats (a 2^31-chunk tensor would be 2^49 floats = 32 PiB).
+struct RunCarry
+{
+    const float *q0; //!< resolved pointer to the run start
+    int ci;          //!< chunk index of the run start (elem >> shift)
+};
+
+//! Carried run-8 loader: EXACTLY the semantics of load_run8 (vector
+//! path on 8 valid, 4-aligned, straddle-free runs; outlined cold tail
+//! otherwise) with the resolution routed through the carried state.
+//! The flat class never touches the state (its resolution is already
+//! one pointer add — no carried registers, codegen identical to
+//! load_run8's). `stride` is the run's per-panel element advance; the
+//! caller guarantees elem0(panel) - elem0(panel-1) == stride inside a
+//! tile and passes first=true at each tile's panel 0 (the persistent
+//! tile loop re-resolves per tile; batch strides ride in elem0).
+template <int AC>
+__device__ __forceinline__ Run8 load_run8_carry(const void *tab, int shift,
+    long long elem0, int nvalid, long long stride, bool first,
+    RunCarry &cs)
+{
+    if constexpr(AC == kAcFlat)
+    {
+        (void)stride;
+        (void)first;
+        (void)cs;
+        if(nvalid == 8 && (elem0 & 3) == 0)
+        {
+            const float *q0 = reinterpret_cast<const float *>(tab) + elem0;
+            Run8 r;
+            *reinterpret_cast<float4 *>(r.v)
+                = *reinterpret_cast<const float4 *>(q0);
+            *reinterpret_cast<float4 *>(r.v + 4)
+                = *reinterpret_cast<const float4 *>(q0 + 4);
+            return r;
+        }
+    }
+    else
+    {
+        int const se = shift >= 62 ? 62 : shift;
+        int const nci = static_cast<int>(elem0 >> se);
+        if(first || nci != cs.ci)
+        {
+            long long const mask = (1LL << se) - 1;
+            cs.q0 = reinterpret_cast<const float *const *>(tab)[nci]
+                + (elem0 & mask);
+            cs.ci = nci;
+        }
+        else
+        {
+            cs.q0 += stride;
+        }
+        long long const span = 1LL << se;
+        if(nvalid == 8 && (elem0 & 3) == 0
+            && (elem0 & (span - 1)) < span - 7)
+        {
+            Run8 r;
+            *reinterpret_cast<float4 *>(r.v)
+                = *reinterpret_cast<const float4 *>(cs.q0);
+            *reinterpret_cast<float4 *>(r.v + 4)
+                = *reinterpret_cast<const float4 *>(cs.q0 + 4);
+            return r;
+        }
+    }
+    return load_run8_cold(tab, shift, elem0, nvalid);
+}
+
 template <int TA, int TB, int ACA, int ACB, int BM, int BN, int BK,
     int THREADS, int MINB = 1>
 __global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel_cut(
@@ -1615,6 +1692,11 @@ __global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel_cut(
     //! serves both operand sides: each thread owns either an A run or a
     //! B run, never both (halves the staging registers).
     float areg[2][8];
+    //! Carried run state (round 8): each thread owns exactly ONE run
+    //! (A half or B half), so one state serves both sides; live across
+    //! the k march, re-initialized at each tile's panel 0. Used by the
+    //! B side always and by the A side when TA==0 (see ld).
+    RunCarry carry;
 #pragma unroll
     for(int i = 0; i < TM; ++i)
     {
@@ -1634,6 +1716,17 @@ __global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel_cut(
     auto ld = [&](int q, int buf, int m0, int n0, long long a_base,
                   long long b_base) {
         int const k0 = q * BK;
+        //! Round-8 gating (measured): the carried-pointer discipline
+        //! pays on the NN family — both sides march k rows and the
+        //! removed table load shortens every run's address chain
+        //! (+0.17..+0.23 TF scattered on the NN dgrads/fwd, the
+        //! flat-vs-scat gap halved). On the transposed-A (TN wgrad)
+        //! and NT shapes the r7 2-panel lookahead already hides the
+        //! L1-resident table load and the carried branch/advance only
+        //! delayed the LDGs (-0.12..-0.5 TF) — those combos keep the
+        //! per-panel resolution.
+        constexpr bool kCarry = (TA == 0 && TB == 0);
+        bool const first = q == 0;
         Run8 r;
         if(tid < kHalf)
         {
@@ -1643,8 +1736,16 @@ __global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel_cut(
                 int const grow = m0 + tid;
                 long long const elem0 = a_base
                     + static_cast<long long>(grow) * p.k + k0;
-                r = load_run8<ACA>(p.a, p.a_shift, elem0,
-                    nv8(grow < p.m, p.k - k0));
+                if constexpr(kCarry)
+                {
+                    r = load_run8_carry<ACA>(p.a, p.a_shift, elem0,
+                        nv8(grow < p.m, p.k - k0), BK, first, carry);
+                }
+                else
+                {
+                    r = load_run8<ACA>(p.a, p.a_shift, elem0,
+                        nv8(grow < p.m, p.k - k0));
+                }
             }
             else
             {
@@ -1667,8 +1768,17 @@ __global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel_cut(
                 int const nn0 = (t & 15) * 8;
                 long long const elem0 = b_base
                     + static_cast<long long>(k0 + kk) * p.n + n0 + nn0;
-                r = load_run8<ACB>(p.b, p.b_shift, elem0,
-                    nv8(k0 + kk < p.k, p.n - (n0 + nn0)));
+                if constexpr(kCarry)
+                {
+                    r = load_run8_carry<ACB>(p.b, p.b_shift, elem0,
+                        nv8(k0 + kk < p.k, p.n - (n0 + nn0)),
+                        static_cast<long long>(BK) * p.n, first, carry);
+                }
+                else
+                {
+                    r = load_run8<ACB>(p.b, p.b_shift, elem0,
+                        nv8(k0 + kk < p.k, p.n - (n0 + nn0)));
+                }
             }
             else
             {
