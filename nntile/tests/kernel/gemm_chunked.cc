@@ -261,40 +261,45 @@ void run_case(Op ta, Op tb, int m, int n, int k, int batch, bool bcast_a,
 
 int main()
 {
-    // Ownership policy: the measured families own their calls, the
-    // rest decline (the staged path stays in charge there).
-    TEST_ASSERT(!kernel::gemm_chunked::launch(
-        Op::NoTrans, Op::NoTrans, 4096, 768, 3072, 1,
-        1.0f, Operand{nullptr, 0}, Operand{nullptr, 0}, 0.0f,
-        Operand{nullptr, 0}, 0, 0, 0, 0));
-    // Tails below the 128x128x32 tile, every transpose combo.
-    run_case(Op::NoTrans, Op::NoTrans, 8, 12, 20, 1, 0, 0, "NN tiny");
-    run_case(Op::NoTrans, Op::Trans, 16, 8, 24, 1, 0, 0, "NT tiny");
-    run_case(Op::Trans, Op::NoTrans, 12, 8, 16, 1, 0, 0, "TN tiny");
-    run_case(Op::Trans, Op::Trans, 8, 8, 8, 1, 0, 0, "TT tiny");
-    // Multi-tile with M/N/K tails.
-    run_case(Op::NoTrans, Op::NoTrans, 300, 260, 516, 1, 0, 0, "NN mid");
-    run_case(Op::NoTrans, Op::Trans, 260, 300, 772, 1, 0, 0, "NT mid");
-    run_case(Op::Trans, Op::NoTrans, 300, 132, 516, 1, 0, 0, "TN mid");
-    // Deep-k big-B geometry (the round that caught the class bug).
+    // Tile-multiple law decliners (owner directive, round 7): dims not
+    // multiples of the owning family's tile, and odd widths, are BAD
+    // shapes owned by the staged cuBLAS path.
+    TEST_ASSERT(!kernel::gemm_chunked::supports(Op::NoTrans, Op::Trans,
+        260, 301, 128, 1)); // odd n
+    TEST_ASSERT(!kernel::gemm_chunked::supports(Op::Trans, Op::NoTrans,
+        50257, 768, 4096, 1)); // odd m (lm_head wgrad)
+    TEST_ASSERT(!kernel::gemm_chunked::supports(Op::NoTrans, Op::NoTrans,
+        4096, 64, 3072, 1)); // n=64 below the classic family's 128
+    // tile (single batch does not route to the small-tile family)
+    TEST_ASSERT(kernel::gemm_chunked::supports(Op::NoTrans, Op::NoTrans,
+        4096, 2304, 3072, 1)); // large family: all 128 multiples
+    TEST_ASSERT(kernel::gemm_chunked::supports(Op::NoTrans, Op::NoTrans,
+        4096, 64, 64, 12)); // attention family: 64 multiples
+    TEST_ASSERT(!kernel::gemm_chunked::supports(Op::NoTrans, Op::NoTrans,
+        4096, 64, 96, 12)); // k=96 not a 64 multiple
+
+    // Classic family (launch_forced): full 128-multiple shapes, every
+    // transpose combo, plus chunk-straddle geometry.
+    run_case(Op::NoTrans, Op::NoTrans, 256, 384, 512, 1, 0, 0, "NN 128s");
+    run_case(Op::NoTrans, Op::Trans, 384, 256, 640, 1, 0, 0, "NT 128s");
+    run_case(Op::Trans, Op::NoTrans, 256, 128, 1152, 1, 0, 0, "TN 128s");
+    run_case(Op::Trans, Op::Trans, 128, 128, 384, 1, 0, 0, "TT 128s");
+    // Deep-k big-B geometry.
     run_case(Op::NoTrans, Op::NoTrans, 512, 768, 3072, 1, 0, 0,
         "NN deep-k");
-    // Straddle-heavy: rows of 1000 floats cross the 4 MiB class at
-    // 1048.576 rows (the embedding geometry).
-    run_case(Op::NoTrans, Op::NoTrans, 1200, 64, 1000, 1, 0, 0,
+    // Straddle-heavy: 1024-float rows cross the 4 MiB class at row
+    // 1024; m=1280 covers the boundary.
+    run_case(Op::NoTrans, Op::NoTrans, 1280, 128, 1024, 1, 0, 0,
         "NN straddle");
-    run_case(Op::NoTrans, Op::Trans, 1200, 64, 1000, 1, 0, 0,
+    run_case(Op::NoTrans, Op::Trans, 1280, 128, 1024, 1, 0, 0,
         "NT straddle");
-    // Odd N (lm_head's vocab): the ownership law declines it — the
-    // staged cuBLAS path owns misaligned shapes.
-    TEST_ASSERT(!kernel::gemm_chunked::supports(Op::NoTrans, Op::Trans,
-        260, 301, 128, 1));
-    TEST_ASSERT(!kernel::gemm_chunked::supports(Op::Trans, Op::NoTrans,
-        50257, 768, 4096, 1));
-    // Batching and broadcast.
-    run_case(Op::NoTrans, Op::NoTrans, 40, 64, 96, 3, 0, 0, "NN batch");
-    run_case(Op::NoTrans, Op::NoTrans, 40, 64, 96, 3, 0, 1, "NN bcast-b");
-    run_case(Op::NoTrans, Op::NoTrans, 40, 64, 96, 3, 1, 0, "NN bcast-a");
+    // Batched small-tile family (MsSmall): 64-multiple dims.
+    run_case(Op::NoTrans, Op::NoTrans, 128, 64, 128, 3, 0, 0,
+        "NN batch");
+    run_case(Op::NoTrans, Op::NoTrans, 128, 64, 128, 3, 0, 1,
+        "NN bcast-b");
+    run_case(Op::NoTrans, Op::NoTrans, 128, 64, 128, 3, 1, 0,
+        "NN bcast-a");
     return 0;
 }
 

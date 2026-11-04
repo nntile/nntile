@@ -1695,35 +1695,26 @@ bool dispatch_cfg_ms(int ta, int tb, Params &p, cudaStream_t stream)
 
 bool supports(Op transA, Op transB, int m, int n, int k, int batch) noexcept
 {
-    // The ownership law (owner directive, round 5): the native family
-    // OWNS only well-aligned shapes -- every operand's contiguous
-    // leading dimension (k for NoTrans A and Trans B, m for Trans A,
-    // n for NoTrans B and always for C) a multiple of 4, so every
-    // aligned row run takes the 128-bit path by the intra-chunk law.
-    // Misaligned shapes (lm_head's 50257-wide vocab rows) fall back to
-    // the workspace-staged cuBLAS path; the element-wise fallback
-    // remains only for tail bounds, never for whole owned rows.
+    (void)transA;
+    (void)transB;
+    // The tile-multiple law (owner directives, rounds 5 and 7): the
+    // native family OWNS a call only when every shape dimension except
+    // batch is a multiple of the OWNING config's tile -- 128 for the
+    // large-shape classic family (S1/wgrad), 64 for the small-tile
+    // batched family (attention). Tile-multiplicity subsumes the old
+    // 4-alignment law; tails of every kind disappear from owned calls,
+    // and by the intra-chunk law every owned row run is 16B-aligned.
+    // Everything else (odd vocab widths, ragged shapes) is a BAD shape:
+    // the workspace-staged cuBLAS path owns it.
     if(m <= 0 || n <= 0 || k <= 0 || batch <= 0)
     {
         return false;
     }
-    if(transA == Op::NoTrans && k % 4 != 0)
+    if(batch >= 2 && n <= 64)
     {
-        return false;
+        return m % 64 == 0 && n % 64 == 0 && k % 64 == 0;
     }
-    if(transA == Op::Trans && m % 4 != 0)
-    {
-        return false;
-    }
-    if(transB == Op::NoTrans && n % 4 != 0)
-    {
-        return false;
-    }
-    if(transB == Op::Trans && k % 4 != 0)
-    {
-        return false;
-    }
-    return n % 4 == 0;
+    return m % 128 == 0 && n % 128 == 0 && k % 128 == 0;
 }
 
 namespace
