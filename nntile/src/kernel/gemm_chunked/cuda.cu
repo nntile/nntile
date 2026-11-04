@@ -15,7 +15,7 @@
  * @version 1.0.0
  * */
 
-// Corresponding header
+// Corresponding header (round-7 working tree: local shim copy)
 #include "nntile/kernel/gemm_chunked/cuda.hh"
 
 #ifdef NNTILE_USE_CUDA
@@ -1440,7 +1440,460 @@ __global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel_ms(
     }
 }
 
+//! Clamp of (outer-bound, remaining-elements) to a run-8 validity count.
+__device__ __forceinline__ int nv8(bool outer, int rem)
+{
+    if(!outer || rem <= 0)
+    {
+        return 0;
+    }
+    return rem < 8 ? rem : 8;
+}
+
+//! Round 7 (Track B): the CUTLASS 2.11 classic-SIMT schedule ported onto
+//! the chunk-table loaders — the pristine reference measured 10.7 TF flat
+//! (see r7-census.txt for the SASS census of the 'def' kernel).
+//! Schedule: 128x128x8 tile, 256 threads, warp aspect 32x64 with the
+//! CUTLASS SIMT lane grid (4 rows x 8 cols, from simt_get_warp_threads_m:
+//! warp kM<kN -> 4 rows), 8x8 thread tile. Shared panels sit in the
+//! CUTLASS canonical orientation — A m-contiguous (column-major),
+//! B n-contiguous (row-major) — with their transpose padding
+//! (simt_transpose_padding(32,8,32)=4) as the ONLY bank scheme: kLdA=BM+4
+//! when A comes from row-major global (transposed scalar stores), kLdB=BN+4
+//! when B comes from column-major global. No XOR swizzle: the skew alone
+//! makes every STS and LDS.128 conflict-free for this access pattern
+//! (census-verified). Pipeline: ONE barrier per k-panel (the single-barrier
+//! double buffer: compute(q) reads stage q&1 while stores land in (q+1)&1;
+//! the trailing barrier separates both directions). Global loads go
+//! through the run-8 chunk discipline: threads 0..127 own one 8-run of A
+//! per panel (a whole k-row slice for TA==0, an m-run for TA==1), threads
+//! 128..255 own B's — one chunk resolution per 8 elements, the 16:1-style
+//! amortization the round-6 library iterators could not reach.
+
+//! Run-8 staging returned BY VALUE (register-resident; the round-7 local
+//! memory lesson: a pointer destination forces the staging array into
+//! local memory and every panel pays LDL/STL long-scoreboard stalls).
+struct Run8
+{
+    float v[8];
+};
+
+//! Run-8 loader with the addressing-class split of load_run16: 8 valid,
+//! 4-aligned, straddle-free runs take the float4x2 path (one resolved
+//! base pointer, two LDG.128); everything else falls to the outlined
+//! cold tail with per-element chunk resolution and zero fill.
+__noinline__ __device__ Run8 load_run8_cold(const void *tab, int shift,
+    long long elem0, int nvalid)
+{
+    Run8 r;
+#pragma unroll
+    for(int i = 0; i < 8; ++i)
+    {
+        r.v[i] = i < nvalid ? *chunk_at(tab, shift, elem0 + i) : 0.f;
+    }
+    return r;
+}
+
+template <int AC>
+__device__ __forceinline__ Run8 load_run8(const void *tab, int shift,
+    long long elem0, int nvalid)
+{
+    if constexpr(AC == kAcFlat)
+    {
+        if(nvalid == 8 && (elem0 & 3) == 0)
+        {
+            const float *q0 = reinterpret_cast<const float *>(tab) + elem0;
+            Run8 r;
+            *reinterpret_cast<float4 *>(r.v)
+                = *reinterpret_cast<const float4 *>(q0);
+            *reinterpret_cast<float4 *>(r.v + 4)
+                = *reinterpret_cast<const float4 *>(q0 + 4);
+            return r;
+        }
+    }
+    else
+    {
+        int const se = shift >= 62 ? 62 : shift;
+        long long const span = 1LL << se;
+        if(nvalid == 8 && (elem0 & 3) == 0
+            && (elem0 & (span - 1)) < span - 7)
+        {
+            const float *q0
+                = reinterpret_cast<const float *const *>(tab)[elem0 >> se]
+                + (elem0 & (span - 1));
+            Run8 r;
+            *reinterpret_cast<float4 *>(r.v)
+                = *reinterpret_cast<const float4 *>(q0);
+            *reinterpret_cast<float4 *>(r.v + 4)
+                = *reinterpret_cast<const float4 *>(q0 + 4);
+            return r;
+        }
+    }
+    return load_run8_cold(tab, shift, elem0, nvalid);
+}
+
+template <int TA, int TB, int ACA, int ACB, int BM, int BN, int BK,
+    int THREADS, int MINB = 1>
+__global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel_cut(
+    Params p)
+{
+    constexpr int kLRows = 4;
+    constexpr int kLCols = 8;
+    constexpr int TM = 8;
+    constexpr int TN = 8;
+    constexpr int kWarpM = kLRows * TM;      // 32
+    constexpr int kWarpN = kLCols * TN;      // 64
+    constexpr int kWRows = BM / kWarpM;      // 4
+    constexpr int kWCols = BN / kWarpN;      // 2
+    constexpr int kWarps = kWRows * kWCols;  // 8
+    static_assert(kWarps * 32 == THREADS, "thread count mismatch");
+    static_assert(BM % kWarpM == 0 && BN % kWarpN == 0, "tile split");
+    //! Skewed leading dims for BOTH operands (132 floats). CUTLASS
+    //! skews only the transposed-store side, but their loader maps
+    //! consecutive threads to consecutive rows; OUR run-8 ownership
+    //! strides a warp's threads 8 columns apart, which makes ld=128
+    //! float4 stores 4-way conflicted. With ld=BM+4 every warp-wide
+    //! STS.128 lands on 32 distinct banks ((33k + 2j + h) mod 32) and
+    //! every scalar STS row-set stays spread; the LDS.128 fragment
+    //! reads keep their broadcast groups either way (ncu-verified).
+    constexpr int kLdA = BM + 4;
+    constexpr int kLdB = BN + 4;
+    constexpr int kStageA = BK * kLdA;
+    constexpr int kStageB = BK * kLdB;
+    constexpr int kHalf = THREADS / 2;       // 128 A-loader threads
+    static_assert(BM * BK == kHalf * 8 && BK * BN == kHalf * 8,
+        "panel must split into one run-8 per half-CTA thread");
+    static_assert(BK == 8, "run-8 loader pairs with the 8-deep panel");
+
+    extern __shared__ float smem[];
+    float *As = smem;
+    float *Bs = smem + 2 * kStageA;
+
+    int const tid = threadIdx.x;
+    int const warp = tid >> 5;
+    int const lane = tid & 31;
+    int const warp_row = warp / kWCols;
+    int const warp_col = warp % kWCols;
+    int const lane_row = lane & 3;
+    int const lane_col = lane >> 2;
+    int const thr_m0 = warp_row * kWarpM + lane_row * TM;
+    int const thr_n0 = warp_col * kWarpN + lane_col * TN;
+
+    float acc[TM][TN];
+    //! Double staging buffer, panel q lives in buffer q&1. ONE array
+    //! serves both operand sides: each thread owns either an A run or a
+    //! B run, never both (halves the staging registers).
+    float areg[2][8];
+#pragma unroll
+    for(int i = 0; i < TM; ++i)
+    {
+#pragma unroll
+        for(int j = 0; j < TN; ++j)
+        {
+            acc[i][j] = 0.f;
+        }
+    }
+
+    //! Load one operand's 8-run for panel `q` into the staging buffer.
+    //! Ownership: tid<kHalf owns A's run, the rest own B's (the panel is
+    //! exactly 128 run-8s per operand side). The destination copies use
+    //! buf-branched CONSTANT indices so the staging arrays stay in
+    //! registers (a dynamic index or an escaping pointer demotes them to
+    //! local memory — the round-7 long-scoreboard lesson).
+    auto ld = [&](int q, int buf, int m0, int n0, long long a_base,
+                  long long b_base) {
+        int const k0 = q * BK;
+        Run8 r;
+        if(tid < kHalf)
+        {
+            if(TA == 0)
+            {
+                // Whole 8-k slice of row m0+tid: one contiguous run.
+                int const grow = m0 + tid;
+                long long const elem0 = a_base
+                    + static_cast<long long>(grow) * p.k + k0;
+                r = load_run8<ACA>(p.a, p.a_shift, elem0,
+                    nv8(grow < p.m, p.k - k0));
+            }
+            else
+            {
+                // 8-m run of k row k0 + (tid>>4).
+                int const kk = tid >> 4;
+                int const mm0 = (tid & 15) * 8;
+                long long const elem0 = a_base
+                    + static_cast<long long>(k0 + kk) * p.m + m0 + mm0;
+                r = load_run8<ACA>(p.a, p.a_shift, elem0,
+                    nv8(k0 + kk < p.k, p.m - (m0 + mm0)));
+            }
+        }
+        else
+        {
+            int const t = tid - kHalf;
+            if(TB == 0)
+            {
+                // 8-n run of k row k0 + (t>>4).
+                int const kk = t >> 4;
+                int const nn0 = (t & 15) * 8;
+                long long const elem0 = b_base
+                    + static_cast<long long>(k0 + kk) * p.n + n0 + nn0;
+                r = load_run8<ACB>(p.b, p.b_shift, elem0,
+                    nv8(k0 + kk < p.k, p.n - (n0 + nn0)));
+            }
+            else
+            {
+                // Whole 8-k slice of row n0+t.
+                int const gn = n0 + t;
+                long long const elem0 = b_base
+                    + static_cast<long long>(gn) * p.k + k0;
+                r = load_run8<ACB>(p.b, p.b_shift, elem0,
+                    nv8(gn < p.n, p.k - k0));
+            }
+        }
+        if(buf == 0)
+        {
+#pragma unroll
+            for(int i = 0; i < 8; ++i)
+            {
+                areg[0][i] = r.v[i];
+            }
+        }
+        else
+        {
+#pragma unroll
+            for(int i = 0; i < 8; ++i)
+            {
+                areg[1][i] = r.v[i];
+            }
+        }
+    };
+
+    //! Store the staged run into panel q's smem stage. Transposed sides
+    //! (TA==0 A, TB==1 B) store 8 scalars into the m/n-contiguous layout;
+    //! the +4 skew spreads a warp's 32 consecutive rows across 32 banks
+    //! (k*skew is a multiple of 4 floats). Direct sides store two float4s.
+    auto st = [&](int q, int buf) {
+        float *as = As + (q & 1) * kStageA;
+        float *bs = Bs + (q & 1) * kStageB;
+        if(tid < kHalf)
+        {
+            if(TA == 0)
+            {
+#pragma unroll
+                for(int e = 0; e < 8; ++e)
+                {
+                    as[e * kLdA + tid]
+                        = buf == 0 ? areg[0][e] : areg[1][e];
+                }
+            }
+            else
+            {
+                int const kk = tid >> 4;
+                int const mm0 = (tid & 15) * 8;
+#pragma unroll
+                for(int h = 0; h < 2; ++h)
+                {
+                    float const *src = buf == 0 ? areg[0] : areg[1];
+                    *reinterpret_cast<float4 *>(as + kk * kLdA + mm0 + h * 4)
+                        = make_float4(src[h * 4 + 0], src[h * 4 + 1],
+                            src[h * 4 + 2], src[h * 4 + 3]);
+                }
+            }
+        }
+        else
+        {
+            int const t = tid - kHalf;
+            if(TB == 0)
+            {
+                int const kk = t >> 4;
+                int const nn0 = (t & 15) * 8;
+#pragma unroll
+                for(int h = 0; h < 2; ++h)
+                {
+                    float const *src = buf == 0 ? areg[0] : areg[1];
+                    *reinterpret_cast<float4 *>(bs + kk * kLdB + nn0 + h * 4)
+                        = make_float4(src[h * 4 + 0], src[h * 4 + 1],
+                            src[h * 4 + 2], src[h * 4 + 3]);
+                }
+            }
+            else
+            {
+#pragma unroll
+                for(int e = 0; e < 8; ++e)
+                {
+                    bs[e * kLdB + t] = buf == 0 ? areg[0][e] : areg[1][e];
+                }
+            }
+        }
+    };
+
+    //! Compute panel q: 8 k-steps, each 4 LDS.128 (A m0..m0+7 frag, B
+    //! n0..n0+7 frag) with one-step-ahead fragment prefetch, 64 FFMA per
+    //! step — the census shape (32 LDS.U.128 + 512 FFMA per panel).
+    auto compute = [&](int q) {
+        float const *as = As + (q & 1) * kStageA;
+        float const *bs = Bs + (q & 1) * kStageB;
+        float4 av4[2][2];
+        float4 bv4[2][2];
+#pragma unroll
+        for(int h = 0; h < 2; ++h)
+        {
+            av4[0][h] = *reinterpret_cast<const float4 *>(as + thr_m0 + h * 4);
+            bv4[0][h] = *reinterpret_cast<const float4 *>(bs + thr_n0 + h * 4);
+        }
+#pragma unroll
+        for(int kk = 0; kk < BK; ++kk)
+        {
+            int const cur = kk & 1;
+            int const nxt = (kk + 1) & 1;
+            if(kk + 1 < BK)
+            {
+#pragma unroll
+                for(int h = 0; h < 2; ++h)
+                {
+                    av4[nxt][h] = *reinterpret_cast<const float4 *>(
+                        as + (kk + 1) * kLdA + thr_m0 + h * 4);
+                    bv4[nxt][h] = *reinterpret_cast<const float4 *>(
+                        bs + (kk + 1) * kLdB + thr_n0 + h * 4);
+                }
+            }
+#pragma unroll
+            for(int i = 0; i < 2; ++i)
+            {
+#pragma unroll
+                for(int j = 0; j < 2; ++j)
+                {
+                    float4 const a = av4[cur][i];
+                    float4 const b = bv4[cur][j];
+                    float *acc0 = &acc[i * 4][j * 4];
+                    acc0[0] += a.x * b.x;
+                    acc0[1] += a.x * b.y;
+                    acc0[2] += a.x * b.z;
+                    acc0[3] += a.x * b.w;
+                    acc0[TN + 0] += a.y * b.x;
+                    acc0[TN + 1] += a.y * b.y;
+                    acc0[TN + 2] += a.y * b.z;
+                    acc0[TN + 3] += a.y * b.w;
+                    acc0[2 * TN + 0] += a.z * b.x;
+                    acc0[2 * TN + 1] += a.z * b.y;
+                    acc0[2 * TN + 2] += a.z * b.z;
+                    acc0[2 * TN + 3] += a.z * b.w;
+                    acc0[3 * TN + 0] += a.w * b.x;
+                    acc0[3 * TN + 1] += a.w * b.y;
+                    acc0[3 * TN + 2] += a.w * b.z;
+                    acc0[3 * TN + 3] += a.w * b.w;
+                }
+            }
+        }
+    };
+
+    // Persistent tile loop (same discipline as the classic family).
+    int const tiles_x = (p.n + BN - 1) / BN;
+    int const tiles_y = (p.m + BM - 1) / BM;
+    long long const ntiles = static_cast<long long>(tiles_x) * tiles_y
+        * p.batch;
+    for(long long tile = static_cast<long long>(blockIdx.x)
+                       + static_cast<long long>(blockIdx.y) * gridDim.x;
+        tile < ntiles;
+        tile += static_cast<long long>(gridDim.x) * gridDim.y)
+    {
+        long long const rem = tile / p.batch;
+        int const bi = static_cast<int>(tile % p.batch);
+        int const m0 = static_cast<int>(rem % tiles_y) * BM;
+        int const n0 = static_cast<int>(rem / tiles_y) * BN;
+        long long const a_base = bi * p.sa;
+        long long const b_base = bi * p.sb;
+        long long const c_base = bi * p.sc;
+        int const npanels = (p.k + BK - 1) / BK;
+
+        // Single-barrier double buffer: compute(q) reads stage q&1 while
+        // panel q+1's staged run lands in stage (q+1)&1; one barrier per
+        // panel orders both directions (store->next compute, compute->
+        // next store).
+        ld(0, 0, m0, n0, a_base, b_base);
+        st(0, 0);
+        if(1 < npanels)
+        {
+            ld(1, 1, m0, n0, a_base, b_base);
+        }
+        __syncthreads();
+        for(int q = 0; q < npanels; ++q)
+        {
+            compute(q);
+            if(q + 1 < npanels)
+            {
+                st(q + 1, (q + 1) & 1);
+            }
+            if(q + 2 < npanels)
+            {
+                ld(q + 2, q & 1, m0, n0, a_base, b_base);
+            }
+            __syncthreads();
+        }
+
+        // ---- epilogue: the classic family's chunk-resolved C store ----
+        bool const beta_zero = (p.beta == 0.f);
+#pragma unroll
+        for(int i = 0; i < TM; ++i)
+        {
+            int const gm = m0 + thr_m0 + i;
+            if(gm >= p.m)
+            {
+                continue;
+            }
+#pragma unroll
+            for(int j = 0; j < TN; j += 4)
+            {
+                int const gn = n0 + thr_n0 + j;
+                if(gn >= p.n)
+                {
+                    continue;
+                }
+                long long const elem0 = c_base
+                    + static_cast<long long>(gm) * p.n + gn;
+                float v[4];
+                v[0] = p.alpha * acc[i][j + 0];
+                v[1] = p.alpha * acc[i][j + 1];
+                v[2] = p.alpha * acc[i][j + 2];
+                v[3] = p.alpha * acc[i][j + 3];
+                int const span = gn + 3 < p.n ? 4 : p.n - gn;
+                bool const same_chunk = p.c_shift == 0 || p.c_shift >= 62
+                    || ((elem0 >> p.c_shift)
+                        == ((elem0 + 3) >> p.c_shift));
+                if(span == 4 && (elem0 & 3) == 0 && same_chunk)
+                {
+                    float4 *dst = reinterpret_cast<float4 *>(
+                        chunk_at_mut(p.c, p.c_shift, elem0));
+                    if(!beta_zero)
+                    {
+                        float4 const old = *dst;
+                        v[0] += p.beta * old.x;
+                        v[1] += p.beta * old.y;
+                        v[2] += p.beta * old.z;
+                        v[3] += p.beta * old.w;
+                    }
+                    *dst = make_float4(v[0], v[1], v[2], v[3]);
+                }
+                else
+                {
+                    store_c_tail(p.c, p.c_shift, elem0, span, beta_zero,
+                        p.beta, make_float4(v[0], v[1], v[2], v[3]));
+                }
+            }
+        }
+#pragma unroll
+        for(int i = 0; i < TM; ++i)
+        {
+#pragma unroll
+            for(int j = 0; j < TN; ++j)
+            {
+                acc[i][j] = 0.f;
+            }
+        }
+    }
+}
+
 //! Kernel configuration ids (the picker's currency).
+
 //! 0: 8x8x32 over 256 threads (baseline)
 //! 1: 8x8x32 over 128 threads on a 128x64 tile, single-buffered
 //!    (the Triton shape: 24 KiB smem, 2 CTAs/SM, deep register
@@ -1453,6 +1906,7 @@ constexpr int kCfgT1 = 1;
 constexpr int kCfgMsWgrad = 4;
 constexpr int kCfgMsSmall = 5;
 constexpr int kCfgS1 = 6;
+constexpr int kCfgCutB = 7;
 
 template <int CFG>
 struct CfgTraits;
@@ -1491,6 +1945,106 @@ struct CfgTraits<kCfgS1>
 
 
 
+
+//! The round-7 CUTLASS-port configuration: 128x128x8 tile, warp aspect
+//! 32x64, CUTLASS lane grid 4x8, single-barrier double buffer.
+template <>
+struct CfgTraits<kCfgCutB>
+{
+    static constexpr int BM = 128, BN = 128, BK = 8, THREADS = 256, MINB = 2;
+};
+
+//! Occupancy-driven grid-stride launcher for the CUTLASS-port kernel
+//! (same launch discipline as the classic family).
+template <int TA, int TB, int ACA, int ACB, int MINB>
+bool launch_cut(Params &p, cudaStream_t stream)
+{
+    using T = CfgTraits<kCfgCutB>;
+    constexpr int kLdA = T::BM + 4;
+    constexpr int kLdB = T::BN + 4;
+    constexpr int kSmem = 2 * (T::BK * kLdA + T::BK * kLdB)
+        * int(sizeof(float));
+    constexpr auto kKernel = sgemm_chunked_kernel_cut<TA, TB, ACA, ACB,
+        T::BM, T::BN, T::BK, T::THREADS, MINB>;
+    static bool configured = [] {
+        bool ok = cudaFuncSetAttribute(kKernel,
+                     cudaFuncAttributeMaxDynamicSharedMemorySize,
+                     kSmem <= 48 * 1024 ? 48 * 1024 : kSmem) == cudaSuccess;
+        // sm_75 carveout: the default L1/smem split caps the occupancy
+        // calculator at one block; prefer the max-smem carveout so
+        // 2-3 co-resident CTAs count (the kernel is small enough either
+        // way, the calculator just needs the config).
+        cudaFuncSetAttribute(kKernel,
+            cudaFuncAttributePreferredSharedMemoryCarveout,
+            (int)cudaSharedmemCarveoutMaxShared);
+        return ok;
+    }();
+    if(!configured)
+    {
+        return false;
+    }
+    static int blocks_per_sm = [] {
+        int b = 0;
+        cudaError_t e = cudaOccupancyMaxActiveBlocksPerMultiprocessor(&b,
+            reinterpret_cast<void const *>(kKernel), T::THREADS, kSmem);
+        if(std::getenv("NNHAUL_DEBUG_OCC"))
+        {
+            cudaFuncAttributes at;
+            cudaFuncGetAttributes(&at, kKernel);
+            std::fprintf(stderr,
+                "cutB occ: blocks=%d err=%s kSmem=%d regs=%d "
+                "localBytes=%d staticSmem=%d maxThreads=%d\n",
+                b, cudaGetErrorString(e), kSmem, at.numRegs,
+                at.localSizeBytes, at.sharedSizeBytes, at.maxThreadsPerBlock);
+        }
+        return b > 0 ? b : 1;
+    }();
+    static int sm_count = [] {
+        int d = 0;
+        if(cudaGetDevice(&d) != cudaSuccess)
+        {
+            return 1;
+        }
+        int n = 0;
+        cudaDeviceProp prop;
+        if(cudaGetDeviceProperties(&prop, d) != cudaSuccess)
+        {
+            return 1;
+        }
+        n = prop.multiProcessorCount;
+        return n > 0 ? n : 1;
+    }();
+    long long const tiles = static_cast<long long>(
+        (p.n + T::BN - 1) / T::BN)
+        * ((p.m + T::BM - 1) / T::BM) * p.batch;
+    long long const want
+        = static_cast<long long>(sm_count) * blocks_per_sm;
+    int const grid_x = static_cast<int>(tiles < want ? tiles : want);
+    void *args[] = {&p};
+    auto err = cudaLaunchKernel(reinterpret_cast<void const *>(kKernel),
+        dim3(grid_x, 1, 1), dim3(T::THREADS), args, kSmem, stream);
+    return err == cudaSuccess;
+}
+
+template <int TA, int TB, int MINB = CfgTraits<kCfgCutB>::MINB>
+bool launch_cut_ac(Params &p, cudaStream_t stream)
+{
+    int const aca = p.a_shift == 0 ? kAcFlat : kAcTable;
+    int const acb = p.b_shift == 0 ? kAcFlat : kAcTable;
+    if(aca == kAcFlat && acb == kAcFlat)
+    {
+        return launch_cut<TA, TB, kAcFlat, kAcFlat, MINB>(p, stream);
+    }
+    if(aca == kAcFlat)
+    {
+        return launch_cut<TA, TB, kAcFlat, kAcTable, MINB>(p, stream);
+    }
+    if(acb == kAcFlat)
+    {
+        return launch_cut<TA, TB, kAcTable, kAcFlat, MINB>(p, stream);
+    }
+    return launch_cut<TA, TB, kAcTable, kAcTable, MINB>(p, stream);
+}
 
 template <>
 struct CfgTraits<kCfgMsWgrad>
@@ -1700,7 +2254,7 @@ bool supports(Op transA, Op transB, int m, int n, int k, int batch) noexcept
     // The tile-multiple law (owner directives, rounds 5 and 7): the
     // native family OWNS a call only when every shape dimension except
     // batch is a multiple of the OWNING config's tile -- 128 for the
-    // large-shape classic family (S1/wgrad), 64 for the small-tile
+    // large-shape classic family (S1/wgrad/CutB), 64 for the small-tile
     // batched family (attention). Tile-multiplicity subsumes the old
     // 4-alignment law; tails of every kind disappear from owned calls,
     // and by the intra-chunk law every owned row run is 16B-aligned.
@@ -1790,6 +2344,8 @@ const char *pick_name(Op transA, Op transB, int m, int n, int k,
             return "chunked-ms-64x64x16-s2-8x8-128t";
         case kCfgS1:
             return "chunked-128x128x32-s1-p1-8x8-256t";
+        case kCfgCutB:
+            return "chunked-cut-128x128x8-32x64w-256t";
     }
     return "chunked-?";
 }
@@ -1835,17 +2391,26 @@ bool launch(Op transA, Op transB, int m, int n, int k, int batch,
 //! declined — launch_forced()'s choice.
 int pick_cfg_best(Op ta, Op tb, int m, int n, int k, int batch) noexcept
 {
+    (void)m;
+    (void)n;
     if(batch >= 2 && n <= 64)
     {
         return kCfgMsSmall;
     }
+    // Round 7 (the CUTLASS-schedule port, 128x128x8 / warp 32x64 /
+    // 2-stage single-barrier, 128 regs = 2 CTAs/SM): new best on the
+    // large NN family (7.8-8.4 TF scattered) and on qkv_wgrad (7.07);
+    // ties MsWgrad on the mlp wgrads. NT stays with round 4's S1
+    // (CutB's both-sides-transposed staging loses there: 7.0-7.3 vs
+    // 7.6-8.1).
+    if(ta == Op::NoTrans && tb == Op::NoTrans)
+    {
+        return kCfgCutB;
+    }
     if(ta == Op::Trans && k >= 1024)
     {
-        return kCfgMsWgrad;
+        return kCfgCutB;
     }
-    // Round 4's measured winner on every large shape (single-buffer
-    // 32KB schedule, spill-free combos): 7.6-8.2 TF vs 6.5-7.6 for the
-    // double-buffered baseline.
     return kCfgS1;
 }
 
@@ -1903,6 +2468,22 @@ bool launch_with_cfg(int cfg, Op transA, Op transB, Params &p,
             return dispatch_cfg<kCfgMsSmall>(ta, tb, p, stream);
         case kCfgS1:
             return dispatch_cfg<kCfgS1>(ta, tb, p, stream);
+        case kCfgCutB:
+        {
+            if(ta == 0 && tb == 0)
+            {
+                return launch_cut_ac<0, 0>(p, stream);
+            }
+            if(ta == 0 && tb == 1)
+            {
+                return launch_cut_ac<0, 1>(p, stream);
+            }
+            if(ta == 1 && tb == 0)
+            {
+                return launch_cut_ac<1, 0>(p, stream);
+            }
+            return launch_cut_ac<1, 1>(p, stream);
+        }
     }
     return dispatch_cfg<kCfgA88>(ta, tb, p, stream);
 }
