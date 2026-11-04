@@ -43,6 +43,21 @@ inline std::uint64_t gemm_native_chunked_count() noexcept
     return g_gemm_native_chunked_count.load(std::memory_order_relaxed);
 }
 
+inline std::atomic<std::uint64_t> g_gemm_kernel_native_count{0};
+
+inline void note_gemm_kernel_native() noexcept
+{
+    g_gemm_kernel_native_count.fetch_add(1, std::memory_order_relaxed);
+}
+
+//! The count of gemm bodies served by the NATIVE chunked KERNEL family
+//! (kernel::gemm_chunked -- chunk tables consumed in place, no staging
+//! bytes moved), as opposed to the staged workspace path.
+inline std::uint64_t gemm_kernel_native_count() noexcept
+{
+    return g_gemm_kernel_native_count.load(std::memory_order_relaxed);
+}
+
 //! Generic wrapper class for gemm operation is not defined
 template<typename T>
 class Gemm;
