@@ -1638,18 +1638,22 @@ int forced_cfg() noexcept
 //! campaign has not yet closed the gap to the cuBLAS bar, the picker
 //! returns -1 and the staged path stays in charge. The
 //! NNHAUL_GEMM_CHUNKED_CFG pin overrides the policy for measurement.
-int pick_cfg(Op transA, Op, int m, int n, int k, int batch) noexcept
+//! The measured ownership policy (GPT-2 training set, 2080 Ti pinned
+//! at 1350 MHz, scattered 4 MiB chunks). The native kernel OWNS a call
+//! only where it beats the production workspace-staged cuBLAS path
+//! (cuBLAS plus gather/scatter traffic): the batched small-n family
+//! (attention projections and their grads), where staging costs more
+//! than the whole GEMM. Everywhere else the campaign has not yet
+//! closed the gap to the cuBLAS bar, the picker returns -1 and the
+//! staged path stays in charge. The NNHAUL_GEMM_CHUNKED_CFG pin
+//! overrides the policy for measurement.
+int pick_cfg(Op, Op, int n, int, int, int batch) noexcept
 {
-    (void)m;
     if(batch >= 2 && n <= 64)
     {
         return kCfgMsSmall;
     }
-    if(transA == Op::Trans && k >= 1024)
-    {
-        return kCfgMsWgrad;
-    }
-    return kCfgA88;
+    return -1;
 }
 
 } // namespace
