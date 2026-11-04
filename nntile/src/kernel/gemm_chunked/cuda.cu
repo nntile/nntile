@@ -82,10 +82,11 @@ __device__ __forceinline__ int nv_of(bool outer, int limit)
 }
 
 //! The 128-bit intra-chunk law (owner observation, round 5): chunk
-//! classes are power-of-two byte sizes (>= 4 MiB) and chunk bases are
-//! class-aligned, so every 16-byte-ALIGNED 128-bit access lies wholly
-//! inside ONE chunk -- a straddle would need the access start within 16
-//! bytes of a power-of-two class boundary, which alignment forbids.
+//! classes are power-of-two byte sizes of at least 1 MiB and chunk
+//! bases are class-aligned, so every 16-byte-ALIGNED 128-bit access
+//! lies wholly inside ONE chunk -- a straddle would need the access
+//! start within 16 bytes of a power-of-two class boundary, which
+//! alignment forbids.
 //! Consequence: the loaders' only fast-path predicate is (elem0 & 3) ==
 //! 0 plus shape bounds; boundary-distance arithmetic is unnecessary for
 //! aligned vector accesses. Unaligned runs (odd leading dims, e.g. the
@@ -1746,7 +1747,8 @@ int forced_cfg() noexcept
 //! where the 32-deep k panel cannot amortize its pipeline. Specialized
 //! families (batched-small, odd-N lm_head) slot in here as they land.
 //! The measured ownership policy (GPT-2 training set, 2080 Ti pinned
-//! at 1350 MHz, scattered 4 MiB chunks). The native kernel OWNS a call
+//! at 1350 MHz, scattered chunks of the default 4 MiB class). The
+//! native kernel OWNS a call
 //! only where it beats the production alternative — the workspace-
 //! staged cuBLAS path (cuBLAS plus gather/scatter traffic): the
 //! batched small-n family (attention projections and their grads),
@@ -1755,7 +1757,8 @@ int forced_cfg() noexcept
 //! returns -1 and the staged path stays in charge. The
 //! NNHAUL_GEMM_CHUNKED_CFG pin overrides the policy for measurement.
 //! The measured ownership policy (GPT-2 training set, 2080 Ti pinned
-//! at 1350 MHz, scattered 4 MiB chunks). The native kernel OWNS a call
+//! at 1350 MHz, scattered chunks of the default 4 MiB class). The
+//! native kernel OWNS a call
 //! only where it beats the production workspace-staged cuBLAS path
 //! (cuBLAS plus gather/scatter traffic): the batched small-n family
 //! (attention projections and their grads), where staging costs more

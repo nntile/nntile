@@ -36,7 +36,22 @@ using kernel::gemm_chunked::Op;
 namespace
 {
 
-constexpr std::size_t kChunkElems = std::size_t(1) << 20; // 4 MiB fp32
+//! One chunk-class configuration: power-of-two element count and its
+//! log2 (the Operand shift). The suite sweeps the supported classes:
+//! any power of two from 1 MiB upward (the engine's compile-time class
+//! law, NNHAUL_CHUNK_SIZE_MB).
+struct ChunkClass
+{
+    std::size_t elems;
+    int shift;
+};
+
+ChunkClass const kClasses[] = {
+    {std::size_t(1) << 18, 18}, // 1 MiB
+    {std::size_t(1) << 19, 19}, // 2 MiB
+    {std::size_t(1) << 20, 20}, // 4 MiB (engine default)
+    {std::size_t(1) << 21, 21}, // 8 MiB
+};
 
 std::uint32_t lcg(std::uint32_t &s)
 {
@@ -107,26 +122,26 @@ struct Chunked
 };
 
 Chunked make_chunked(std::vector<float> const &host, DevAllocs &da,
-    std::uint32_t &rng)
+    std::uint32_t &rng, ChunkClass cc)
 {
     int const nchunks =
-        int((host.size() + kChunkElems - 1) / kChunkElems);
+        int((host.size() + cc.elems - 1) / cc.elems);
     std::vector<float *> htab(nchunks);
     for(int c = 0; c < nchunks; ++c)
     {
         if((lcg(rng) & 1) != 0)
         {
             void *j = nullptr;
-            if(cudaMalloc(&j, kChunkElems / 8) == cudaSuccess)
+            if(cudaMalloc(&j, cc.elems / 8) == cudaSuccess)
             {
                 da.ptrs.push_back(j);
             }
         }
-        std::size_t const off = std::size_t(c) * kChunkElems;
+        std::size_t const off = std::size_t(c) * cc.elems;
         std::size_t const len =
-            std::min(kChunkElems, host.size() - off);
+            std::min(cc.elems, host.size() - off);
         float *d = nullptr;
-        TEST_ASSERT(cudaMalloc(&d, kChunkElems * sizeof(float))
+        TEST_ASSERT(cudaMalloc(&d, cc.elems * sizeof(float))
             == cudaSuccess);
         TEST_ASSERT(cudaMemcpy(d, host.data() + off, len * sizeof(float),
             cudaMemcpyHostToDevice) == cudaSuccess);
@@ -174,15 +189,17 @@ void run_case(Op ta, Op tb, int m, int n, int k, int batch, bool bcast_a,
         return;
     }
 
+    for(ChunkClass cls : kClasses)
+    {
     DevAllocs da;
     std::uint32_t rng = 99;
-    Chunked const ca = make_chunked(ha, da, rng);
-    Chunked const cb = make_chunked(hb, da, rng);
-    Chunked const cc = make_chunked(hc, da, rng);
+    Chunked const ca = make_chunked(ha, da, rng, cls);
+    Chunked const cb = make_chunked(hb, da, rng, cls);
+    Chunked const cc = make_chunked(hc, da, rng, cls);
 
-    Operand const oa_s{ca.table, 20};
-    Operand const ob_s{cb.table, 20};
-    Operand const oc_s{(void *)cc.table, 20};
+    Operand const oa_s{ca.table, cls.shift};
+    Operand const ob_s{cb.table, cls.shift};
+    Operand const oc_s{(void *)cc.table, cls.shift};
     long long const sa = bcast_a ? 0LL : a_store;
     long long const sb = bcast_b ? 0LL : b_store;
     // Kernel correctness: force the best config regardless of the
@@ -194,11 +211,11 @@ void run_case(Op ta, Op tb, int m, int n, int k, int batch, bool bcast_a,
     TEST_ASSERT(cudaDeviceSynchronize() == cudaSuccess);
 
     std::vector<float> got(hc.size());
-    for(int c = 0, nch = int((hc.size() + kChunkElems - 1) / kChunkElems);
+    for(int c = 0, nch = int((hc.size() + cls.elems - 1) / cls.elems);
         c < nch; ++c)
     {
-        std::size_t const off = std::size_t(c) * kChunkElems;
-        std::size_t const len = std::min(kChunkElems, hc.size() - off);
+        std::size_t const off = std::size_t(c) * cls.elems;
+        std::size_t const len = std::min(cls.elems, hc.size() - off);
         float *src = nullptr;
         TEST_ASSERT(cudaMemcpy(&src,
                        (char const *)cc.table + c * sizeof(float *),
@@ -234,9 +251,10 @@ void run_case(Op ta, Op tb, int m, int n, int k, int batch, bool bcast_a,
             tol);
         throw std::runtime_error("gemm_chunked mismatch");
     }
-    std::printf("gemm_chunked %-34s m=%5d n=%5d k=%5d b=%d max diff %.2e"
-        " (tol %.2e)\n",
-        label, m, n, k, batch, worst, tol);
+    std::printf("gemm_chunked %-28s 2^%-2d m=%5d n=%5d k=%5d b=%d"
+        " max diff %.2e (tol %.2e)\n",
+        label, cls.shift, m, n, k, batch, worst, tol);
+    }
 }
 
 } // namespace
@@ -258,6 +276,9 @@ int main()
     run_case(Op::NoTrans, Op::NoTrans, 300, 260, 516, 1, 0, 0, "NN mid");
     run_case(Op::NoTrans, Op::Trans, 260, 300, 772, 1, 0, 0, "NT mid");
     run_case(Op::Trans, Op::NoTrans, 300, 132, 516, 1, 0, 0, "TN mid");
+    // Deep-k big-B geometry (the round that caught the class bug).
+    run_case(Op::NoTrans, Op::NoTrans, 512, 768, 3072, 1, 0, 0,
+        "NN deep-k");
     // Straddle-heavy: rows of 1000 floats cross the 4 MiB class at
     // 1048.576 rows (the embedding geometry).
     run_case(Op::NoTrans, Op::NoTrans, 1200, 64, 1000, 1, 0, 0,

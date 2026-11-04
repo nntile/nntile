@@ -8,7 +8,8 @@
  *
  * @file include/nntile/kernel/gemm_chunked/cuda.hh
  * Native chunked fp32 GEMM kernels: C-order row-major
- * C = alpha*op(A)*op(B) + beta*C over 4 MiB-class chunk-table operands
+ * C = alpha*op(A)*op(B) + beta*C over chunk-table operands (any
+ * compile-time power-of-two class >= 1 MiB)
  * (no workspace staging), with a shape-driven implementation picker.
  *
  * @version 1.0.0
@@ -34,7 +35,10 @@ namespace nntile::kernel::gemm_chunked
 //! cp.async, no arch intrinsics — and every configuration keeps shared
 //! memory at or below 32 KiB, so the kernels build and run on every
 //! pre-Ampere architecture (sm_50 Maxwell through sm_75 Turing) as
-//! well as later ones. Pre-Ampere is the family's raison d'etre: those
+//! well as later ones. The chunk CLASS is a runtime shift: any
+//! compile-time power-of-two class of at least 1 MiB (the engine's
+//! NNHAUL_CHUNK_SIZE_MB law) is supported — the kernel test sweeps
+//! 1/2/4/8 MiB. Pre-Ampere is the family's raison d'etre: those
 //! GPUs have no fp32-input tensor path (TF32 is sm_80+), CUTLASS ships
 //! no fp32-SIMT GEMM for them, and Triton's backend is not maintained
 //! below sm_80 — a hand-tuned FFMA kernel is the only native-chunked
