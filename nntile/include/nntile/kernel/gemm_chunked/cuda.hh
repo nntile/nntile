@@ -39,10 +39,13 @@ namespace nntile::kernel::gemm_chunked
 //! compile-time power-of-two class of at least 1 MiB (the engine's
 //! NNHAUL_CHUNK_SIZE_MB law) is supported — the kernel test sweeps
 //! 1/2/4/8 MiB. Pre-Ampere is the family's raison d'etre: those
-//! GPUs have no fp32-input tensor path (TF32 is sm_80+), CUTLASS ships
-//! no fp32-SIMT GEMM for them, and Triton's backend is not maintained
-//! below sm_80 — a hand-tuned FFMA kernel is the only native-chunked
-//! option there. Tuning is measured on sm_75 (RTX 2080 Ti, SM clock
+//! GPUs have no fp32-input tensor path (TF32 is sm_80+), and no library
+//! consumes CHUNK-TABLE operands — the feature this family exists for.
+//! (Correction of an earlier claim: CUTLASS 2.11's generic SIMT fp32
+//! path does run on sm_75, measured at 0.97-0.99x of cuBLAS on flat
+//! operands — an earlier 'no such kernel / it crashes' verdict was an
+//! artifact of two bugs in the campaign's side benchmark. CUTLASS's
+//! mainloop is the adopted scheduling reference for future rounds.) Tuning is measured on sm_75 (RTX 2080 Ti, SM clock
 //! pinned at the 1350 MHz base for reproducibility); per-arch tile
 //! retunes are follow-ups.
 
