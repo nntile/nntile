@@ -66,65 +66,108 @@ __device__ __forceinline__ float *chunk_at_mut(
     return tab[elem >> shift] + (elem & mask);
 }
 
-//! Load one 16-element run starting at absolute element index `elem0`
-//! into `dst`, zero-filling elements rejected by `ok(i)`. Vector path
-//! only when every element is valid AND the run stays inside one chunk
-//! at a 16B-aligned offset; otherwise each element resolves its own
-//! chunk (straddles, tails, misalignment) — never an out-of-table
-//! index, since invalid elements are not resolved at all.
+//! Addressing classes for the hot loader (compile-time axis): FLAT is
+//! a plain base pointer (shift == 0), TABLE is the chunk-pointer table
+//! (any other shift; shifts >= 62 clamp to 62, where elem >> 62 == 0
+//! for every representable element — exactly the one-shot sentinel).
+constexpr int kAcFlat = 0;
+constexpr int kAcTable = 1;
+
+//! Count of VALID LEADING elements of a 16-run: the `ok(i)` predicate
+//! family (outer row/k bound && i < linear limit) collapsed to one int.
+__device__ __forceinline__ int nv_of(bool outer, int limit)
+{
+    int nv = outer ? limit : 0;
+    return nv < 0 ? 0 : (nv > 16 ? 16 : nv);
+}
+
 struct Run16
 {
     float4 v[4];
 };
 
-template <class Ok>
-__device__ __forceinline__ Run16 load_run16(const void *tab, int shift,
-    long long elem0, Ok ok)
+//! Cold tail of the run loader: per-element chunk resolution (chunk
+//! straddles, 4-element misalignment, boundary tails). Outlined with
+//! __noinline__ so its register frame never inflates the hot loop's
+//! live set. Elements >= nvalid zero-fill and are never resolved —
+//! exactly the `ok(i)` semantics it replaces.
+__noinline__ __device__ Run16 load_run16_cold(const void *tab, int shift,
+    long long elem0, int nvalid)
 {
     Run16 r;
-    bool all = true;
 #pragma unroll
     for(int i = 0; i < 16; ++i)
     {
-        all = all && ok(i);
+        (&r.v[i >> 2].x)[i & 3]
+            = i < nvalid ? *chunk_at(tab, shift, elem0 + i) : 0.f;
     }
-    if(all)
+    return r;
+}
+
+//! Hot run loader, specialized on the addressing class: 16 valid,
+//! 4-aligned, straddle-free runs take the straight-line float4 path
+//! (one resolved base pointer + four LDG.128, no per-element fallback
+//! code in the hot body); everything else falls into the outlined
+//! cold tail with the original semantics. A run straddles a chunk
+//! boundary iff its offset inside the chunk reaches span-15 (one
+//! compare, hoisted here from the old split arithmetic).
+template <int AC>
+__device__ __forceinline__ Run16 load_run16(const void *tab, int shift,
+    long long elem0, int nvalid)
+{
+    if constexpr(AC == kAcFlat)
     {
-        long long split = 16;
-        if(shift > 0 && shift < 62)
+        if(nvalid == 16 && (elem0 & 3) == 0)
         {
-            long long const b = ((elem0 >> shift) + 1) << shift;
-            long long const s = b - elem0;
-            split = s < 16 ? s : 16;
-        }
-        if(split == 16 && (elem0 & 3) == 0)
-        {
-            const float *q0 = chunk_at(tab, shift, elem0);
+            const float *q0 = reinterpret_cast<const float *>(tab) + elem0;
+            Run16 r;
 #pragma unroll
             for(int q = 0; q < 4; ++q)
             {
                 r.v[q] = *reinterpret_cast<const float4 *>(q0 + q * 4);
             }
-        }
-        else
-        {
-#pragma unroll
-            for(int i = 0; i < 16; ++i)
-            {
-                (&r.v[i >> 2].x)[i & 3] = *chunk_at(tab, shift, elem0 + i);
-            }
+            return r;
         }
     }
     else
     {
-#pragma unroll
-        for(int i = 0; i < 16; ++i)
+        int const se = shift >= 62 ? 62 : shift;
+        long long const span = 1LL << se;
+        if(nvalid == 16 && (elem0 & 3) == 0
+            && (elem0 & (span - 1)) < span - 15)
         {
-            (&r.v[i >> 2].x)[i & 3]
-                = ok(i) ? *chunk_at(tab, shift, elem0 + i) : 0.f;
+            const float *q0
+                = reinterpret_cast<const float *const *>(tab)[elem0 >> se]
+                + (elem0 & (span - 1));
+            Run16 r;
+#pragma unroll
+            for(int q = 0; q < 4; ++q)
+            {
+                r.v[q] = *reinterpret_cast<const float4 *>(q0 + q * 4);
+            }
+            return r;
         }
     }
-    return r;
+    return load_run16_cold(tab, shift, elem0, nvalid);
+}
+
+//! Cold tail of the C epilogue: the per-element store for 4-groups
+//! that are boundary tails, misaligned, or chunk-straddling. Outlined
+//! so its frame stays out of the hot function's live set. Elements
+//! beyond `span` are not resolved at all.
+__noinline__ __device__ void store_c_tail(void *c, int c_shift,
+    long long elem0, int span, bool beta_zero, float beta, float4 v)
+{
+    float w[4] = {v.x, v.y, v.z, v.w};
+    for(int e = 0; e < span; ++e)
+    {
+        float *el = chunk_at_mut(c, c_shift, elem0 + e);
+        if(!beta_zero)
+        {
+            w[e] += beta * (*el);
+        }
+        *el = w[e];
+    }
 }
 
 struct Params
@@ -176,10 +219,22 @@ __device__ __forceinline__ int swz_col(int col, int row)
 //! panel; no cp.async on sm_75). Panels sit in smem in STORAGE
 //! orientation with an XOR swizzle, so every load, store and FFMA read
 //! finds its 4-groups contiguous in exactly one direction.
-template <int TA, int TB, int BM, int BN, int BK, int TM, int TN,
-    int THREADS, int MINB = 1, int STAGES = 2>
-__global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel(
-    Params p)
+//! Register cap probe for the round-4 hypothesis: D_MAXREG compiles the
+//! whole classic family under a hard __maxnreg__ ceiling (255 default =
+//! no constraint; 180 = the hypothesis's target live set).
+#ifndef D_MAXREG
+#define D_MAXREG 255
+#endif
+
+#if D_MAXREG < 255
+#define D_LB_QUALS __maxnreg__(D_MAXREG)
+#else
+#define D_LB_QUALS __launch_bounds__(THREADS, MINB)
+#endif
+
+template <int TA, int TB, int ACA, int ACB, int BM, int BN, int BK, int TM,
+    int TN, int THREADS, int MINB = 1, int STAGES = 2, int PIPE = 2>
+__global__ D_LB_QUALS void sgemm_chunked_kernel(Params p)
 {
     constexpr int kLanes = 32;
     constexpr int kLRows = 8;
@@ -238,10 +293,8 @@ __global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel(
                     int const grow = m0 + tid;
                     long long const elem0 = a_base
                         + static_cast<long long>(grow) * p.k + k0;
-                    Run16 const run = load_run16(p.a, p.a_shift, elem0,
-                        [&](int i) {
-                            return grow < p.m && k0 + i < p.k;
-                        });
+                    Run16 const run = load_run16<ACA>(p.a, p.a_shift,
+                        elem0, nv_of(grow < p.m, p.k - k0));
 #pragma unroll
                     for(int q = 0; q < 4; ++q)
                     {
@@ -259,10 +312,9 @@ __global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel(
                     int const gk = k0 + kk;
                     long long const elem0 = a_base
                         + static_cast<long long>(gk) * p.m + m0 + mm0;
-                    Run16 const run = load_run16(p.a, p.a_shift, elem0,
-                        [&](int i) {
-                            return gk < p.k && m0 + mm0 + i < p.m;
-                        });
+                    Run16 const run = load_run16<ACA>(p.a, p.a_shift,
+                        elem0,
+                        nv_of(gk < p.k, p.m - (m0 + mm0)));
 #pragma unroll
                     for(int q = 0; q < 4; ++q)
                     {
@@ -283,10 +335,9 @@ __global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel(
                     int const gk = k0 + kk;
                     long long const elem0 = b_base
                         + static_cast<long long>(gk) * p.n + n0 + nn0;
-                    Run16 const run = load_run16(p.b, p.b_shift, elem0,
-                        [&](int i) {
-                            return gk < p.k && n0 + nn0 + i < p.n;
-                        });
+                    Run16 const run = load_run16<ACB>(p.b, p.b_shift,
+                        elem0,
+                        nv_of(gk < p.k, p.n - (n0 + nn0)));
 #pragma unroll
                     for(int q = 0; q < 4; ++q)
                     {
@@ -301,10 +352,8 @@ __global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel(
                     int const gn = n0 + t;
                     long long const elem0 = b_base
                         + static_cast<long long>(gn) * p.k + k0;
-                    Run16 const run = load_run16(p.b, p.b_shift, elem0,
-                        [&](int i) {
-                            return gn < p.n && k0 + i < p.k;
-                        });
+                    Run16 const run = load_run16<ACB>(p.b, p.b_shift,
+                        elem0, nv_of(gn < p.n, p.k - k0));
 #pragma unroll
                     for(int q = 0; q < 4; ++q)
                     {
@@ -330,10 +379,8 @@ __global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel(
                 int const grow = m0 + mm;
                 long long const elem0 = a_base
                     + static_cast<long long>(grow) * p.k + k0 + kk0;
-                Run16 const run = load_run16(p.a, p.a_shift, elem0,
-                    [&](int i) {
-                        return grow < p.m && k0 + kk0 + i < p.k;
-                    });
+                Run16 const run = load_run16<ACA>(p.a, p.a_shift, elem0,
+                    nv_of(grow < p.m, p.k - (k0 + kk0)));
 #pragma unroll
                 for(int q = 0; q < 4; ++q)
                 {
@@ -357,10 +404,8 @@ __global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel(
                 int const gk = k0 + kk;
                 long long const elem0 = a_base
                     + static_cast<long long>(gk) * p.m + m0 + mm0;
-                Run16 const run = load_run16(p.a, p.a_shift, elem0,
-                    [&](int i) {
-                        return gk < p.k && m0 + mm0 + i < p.m;
-                    });
+                Run16 const run = load_run16<ACA>(p.a, p.a_shift, elem0,
+                    nv_of(gk < p.k, p.m - (m0 + mm0)));
 #pragma unroll
                 for(int q = 0; q < 4; ++q)
                 {
@@ -384,10 +429,8 @@ __global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel(
                 int const gk = k0 + kk;
                 long long const elem0 = b_base
                     + static_cast<long long>(gk) * p.n + n0 + nn0;
-                Run16 const run = load_run16(p.b, p.b_shift, elem0,
-                    [&](int i) {
-                        return gk < p.k && n0 + nn0 + i < p.n;
-                    });
+                Run16 const run = load_run16<ACB>(p.b, p.b_shift, elem0,
+                    nv_of(gk < p.k, p.n - (n0 + nn0)));
 #pragma unroll
                 for(int q = 0; q < 4; ++q)
                 {
@@ -411,10 +454,8 @@ __global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel(
                 int const gn = n0 + nn;
                 long long const elem0 = b_base
                     + static_cast<long long>(gn) * p.k + k0 + kk0;
-                Run16 const run = load_run16(p.b, p.b_shift, elem0,
-                    [&](int i) {
-                        return gn < p.n && k0 + kk0 + i < p.k;
-                    });
+                Run16 const run = load_run16<ACB>(p.b, p.b_shift, elem0,
+                    nv_of(gn < p.n, p.k - (k0 + kk0)));
 #pragma unroll
                 for(int q = 0; q < 4; ++q)
                 {
@@ -582,57 +623,72 @@ __global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel(
     auto compute = [&](int panel) {
         float const *as = As + (panel % STAGES) * BM * BK;
         float const *bs = Bs + (panel % STAGES) * BK * BN;
-        //! Two-step-deep shared-load pipeline: the vectorized operand
-        //! fragments (av4 for NoTrans A, bv4 for Trans B) are held in
-        //! DOUBLE register sets; the LDS.128 group feeding k-step s+1
-        //! is issued BEFORE the 256-FFMA block of step s, so every
-        //! shared load has a full FFMA block of latency cover instead
-        //! of stalling the warp on the scoreboard (the campaign's
-        //! short_scoreboard killer). The transposed per-q loads
-        //! (Trans A / NoTrans B) are already interleaved with the FFMAs
-        //! and stay as they were. Costs 64 extra registers — the
-        //! MINB=1 budget (255) absorbs them on the 128x128x32 tile.
-        float4 av4[2][TM];
-        float4 bv4[2][TN];
+        //! PIPE-deep shared-load pipeline: the vectorized operand
+        //! fragments (av4 for NoTrans A, bv4 for Trans B) rotate
+        //! through PIPE register sets; the LDS.128 group feeding
+        //! k-step t+PIPE-1 is issued BEFORE step t's FFMA block, so
+        //! every shared load has PIPE-1 full FFMA blocks of latency
+        //! cover instead of stalling the warp on the scoreboard (the
+        //! campaign's short_scoreboard killer). PIPE=1 is the
+        //! unpipelined Triton shape (load at loop top, consume
+        //! immediately). The transposed per-q loads (Trans A / NoTrans
+        //! B) are already interleaved with the FFMAs and stay as they
+        //! were. Each extra pipe step costs 64 registers on the NT
+        //! combo — the register attack's currency.
+        constexpr int K4 = BK / 4;
+        float4 av4[PIPE][TM];
+        float4 bv4[PIPE][TN];
         if(TA == 0)
         {
 #pragma unroll
-            for(int i = 0; i < TM; ++i)
+            for(int f = 0; f < PIPE - 1; ++f)
             {
-                av4[0][i] = *reinterpret_cast<const float4 *>(
-                    as + (thr_m0 + i) * BK + swz_col<BK, 3>(0, thr_m0 + i));
+#pragma unroll
+                for(int i = 0; i < TM; ++i)
+                {
+                    av4[f][i] = *reinterpret_cast<const float4 *>(
+                        as + (thr_m0 + i) * BK
+                            + swz_col<BK, 3>(4 * f, thr_m0 + i));
+                }
             }
         }
         if(TB == 1)
         {
 #pragma unroll
-            for(int j = 0; j < TN; ++j)
+            for(int f = 0; f < PIPE - 1; ++f)
             {
-                bv4[0][j] = *reinterpret_cast<const float4 *>(
-                    bs + (thr_n0 + j) * BK + swz_col<BK, 3>(0, thr_n0 + j));
+#pragma unroll
+                for(int j = 0; j < TN; ++j)
+                {
+                    bv4[f][j] = *reinterpret_cast<const float4 *>(
+                        bs + (thr_n0 + j) * BK
+                            + swz_col<BK, 3>(4 * f, thr_n0 + j));
+                }
             }
         }
         // Vectorized FFMA loop, k in steps of 4: the swizzle keeps
         // every 4-group contiguous along exactly one axis per
         // layout (NoTrans A along k, Trans A along m, NoTrans B
         // along n, Trans B along k), so LDS.128 replaces four
-        // LDS.32 issue slots. The s^1 fragment group feeding the
-        // NEXT k-step is loaded before this step's FFMA block.
+        // LDS.32 issue slots. The fragment group feeding k-step
+        // t+PIPE-1 is loaded before step t's FFMA block.
 #pragma unroll
             for(int kk = 0; kk < BK; kk += 4)
             {
-                int const s = (kk >> 2) & 1;
-                if(kk + 4 < BK)
+                int const t = kk >> 2;
+                int const s = t % PIPE;
+                if(t + PIPE - 1 < K4)
                 {
+                    int const kpref = kk + 4 * (PIPE - 1);
                     if(TA == 0)
                     {
 #pragma unroll
                         for(int i = 0; i < TM; ++i)
                         {
-                            av4[s ^ 1][i] =
+                            av4[(t + PIPE - 1) % PIPE][i] =
                                 *reinterpret_cast<const float4 *>(as
                                     + (thr_m0 + i) * BK
-                                    + swz_col<BK, 3>(kk + 4, thr_m0 + i));
+                                    + swz_col<BK, 3>(kpref, thr_m0 + i));
                         }
                     }
                     if(TB == 1)
@@ -640,10 +696,10 @@ __global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel(
 #pragma unroll
                         for(int j = 0; j < TN; ++j)
                         {
-                            bv4[s ^ 1][j] =
+                            bv4[(t + PIPE - 1) % PIPE][j] =
                                 *reinterpret_cast<const float4 *>(bs
                                     + (thr_n0 + j) * BK
-                                    + swz_col<BK, 3>(kk + 4, thr_n0 + j));
+                                    + swz_col<BK, 3>(kpref, thr_n0 + j));
                         }
                     }
                 }
@@ -879,20 +935,8 @@ __global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel(
                 }
                 else
                 {
-#pragma unroll
-                    for(int e = 0; e < 4; ++e)
-                    {
-                        if(gn + e < p.n)
-                        {
-                            float *el = chunk_at_mut(p.c, p.c_shift,
-                                elem0 + e);
-                            if(!beta_zero)
-                            {
-                                v[e] += p.beta * (*el);
-                            }
-                            *el = v[e];
-                        }
-                    }
+                    store_c_tail(p.c, p.c_shift, elem0, span, beta_zero,
+                        p.beta, make_float4(v[0], v[1], v[2], v[3]));
                 }
             }
         }
@@ -1391,10 +1435,14 @@ __global__ __launch_bounds__(THREADS, MINB) void sgemm_chunked_kernel_ms(
 //! 1: 8x8x32 over 128 threads on a 128x64 tile, single-buffered
 //!    (the Triton shape: 24 KiB smem, 2 CTAs/SM, deep register
 //!    prefetch with a full panel of latency runway)
+//! 6: the 128x128x32 tile, 256 threads, ONE smem stage (32 KiB) and
+//!    the unpipelined (PIPE=1) compute loop — Triton's literal shape
+//!    under the register attack; bench-only so far.
 constexpr int kCfgA88 = 0;
 constexpr int kCfgT1 = 1;
 constexpr int kCfgMsWgrad = 4;
 constexpr int kCfgMsSmall = 5;
+constexpr int kCfgS1 = 6;
 
 template <int CFG>
 struct CfgTraits;
@@ -1403,7 +1451,7 @@ template <>
 struct CfgTraits<kCfgA88>
 {
     static constexpr int BM = 128, BN = 128, BK = 32, TM = 8, TN = 8,
-        THREADS = 256, MINB = 1, STAGES = 2;
+        THREADS = 256, MINB = 1, STAGES = 2, PIPE = 2;
 };
 
 //! The Triton-shape configuration: 128x64x32 tile, 8x8 thread tile
@@ -1416,7 +1464,19 @@ template <>
 struct CfgTraits<kCfgT1>
 {
     static constexpr int BM = 128, BN = 64, BK = 32, TM = 8, TN = 8,
-        THREADS = 128, MINB = 2, STAGES = 1;
+        THREADS = 128, MINB = 2, STAGES = 1, PIPE = 2;
+};
+
+//! The single-buffer 32 KiB Triton literal shape on the full
+//! 128x128x32 tile with 256 threads: global loads issue at loop top
+//! into the staging registers, land in smem after the barrier, and
+//! the compute loop runs PIPE=1 (no double-buffered LDS fragments).
+//! The register attack's "does the lean body fly?" probe.
+template <>
+struct CfgTraits<kCfgS1>
+{
+    static constexpr int BM = 128, BN = 128, BK = 32, TM = 8, TN = 8,
+        THREADS = 256, MINB = 1, STAGES = 1, PIPE = 1;
 };
 
 
@@ -1435,11 +1495,11 @@ struct CfgTraits<kCfgMsSmall>
         THREADS = 128, RUN = 8, STAGES = 2, MINB = 4;
 };
 
-template <int TA, int TB, int CFG>
-constexpr auto kKernelOf = sgemm_chunked_kernel<TA, TB,
+template <int TA, int TB, int ACA, int ACB, int CFG>
+constexpr auto kKernelOf = sgemm_chunked_kernel<TA, TB, ACA, ACB,
     CfgTraits<CFG>::BM, CfgTraits<CFG>::BN, CfgTraits<CFG>::BK,
     CfgTraits<CFG>::TM, CfgTraits<CFG>::TN, CfgTraits<CFG>::THREADS,
-    CfgTraits<CFG>::MINB, CfgTraits<CFG>::STAGES>;
+    CfgTraits<CFG>::MINB, CfgTraits<CFG>::STAGES, CfgTraits<CFG>::PIPE>;
 
 template <int TA, int TB, int CFG>
 bool launch_cfg_ms(Params &p, cudaStream_t stream)
@@ -1469,17 +1529,17 @@ bool launch_cfg_ms(Params &p, cudaStream_t stream)
     return err == cudaSuccess;
 }
 
-template <int TA, int TB, int CFG>
+template <int TA, int TB, int ACA, int ACB, int CFG>
 bool launch_cfg(Params &p, cudaStream_t stream)
 {
     using T = CfgTraits<CFG>;
     constexpr int kSmem
         = T::STAGES * (T::BM * T::BK + T::BK * T::BN) * int(sizeof(float));
-    constexpr auto kernel = kKernelOf<TA, TB, CFG>;
+    constexpr auto kernel = kKernelOf<TA, TB, ACA, ACB, CFG>;
     static bool configured = [] {
         return cudaFuncSetAttribute(
-            sgemm_chunked_kernel<TA, TB, T::BM, T::BN, T::BK, T::TM,
-                T::TN, T::THREADS, T::MINB, T::STAGES>,
+            sgemm_chunked_kernel<TA, TB, ACA, ACB, T::BM, T::BN, T::BK,
+                T::TM, T::TN, T::THREADS, T::MINB, T::STAGES, T::PIPE>,
             cudaFuncAttributeMaxDynamicSharedMemorySize,
             kSmem <= 48 * 1024 ? 48 * 1024 : kSmem) == cudaSuccess;
     }();
@@ -1524,8 +1584,32 @@ bool launch_cfg(Params &p, cudaStream_t stream)
     return err == cudaSuccess;
 }
 
+//! Addressing-class front end for the classic launcher: flat operands
+//! (shift == 0) and table operands (any other shift) hit separately
+//! compiled hot bodies — the flat loader is one pointer add, the table
+//! loader one indirection plus the hoisted straddle compare.
+template <int TA, int TB, int CFG>
+bool launch_cfg_ac(Params &p, cudaStream_t stream)
+{
+    int const aca = p.a_shift == 0 ? kAcFlat : kAcTable;
+    int const acb = p.b_shift == 0 ? kAcFlat : kAcTable;
+    if(aca == kAcFlat && acb == kAcFlat)
+    {
+        return launch_cfg<TA, TB, kAcFlat, kAcFlat, CFG>(p, stream);
+    }
+    if(aca == kAcFlat)
+    {
+        return launch_cfg<TA, TB, kAcFlat, kAcTable, CFG>(p, stream);
+    }
+    if(acb == kAcFlat)
+    {
+        return launch_cfg<TA, TB, kAcTable, kAcFlat, CFG>(p, stream);
+    }
+    return launch_cfg<TA, TB, kAcTable, kAcTable, CFG>(p, stream);
+}
+
 //! One dispatch chain per config id; the multi-stage configs route to
-//! their own launcher, the classic family to launch_cfg.
+//! their own launcher, the classic family to launch_cfg_ac.
 template <int CFG, bool MS>
 struct CfgDispatch;
 
@@ -1536,17 +1620,17 @@ struct CfgDispatch<CFG, false>
     {
         if(ta == 0 && tb == 0)
         {
-            return launch_cfg<0, 0, CFG>(p, stream);
+            return launch_cfg_ac<0, 0, CFG>(p, stream);
         }
         if(ta == 0 && tb == 1)
         {
-            return launch_cfg<0, 1, CFG>(p, stream);
+            return launch_cfg_ac<0, 1, CFG>(p, stream);
         }
         if(ta == 1 && tb == 0)
         {
-            return launch_cfg<1, 0, CFG>(p, stream);
+            return launch_cfg_ac<1, 0, CFG>(p, stream);
         }
-        return launch_cfg<1, 1, CFG>(p, stream);
+        return launch_cfg_ac<1, 1, CFG>(p, stream);
     }
 };
 
@@ -1678,6 +1762,8 @@ const char *pick_name(Op transA, Op transB, int m, int n, int k,
             return "chunked-ms-128x64x16-s2-8x4-256t";
         case kCfgMsSmall:
             return "chunked-ms-64x64x16-s2-8x8-128t";
+        case kCfgS1:
+            return "chunked-128x128x32-s1-p1-8x8-256t";
     }
     return "chunked-?";
 }
@@ -1731,7 +1817,10 @@ int pick_cfg_best(Op ta, Op tb, int m, int n, int k, int batch) noexcept
     {
         return kCfgMsWgrad;
     }
-    return kCfgA88;
+    // Round 4's measured winner on every large shape (single-buffer
+    // 32KB schedule, spill-free combos): 7.6-8.2 TF vs 6.5-7.6 for the
+    // double-buffered baseline.
+    return kCfgS1;
 }
 
 
@@ -1786,6 +1875,8 @@ bool launch_with_cfg(int cfg, Op transA, Op transB, Params &p,
             return dispatch_cfg<kCfgMsWgrad>(ta, tb, p, stream);
         case kCfgMsSmall:
             return dispatch_cfg<kCfgMsSmall>(ta, tb, p, stream);
+        case kCfgS1:
+            return dispatch_cfg<kCfgS1>(ta, tb, p, stream);
     }
     return dispatch_cfg<kCfgA88>(ta, tb, p, stream);
 }
