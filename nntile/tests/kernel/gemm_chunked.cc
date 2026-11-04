@@ -264,8 +264,12 @@ int main()
         "NN straddle");
     run_case(Op::NoTrans, Op::Trans, 1200, 64, 1000, 1, 0, 0,
         "NT straddle");
-    // Odd N (lm_head's vocab): the scalar C path.
-    run_case(Op::NoTrans, Op::Trans, 260, 301, 128, 1, 0, 0, "NT odd-n");
+    // Odd N (lm_head's vocab): the ownership law declines it — the
+    // staged cuBLAS path owns misaligned shapes.
+    TEST_ASSERT(!kernel::gemm_chunked::supports(Op::NoTrans, Op::Trans,
+        260, 301, 128, 1));
+    TEST_ASSERT(!kernel::gemm_chunked::supports(Op::Trans, Op::NoTrans,
+        50257, 768, 4096, 1));
     // Batching and broadcast.
     run_case(Op::NoTrans, Op::NoTrans, 40, 64, 96, 3, 0, 0, "NN batch");
     run_case(Op::NoTrans, Op::NoTrans, 40, 64, 96, 3, 0, 1, "NN bcast-b");
