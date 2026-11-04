@@ -2282,24 +2282,25 @@ bool supports(Op transA, Op transB, int m, int n, int k, int batch) noexcept
 {
     (void)transA;
     (void)transB;
-    // The tile-multiple law (owner directives, rounds 5 and 7): the
-    // native family OWNS a call only when every shape dimension except
-    // batch is a multiple of the OWNING config's tile -- 128 for the
-    // large-shape classic family (S1/wgrad/CutB), 64 for the small-tile
-    // batched family (attention). Tile-multiplicity subsumes the old
-    // 4-alignment law; tails of every kind disappear from owned calls,
-    // and by the intra-chunk law every owned row run is 16B-aligned.
-    // Everything else (odd vocab widths, ragged shapes) is a BAD shape:
-    // the workspace-staged cuBLAS path owns it.
+    // The shape law (owner directive, round 8): every shape dimension
+    // except batch must be a multiple of 256, or exactly 128, or
+    // exactly 64. GPT-2 small/medium/large (768/1024/1280) and the
+    // attention projections (64) pass; anything else is a BAD shape
+    // owned by the workspace-staged cuBLAS path. Consequences the
+    // loaders rely on: no shape tails of any kind, every row start is
+    // at least 64-float aligned, and -- with chunk classes >= 1 MiB =
+    // 2^18 floats -- every 16-float-aligned minichunk lies wholly in
+    // one chunk and consecutive minichunks are sequential within it,
+    // so pointer resolution is needed only when a row march crosses a
+    // chunk boundary (the carried-pointer loader discipline).
     if(m <= 0 || n <= 0 || k <= 0 || batch <= 0)
     {
         return false;
     }
-    if(batch >= 2 && n <= 64)
-    {
-        return m % 64 == 0 && n % 64 == 0 && k % 64 == 0;
-    }
-    return m % 128 == 0 && n % 128 == 0 && k % 128 == 0;
+    auto ok_dim = [](int d) noexcept {
+        return d % 256 == 0 || d == 128 || d == 64;
+    };
+    return ok_dim(m) && ok_dim(n) && ok_dim(k);
 }
 
 namespace

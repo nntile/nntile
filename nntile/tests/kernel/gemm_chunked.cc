@@ -261,30 +261,32 @@ void run_case(Op ta, Op tb, int m, int n, int k, int batch, bool bcast_a,
 
 int main()
 {
-    // Tile-multiple law decliners (owner directive, round 7): dims not
-    // multiples of the owning family's tile, and odd widths, are BAD
-    // shapes owned by the staged cuBLAS path.
+    // Shape law decliners (owner directive, round 8): each dim must be
+    // a multiple of 256, or exactly 128, or exactly 64.
     TEST_ASSERT(!kernel::gemm_chunked::supports(Op::NoTrans, Op::Trans,
         260, 301, 128, 1)); // odd n
     TEST_ASSERT(!kernel::gemm_chunked::supports(Op::Trans, Op::NoTrans,
         50257, 768, 4096, 1)); // odd m (lm_head wgrad)
     TEST_ASSERT(!kernel::gemm_chunked::supports(Op::NoTrans, Op::NoTrans,
-        4096, 64, 3072, 1)); // n=64 below the classic family's 128
-    // tile (single batch does not route to the small-tile family)
-    TEST_ASSERT(kernel::gemm_chunked::supports(Op::NoTrans, Op::NoTrans,
-        4096, 2304, 3072, 1)); // large family: all 128 multiples
-    TEST_ASSERT(kernel::gemm_chunked::supports(Op::NoTrans, Op::NoTrans,
-        4096, 64, 64, 12)); // attention family: 64 multiples
+        384, 256, 512, 1)); // 384 is not a 256 multiple nor exactly 128
     TEST_ASSERT(!kernel::gemm_chunked::supports(Op::NoTrans, Op::NoTrans,
-        4096, 64, 96, 12)); // k=96 not a 64 multiple
+        4096, 1152, 3072, 1)); // 1152 = 9*128, still not a 256 multiple
+    TEST_ASSERT(!kernel::gemm_chunked::supports(Op::NoTrans, Op::NoTrans,
+        4096, 64, 96, 12)); // k=96 fails every clause
+    TEST_ASSERT(kernel::gemm_chunked::supports(Op::NoTrans, Op::NoTrans,
+        4096, 768, 3072, 1)); // GPT-2 MLP shapes
+    TEST_ASSERT(kernel::gemm_chunked::supports(Op::NoTrans, Op::NoTrans,
+        4096, 64, 64, 12)); // attention: exact 64s
+    TEST_ASSERT(kernel::gemm_chunked::supports(Op::NoTrans, Op::NoTrans,
+        1280, 128, 1024, 1)); // 5*256, exact 128, 4*256
 
-    // Classic family (launch_forced): full 128-multiple shapes, every
-    // transpose combo, plus chunk-straddle geometry.
-    run_case(Op::NoTrans, Op::NoTrans, 256, 384, 512, 1, 0, 0, "NN 128s");
-    run_case(Op::NoTrans, Op::Trans, 384, 256, 640, 1, 0, 0, "NT 128s");
-    run_case(Op::Trans, Op::NoTrans, 256, 128, 1152, 1, 0, 0, "TN 128s");
-    run_case(Op::Trans, Op::Trans, 128, 128, 384, 1, 0, 0, "TT 128s");
-    // Deep-k big-B geometry.
+    // Classic family (launch_forced): law-conforming shapes, every
+    // transpose combo, deep-k, and chunk-straddle geometry.
+    run_case(Op::NoTrans, Op::NoTrans, 256, 512, 1024, 1, 0, 0,
+        "NN law");
+    run_case(Op::NoTrans, Op::Trans, 512, 256, 768, 1, 0, 0, "NT law");
+    run_case(Op::Trans, Op::NoTrans, 256, 256, 1024, 1, 0, 0, "TN law");
+    run_case(Op::Trans, Op::Trans, 128, 128, 256, 1, 0, 0, "TT law");
     run_case(Op::NoTrans, Op::NoTrans, 512, 768, 3072, 1, 0, 0,
         "NN deep-k");
     // Straddle-heavy: 1024-float rows cross the 4 MiB class at row
@@ -293,7 +295,7 @@ int main()
         "NN straddle");
     run_case(Op::NoTrans, Op::Trans, 1280, 128, 1024, 1, 0, 0,
         "NT straddle");
-    // Batched small-tile family (MsSmall): 64-multiple dims.
+    // Batched small-tile family.
     run_case(Op::NoTrans, Op::NoTrans, 128, 64, 128, 3, 0, 0,
         "NN batch");
     run_case(Op::NoTrans, Op::NoTrans, 128, 64, 128, 3, 0, 1,

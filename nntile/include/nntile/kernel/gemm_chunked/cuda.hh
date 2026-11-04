@@ -74,13 +74,14 @@ struct Operand
     int shift = 0;             //!< 0 flat, 62 sentinel, else log2 chunk
 };
 
-//! Ownership law (owner directives, rounds 5+7): the native family owns
-//! a call only when every shape dimension except batch is a multiple of
-//! the owning configuration's tile — 128 for the large-shape classic
-//! family, 64 for the small-tile batched family. Tile-multiplicity
-//! subsumes 4-alignment; owned calls carry no shape tails of any kind.
-//! BAD shapes (odd vocab widths, ragged dims) belong to the
-//! workspace-staged cuBLAS path.
+//! Ownership law (owner directive, round 8): the native family owns a
+//! call only when every shape dimension except batch is a multiple of
+//! 256, or exactly 128, or exactly 64 (GPT-2 small/medium/large and the
+//! attention projections pass; lm_head and ragged dims do not). Owned
+//! calls carry no shape tails, row starts are at least 64-float
+//! aligned, and — chunk classes being >= 2^18 floats — 16-float-aligned
+//! minichunks never straddle chunks, so loaders resolve pointers only
+//! at chunk-boundary crossings of a row march.
 //!
 //! Transposition flags in C-order row-major semantics.
 enum class Op : int
