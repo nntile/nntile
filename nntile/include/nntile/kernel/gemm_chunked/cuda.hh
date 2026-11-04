@@ -30,6 +30,18 @@
 namespace nntile::kernel::gemm_chunked
 {
 
+//! Portability contract: this family is PURE CUDA — no tensor ops, no
+//! cp.async, no arch intrinsics — and every configuration keeps shared
+//! memory at or below 32 KiB, so the kernels build and run on every
+//! pre-Ampere architecture (sm_50 Maxwell through sm_75 Turing) as
+//! well as later ones. Pre-Ampere is the family's raison d'etre: those
+//! GPUs have no fp32-input tensor path (TF32 is sm_80+), CUTLASS ships
+//! no fp32-SIMT GEMM for them, and Triton's backend is not maintained
+//! below sm_80 — a hand-tuned FFMA kernel is the only native-chunked
+//! option there. Tuning is measured on sm_75 (RTX 2080 Ti, SM clock
+//! pinned at the 1350 MHz base for reproducibility); per-arch tile
+//! retunes are follow-ups.
+
 //! Operand addressing for the chunk-native kernels.
 //!
 //! A multi-chunk tile is the LOGICAL CONCATENATION of its whole-class
