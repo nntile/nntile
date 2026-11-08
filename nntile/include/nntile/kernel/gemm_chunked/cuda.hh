@@ -74,14 +74,17 @@ struct Operand
     int shift = 0;             //!< 0 flat, 62 sentinel, else log2 chunk
 };
 
-//! Ownership law (owner directive, round 8): the native family owns a
-//! call only when every shape dimension except batch is a multiple of
-//! 256, or exactly 128, or exactly 64 (GPT-2 small/medium/large and the
-//! attention projections pass; lm_head and ragged dims do not). Owned
-//! calls carry no shape tails, row starts are at least 64-float
+//! Ownership law (FINAL, owner directive): the native family owns a
+//! call only when every shape dimension except batch is exactly 64 or
+//! a multiple of 128. All GPT-2 small/medium/large GEMMs conform (768,
+//! 1024, 1280 and their 3H/4H multiples; attention projections are
+//! exact 64s); lm_head's 50257 vocab and GPT-2 XL's 1600 (= 12.5x128)
+//! belong to the workspace-staged cuBLAS path, as does anything ragged.
+//! Owned calls carry no shape tails, row starts are at least 64-float
 //! aligned, and — chunk classes being >= 2^18 floats — 16-float-aligned
 //! minichunks never straddle chunks, so loaders resolve pointers only
-//! at chunk-boundary crossings of a row march.
+//! at chunk-boundary crossings of a row march. fp32 only (the campaign
+//! dtype); every other repr type takes the staged path.
 //!
 //! Transposition flags in C-order row-major semantics.
 enum class Op : int

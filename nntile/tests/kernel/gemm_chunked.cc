@@ -261,47 +261,63 @@ void run_case(Op ta, Op tb, int m, int n, int k, int batch, bool bcast_a,
 
 int main()
 {
-    // Shape law decliners (owner directive, round 8): each dim must be
-    // a multiple of 256, or exactly 128, or exactly 64.
+    // FINAL shape law (owner directive): each dim exactly 64 or a
+    // 128-multiple; everything else declines to staged cuBLAS.
     TEST_ASSERT(!kernel::gemm_chunked::supports(Op::NoTrans, Op::Trans,
         260, 301, 128, 1)); // odd n
     TEST_ASSERT(!kernel::gemm_chunked::supports(Op::Trans, Op::NoTrans,
         50257, 768, 4096, 1)); // odd m (lm_head wgrad)
     TEST_ASSERT(!kernel::gemm_chunked::supports(Op::NoTrans, Op::NoTrans,
-        384, 256, 512, 1)); // 384 is not a 256 multiple nor exactly 128
+        96, 128, 256, 1)); // 96 is 1.5x64 -- no clause
     TEST_ASSERT(!kernel::gemm_chunked::supports(Op::NoTrans, Op::NoTrans,
-        4096, 1152, 3072, 1)); // 1152 = 9*128, still not a 256 multiple
-    TEST_ASSERT(!kernel::gemm_chunked::supports(Op::NoTrans, Op::NoTrans,
-        4096, 64, 96, 12)); // k=96 fails every clause
+        4096, 192, 3072, 1)); // 192 is 1.5x128 -- no clause
     TEST_ASSERT(kernel::gemm_chunked::supports(Op::NoTrans, Op::NoTrans,
-        4096, 768, 3072, 1)); // GPT-2 MLP shapes
+        4096, 384, 3072, 1)); // 384 = 3x128 (was declined under the
+    // round-8 interim law)
+    TEST_ASSERT(kernel::gemm_chunked::supports(Op::NoTrans, Op::NoTrans,
+        4096, 1536, 3072, 1)); // 12x128
+    TEST_ASSERT(!kernel::gemm_chunked::supports(Op::NoTrans, Op::NoTrans,
+        4096, 1600, 3072, 1)); // GPT-2 XL hidden = 12.5x128: staged
+    // path owns it under the final law
     TEST_ASSERT(kernel::gemm_chunked::supports(Op::NoTrans, Op::NoTrans,
         4096, 64, 64, 12)); // attention: exact 64s
     TEST_ASSERT(kernel::gemm_chunked::supports(Op::NoTrans, Op::NoTrans,
-        1280, 128, 1024, 1)); // 5*256, exact 128, 4*256
+        128, 64, 1024, 1)); // single-batch 64 dims (MsSmall routing)
 
-    // Classic family (launch_forced): law-conforming shapes, every
-    // transpose combo, deep-k, and chunk-straddle geometry.
+    // Classic family (launch_forced): 128-multiple shapes, every
+    // transpose combo, deep-k, heavy multi-chunk fragmentation, and
+    // chunk-straddle geometry -- all scattered over 1/2/4/8 MiB
+    // classes with junk-interleaved non-contiguous chunk tables.
     run_case(Op::NoTrans, Op::NoTrans, 256, 512, 1024, 1, 0, 0,
         "NN law");
-    run_case(Op::NoTrans, Op::Trans, 512, 256, 768, 1, 0, 0, "NT law");
-    run_case(Op::Trans, Op::NoTrans, 256, 256, 1024, 1, 0, 0, "TN law");
+    run_case(Op::NoTrans, Op::Trans, 512, 384, 768, 1, 0, 0,
+        "NT 128n");
+    run_case(Op::Trans, Op::NoTrans, 384, 256, 1024, 1, 0, 0,
+        "TN 128n");
     run_case(Op::Trans, Op::Trans, 128, 128, 256, 1, 0, 0, "TT law");
     run_case(Op::NoTrans, Op::NoTrans, 512, 768, 3072, 1, 0, 0,
         "NN deep-k");
+    // Fragmentation-heavy: every operand spans several 1 MiB chunks at
+    // the smallest class; rows march across chunk boundaries.
+    run_case(Op::NoTrans, Op::NoTrans, 1152, 384, 1280, 1, 0, 0,
+        "NN frag");
+    run_case(Op::NoTrans, Op::Trans, 1280, 1152, 384, 1, 0, 0,
+        "NT frag");
     // Straddle-heavy: 1024-float rows cross the 4 MiB class at row
     // 1024; m=1280 covers the boundary.
     run_case(Op::NoTrans, Op::NoTrans, 1280, 128, 1024, 1, 0, 0,
         "NN straddle");
     run_case(Op::NoTrans, Op::Trans, 1280, 128, 1024, 1, 0, 0,
         "NT straddle");
-    // Batched small-tile family.
+    // Small-tile family: batched and single-batch 64-dim calls.
     run_case(Op::NoTrans, Op::NoTrans, 128, 64, 128, 3, 0, 0,
         "NN batch");
     run_case(Op::NoTrans, Op::NoTrans, 128, 64, 128, 3, 0, 1,
         "NN bcast-b");
     run_case(Op::NoTrans, Op::NoTrans, 128, 64, 128, 3, 1, 0,
         "NN bcast-a");
+    run_case(Op::NoTrans, Op::NoTrans, 128, 64, 1024, 1, 0, 0,
+        "NN sb64");
     return 0;
 }
 

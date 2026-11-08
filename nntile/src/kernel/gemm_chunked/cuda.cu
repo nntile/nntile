@@ -2392,23 +2392,24 @@ bool supports(Op transA, Op transB, int m, int n, int k, int batch) noexcept
 {
     (void)transA;
     (void)transB;
-    // The shape law (owner directive, round 8): every shape dimension
-    // except batch must be a multiple of 256, or exactly 128, or
-    // exactly 64. GPT-2 small/medium/large (768/1024/1280) and the
-    // attention projections (64) pass; anything else is a BAD shape
-    // owned by the workspace-staged cuBLAS path. Consequences the
-    // loaders rely on: no shape tails of any kind, every row start is
-    // at least 64-float aligned, and -- with chunk classes >= 1 MiB =
-    // 2^18 floats -- every 16-float-aligned minichunk lies wholly in
-    // one chunk and consecutive minichunks are sequential within it,
-    // so pointer resolution is needed only when a row march crosses a
-    // chunk boundary (the carried-pointer loader discipline).
+    // The FINAL shape law (owner directive): every shape dimension
+    // except batch must be exactly 64 or a multiple of 128. All GPT-2
+    // variants conform (768..1600 hidden widths are 128-multiples; the
+    // attention projections are exactly 64); odd vocab widths and
+    // ragged dims are BAD shapes owned by the workspace-staged cuBLAS
+    // path. Consequences the kernels rely on: every dim fits its
+    // owning tile family exactly (128-multiples for the classic/CutB
+    // tiles, all dims when any dim is 64 route to the 64-tiled MsSmall
+    // family), no shape tails, row starts at least 64-float aligned,
+    // and -- with chunk classes >= 2^18 floats -- 16-float-aligned
+    // minichunks never straddle chunks (the intra-chunk law grounding
+    // the carried-pointer loaders).
     if(m <= 0 || n <= 0 || k <= 0 || batch <= 0)
     {
         return false;
     }
     auto ok_dim = [](int d) noexcept {
-        return d % 256 == 0 || d == 128 || d == 64;
+        return d % 128 == 0 || d == 64;
     };
     return ok_dim(m) && ok_dim(n) && ok_dim(k);
 }
@@ -2533,9 +2534,16 @@ bool launch(Op transA, Op transB, int m, int n, int k, int batch,
 //! declined — launch_forced()'s choice.
 int pick_cfg_best(Op ta, Op tb, int m, int n, int k, int batch) noexcept
 {
-    (void)m;
-    (void)n;
+    (void)batch;
     if(batch >= 2 && n <= 64)
+    {
+        return kCfgMsSmall;
+    }
+    // A 64-exact dim (single-batch attention-shaped calls and friends)
+    // must reach the 64-tiled family: the classic/CutB kernels are
+    // built tail-free on 128 tiles and a 64-wide dim would half-mask
+    // every tile.
+    if(m == 64 || n == 64 || k == 64)
     {
         return kCfgMsSmall;
     }
