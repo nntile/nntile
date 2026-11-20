@@ -81,7 +81,7 @@ void torch_unary(
     {
         throw std::invalid_argument("torch_unary: graph mismatch");
     }
-    auto op = std::make_shared<TensorTorchUnaryOp>(
+    auto op = nntile::make_op<TensorTorchUnaryOp>(
         kind,
         in,
         out,
@@ -145,7 +145,7 @@ void torch_binary(
     {
         throw std::invalid_argument("torch_binary: null tensor");
     }
-    auto op = std::make_shared<TensorTorchBinaryOp>(
+    auto op = nntile::make_op<TensorTorchBinaryOp>(
         kind,
         a,
         b,
@@ -176,7 +176,7 @@ void torch_ternary(
     TensorGraph::TensorNode *out,
     starpu::TorchDispatchArgs extra)
 {
-    auto op = std::make_shared<TensorTorchTernaryOp>(
+    auto op = nntile::make_op<TensorTorchTernaryOp>(
         kind,
         a,
         b,
@@ -194,7 +194,7 @@ TensorGraph::TensorNode *torch_embedding(
 {
     TensorGraph::TensorNode *out =
         weight->graph()->emplace_data(out_shape, weight->dtype());
-    auto op = std::make_shared<TensorTorchEmbeddingOp>(
+    auto op = nntile::make_op<TensorTorchEmbeddingOp>(
         weight,
         indices,
         out,
@@ -212,7 +212,7 @@ TensorGraph::TensorNode *torch_where(
 {
     TensorGraph::TensorNode *out =
         self->graph()->emplace_data(out_shape, self->dtype());
-    auto op = std::make_shared<TensorTorchWhereOp>(
+    auto op = nntile::make_op<TensorTorchWhereOp>(
         condition,
         self,
         other,
@@ -235,7 +235,7 @@ TensorGraph::TensorNode *torch_cat(
         inputs[0]->graph()->emplace_data(
             out_shape,
             inputs[0]->dtype());
-    auto op = std::make_shared<TensorTorchCatOp>(dim, inputs, out);
+    auto op = nntile::make_op<TensorTorchCatOp>(dim, inputs, out);
     inputs[0]->graph()->add_op(op);
     return out;
 }
@@ -305,7 +305,7 @@ void torch_arange(
     {
         throw std::invalid_argument("torch_arange: null tensor");
     }
-    auto op = std::make_shared<TensorTorchArangeOp>(out, extra);
+    auto op = nntile::make_op<TensorTorchArangeOp>(out, extra);
     out->graph()->add_op(op);
 }
 
@@ -328,7 +328,7 @@ TensorGraph::TensorNode *torch_gt(
     }
     TensorGraph::TensorNode *out =
         a->graph()->emplace_data(out_shape, DataType::BOOL);
-    auto op = std::make_shared<TensorTorchGtOp>(a, b, out, extra);
+    auto op = nntile::make_op<TensorTorchGtOp>(a, b, out, extra);
     a->graph()->add_op(op);
     return out;
 }
@@ -365,7 +365,7 @@ void torch_embedding_dense_backward(
     TensorGraph::TensorNode *grad_weight,
     starpu::TorchDispatchArgs extra)
 {
-    auto op = std::make_shared<TensorTorchEmbeddingDenseBackwardOp>(
+    auto op = nntile::make_op<TensorTorchEmbeddingDenseBackwardOp>(
         grad,
         indices,
         grad_weight,
@@ -396,7 +396,7 @@ void torch_convolution(
     TensorGraph::TensorNode *out,
     starpu::TorchDispatchArgs extra)
 {
-    auto op = std::make_shared<TensorTorchConvolutionOp>(
+    auto op = nntile::make_op<TensorTorchConvolutionOp>(
         input,
         weight,
         bias,
@@ -436,7 +436,7 @@ void torch_convolution_backward(
     bool need_grad_bias,
     starpu::TorchDispatchArgs extra)
 {
-    auto op = std::make_shared<TensorTorchConvolutionBackwardOp>(
+    auto op = nntile::make_op<TensorTorchConvolutionBackwardOp>(
         grad_out,
         input,
         weight,
@@ -499,7 +499,7 @@ void torch_max_pool2d_with_indices(
     TensorGraph::TensorNode *indices,
     starpu::TorchDispatchArgs extra)
 {
-    auto op = std::make_shared<TensorTorchMaxPool2dWithIndicesOp>(
+    auto op = nntile::make_op<TensorTorchMaxPool2dWithIndicesOp>(
         input,
         out,
         indices,
@@ -530,7 +530,7 @@ void torch_max_pool2d_with_indices_backward(
     TensorGraph::TensorNode *grad_input,
     starpu::TorchDispatchArgs extra)
 {
-    auto op = std::make_shared<TensorTorchMaxPool2dWithIndicesBackwardOp>(
+    auto op = nntile::make_op<TensorTorchMaxPool2dWithIndicesBackwardOp>(
         grad_out,
         input,
         indices,
@@ -570,7 +570,7 @@ void torch_native_batch_norm(
     bool training,
     starpu::TorchDispatchArgs extra)
 {
-    auto op = std::make_shared<TensorTorchNativeBatchNormOp>(
+    auto op = nntile::make_op<TensorTorchNativeBatchNormOp>(
         input,
         weight,
         bias,
@@ -652,7 +652,7 @@ void torch_native_batch_norm_backward(
     bool need_grad_bias,
     starpu::TorchDispatchArgs extra)
 {
-    auto op = std::make_shared<TensorTorchNativeBatchNormBackwardOp>(
+    auto op = nntile::make_op<TensorTorchNativeBatchNormBackwardOp>(
         grad_out,
         input,
         weight,
@@ -762,7 +762,7 @@ void torch_sdpa_backward(
     bool is_causal,
     starpu::TorchDispatchArgs extra)
 {
-    auto op = std::make_shared<TensorTorchSdpaBackwardOp>(
+    auto op = nntile::make_op<TensorTorchSdpaBackwardOp>(
         q,
         k,
         v,
@@ -822,7 +822,7 @@ void torch_nll_loss_forward(
     Index ignore_index,
     starpu::TorchDispatchArgs extra)
 {
-    auto op = std::make_shared<TensorTorchNllLossForwardOp>(
+    auto op = nntile::make_op<TensorTorchNllLossForwardOp>(
         log_probs,
         target,
         loss,
@@ -864,7 +864,7 @@ void torch_nll_loss_backward(
     Index ignore_index,
     starpu::TorchDispatchArgs extra)
 {
-    auto op = std::make_shared<TensorTorchNllLossBackwardOp>(
+    auto op = nntile::make_op<TensorTorchNllLossBackwardOp>(
         grad_output,
         log_probs,
         target,

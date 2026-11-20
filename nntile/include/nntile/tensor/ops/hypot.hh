@@ -51,7 +51,7 @@ struct TensorHypotOp : TensorGraph::OpNode
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorHypotOp>(*this);
+        return nntile::make_op<TensorHypotOp>(*this);
     }
 
     void lower_to_tile(const LoweringContext &ctx) const override;

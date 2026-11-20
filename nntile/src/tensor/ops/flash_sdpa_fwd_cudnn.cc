@@ -115,7 +115,7 @@ void flash_sdpa_fwd_cudnn(TensorGraph::TensorNode *K,
     merge_axis(mask->mutable_axes()[0], Q->mutable_axes()[q_seq_ax]);
     merge_axis(mask->mutable_axes()[1], K->mutable_axes()[k_seq_ax]);
 
-    auto op = std::make_shared<TensorFlashSdpaFwdCudnnOp>(
+    auto op = nntile::make_op<TensorFlashSdpaFwdCudnnOp>(
         K, Q, mask, logsumexp, V, A);
     A->graph()->add_op(op);
 }

@@ -57,7 +57,7 @@ void scale(
             "scale: src and dst must be distinct tensors");
     validate_same_shape_and_merge(src, dst, "scale");
 
-    auto op = std::make_shared<TensorScaleOp>(src, dst, alpha);
+    auto op = nntile::make_op<TensorScaleOp>(src, dst, alpha);
     src->graph()->add_op(op);
 }
 

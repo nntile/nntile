@@ -44,7 +44,7 @@ void hypot(
         throw std::invalid_argument("tile hypot: shape");
     if(src1 == src2 || src1 == dst || src2 == dst)
         throw std::invalid_argument("tile hypot: distinct");
-    src1->graph()->add_op(std::make_shared<TileHypotOp>(alpha, src1, beta, src2, dst));
+    src1->graph()->add_op(nntile::make_op<TileHypotOp>(alpha, src1, beta, src2, dst));
 }
 void TileHypotOp::execute(Runtime& runtime) const
 {

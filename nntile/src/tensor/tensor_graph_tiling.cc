@@ -22,6 +22,8 @@
 #include "nntile/tensor/ops/logsumexp.hh"
 #include "nntile/tensor/ops/subtract_indexed_outputs.hh"
 #include "nntile/tensor/ops/total_sum_accum.hh"
+#include "nntile/tensor/graph_data_node.hh"
+
 
 namespace nntile
 {
@@ -44,6 +46,10 @@ void constrain_reduction_tiles(const TensorGraph &tg)
     for (const auto &op : tg.ops())
     {
         if (op == nullptr)
+        {
+            continue;
+        }
+        if (!op->constrains_reduction_tiles())
         {
             continue;
         }
@@ -88,33 +94,34 @@ TensorAxisLayout::TensorAxisLayout(const TensorGraph::TensorNode* node)
         throw std::runtime_error(
             "TensorAxisLayout: axes/shape mismatch for '" + node->name() + "'");
     }
-    segments_.resize(static_cast<size_t>(ndim));
-    axis_origin_.resize(static_cast<size_t>(ndim));
     grid_shape_.assign(static_cast<size_t>(ndim), 1);
     grid_volume_ = 1;
 
+    // Pass 1: grid shape per axis (segment count) + validation.
     for(Index d = 0; d < ndim; ++d)
     {
         const AxisDescriptor* ax = axes[static_cast<size_t>(d)].get();
+        const std::vector<Index>* seg;
+        std::vector<Index> one;
         if(!ax->is_tiled())
         {
-            segments_[static_cast<size_t>(d)] = {shape_[static_cast<size_t>(d)]};
+            one = {shape_[static_cast<size_t>(d)]};
+            seg = &one;
         }
         else
         {
-            segments_[static_cast<size_t>(d)] = ax->tile_sizes;
+            seg = &ax->tile_sizes;
         }
-        const auto& seg = segments_[static_cast<size_t>(d)];
         Index sum = 0;
-        for(Index s : seg)
+        for(Index svv : *seg)
         {
-            if(s <= 0)
+            if(svv <= 0)
             {
                 throw std::invalid_argument(
                     "TensorAxisLayout: non-positive segment on axis " +
                     std::to_string(d) + " for '" + node->name() + "'");
             }
-            sum += s;
+            sum += svv;
         }
         if(sum != shape_[static_cast<size_t>(d)])
         {
@@ -122,15 +129,44 @@ TensorAxisLayout::TensorAxisLayout(const TensorGraph::TensorNode* node)
                 "TensorAxisLayout: segment sum != extent on axis " +
                 std::to_string(d) + " for '" + node->name() + "'");
         }
-        grid_shape_[static_cast<size_t>(d)] = static_cast<Index>(seg.size());
+        grid_shape_[static_cast<size_t>(d)] = static_cast<Index>(seg->size());
         grid_volume_ *= grid_shape_[static_cast<size_t>(d)];
+    }
 
-        std::vector<Index> origin(seg.size() + 1, 0);
-        for(size_t k = 0; k < seg.size(); ++k)
+    // Pass 2: flat fill (one buffer for segments with +1 padding per
+    // axis, one for prefix origins, one row table shared by both).
+    row_.assign(static_cast<size_t>(ndim) + 1, 0);
+    std::size_t total = 0;
+    for(Index d = 0; d < ndim; ++d)
+    {
+        row_[static_cast<std::size_t>(d) + 1] =
+            row_[static_cast<std::size_t>(d)]
+            + static_cast<Index>(grid_shape_[static_cast<std::size_t>(d)]) + 1;
+        total = static_cast<std::size_t>(row_[static_cast<std::size_t>(d) + 1]);
+    }
+    segs_.assign(total, 0);
+    origins_.assign(total, 0);
+    for(Index d = 0; d < ndim; ++d)
+    {
+        const AxisDescriptor* ax = axes[static_cast<size_t>(d)].get();
+        const std::size_t base =
+            static_cast<std::size_t>(row_[static_cast<std::size_t>(d)]);
+        const std::size_t nseg =
+            static_cast<std::size_t>(grid_shape_[static_cast<std::size_t>(d)]);
+        if(!ax->is_tiled())
         {
-            origin[k + 1] = origin[k] + seg[k];
+            segs_[base] = shape_[static_cast<std::size_t>(d)];
         }
-        axis_origin_[static_cast<size_t>(d)] = std::move(origin);
+        else
+        {
+            std::copy(ax->tile_sizes.begin(), ax->tile_sizes.end(),
+                segs_.begin() + static_cast<std::ptrdiff_t>(base));
+        }
+        for(std::size_t k = 0; k < nseg; ++k)
+        {
+            origins_[base + k + 1] =
+                origins_[base + k] + segs_[base + k];
+        }
     }
 }
 
@@ -189,7 +225,8 @@ std::vector<Index> TensorAxisLayout::tile_shape_at(
         {
             throw std::out_of_range("TensorAxisLayout::tile_shape_at: OOB");
         }
-        ts[d] = segments_[d][static_cast<size_t>(grid_coord[d])];
+        ts[d] = segs_[static_cast<size_t>(row_[d])
+                  + static_cast<size_t>(grid_coord[d])];
     }
     return ts;
 }
@@ -223,19 +260,23 @@ void TensorAxisLayout::global_coord(
             throw std::out_of_range("TensorAxisLayout::global_coord: local OOB");
         }
         const Index seg_idx = grid_coord[d];
-        global_out[d] = axis_origin_[d][static_cast<size_t>(seg_idx)] +
-                      local_within_tile[d];
+        global_out[d] = origins_[static_cast<size_t>(row_[d])
+                        + static_cast<size_t>(seg_idx)]
+                      + local_within_tile[d];
     }
 }
 
 std::vector<Index> TensorAxisLayout::max_tile_extents() const
 {
     std::vector<Index> m(shape_.size(), 1);
-    for(size_t d = 0; d < segments_.size(); ++d)
+    for(size_t d = 0; d + 1 < row_.size(); ++d)
     {
-        for(Index s : segments_[d])
+        const std::size_t base = static_cast<std::size_t>(row_[d]);
+        const std::size_t nseg =
+            static_cast<std::size_t>(grid_shape_[d]);
+        for(std::size_t k = 0; k < nseg; ++k)
         {
-            m[d] = std::max(m[d], s);
+            m[d] = std::max(m[d], segs_[base + k]);
         }
     }
     return m;
@@ -253,9 +294,13 @@ Index TensorAxisLayout::tile_index_containing(
         throw std::out_of_range(
             "TensorAxisLayout::tile_index_containing: global_index");
     }
-    const auto& origin = axis_origin_[static_cast<size_t>(dim)];
-    auto it = std::lower_bound(origin.begin(), origin.end(), global_index + 1);
-    return static_cast<Index>((it - origin.begin()) - 1);
+    const std::size_t base = static_cast<std::size_t>(row_[static_cast<std::size_t>(dim)]);
+    const std::size_t nseg =
+        static_cast<std::size_t>(grid_shape_[static_cast<std::size_t>(dim)]);
+    auto it = std::lower_bound(origins_.begin() + static_cast<std::ptrdiff_t>(base),
+        origins_.begin() + static_cast<std::ptrdiff_t>(base + nseg + 1),
+        global_index + 1);
+    return static_cast<Index>((it - (origins_.begin() + static_cast<std::ptrdiff_t>(base))) - 1);
 }
 
 std::string const &TensorAxisLayout::layout_fingerprint() const
@@ -270,11 +315,14 @@ std::string const &TensorAxisLayout::layout_fingerprint() const
         o << static_cast<long long>(g) << ',';
     }
     o << '|';
-    for(const auto& seg : segments_)
+    for(size_t d = 0; d + 1 < row_.size(); ++d)
     {
-        for(Index s : seg)
+        const std::size_t base = static_cast<std::size_t>(row_[d]);
+        const std::size_t nseg =
+            static_cast<std::size_t>(grid_shape_[d]);
+        for(std::size_t k = 0; k < nseg; ++k)
         {
-            o << static_cast<long long>(s) << ',';
+            o << static_cast<long long>(segs_[base + k]) << ',';
         }
         o << ';';
     }
@@ -300,18 +348,44 @@ std::uint64_t TensorAxisLayout::layout_fingerprint_hash() const
     {
         mix(static_cast<std::uint64_t>(g));
     }
-    mix(static_cast<std::uint64_t>(segments_.size()));
-    for(const auto &seg : segments_)
+    mix(static_cast<std::uint64_t>(grid_shape_.size()));
+    for(size_t d = 0; d + 1 < row_.size(); ++d)
     {
-        mix(static_cast<std::uint64_t>(seg.size()));
-        for(Index s : seg)
+        const std::size_t base = static_cast<std::size_t>(row_[d]);
+        const std::size_t nseg =
+            static_cast<std::size_t>(grid_shape_[d]);
+        mix(static_cast<std::uint64_t>(nseg));
+        for(std::size_t k = 0; k < nseg; ++k)
         {
-            mix(static_cast<std::uint64_t>(s));
+            mix(static_cast<std::uint64_t>(segs_[base + k]));
         }
     }
     fingerprint_hash_ = h;
     fingerprint_hash_ready_ = true;
     return fingerprint_hash_;
+}
+
+void TensorAxisLayout::tile_axis_segment_range(
+    Index dim,
+    Index seg,
+    Index& global_lo,
+    Index& global_hi_inclusive) const
+{
+    if(dim < 0 || static_cast<size_t>(dim) >= grid_shape_.size())
+    {
+        throw std::out_of_range(
+            "TensorAxisLayout::tile_axis_segment_range: dim");
+    }
+    if(seg < 0 || seg >= grid_shape_[static_cast<size_t>(dim)])
+    {
+        throw std::out_of_range(
+            "TensorAxisLayout::tile_axis_segment_range: seg");
+    }
+    const std::size_t pos =
+        static_cast<std::size_t>(row_[static_cast<std::size_t>(dim)])
+        + static_cast<std::size_t>(seg);
+    global_lo = origins_[pos];
+    global_hi_inclusive = global_lo + segs_[pos] - 1;
 }
 
 void TensorAxisLayout::tile_axis_global_range(
@@ -325,10 +399,11 @@ void TensorAxisLayout::tile_axis_global_range(
         throw std::out_of_range("TensorAxisLayout::tile_axis_global_range: dim");
     }
     const Index seg = grid_coord[static_cast<size_t>(dim)];
-    global_lo = axis_origin_[static_cast<size_t>(dim)][static_cast<size_t>(seg)];
-    global_hi_inclusive =
-        global_lo + segments_[static_cast<size_t>(dim)][static_cast<size_t>(seg)] -
-        1;
+    const std::size_t pos =
+        static_cast<std::size_t>(row_[static_cast<std::size_t>(dim)])
+        + static_cast<std::size_t>(seg);
+    global_lo = origins_[pos];
+    global_hi_inclusive = global_lo + segs_[pos] - 1;
 }
 
 void TensorGraphTiling::set_layout(
@@ -368,15 +443,26 @@ void collect_phase_touched(
     const TensorGraph& tg,
     const TensorGraph::PhaseSnapshot& phase,
     std::vector<const TensorGraph::TensorNode*>& touched,
-    std::uint32_t gen)
+    std::vector<std::uint8_t>& bits)
 {
     auto note = [&](const TensorGraph::TensorNode* t)
     {
-        if(t == nullptr || t->touch_gen() == gen)
+        if(t == nullptr)
         {
             return;
         }
-        t->set_touch_gen(gen);
+        std::size_t const id = static_cast<std::size_t>(t->id());
+        // id==slot invariant: ids are dense slots into the graph's
+        // data-node space (bits is sized by it). An out-of-range id is
+        // graph corruption - fail loudly instead of silently dropping
+        // the node.
+        check_tensor_id_slot(t->id(), bits.size(),
+            "TensorGraphTiling: collect_phase_touched");
+        if(bits[id] != 0)
+        {
+            return;
+        }
+        bits[id] = 1;
         touched.push_back(t);
     };
     for(const TensorGraph::TensorNode* t : phase.carried_tensors)
@@ -417,11 +503,30 @@ void TensorGraphTiling::ensure_phase_layouts(
     const TensorGraph& tg,
     const TensorGraph::PhaseSnapshot& phase)
 {
+    // [C5 diag] NNTILE_COMPILE_BREAKDOWN splits this pass; all clock
+    // reads are gated on it (none on the ungated path).
+    static bool const cbrk2 = env_flag_enabled("NNTILE_COMPILE_BREAKDOWN");
+    std::chrono::steady_clock::time_point t0{};
+    std::chrono::steady_clock::time_point t1{};
+    std::chrono::steady_clock::time_point t2{};
+    std::chrono::steady_clock::time_point t3{};
+    if(cbrk2)
+    {
+        t0 = std::chrono::steady_clock::now();
+    }
     constrain_reduction_tiles(tg);
+    if(cbrk2)
+    {
+        t1 = std::chrono::steady_clock::now();
+    }
     std::vector<const TensorGraph::TensorNode*> touched;
-    std::uint32_t const gen =
-        TensorGraph::TensorNode::next_touch_gen();
-    collect_phase_touched(tg, phase, touched, gen);
+    std::vector<std::uint8_t> bits(tg.num_data(), 0);
+    collect_phase_touched(tg, phase, touched, bits);
+    if(cbrk2)
+    {
+        t2 = std::chrono::steady_clock::now();
+    }
+    std::size_t made = 0;
     for(const TensorGraph::TensorNode* t : touched)
     {
         if(find(t) != nullptr)
@@ -429,6 +534,18 @@ void TensorGraphTiling::ensure_phase_layouts(
             continue;
         }
         set_layout(t, TensorAxisLayout(t));
+        ++made;
+    }
+    if(cbrk2)
+    {
+        t3 = std::chrono::steady_clock::now();
+        std::fprintf(stderr,
+            "[nntile-cbrk] tiling2 constrain_ms=%.3f collect_ms=%.3f "
+            "setlayout_ms=%.3f made=%zu\n",
+            std::chrono::duration<double, std::milli>(t1 - t0).count(),
+            std::chrono::duration<double, std::milli>(t2 - t1).count(),
+            std::chrono::duration<double, std::milli>(t3 - t2).count(),
+            made);
     }
 }
 

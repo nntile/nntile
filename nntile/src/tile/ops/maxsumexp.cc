@@ -45,7 +45,7 @@ void maxsumexp(TileGraph::TileNode* src, TileGraph::TileNode* dst, Index axis,
         throw std::invalid_argument("tile maxsumexp: dtype");
     if(src == dst)
         throw std::invalid_argument("tile maxsumexp: distinct");
-    src->graph()->add_op(std::make_shared<TileMaxsumexpOp>(src, dst, axis,
+    src->graph()->add_op(nntile::make_op<TileMaxsumexpOp>(src, dst, axis,
                 beta, redux));
 }
 void TileMaxsumexpOp::execute(Runtime& runtime) const

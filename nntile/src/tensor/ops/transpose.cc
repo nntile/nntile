@@ -81,7 +81,7 @@ TensorGraph::TensorNode *transpose(
         merge_axis(
             src->mutable_axes()[(i + ndim) % n], output->mutable_axes()[i]);
     }
-    auto op = std::make_shared<TensorTransposeOp>(src, output, ndim, alpha);
+    auto op = nntile::make_op<TensorTransposeOp>(src, output, ndim, alpha);
     src->graph()->add_op(op);
     return output;
 }
@@ -131,7 +131,7 @@ void transpose(Scalar alpha,
         merge_axis(
             src->mutable_axes()[(i + ndim) % n], dst->mutable_axes()[i]);
     }
-    auto op = std::make_shared<TensorTransposeOp>(src, dst, ndim, alpha);
+    auto op = nntile::make_op<TensorTransposeOp>(src, dst, ndim, alpha);
     src->graph()->add_op(op);
 }
 

@@ -37,7 +37,7 @@ void multiply_fiber_inplace(Scalar a, TileGraph::TileNode* s, TileGraph::TileNod
         throw std::invalid_argument("multiply_fiber_inplace");
     if(s->graph() != d->graph() || s->dtype() != d->dtype() || s == d)
         throw std::invalid_argument("multiply_fiber_inplace");
-    s->graph()->add_op(std::make_shared<TileMultiplyFiberInplaceOp>(a, s, d, axis));
+    s->graph()->add_op(nntile::make_op<TileMultiplyFiberInplaceOp>(a, s, d, axis));
 }
 void TileMultiplyFiberInplaceOp::execute(Runtime& runtime) const
 {

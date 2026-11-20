@@ -61,7 +61,7 @@ TensorGraph::TensorNode *norm_slice(Scalar alpha,
     validate_slice_shape_and_merge(dst, src1, axis, "norm_slice");
     validate_same_shape_and_merge(src2, dst, "norm_slice");
 
-    auto op = std::make_shared<TensorNormSliceOp>(
+    auto op = nntile::make_op<TensorNormSliceOp>(
         alpha, beta, src1, src2, dst, axis, redux);
     src1->graph()->add_op(op);
 
@@ -99,7 +99,7 @@ void norm_slice(Scalar alpha,
     validate_slice_shape_and_merge(dst, src1, axis, "norm_slice");
     validate_same_shape_and_merge(src2, dst, "norm_slice");
 
-    auto op = std::make_shared<TensorNormSliceOp>(
+    auto op = nntile::make_op<TensorNormSliceOp>(
         alpha, beta, src1, src2, dst, axis, redux);
     src1->graph()->add_op(op);
 }

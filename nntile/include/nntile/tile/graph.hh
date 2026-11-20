@@ -28,7 +28,7 @@ namespace nntile
 inline TileGraph::TileNode *TileGraph::data(
     std::vector<Index> shape, const std::string &name, DataType dtype)
 {
-    auto node = std::make_unique<TileNode>(
+    TileNodePtr node = make_arena_unique<TileNode>(
         next_data_id_, this, std::move(shape), dtype, name);
     ++next_data_id_;
     TileNode *node_ptr = node.get();
@@ -140,7 +140,7 @@ inline TileGraph::TensorDescriptor *TileGraph::add_tensor_descriptor(
             "TileGraph::add_tensor_descriptor: source already has a "
             "descriptor");
     }
-    tensors_[id] = std::make_unique<TensorDescriptor>(std::move(desc));
+    tensors_[id] = make_arena_unique<TensorDescriptor>(std::move(desc));
     return tensors_[id].get();
 }
 

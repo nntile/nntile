@@ -39,16 +39,25 @@
 namespace nntile::haul::chunkunits
 {
 
-//! Compile-time switch (NNTILE_FORCE_CHUNKED_KERNELS): every op dispatches
-//! through its chunked kernel even when the operands are contiguous. An
-//! unchunked buffer is the one-chunk degenerate case, so the chunked kernel
-//! runs with nchunks=1 and the result is bitwise the classic kernel's.
-inline constexpr bool force_chunked_kernels() noexcept
+//! Compile-time switch (NNTILE_FORCE_CHUNKED_KERNELS) PLUS the runtime
+//! env (NNHAUL_FORCE_CHUNKED_KERNELS=1, owner directive 2026-11-11, read
+//! once per process): every op dispatches through its chunked kernel
+//! even when the operands are contiguous. An unchunked buffer is the
+//! one-chunk degenerate case, so the chunked kernel runs with nchunks=1
+//! and the result is bitwise the classic kernel's. For GEMM this forces
+//! the native gemm_chunked family on every supported shape (the wrapper
+//! fast-forwards and the staged leg are both gated on this flag; shapes
+//! outside the family's law, e.g. lm_head, keep the classic fallback).
+inline bool force_chunked_kernels() noexcept
 {
 #ifdef NNTILE_FORCE_CHUNKED_KERNELS
     return true;
 #else
-    return false;
+    static bool const cached = [] {
+        char const *e = std::getenv("NNHAUL_FORCE_CHUNKED_KERNELS");
+        return e != nullptr && e[0] == '1' && e[1] == '\0';
+    }();
+    return cached;
 #endif
 }
 

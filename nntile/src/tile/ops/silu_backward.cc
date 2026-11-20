@@ -68,7 +68,7 @@ void silu_backward(Scalar alpha, TileGraph::TileNode* x, TileGraph::TileNode* dy
         throw std::invalid_argument("tile silu_backward: shape mismatch");
     }
 
-    auto op = std::make_shared<TileSiluBackwardOp>(x, dy, dx, alpha, beta);
+    auto op = nntile::make_op<TileSiluBackwardOp>(x, dy, dx, alpha, beta);
     x->graph()->add_op(op);
 }
 

@@ -229,7 +229,7 @@ void gemm(TensorGraph::TensorNode *a,
 
     validate_gemm_shape_and_merge(a, b, c, trans_a, trans_b, ndim, batch_ndim);
 
-    auto op = std::make_shared<TensorGemmOp>(
+    auto op = nntile::make_op<TensorGemmOp>(
         a, b, c, alpha, beta, trans_a, trans_b, ndim, batch_ndim);
 
     a->graph()->add_op(op);
@@ -457,11 +457,9 @@ void TensorGemmOp::lower_to_tile(const LoweringContext &ctx) const
             for (Index i = 0; i < geom.ndim; ++i)
             {
                 const Index ax = geom.a_storage(geom.a_axis_k(i));
-                std::vector<Index> gtmp(La->tensor_shape().size(), 0);
-                gtmp[static_cast<size_t>(ax)] =
-                    k_coord[static_cast<size_t>(i)];
                 Index kl = 0, kh = 0;
-                La->tile_axis_global_range(gtmp, ax, kl, kh);
+                La->tile_axis_segment_range(
+                    ax, k_coord[static_cast<size_t>(i)], kl, kh);
                 narrow_axis(req_a_lo, req_a_hi, ax, kl, kh);
             }
             for (Index j = 0; j < geom.batch_ndim; ++j)
@@ -479,11 +477,9 @@ void TensorGemmOp::lower_to_tile(const LoweringContext &ctx) const
             for (Index i = 0; i < geom.ndim; ++i)
             {
                 const Index bx = geom.b_storage(geom.b_axis_k(i));
-                std::vector<Index> gtmp(Lb->tensor_shape().size(), 0);
-                gtmp[static_cast<size_t>(bx)] =
-                    k_coord[static_cast<size_t>(i)];
                 Index kl = 0, kh = 0;
-                Lb->tile_axis_global_range(gtmp, bx, kl, kh);
+                Lb->tile_axis_segment_range(
+                    bx, k_coord[static_cast<size_t>(i)], kl, kh);
                 narrow_axis(req_b_lo, req_b_hi, bx, kl, kh);
             }
             for (Index i = 0; i < geom.num_n; ++i)

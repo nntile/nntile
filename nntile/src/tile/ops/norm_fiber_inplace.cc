@@ -38,7 +38,7 @@ void norm_fiber_inplace(Scalar a, TileGraph::TileNode* s, Scalar b, TileGraph::T
         throw std::invalid_argument("norm_fiber_inplace");
     if(s->graph() != d->graph() || s->dtype() != d->dtype() || s == d)
         throw std::invalid_argument("norm_fiber_inplace");
-    s->graph()->add_op(std::make_shared<TileNormFiberInplaceOp>(a, s, b, d, ax, bd, r));
+    s->graph()->add_op(nntile::make_op<TileNormFiberInplaceOp>(a, s, b, d, ax, bd, r));
 }
 void TileNormFiberInplaceOp::execute(Runtime& runtime) const
 {

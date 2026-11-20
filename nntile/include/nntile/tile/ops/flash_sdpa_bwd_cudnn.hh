@@ -53,7 +53,7 @@ struct TileFlashSdpaBwdCudnnOp : TileGraph::OpNode
     void execute(Runtime& runtime) const override;
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileFlashSdpaBwdCudnnOp>(*this);
+        return nntile::make_op<TileFlashSdpaBwdCudnnOp>(*this);
     }
 };
 //! Flash SDPA backward (CUDA only)

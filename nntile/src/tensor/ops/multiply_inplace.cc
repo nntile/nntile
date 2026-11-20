@@ -55,7 +55,7 @@ void multiply_inplace(
     }
     validate_same_shape_and_merge(src, dst, "multiply_inplace");
 
-    auto op = std::make_shared<TensorMultiplyInplaceOp>(src, dst, alpha);
+    auto op = nntile::make_op<TensorMultiplyInplaceOp>(src, dst, alpha);
     src->graph()->add_op(op);
 }
 

@@ -38,7 +38,7 @@ void relu_inplace(TileGraph::TileNode* dst)
     {
         throw std::invalid_argument("tile relu_inplace: dst must be non-null");
     }
-    dst->graph()->add_op(std::make_shared<TileReluInplaceOp>(dst));
+    dst->graph()->add_op(nntile::make_op<TileReluInplaceOp>(dst));
 }
 void TileReluInplaceOp::execute(Runtime& runtime) const
 {

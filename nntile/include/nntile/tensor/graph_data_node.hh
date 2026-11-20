@@ -16,6 +16,7 @@
 
 // Standard library headers
 #include <cstdint>
+#include <cstdlib>
 #include <functional>
 #include <memory>
 #include <numeric>
@@ -118,24 +119,6 @@ class TensorGraph::TensorNode
     //! Label for debugging/export only (tensor identity is this pointer).
     TensorNode *set_name(std::string new_name);
 
-    //! Process-wide stamp for O(1) phase-touch walks.
-    //!
-    //! ``ensure_phase_layouts`` and ``append_tensor_graph_phase`` both
-    //! walk the same nodes. Separate static counters reused gen=1 and
-    //! skipped every tensor on the first factory-only compile
-    //! (ones / arange).
-    static std::uint32_t next_touch_gen();
-
-    //! Generation stamp for O(1) phase touch dedup (mutable / non-identity).
-    std::uint32_t touch_gen() const
-    {
-        return touch_gen_;
-    }
-    void set_touch_gen(std::uint32_t gen) const
-    {
-        touch_gen_ = gen;
-    }
-
     //! True while StarPU still holds a handle for this tensor's tiles.
     bool is_starpu_registered() const
     {
@@ -164,7 +147,6 @@ class TensorGraph::TensorNode
     bool starpu_registered_ = false;
     Scalar constant_value_ = 0;
     std::optional<std::vector<std::uint8_t>> bind_hint_;
-    mutable std::uint32_t touch_gen_ = 0;
     mutable int external_hold_count_ = 0;
     //! Shared with ``TensorRef`` so all refs to this node share one hold.
     mutable std::weak_ptr<void> external_hold_;
@@ -174,6 +156,36 @@ class TensorGraph::TensorNode
     friend void merge_axis(std::shared_ptr<AxisDescriptor> &,
         std::shared_ptr<AxisDescriptor> &);
 };
+
+//! Enforce the id==slot invariant for dense-by-id scratch arrays: a
+//! TensorNode's ``id()`` is its dense slot in the graph's data-node id
+//! space, so any array indexed by node ids is sized by that space and an
+//! id at or above the bound means graph wiring is corrupt. In-range ids
+//! pass through unchanged (no behavior change); out-of-range ids fail
+//! LOUDLY here instead of silently writing past the array (or silently
+//! dropping the node, hiding the corruption).
+//! Env-gated diagnostic output (NNTILE_COMPILE_BREAKDOWN /
+//! NNTILE_RUN_BREAKDOWN): value-parsed (any nonzero enables), read once
+//! per process. Value semantics on purpose: `=0` must mean OFF, unlike
+//! presence-parsing which would enable on `=0` and perturb the timing
+//! it claims to be off for.
+inline bool env_flag_enabled(char const *name)
+{
+    char const *e = std::getenv(name);
+    return e != nullptr && std::atoi(e) != 0;
+}
+
+inline void check_tensor_id_slot(
+    std::uint64_t id, std::size_t bound, const std::string &context)
+{
+    if (static_cast<std::size_t>(id) >= bound)
+    {
+        throw std::out_of_range(
+            context + ": tensor node id " + std::to_string(id)
+            + " is not a dense slot (id space is " + std::to_string(bound)
+            + ")");
+    }
+}
 
 //! Validate same shape and merge axes for two tensors (single loop).
 inline void validate_same_shape_and_merge(TensorGraph::TensorNode *a,

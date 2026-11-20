@@ -101,7 +101,7 @@ void conv2d_bwd_input_inplace(Scalar alpha,
     if(dY->dtype() != kernel->dtype() || kernel->dtype() != dX->dtype())
         throw std::invalid_argument(
             "conv2d_bwd_input_inplace: tensors must have same dtype");
-    auto op = std::make_shared<TensorConv2dBwdInputInplaceOp>(
+    auto op = nntile::make_op<TensorConv2dBwdInputInplaceOp>(
         alpha, dY, kernel, beta, dX, padding, stride, dilation);
     dX->graph()->add_op(op);
 }

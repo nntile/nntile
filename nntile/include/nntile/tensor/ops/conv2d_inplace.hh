@@ -59,7 +59,7 @@ struct TensorConv2dInplaceOp : TensorGraph::OpNode
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorConv2dInplaceOp>(*this);
+        return nntile::make_op<TensorConv2dInplaceOp>(*this);
     }
 
     void lower_to_tile(const LoweringContext& ctx) const override;

@@ -99,7 +99,7 @@ void logsumexp(TensorGraph::TensorNode *src, TensorGraph::TensorNode *dst)
     }
     validate_logsumexp_shape_and_merge(src, dst, "logsumexp");
 
-    auto op = std::make_shared<TensorLogsumexpOp>(src, dst);
+    auto op = nntile::make_op<TensorLogsumexpOp>(src, dst);
     src->graph()->add_op(op);
 }
 

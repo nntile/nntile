@@ -43,7 +43,7 @@ void scale(Scalar alpha, TileGraph::TileNode* src, TileGraph::TileNode* dst)
         throw std::invalid_argument("tile scale: src and dst must be distinct");
     if(src->shape() != dst->shape())
         throw std::invalid_argument("tile scale: shape mismatch");
-    auto op = std::make_shared<TileScaleOp>(alpha, src, dst);
+    auto op = nntile::make_op<TileScaleOp>(alpha, src, dst);
     src->graph()->add_op(op);
 }
 void TileScaleOp::execute(Runtime& runtime) const

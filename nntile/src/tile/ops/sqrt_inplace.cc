@@ -38,7 +38,7 @@ void sqrt_inplace(TileGraph::TileNode* dst)
     {
         throw std::invalid_argument("tile sqrt_inplace: dst must be non-null");
     }
-    dst->graph()->add_op(std::make_shared<TileSqrtInplaceOp>(dst));
+    dst->graph()->add_op(nntile::make_op<TileSqrtInplaceOp>(dst));
 }
 void TileSqrtInplaceOp::execute(Runtime& runtime) const
 {

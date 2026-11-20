@@ -24,6 +24,15 @@ Each iter is **recorded** and ``compile_graph``'d while the previous
 submit. Cumulative record / compile / run / wait times are printed.
 The final loss is read after that join.
 
+Single-shot mode (``TORCH_NNTILE_SINGLE_SHOT=N``, measurement only):
+the 32 iterations are grouped into batches of N; per batch the N
+iteration bodies (fwd/bwd/opt) are recorded back-to-back with no
+per-iteration compile/run/wait and no per-iteration host reads, then
+ONE ``compile_graph``, ONE ``run``, ONE ``wait`` close the batch
+(``timing nntile single-shot batch=...`` line per batch). The op
+stream is identical to the per-iteration protocols -- only the
+sync/compile points move. N=32 bakes the whole run into one launch.
+
 No axis tiling yet - full tensors on nntile.
 
 Modes:
@@ -52,6 +61,24 @@ Examples::
         --checkpoint-b runs/nntile_minimal/checkpoint.pt
 
 Shell driver: ``run_gpt2_cuda_vs_nntile.sh``.
+
+
+Measurement / diagnostic environment knobs (all default OFF; a knob set
+to 0 or unset disables it; NNTILE_* knobs print to stderr in ms unless
+noted):
+
+- TORCH_NNTILE_SYNC_PHASES=1: strict non-overlapping per-iteration
+  phases (record -> compile -> run -> wait, torch.cuda.synchronize
+  fences; next iteration starts after wait). stdout, seconds.
+- TORCH_NNTILE_SINGLE_SHOT=N: bake N iterations into ONE
+  compile/run/wait per batch. stdout, seconds.
+- NNTILE_COMPILE_BREAKDOWN=1: per-compile sub-pass brackets
+  ([nntile-cbrk] lines: rt/snap/dce/alloc/phase/inval/tiling2/build2).
+- NNTILE_RUN_BREAKDOWN=1: per-run submission brackets
+  ([nntile-run-brk] lines; absolute ns).
+- NNHAUL_GEMM_SUMMARY=1: [gemm-stats] summary at exit.
+- NNHAUL_GEMM_FLAT_U / _S / NNHAUL_GEMM_SK_SPLIT: GEMM engine tuning
+  overrides (these CHANGE the measured program's GEMM configuration).
 """
 
 from __future__ import annotations
@@ -569,7 +596,53 @@ def train_nntile(args: argparse.Namespace) -> int:
         end_epoch = start_epoch + args.epochs
 
         print("\nTraining on nntile (GPT2LMHead)...")
-        if args.wait_after_run:
+        # Sync-phase measurement mode (TORCH_NNTILE_SYNC_PHASES=1): the
+        # per-iteration phases record -> compile -> run -> wait are a
+        # STRICT non-overlapping sequence, each phase terminated by a
+        # full device sync before the next begins and ``wait`` a genuine
+        # completion of ALL device work for the iteration; the next
+        # iteration's record starts strictly after the previous wait
+        # returns. Measurement mode only (dominates --pipelined-issue):
+        # same ops, same order, nothing about the computation changes.
+        sync_phases = os.environ.get("TORCH_NNTILE_SYNC_PHASES", "") == "1"
+        # Single-shot mode (TORCH_NNTILE_SINGLE_SHOT=N): bake N training
+        # iterations into ONE launch. The N iteration bodies (fwd/bwd/opt,
+        # the exact per-iteration op stream) are recorded back-to-back
+        # with NO per-iteration compile_graph/run/wait and NO
+        # per-iteration host reads; then ONE compile, ONE run, ONE wait
+        # close the batch. Same ops, same order -- only the sync points
+        # move. Dominates TORCH_NNTILE_SYNC_PHASES / --pipelined-issue /
+        # --wait-after-run / --accum-steps ordering (N counts optimizer
+        # steps, i.e. iterations at the canonical accum=1).
+        single_shot_n = 0
+        if os.environ.get("TORCH_NNTILE_SINGLE_SHOT", ""):
+            try:
+                single_shot_n = int(os.environ["TORCH_NNTILE_SINGLE_SHOT"])
+            except ValueError as exc:
+                raise SystemExit(
+                    "TORCH_NNTILE_SINGLE_SHOT must be a positive int, got "
+                    f"{os.environ['TORCH_NNTILE_SINGLE_SHOT']!r}"
+                ) from exc
+            if single_shot_n < 1:
+                raise SystemExit(
+                    f"TORCH_NNTILE_SINGLE_SHOT must be >= 1, got {single_shot_n}"
+                )
+        if single_shot_n:
+            print(
+                f"Single-shot mode (TORCH_NNTILE_SINGLE_SHOT={single_shot_n}):"
+                " iterations grouped into batches of"
+                f" {single_shot_n} - per batch: N recorded iteration bodies"
+                " (fwd/bwd/opt, no host reads), then ONE compile, ONE run,"
+                " ONE wait (dominates TORCH_NNTILE_SYNC_PHASES and"
+                " --pipelined-issue)"
+            )
+        elif sync_phases:
+            print(
+                "Per-iter record, compile_graph, run, wait with full "
+                "device syncs between phases (TORCH_NNTILE_SYNC_PHASES=1; "
+                "strict non-overlap; dominates --pipelined-issue)"
+            )
+        elif args.wait_after_run:
             print(
                 "Per-iter record, compile_graph, run, wait "
                 "(wait joins this run; no overlap with record/compile)"
@@ -615,11 +688,17 @@ def train_nntile(args: argparse.Namespace) -> int:
         accum = max(1, int(args.accum_steps))
         opt_steps = (len(flat_batches) + accum - 1) // accum
         n_steps = opt_steps
+        ss_n_batches = (opt_steps + single_shot_n - 1) // single_shot_n if single_shot_n else 0
+        ss_batch_idx = 0
+        ss_iters_in_batch = 0
+        ss_record_s = 0.0
+        ss_batch_t0 = None
         for step_idx in range(opt_steps):
             lo = step_idx * accum
             hi = min(lo + accum, len(flat_batches))
             optimizer.zero_grad(set_to_none=True)
             t_iter0 = time.perf_counter()
+            iter_epoch_start = time.monotonic() if sync_phases else 0.0
             nntile_t0 = torch_nntile.record_nntile_seconds()
             t_record0 = time.perf_counter()
             step_loss = None
@@ -635,6 +714,15 @@ def train_nntile(args: argparse.Namespace) -> int:
             # One optimizer update over the accumulated gradients.
             optimizer.step()
             optimizer.zero_grad(set_to_none=True)
+            if sync_phases and not single_shot_n:
+                # Terminate the record phase at full device quiescence
+                # before compile starts (charged to record(torch); the
+                # nntile recorder's own accounting is untouched).
+                # Skipped in single-shot mode: single-shot dominates this
+                # mode's contract (no per-iteration device syncs at all),
+                # and the batch-end compile/run/wait brackets carry the
+                # only syncs.
+                torch.cuda.synchronize()
             record_wall_s = time.perf_counter() - t_record0
             if not first_record_logged:
                 print(
@@ -651,7 +739,89 @@ def train_nntile(args: argparse.Namespace) -> int:
             step_torch_s = max(0.0, record_wall_s - step_nntile_s)
             record_nntile_s += step_nntile_s
             record_torch_s += step_torch_s
-            if accum > 1 or args.pipelined_issue:
+            if single_shot_n:
+                # Single-shot: the batch's N iteration bodies accumulate
+                # in the recorder with no per-iteration compile/run/wait
+                # and no per-iteration host reads. The loss tensor of
+                # every non-final iteration is dropped at the same op-
+                # stream position as the per-iteration protocol (right
+                # after this iteration's trailing zero_grad, before the
+                # next iteration's leading one) -- only the plan
+                # boundaries move. The batch-end phases are bracketed
+                # exactly like the sync-phase protocol (compile+sync,
+                # run, wait+sync) so the per-batch numbers compare
+                # directly against N x the per-iteration protocol.
+                if ss_batch_t0 is None:
+                    ss_batch_t0 = t_iter0
+                global_step += 1
+                is_last = step_idx == opt_steps - 1
+                if is_last:
+                    last_loss = step_loss
+                    last_inputs = inputs
+                    last_labels = labels
+                else:
+                    del step_loss
+                ss_iters_in_batch += 1
+                ss_record_s += record_wall_s
+                print_nntile_iter_timings(
+                    global_step,
+                    n_steps,
+                    step_nntile_s,
+                    step_torch_s,
+                    0.0,
+                    0.0,
+                    0.0,
+                    prep_compute=False,  # compute deferred to batch end
+                    iter_wall_s=time.perf_counter() - t_iter0,
+                )
+                if ss_iters_in_batch == single_shot_n or is_last:
+                    t0 = time.perf_counter()
+                    torch_nntile.compile_graph()
+                    torch.cuda.synchronize()
+                    dc = time.perf_counter() - t0
+                    t0 = time.perf_counter()
+                    torch_nntile.run()
+                    dr = time.perf_counter() - t0
+                    t0 = time.perf_counter()
+                    torch_nntile.wait()
+                    torch.cuda.synchronize()
+                    dw = time.perf_counter() - t0
+                    compile_s += dc
+                    run_s += dr
+                    wait_s += dw
+                    ss_batch_idx += 1
+                    ss_wall_s = time.perf_counter() - ss_batch_t0
+                    print(
+                        f"timing nntile single-shot "
+                        f"batch={ss_batch_idx}/{ss_n_batches} "
+                        f"niter={ss_iters_in_batch} "
+                        f"record={ss_record_s:.3f}s compile={dc:.3f}s "
+                        f"run={dr:.3f}s wait={dw:.3f}s "
+                        f"wall={ss_wall_s:.3f}s",
+                        flush=True,
+                    )
+                    ss_iters_in_batch = 0
+                    ss_record_s = 0.0
+                    ss_batch_t0 = None
+                continue
+            if sync_phases:
+                # Sync-phase order: compile -> run -> wait, each phase
+                # (except run, which is submission only) terminated by a
+                # full device sync; wait completes ALL device work for
+                # this iteration. The phases partition the iteration
+                # wall exactly: wall ~= record + compile + run + wait.
+                t0 = time.perf_counter()
+                torch_nntile.compile_graph()
+                torch.cuda.synchronize()
+                dc = time.perf_counter() - t0
+                t0 = time.perf_counter()
+                torch_nntile.run()
+                dr = time.perf_counter() - t0
+                t0 = time.perf_counter()
+                torch_nntile.wait()
+                torch.cuda.synchronize()
+                dw = time.perf_counter() - t0
+            elif accum > 1 or args.pipelined_issue:
                 # Pipelined order: issue this optimizer step, then join
                 # the PREVIOUS one. The next step's record/compile/issue
                 # overlaps the previous step's GPU work (and its D2H
@@ -675,17 +845,24 @@ def train_nntile(args: argparse.Namespace) -> int:
             global_step += 1
             is_last = step_idx == opt_steps - 1
             if is_last:
-                if not args.wait_after_run or accum > 1 or (
-                    args.pipelined_issue
+                if not sync_phases and (
+                    not args.wait_after_run
+                    or accum > 1
+                    or args.pipelined_issue
                 ):
                     extra_wait = wait_end(torch_nntile)
                     wait_s += extra_wait
                     dw += extra_wait
+                # sync_phases: the per-iteration wait phase already
+                # completed ALL device work; no extra final wait needed.
                 last_loss = step_loss
                 last_inputs = inputs
                 last_labels = labels
             else:
                 del step_loss
+            iter_epoch_end = (
+                time.monotonic() if sync_phases else 0.0
+            )
             print_nntile_iter_timings(
                 global_step,
                 n_steps,
@@ -697,6 +874,16 @@ def train_nntile(args: argparse.Namespace) -> int:
                 prep_compute=args.wait_after_run,
                 iter_wall_s=time.perf_counter() - t_iter0,
             )
+            if sync_phases:
+                # Absolute epoch timestamps per iteration start/end so
+                # strict non-overlap across iterations is verifiable from
+                # the log alone (iter K+1 start >= iter K end).
+                print(
+                    f"timing nntile iter {global_step}/{n_steps} sync "
+                    f"epoch_start={iter_epoch_start:.6f} "
+                    f"epoch_end={iter_epoch_end:.6f}",
+                    flush=True,
+                )
         train_wall_s = time.perf_counter() - t_train0
         print(f"timing nntile train window end epoch={time.time():.6f}")
         if args.verbose:

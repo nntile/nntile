@@ -124,7 +124,7 @@ void sumprod_fiber(
     // Merge dst (reduced fiber) axis with src1 axis
     merge_axis(dst->mutable_axes()[0], src1->mutable_axes()[axis]);
 
-    auto op = std::make_shared<TensorSumprodFiberOp>(
+    auto op = nntile::make_op<TensorSumprodFiberOp>(
         src1, src2, dst, axis, redux, alpha, beta);
     src1->graph()->add_op(op);
 }

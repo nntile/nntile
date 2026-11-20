@@ -78,7 +78,7 @@ void scale_fiber(Scalar alpha,
     }
     validate_fiber_shape_and_merge(src, dst, axis, batch_ndim, "scale_fiber");
 
-    auto op = std::make_shared<TensorScaleFiberOp>(
+    auto op = nntile::make_op<TensorScaleFiberOp>(
         alpha, src, dst, axis, batch_ndim);
     src->graph()->add_op(op);
 }

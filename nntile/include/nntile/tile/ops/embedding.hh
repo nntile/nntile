@@ -38,7 +38,7 @@ struct TileEmbeddingOp : TileGraph::OpNode
     void execute(Runtime& runtime) const override;
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileEmbeddingOp>(*this);
+        return nntile::make_op<TileEmbeddingOp>(*this);
     }
 };
 void embedding(Index m, Index n, Index k, Index k_start, Index k_size, TileGraph::TileNode* index, TileGraph::TileNode* vocab, TileGraph::TileNode* embed);

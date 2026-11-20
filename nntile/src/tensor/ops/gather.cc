@@ -119,7 +119,7 @@ void gather(TensorGraph::TensorNode *src, TensorGraph::TensorNode *dst)
             "gather: src and dst must have the same shape");
     }
 
-    auto op = std::make_shared<TensorGatherOp>(src, dst);
+    auto op = nntile::make_op<TensorGatherOp>(src, dst);
     src->graph()->add_op(op);
 }
 

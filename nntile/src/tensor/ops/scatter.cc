@@ -100,7 +100,7 @@ void scatter(
             "scatter: src and dst must have the same shape");
     }
 
-    auto op = std::make_shared<TensorScatterOp>(src, dst);
+    auto op = nntile::make_op<TensorScatterOp>(src, dst);
     src->graph()->add_op(op);
 }
 

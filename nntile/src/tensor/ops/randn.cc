@@ -83,7 +83,7 @@ void randn(
             "randn: start size must match dst ndim");
     }
 
-    auto op = std::make_shared<TensorRandnOp>(
+    auto op = nntile::make_op<TensorRandnOp>(
         dst, start, underlying_shape, seed, mean, stddev);
     dst->graph()->add_op(op);
 }

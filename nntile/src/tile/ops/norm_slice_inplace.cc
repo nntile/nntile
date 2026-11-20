@@ -38,7 +38,7 @@ void norm_slice_inplace(Scalar a, TileGraph::TileNode* s, Scalar b, TileGraph::T
         throw std::invalid_argument("norm_slice_inplace");
     if(s->graph() != d->graph() || s->dtype() != d->dtype() || s == d)
         throw std::invalid_argument("norm_slice_inplace");
-    s->graph()->add_op(std::make_shared<TileNormSliceInplaceOp>(a, s, b, d, ax, r));
+    s->graph()->add_op(nntile::make_op<TileNormSliceInplaceOp>(a, s, b, d, ax, r));
 }
 void TileNormSliceInplaceOp::execute(Runtime& runtime) const
 {

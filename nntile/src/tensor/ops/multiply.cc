@@ -58,7 +58,7 @@ TensorGraph::TensorNode *multiply(
         x->graph()->emplace_data(std::move(output_shape), x->dtype());
     output->set_axes(x->axes());
 
-    auto op = std::make_shared<TensorMultiplyOp>(x, y, output, alpha);
+    auto op = nntile::make_op<TensorMultiplyOp>(x, y, output, alpha);
     x->graph()->add_op(op);
 
     return output;

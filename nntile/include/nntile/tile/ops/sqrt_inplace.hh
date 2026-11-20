@@ -34,7 +34,7 @@ struct TileSqrtInplaceOp : TileGraph::OpNode
     void execute(Runtime& runtime) const override;
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileSqrtInplaceOp>(*this);
+        return nntile::make_op<TileSqrtInplaceOp>(*this);
     }
 };
 //! ReLU in-place: dst = sqrt(dst)

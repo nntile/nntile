@@ -63,7 +63,7 @@ void copy(TileGraph::TileNode* src, TileGraph::TileNode* dst)
         throw std::invalid_argument("tile copy: dtype");
     if(src == dst)
         throw std::invalid_argument("tile copy: distinct");
-    src->graph()->add_op(std::make_shared<TileCopyOp>(src, dst));
+    src->graph()->add_op(nntile::make_op<TileCopyOp>(src, dst));
 }
 void TileCopyOp::execute(Runtime& runtime) const
 {
@@ -124,7 +124,7 @@ void copy_same_numel(TileGraph::TileNode* src, TileGraph::TileNode* dst)
     {
         throw std::invalid_argument("tile copy_same_numel: numel mismatch");
     }
-    src->graph()->add_op(std::make_shared<TileCopySameNumelOp>(src, dst));
+    src->graph()->add_op(nntile::make_op<TileCopySameNumelOp>(src, dst));
 }
 
 void TileCopySameNumelOp::execute(Runtime& runtime) const

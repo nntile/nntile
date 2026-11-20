@@ -46,7 +46,7 @@ void rope_backward(TileGraph::TileNode* s1, TileGraph::TileNode* c,
     if(s1 == c || s1 == y || s1 == x || c == y || c == x || y == x)
         throw std::invalid_argument("rope_backward");
     s1->graph()->add_op(
-        std::make_shared<TileRopeBackwardOp>(s1, c, y, x, sin_pair0));
+        nntile::make_op<TileRopeBackwardOp>(s1, c, y, x, sin_pair0));
 }
 void TileRopeBackwardOp::execute(Runtime& runtime) const
 {

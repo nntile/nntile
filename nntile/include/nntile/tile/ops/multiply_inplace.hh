@@ -36,7 +36,7 @@ struct TileMultiplyInplaceOp : TileGraph::OpNode
     void execute(Runtime& runtime) const override;
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileMultiplyInplaceOp>(*this);
+        return nntile::make_op<TileMultiplyInplaceOp>(*this);
     }
 };
 //! Multiply in-place: dst = alpha * src * dst

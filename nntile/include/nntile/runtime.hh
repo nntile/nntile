@@ -241,9 +241,30 @@ class Runtime
     void write_execution_schedule_json(std::string const &path) const;
 
   private:
+    //! Per-compile flat snapshot of the pending suffix's op I/O metadata
+    //! (ops ``[executed_op_end_, execution_order_.size())``): inputs and
+    //! outputs of every pending op as ranges into two flat edge arrays,
+    //! plus the TILE_UNREGISTER seed bits. Built once per ``compile()`` so
+    //! every compile pass (DCE adjacency/mark, allocate_missing_tiles'
+    //! needed-walk) is a sequential scan instead of a shared_ptr /
+    //! per-op-vector pointer chase. Strictly per-compile scratch: nothing
+    //! persists across compiles (no-caching law).
+    struct PendingPhaseSnapshot
+    {
+        //! Absolute index of the first pending op in execution_order_.
+        size_t op_begin = 0;
+        //! Inputs of pending op i: ``in_edges[in_off[i] .. in_off[i+1])``.
+        std::vector<std::uint32_t> in_off;
+        std::vector<std::uint32_t> out_off;
+        std::vector<const TileNode *> in_edges;
+        std::vector<const TileNode *> out_edges;
+        //! Bit i set iff pending op i is a TILE_UNREGISTER (DCE seed rule).
+        std::vector<std::uint8_t> is_unregister;
+    };
 
-    void allocate_missing_tiles();
-    void eliminate_dead_ops();
+    void allocate_missing_tiles(PendingPhaseSnapshot const *snap = nullptr);
+    void eliminate_dead_ops(PendingPhaseSnapshot *snap = nullptr);
+    PendingPhaseSnapshot build_pending_phase_snapshot() const;
     void build_tile_last_consumer_map();
     void release_dead_tiles_after_op(size_t op_idx);
     void queue_dead_tiles_after_op(size_t op_idx);

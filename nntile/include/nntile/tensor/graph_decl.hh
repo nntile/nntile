@@ -28,6 +28,8 @@
 #include <nntile/base_types.hh>
 #include <nntile/dtype.hh>
 
+#include <nntile/op_arena.hh>
+
 namespace nntile
 {
 
@@ -84,7 +86,10 @@ class TensorGraph
 
     std::vector<std::string> data_names() const;
 
-    const std::vector<std::unique_ptr<TensorNode>> &tensor_nodes() const
+    using TensorNodePtr =
+        std::unique_ptr<TensorNode, ArenaNodeDeleter<TensorNode>>;
+
+    const std::vector<TensorNodePtr> &tensor_nodes() const
     {
         return data_;
     }
@@ -150,7 +155,7 @@ class TensorGraph
         std::shared_ptr<AxisDescriptor> &);
 
     std::string name_;
-    std::vector<std::unique_ptr<TensorNode>> data_;
+    std::vector<TensorNodePtr> data_;
     std::vector<std::shared_ptr<TensorGraph::OpNode>> ops_;
     //! Distinct ``AxisDescriptor`` objects with at least one live member.
     std::unordered_set<AxisDescriptor *> axis_groups_;

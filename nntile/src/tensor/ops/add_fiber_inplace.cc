@@ -62,7 +62,7 @@ void add_fiber_inplace(
     validate_fiber_shape_and_merge(fiber, tensor, axis, batch_ndim,
                                    "add_fiber_inplace");
 
-    auto op = std::make_shared<TensorAddFiberInplaceOp>(
+    auto op = nntile::make_op<TensorAddFiberInplaceOp>(
         fiber, tensor, alpha, beta, axis, batch_ndim);
     tensor->graph()->add_op(op);
 }

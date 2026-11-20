@@ -34,7 +34,7 @@ void scale_inplace(Scalar alpha, TileGraph::TileNode* dst)
 {
     if(dst == nullptr)
         throw std::invalid_argument("tile scale_inplace: dst must be non-null");
-    dst->graph()->add_op(std::make_shared<TileScaleInplaceOp>(alpha, dst));
+    dst->graph()->add_op(nntile::make_op<TileScaleInplaceOp>(alpha, dst));
 }
 void TileScaleInplaceOp::execute(Runtime& runtime) const
 {

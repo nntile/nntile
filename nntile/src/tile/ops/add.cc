@@ -108,7 +108,7 @@ void add(Scalar alpha,
             "tile add: x, y, and z must be distinct tiles");
     }
 
-    auto op = std::make_shared<TileAddOp>(x, y, z, alpha, beta);
+    auto op = nntile::make_op<TileAddOp>(x, y, z, alpha, beta);
     x->graph()->add_op(op);
 }
 

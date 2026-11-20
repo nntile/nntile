@@ -37,7 +37,7 @@ struct TileRopeBackwardOp : TileGraph::OpNode
     void execute(Runtime& runtime) const override;
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileRopeBackwardOp>(*this);
+        return nntile::make_op<TileRopeBackwardOp>(*this);
     }
 };
 void rope_backward(TileGraph::TileNode* sin, TileGraph::TileNode* cos,

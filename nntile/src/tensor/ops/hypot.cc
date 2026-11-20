@@ -111,7 +111,7 @@ void hypot(Scalar alpha,
     validate_same_shape_and_merge(src1, src2, "hypot");
     validate_same_shape_and_merge(src1, dst, "hypot");
 
-    auto op = std::make_shared<TensorHypotOp>(alpha, beta, src1, src2, dst);
+    auto op = nntile::make_op<TensorHypotOp>(alpha, beta, src1, src2, dst);
     src1->graph()->add_op(op);
 }
 

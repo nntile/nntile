@@ -62,7 +62,7 @@ TensorGraph::TensorNode *norm_fiber(Scalar alpha,
     validate_fiber_shape_and_merge(dst, src1, axis, batch_ndim, "norm_fiber");
     validate_same_shape_and_merge(src2, dst, "norm_fiber");
 
-    auto op = std::make_shared<TensorNormFiberOp>(
+    auto op = nntile::make_op<TensorNormFiberOp>(
         alpha, beta, src1, src2, dst, axis, batch_ndim, redux);
     src1->graph()->add_op(op);
 
@@ -102,7 +102,7 @@ void norm_fiber(Scalar alpha,
     validate_fiber_shape_and_merge(dst, src1, axis, batch_ndim, "norm_fiber");
     validate_same_shape_and_merge(src2, dst, "norm_fiber");
 
-    auto op = std::make_shared<TensorNormFiberOp>(
+    auto op = nntile::make_op<TensorNormFiberOp>(
         alpha, beta, src1, src2, dst, axis, batch_ndim, redux);
     src1->graph()->add_op(op);
 }

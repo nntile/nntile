@@ -62,7 +62,7 @@ void silu(TileGraph::TileNode* src, TileGraph::TileNode* dst)
         throw std::invalid_argument("tile silu: shape mismatch");
     }
 
-    auto op = std::make_shared<TileSiluOp>(src, dst);
+    auto op = nntile::make_op<TileSiluOp>(src, dst);
     src->graph()->add_op(op);
 }
 

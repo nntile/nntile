@@ -60,7 +60,7 @@ void multiply_slice(
     }
     validate_slice_shape_and_merge(src, dst, axis, "multiply_slice");
 
-    auto op = std::make_shared<TensorMultiplySliceOp>(alpha, src, dst, axis);
+    auto op = nntile::make_op<TensorMultiplySliceOp>(alpha, src, dst, axis);
     src->graph()->add_op(op);
 }
 

@@ -140,7 +140,7 @@ void softmax(TensorGraph::TensorNode *maxsumexp,
     validate_maxsumexp_shape_and_merge(src, maxsumexp, axis, "softmax");
 
     auto op =
-        std::make_shared<TensorSoftmaxOp>(maxsumexp, src, dst, alpha, axis);
+        nntile::make_op<TensorSoftmaxOp>(maxsumexp, src, dst, alpha, axis);
     src->graph()->add_op(op);
 }
 

@@ -43,7 +43,7 @@ void hypot_inplace(Scalar alpha, TileGraph::TileNode* src, Scalar beta, TileGrap
         throw std::invalid_argument("tile hypot_inplace: shape");
     if(src == dst)
         throw std::invalid_argument("tile hypot_inplace: src and dst must be distinct");
-    src->graph()->add_op(std::make_shared<TileHypotInplaceOp>(alpha, src, beta, dst));
+    src->graph()->add_op(nntile::make_op<TileHypotInplaceOp>(alpha, src, beta, dst));
 }
 void TileHypotInplaceOp::execute(Runtime& runtime) const
 {

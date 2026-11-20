@@ -52,7 +52,7 @@ struct TensorFlashSdpaFwdCudnnOp : TensorGraph::OpNode
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorFlashSdpaFwdCudnnOp>(*this);
+        return nntile::make_op<TensorFlashSdpaFwdCudnnOp>(*this);
     }
 
     void lower_to_tile(const LoweringContext &ctx) const override;

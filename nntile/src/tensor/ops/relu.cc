@@ -39,7 +39,7 @@ TensorGraph::TensorNode *relu(TensorGraph::TensorNode *x)
         x->graph()->emplace_data(std::move(output_shape), x->dtype());
     output->set_axes(x->axes());
 
-    auto op = std::make_shared<TensorReluOp>(x, output);
+    auto op = nntile::make_op<TensorReluOp>(x, output);
     x->graph()->add_op(op);
 
     return output;
@@ -67,7 +67,7 @@ void relu(TensorGraph::TensorNode *x, TensorGraph::TensorNode *y)
     }
     validate_same_shape_and_merge(x, y, "relu");
 
-    auto op = std::make_shared<TensorReluOp>(x, y);
+    auto op = nntile::make_op<TensorReluOp>(x, y);
     x->graph()->add_op(op);
 }
 

@@ -61,7 +61,7 @@ TensorGraph::TensorNode *add_fiber(Scalar alpha,
         tensor->graph()->emplace_data(std::move(output_shape), tensor->dtype());
     output->set_axes(tensor->axes());
 
-    auto op = std::make_shared<TensorAddFiberOp>(
+    auto op = nntile::make_op<TensorAddFiberOp>(
         fiber, tensor, output, alpha, beta, axis, batch_ndim);
     fiber->graph()->add_op(op);
 
@@ -100,7 +100,7 @@ void add_fiber(Scalar alpha,
         fiber, tensor, axis, batch_ndim, "add_fiber");
     validate_same_shape_and_merge(tensor, output, "add_fiber");
 
-    auto op = std::make_shared<TensorAddFiberOp>(
+    auto op = nntile::make_op<TensorAddFiberOp>(
         fiber, tensor, output, alpha, beta, axis, batch_ndim);
     fiber->graph()->add_op(op);
 }

@@ -50,7 +50,7 @@ struct TileAdamStepOp : TileGraph::OpNode
 
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileAdamStepOp>(*this);
+        return nntile::make_op<TileAdamStepOp>(*this);
     }
 };
 

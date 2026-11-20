@@ -39,7 +39,7 @@ void sumprod_slice(Scalar a, TileGraph::TileNode* t1, TileGraph::TileNode* t2, S
         throw std::invalid_argument("sumprod_slice");
     if(t1 == t2 || t1 == dst || t2 == dst)
         throw std::invalid_argument("sumprod_slice: distinct");
-    t1->graph()->add_op(std::make_shared<TileSumprodSliceOp>(a, t1, t2, b, dst, ax, r));
+    t1->graph()->add_op(nntile::make_op<TileSumprodSliceOp>(a, t1, t2, b, dst, ax, r));
 }
 void TileSumprodSliceOp::execute(Runtime& runtime) const
 {

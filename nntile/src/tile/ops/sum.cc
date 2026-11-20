@@ -41,7 +41,7 @@ void sum(Scalar alpha, TileGraph::TileNode* src, Scalar beta, TileGraph::TileNod
         throw std::invalid_argument("tile sum: dtype");
     if(src == dst)
         throw std::invalid_argument("tile sum: distinct");
-    src->graph()->add_op(std::make_shared<TileSumOp>(alpha, beta, src, dst));
+    src->graph()->add_op(nntile::make_op<TileSumOp>(alpha, beta, src, dst));
 }
 void TileSumOp::execute(Runtime& runtime) const
 {

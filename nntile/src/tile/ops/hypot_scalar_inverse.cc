@@ -34,7 +34,7 @@ void hypot_scalar_inverse(Scalar eps, Scalar alpha, TileGraph::TileNode* dst)
 {
     if(!dst)
         throw std::invalid_argument("tile hypot_scalar_inverse: null");
-    dst->graph()->add_op(std::make_shared<TileHypotScalarInverseOp>(eps, alpha, dst));
+    dst->graph()->add_op(nntile::make_op<TileHypotScalarInverseOp>(eps, alpha, dst));
 }
 void TileHypotScalarInverseOp::execute(Runtime& runtime) const
 {

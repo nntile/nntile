@@ -67,7 +67,7 @@ void swap_two_axes(
         throw std::invalid_argument(
             "tile swap_two_axes: src and dst must be distinct");
     }
-    auto op = std::make_shared<TileSwapTwoAxesOp>(src, dst, dim0, dim1);
+    auto op = nntile::make_op<TileSwapTwoAxesOp>(src, dst, dim0, dim1);
     src->graph()->add_op(op);
 }
 

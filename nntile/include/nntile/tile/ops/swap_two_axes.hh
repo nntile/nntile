@@ -43,7 +43,7 @@ struct TileSwapTwoAxesOp : TileGraph::OpNode
 
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileSwapTwoAxesOp>(*this);
+        return nntile::make_op<TileSwapTwoAxesOp>(*this);
     }
 };
 

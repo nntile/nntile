@@ -46,7 +46,7 @@ void hypot_scalar_inverse(
             "hypot_scalar_inverse: dst tensor must be non-null");
     }
 
-    auto op = std::make_shared<TensorHypotScalarInverseOp>(eps, alpha, dst);
+    auto op = nntile::make_op<TensorHypotScalarInverseOp>(eps, alpha, dst);
     dst->graph()->add_op(op);
 }
 

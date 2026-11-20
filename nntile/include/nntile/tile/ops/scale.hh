@@ -37,7 +37,7 @@ struct TileScaleOp : TileGraph::OpNode
     void execute(Runtime& runtime) const override;
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileScaleOp>(*this);
+        return nntile::make_op<TileScaleOp>(*this);
     }
 };
 //! Scale operation: dst = alpha * src (uses existing output)

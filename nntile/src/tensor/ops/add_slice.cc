@@ -58,7 +58,7 @@ TensorGraph::TensorNode *add_slice(Scalar alpha,
         src2->graph()->emplace_data(std::move(output_shape), src2->dtype());
     output->set_axes(src2->axes());
 
-    auto op = std::make_shared<TensorAddSliceOp>(
+    auto op = nntile::make_op<TensorAddSliceOp>(
         src1, src2, output, alpha, beta, axis);
     src1->graph()->add_op(op);
 
@@ -96,7 +96,7 @@ void add_slice(Scalar alpha,
     validate_same_shape_and_merge(src2, dst, "add_slice");
 
     auto op =
-        std::make_shared<TensorAddSliceOp>(src1, src2, dst, alpha, beta, axis);
+        nntile::make_op<TensorAddSliceOp>(src1, src2, dst, alpha, beta, axis);
     src1->graph()->add_op(op);
 }
 
