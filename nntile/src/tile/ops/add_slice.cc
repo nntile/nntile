@@ -40,7 +40,7 @@ void add_slice(Scalar a, TileGraph::TileNode* t1, Scalar b, TileGraph::TileNode*
         throw std::invalid_argument("add_slice");
     if(t1 == t2 || t1 == d || t2 == d)
         throw std::invalid_argument("add_slice");
-    t1->graph()->add_op(std::make_shared<TileAddSliceOp>(a, t1, b, t2, d, axis));
+    t1->graph()->add_op(nntile::make_op<TileAddSliceOp>(a, t1, b, t2, d, axis));
 }
 void TileAddSliceOp::execute(Runtime& runtime) const
 {

@@ -57,6 +57,56 @@ endif()
 
 add_subdirectory(src)
 
+# CUTLASS 2.11 GEMM engines are option-gated (USE_CUTLASS, root
+# CMakeLists) and live inside the native chunked-GEMM family's
+# translation unit (USE_CHUNKED_GEMM) -- with the family OFF there is
+# nothing for them to compile into. ON with the family and CUDA kernels:
+# fetch the SHA256-pinned release tarball (header-only: SOURCE_SUBDIR
+# names a directory that has no CMakeLists.txt, so
+# FetchContent_MakeAvailable populates without add_subdirectory and
+# CUTLASS's own CMake never runs -- same idiom as
+# external/cudnn_frontend) and put its include/ on the path PRIVATE to
+# the kernel object library that compiles the gemm_chunked CUDA TU;
+# that TU's own __has_include(<cutlass/...>) then arms the engine
+# compilation. OFF, or a configure without the family/CUDA kernels:
+# nothing is fetched and GEMM routing keeps cuBLAS (native family, or
+# the staged path when USE_CHUNKED_GEMM=OFF). The populate is cached
+# under _deps and pre-seedable offline via
+# FETCHCONTENT_SOURCE_DIR_CUTLASS=<extracted source dir> (a source-dir
+# override bypasses URL_HASH -- the header check below is the sanity
+# gate on a seed).
+if(USE_CHUNKED_GEMM AND USE_CUTLASS AND NNTILE_USE_CUDA
+        AND NOT HAVE_STARPU_SIMGRID)
+    include(FetchContent)
+    FetchContent_Declare(cutlass
+        URL https://github.com/NVIDIA/cutlass/archive/refs/tags/v2.11.0.tar.gz
+        URL_HASH SHA256=b4394f1e080b63cfc54163069334096324c1262dfc66e67099880005d51b8af9
+        SOURCE_SUBDIR header_only_no_cmakelists)
+    FetchContent_MakeAvailable(cutlass)
+    if(NOT EXISTS "${cutlass_SOURCE_DIR}/include/cutlass/gemm/device/gemm.h")
+        message(FATAL_ERROR "USE_CUTLASS: populated source at "
+            "'${cutlass_SOURCE_DIR}' carries no cutlass headers "
+            "(bad FETCHCONTENT_SOURCE_DIR_CUTLASS seed or tarball?)")
+    endif()
+    if(TARGET nntile_objs_kernel)
+        target_include_directories(nntile_objs_kernel PRIVATE
+            "${cutlass_SOURCE_DIR}/include")
+        message(STATUS "libnntile compiles CUTLASS 2.11 GEMM engines "
+            "(USE_CUTLASS)")
+    endif()
+elseif(USE_CUTLASS AND NOT USE_CHUNKED_GEMM)
+    message(WARNING "USE_CUTLASS=ON ignored: the native chunked-GEMM "
+        "family is not compiled (USE_CHUNKED_GEMM=OFF) and the CUTLASS "
+        "engines are instantiated inside that family's translation "
+        "unit. Nothing is fetched.")
+elseif(USE_CUTLASS)
+    message(WARNING "USE_CUTLASS=ON ignored: the CUTLASS GEMM engines "
+        "are CUDA-only and this configure compiles no CUDA kernels "
+        "(NNTILE_USE_CUDA=${NNTILE_USE_CUDA}, "
+        "HAVE_STARPU_SIMGRID=${HAVE_STARPU_SIMGRID}). Building without "
+        "CUTLASS (engine stubs keep cuBLAS/native routing).")
+endif()
+
 # Classic kernel/op suites always register. When NNTILE_TORCH_NATIVE_OPS
 # is ON, the torch_native layer suite is added as well.
 if(BUILD_TESTING)

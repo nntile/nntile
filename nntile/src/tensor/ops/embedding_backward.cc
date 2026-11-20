@@ -83,7 +83,7 @@ void embedding_backward(TensorGraph::TensorNode* index,
     validate_embedding_shape_and_merge(embed, index, vocab,
                                       "embedding_backward");
 
-    auto op = std::make_shared<TensorEmbeddingBackwardOp>(
+    auto op = nntile::make_op<TensorEmbeddingBackwardOp>(
         index, embed, vocab, axis, alpha, beta, redux);
     vocab->graph()->add_op(op);
 }

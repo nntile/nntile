@@ -38,7 +38,7 @@ void conv2d_inplace(
         throw std::invalid_argument("conv2d_inplace");
     if(src1->graph() != src2->graph() || src1->graph() != dst->graph() || src1->dtype() != src2->dtype() || src1->dtype() != dst->dtype())
         throw std::invalid_argument("conv2d_inplace");
-    auto op = std::make_shared<TileConv2dInplaceOp>(src1_m, src1_n, src1_channels, batch, src2_m, src2_n, dilation_m, dilation_n, dst_channels, offset_m, offset_n, alpha, src1, src2, dst_m, dst_n, stride_m, stride_n, beta, dst);
+    auto op = nntile::make_op<TileConv2dInplaceOp>(src1_m, src1_n, src1_channels, batch, src2_m, src2_n, dilation_m, dilation_n, dst_channels, offset_m, offset_n, alpha, src1, src2, dst_m, dst_n, stride_m, stride_n, beta, dst);
     src1->graph()->add_op(std::move(op));
 }
 void TileConv2dInplaceOp::execute(Runtime& runtime) const

@@ -37,7 +37,7 @@ void scale_fiber(Scalar a, TileGraph::TileNode* s, TileGraph::TileNode* d, Index
         throw std::invalid_argument("scale_fiber");
     if(s->graph() != d->graph() || s->dtype() != d->dtype() || s == d)
         throw std::invalid_argument("scale_fiber");
-    s->graph()->add_op(std::make_shared<TileScaleFiberOp>(a, s, d, axis, batch_ndim));
+    s->graph()->add_op(nntile::make_op<TileScaleFiberOp>(a, s, d, axis, batch_ndim));
 }
 void TileScaleFiberOp::execute(Runtime& runtime) const
 {

@@ -74,7 +74,7 @@ TensorGraph::TensorNode *sum_fiber(TensorGraph::TensorNode *x,
     }
     merge_axis(output->mutable_axes()[batch_ndim], x->mutable_axes()[axis]);
 
-    auto op = std::make_shared<TensorSumFiberOp>(
+    auto op = nntile::make_op<TensorSumFiberOp>(
         x, output, axis, batch_ndim, redux, alpha, beta);
     x->graph()->add_op(op);
 
@@ -111,7 +111,7 @@ void sum_fiber(TensorGraph::TensorNode *x,
     }
     validate_fiber_shape_and_merge(y, x, axis, batch_ndim, "sum_fiber");
 
-    auto op = std::make_shared<TensorSumFiberOp>(
+    auto op = nntile::make_op<TensorSumFiberOp>(
         x, y, axis, batch_ndim, redux, alpha, beta);
 
     x->graph()->add_op(op);

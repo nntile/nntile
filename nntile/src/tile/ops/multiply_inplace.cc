@@ -40,7 +40,7 @@ void multiply_inplace(Scalar a, TileGraph::TileNode* s, TileGraph::TileNode* d)
         throw std::invalid_argument("multiply_inplace");
     if(s == d)
         throw std::invalid_argument("multiply_inplace: distinct");
-    s->graph()->add_op(std::make_shared<TileMultiplyInplaceOp>(a, s, d));
+    s->graph()->add_op(nntile::make_op<TileMultiplyInplaceOp>(a, s, d));
 }
 void TileMultiplyInplaceOp::execute(Runtime& runtime) const
 {

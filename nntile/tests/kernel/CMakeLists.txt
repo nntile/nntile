@@ -32,6 +32,13 @@ set(TESTS
     "total_sum_accum"
     "transpose"
 )
+# The gemm_chunked kernel test exercises the native chunked-GEMM family
+# and links its symbols; the staged-only build (USE_CHUNKED_GEMM=OFF)
+# compiles the constant-decline stub instead, so the test is registered
+# only when the family is in the build.
+if(USE_CHUNKED_GEMM)
+    list(APPEND TESTS "gemm_chunked")
+endif()
 
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED

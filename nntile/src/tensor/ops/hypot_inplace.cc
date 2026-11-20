@@ -72,7 +72,7 @@ void hypot_inplace(
     }
     validate_same_shape_and_merge(src, dst, "hypot_inplace");
 
-    auto op = std::make_shared<TensorHypotInplaceOp>(
+    auto op = nntile::make_op<TensorHypotInplaceOp>(
         alpha, beta, src, dst);
     src->graph()->add_op(op);
 }

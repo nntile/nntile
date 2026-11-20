@@ -66,7 +66,7 @@ struct TensorTorchUnaryOp : TensorGraph::OpNode
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorTorchUnaryOp>(*this);
+        return nntile::make_op<TensorTorchUnaryOp>(*this);
     }
 
     void lower_to_tile(const LoweringContext &ctx) const override;
@@ -100,7 +100,7 @@ struct TensorTorchBinaryOp : TensorGraph::OpNode
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorTorchBinaryOp>(*this);
+        return nntile::make_op<TensorTorchBinaryOp>(*this);
     }
 
     void lower_to_tile(const LoweringContext &ctx) const override;
@@ -141,7 +141,7 @@ struct TensorTorchTernaryOp : TensorGraph::OpNode
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorTorchTernaryOp>(*this);
+        return nntile::make_op<TensorTorchTernaryOp>(*this);
     }
 
     void lower_to_tile(const LoweringContext &ctx) const override;
@@ -176,7 +176,7 @@ struct TensorTorchEmbeddingOp : TensorGraph::OpNode
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorTorchEmbeddingOp>(*this);
+        return nntile::make_op<TensorTorchEmbeddingOp>(*this);
     }
 
     void lower_to_tile(const LoweringContext &ctx) const override;
@@ -214,7 +214,7 @@ struct TensorTorchWhereOp : TensorGraph::OpNode
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorTorchWhereOp>(*this);
+        return nntile::make_op<TensorTorchWhereOp>(*this);
     }
 
     void lower_to_tile(const LoweringContext &ctx) const override;
@@ -243,7 +243,7 @@ struct TensorTorchArangeOp : TensorGraph::OpNode
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorTorchArangeOp>(*this);
+        return nntile::make_op<TensorTorchArangeOp>(*this);
     }
 
     void lower_to_tile(const LoweringContext &ctx) const override;
@@ -278,7 +278,7 @@ struct TensorTorchGtOp : TensorGraph::OpNode
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorTorchGtOp>(*this);
+        return nntile::make_op<TensorTorchGtOp>(*this);
     }
 
     void lower_to_tile(const LoweringContext &ctx) const override;
@@ -308,7 +308,7 @@ struct TensorTorchCatOp : TensorGraph::OpNode
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorTorchCatOp>(*this);
+        return nntile::make_op<TensorTorchCatOp>(*this);
     }
 
     void lower_to_tile(const LoweringContext &ctx) const override;
@@ -425,7 +425,7 @@ struct TensorTorchEmbeddingDenseBackwardOp : TensorGraph::OpNode
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorTorchEmbeddingDenseBackwardOp>(
+        return nntile::make_op<TensorTorchEmbeddingDenseBackwardOp>(
             *this);
     }
 
@@ -474,7 +474,7 @@ struct TensorTorchConvolutionOp : TensorGraph::OpNode
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorTorchConvolutionOp>(*this);
+        return nntile::make_op<TensorTorchConvolutionOp>(*this);
     }
 
     void lower_to_tile(const LoweringContext &ctx) const override;
@@ -545,7 +545,7 @@ struct TensorTorchConvolutionBackwardOp : TensorGraph::OpNode
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorTorchConvolutionBackwardOp>(*this);
+        return nntile::make_op<TensorTorchConvolutionBackwardOp>(*this);
     }
 
     void lower_to_tile(const LoweringContext &ctx) const override;
@@ -592,7 +592,7 @@ struct TensorTorchMaxPool2dWithIndicesOp : TensorGraph::OpNode
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorTorchMaxPool2dWithIndicesOp>(*this);
+        return nntile::make_op<TensorTorchMaxPool2dWithIndicesOp>(*this);
     }
 
     void lower_to_tile(const LoweringContext &ctx) const override;
@@ -721,7 +721,7 @@ struct TensorTorchNativeBatchNormOp : TensorGraph::OpNode
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorTorchNativeBatchNormOp>(*this);
+        return nntile::make_op<TensorTorchNativeBatchNormOp>(*this);
     }
 
     void lower_to_tile(const LoweringContext &ctx) const override;
@@ -829,7 +829,7 @@ struct TensorTorchNativeBatchNormBackwardOp : TensorGraph::OpNode
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorTorchNativeBatchNormBackwardOp>(*this);
+        return nntile::make_op<TensorTorchNativeBatchNormBackwardOp>(*this);
     }
 
     void lower_to_tile(const LoweringContext &ctx) const override;
@@ -902,7 +902,7 @@ struct TensorTorchSdpaBackwardOp : TensorGraph::OpNode
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorTorchSdpaBackwardOp>(*this);
+        return nntile::make_op<TensorTorchSdpaBackwardOp>(*this);
     }
 
     void lower_to_tile(const LoweringContext &ctx) const override;
@@ -958,7 +958,7 @@ struct TensorTorchNllLossForwardOp : TensorGraph::OpNode
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorTorchNllLossForwardOp>(*this);
+        return nntile::make_op<TensorTorchNllLossForwardOp>(*this);
     }
 
     void lower_to_tile(const LoweringContext &ctx) const override;
@@ -1018,7 +1018,7 @@ struct TensorTorchNllLossBackwardOp : TensorGraph::OpNode
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorTorchNllLossBackwardOp>(*this);
+        return nntile::make_op<TensorTorchNllLossBackwardOp>(*this);
     }
 
     void lower_to_tile(const LoweringContext &ctx) const override;

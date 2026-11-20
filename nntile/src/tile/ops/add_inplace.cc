@@ -74,7 +74,7 @@ void add_inplace(
             "tile add_inplace: x and y must be distinct tiles");
     }
 
-    auto op = std::make_shared<TileAddInplaceOp>(x, y, alpha, beta);
+    auto op = nntile::make_op<TileAddInplaceOp>(x, y, alpha, beta);
     x->graph()->add_op(op);
 }
 

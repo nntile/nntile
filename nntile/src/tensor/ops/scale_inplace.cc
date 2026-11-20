@@ -38,7 +38,7 @@ void scale_inplace(Scalar alpha, TensorGraph::TensorNode* dst)
 {
     if(dst == nullptr)
         throw std::invalid_argument("scale_inplace: tensor must be non-null");
-    auto op = std::make_shared<TensorScaleInplaceOp>(alpha, dst);
+    auto op = nntile::make_op<TensorScaleInplaceOp>(alpha, dst);
     dst->graph()->add_op(op);
 }
 

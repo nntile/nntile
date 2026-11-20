@@ -40,7 +40,7 @@ void sum_slice(
     if(src->graph() != dst->graph() || src->dtype() != dst->dtype() || src == dst)
         throw std::invalid_argument("tile sum_slice: invalid");
     src->graph()->add_op(
-        std::make_shared<TileSumSliceOp>(alpha, src, beta, dst, axis, redux));
+        nntile::make_op<TileSumSliceOp>(alpha, src, beta, dst, axis, redux));
 }
 void TileSumSliceOp::execute(Runtime& runtime) const
 {

@@ -61,7 +61,7 @@ void add_slice_inplace(
     validate_slice_shape_and_merge(src, dst, axis,
                                             "add_slice_inplace");
 
-    auto op = std::make_shared<TensorAddSliceInplaceOp>(
+    auto op = nntile::make_op<TensorAddSliceInplaceOp>(
         src, dst, alpha, beta, axis);
     src->graph()->add_op(op);
 }

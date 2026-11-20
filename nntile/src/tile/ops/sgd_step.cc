@@ -89,7 +89,7 @@ void sgd_step(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay,
     Scalar dampening, bool nesterov, TileGraph::TileNode* grad,
     TileGraph::TileNode* velocity, TileGraph::TileNode* p)
 {
-    auto op = std::make_shared<TileSgdStepOp>(num_iter, momentum, lr, weight_decay,
+    auto op = nntile::make_op<TileSgdStepOp>(num_iter, momentum, lr, weight_decay,
         dampening, nesterov, grad, velocity, p);
     grad->graph()->add_op(op);
 }

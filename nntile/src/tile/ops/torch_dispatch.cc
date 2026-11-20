@@ -32,7 +32,7 @@ void torch_unary(
     {
         throw std::invalid_argument("tile torch_unary: null tile");
     }
-    auto op = std::make_shared<TileTorchUnaryOp>(kind, in, out, extra);
+    auto op = nntile::make_op<TileTorchUnaryOp>(kind, in, out, extra);
     in->graph()->add_op(op);
 }
 
@@ -75,7 +75,7 @@ void torch_binary(
     {
         throw std::invalid_argument("tile torch_binary: null tile");
     }
-    auto op = std::make_shared<TileTorchBinaryOp>(
+    auto op = nntile::make_op<TileTorchBinaryOp>(
         kind,
         a,
         b,
@@ -96,7 +96,7 @@ void torch_ternary(
     {
         throw std::invalid_argument("tile torch_ternary: null tile");
     }
-    auto op = std::make_shared<TileTorchTernaryOp>(
+    auto op = nntile::make_op<TileTorchTernaryOp>(
         kind,
         a,
         b,
@@ -116,7 +116,7 @@ void torch_embedding(
     {
         throw std::invalid_argument("tile torch_embedding: null tile");
     }
-    auto op = std::make_shared<TileTorchEmbeddingOp>(
+    auto op = nntile::make_op<TileTorchEmbeddingOp>(
         weight,
         indices,
         out,
@@ -136,7 +136,7 @@ void torch_where(
     {
         throw std::invalid_argument("tile torch_where: null tile");
     }
-    auto op = std::make_shared<TileTorchWhereOp>(
+    auto op = nntile::make_op<TileTorchWhereOp>(
         condition,
         self,
         other,
@@ -153,7 +153,7 @@ void torch_arange(
     {
         throw std::invalid_argument("tile torch_arange: null tile");
     }
-    auto op = std::make_shared<TileTorchArangeOp>(out, extra);
+    auto op = nntile::make_op<TileTorchArangeOp>(out, extra);
     out->graph()->add_op(op);
 }
 
@@ -167,7 +167,7 @@ void torch_gt(
     {
         throw std::invalid_argument("tile torch_gt: null tile");
     }
-    auto op = std::make_shared<TileTorchGtOp>(a, b, out, extra);
+    auto op = nntile::make_op<TileTorchGtOp>(a, b, out, extra);
     a->graph()->add_op(op);
 }
 
@@ -180,7 +180,7 @@ void torch_cat(
     {
         throw std::invalid_argument("tile torch_cat: bad args");
     }
-    auto op = std::make_shared<TileTorchCatOp>(dim, inputs, out);
+    auto op = nntile::make_op<TileTorchCatOp>(dim, inputs, out);
     inputs[0]->graph()->add_op(op);
 }
 
@@ -662,7 +662,7 @@ void torch_embedding_dense_backward(
     TileGraph::TileNode *grad_weight,
     starpu::TorchDispatchArgs extra)
 {
-    auto op = std::make_shared<TileTorchEmbeddingDenseBackwardOp>(
+    auto op = nntile::make_op<TileTorchEmbeddingDenseBackwardOp>(
         grad,
         indices,
         grad_weight,
@@ -702,7 +702,7 @@ void torch_convolution(
     TileGraph::TileNode *out,
     starpu::TorchDispatchArgs extra)
 {
-    auto op = std::make_shared<TileTorchConvolutionOp>(
+    auto op = nntile::make_op<TileTorchConvolutionOp>(
         input,
         weight,
         bias,
@@ -758,7 +758,7 @@ void torch_convolution_backward(
     bool need_grad_bias,
     starpu::TorchDispatchArgs extra)
 {
-    auto op = std::make_shared<TileTorchConvolutionBackwardOp>(
+    auto op = nntile::make_op<TileTorchConvolutionBackwardOp>(
         grad_out,
         input,
         weight,
@@ -834,7 +834,7 @@ void torch_max_pool2d_with_indices(
     TileGraph::TileNode *indices,
     starpu::TorchDispatchArgs extra)
 {
-    auto op = std::make_shared<TileTorchMaxPool2dWithIndicesOp>(
+    auto op = nntile::make_op<TileTorchMaxPool2dWithIndicesOp>(
         input,
         out,
         indices,
@@ -871,7 +871,7 @@ void torch_max_pool2d_with_indices_backward(
     TileGraph::TileNode *grad_input,
     starpu::TorchDispatchArgs extra)
 {
-    auto op = std::make_shared<TileTorchMaxPool2dWithIndicesBackwardOp>(
+    auto op = nntile::make_op<TileTorchMaxPool2dWithIndicesBackwardOp>(
         grad_out,
         input,
         indices,
@@ -923,7 +923,7 @@ void torch_native_batch_norm(
     bool training,
     starpu::TorchDispatchArgs extra)
 {
-    auto op = std::make_shared<TileTorchNativeBatchNormOp>(
+    auto op = nntile::make_op<TileTorchNativeBatchNormOp>(
         input,
         weight,
         bias,
@@ -1023,7 +1023,7 @@ void torch_native_batch_norm_backward(
     bool need_grad_bias,
     starpu::TorchDispatchArgs extra)
 {
-    auto op = std::make_shared<TileTorchNativeBatchNormBackwardOp>(
+    auto op = nntile::make_op<TileTorchNativeBatchNormBackwardOp>(
         grad_out,
         input,
         weight,
@@ -1154,7 +1154,7 @@ void torch_sdpa_backward(
     bool is_causal,
     starpu::TorchDispatchArgs extra)
 {
-    auto op = std::make_shared<TileTorchSdpaBackwardOp>(
+    auto op = nntile::make_op<TileTorchSdpaBackwardOp>(
         q,
         k,
         v,
@@ -1237,7 +1237,7 @@ void torch_nll_loss_forward(
     Index ignore_index,
     starpu::TorchDispatchArgs extra)
 {
-    auto op = std::make_shared<TileTorchNllLossForwardOp>(
+    auto op = nntile::make_op<TileTorchNllLossForwardOp>(
         log_probs,
         target,
         loss,
@@ -1302,7 +1302,7 @@ void torch_nll_loss_backward(
     Index ignore_index,
     starpu::TorchDispatchArgs extra)
 {
-    auto op = std::make_shared<TileTorchNllLossBackwardOp>(
+    auto op = nntile::make_op<TileTorchNllLossBackwardOp>(
         grad_output,
         log_probs,
         target,

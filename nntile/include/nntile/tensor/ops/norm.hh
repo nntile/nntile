@@ -47,7 +47,7 @@ struct TensorNormOp : TensorGraph::OpNode
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorNormOp>(*this);
+        return nntile::make_op<TensorNormOp>(*this);
     }
 
     void lower_to_tile(const LoweringContext& ctx) const override;

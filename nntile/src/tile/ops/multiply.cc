@@ -75,7 +75,7 @@ void multiply(
             "tile multiply: x, y, and z must be distinct tiles");
     }
 
-    auto op = std::make_shared<TileMultiplyOp>(alpha, x, y, z);
+    auto op = nntile::make_op<TileMultiplyOp>(alpha, x, y, z);
     x->graph()->add_op(op);
 }
 

@@ -43,7 +43,7 @@ void softmax_inplace(TileGraph::TileNode* mse, Scalar alpha, TileGraph::TileNode
     if(mse == dst)
         throw std::invalid_argument("tile softmax_inplace: maxsumexp and dst must be distinct");
     // Shape compatibility follows nntile::core::softmax_inplace
-    mse->graph()->add_op(std::make_shared<TileSoftmaxInplaceOp>(mse, alpha, dst, axis));
+    mse->graph()->add_op(nntile::make_op<TileSoftmaxInplaceOp>(mse, alpha, dst, axis));
 }
 void TileSoftmaxInplaceOp::execute(Runtime& runtime) const
 {

@@ -62,7 +62,7 @@ void sqrt(TileGraph::TileNode* src, TileGraph::TileNode* dst)
         throw std::invalid_argument("tile sqrt: shape mismatch");
     }
 
-    auto op = std::make_shared<TileSqrtOp>(src, dst);
+    auto op = nntile::make_op<TileSqrtOp>(src, dst);
     src->graph()->add_op(op);
 }
 

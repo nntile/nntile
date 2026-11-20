@@ -39,7 +39,7 @@ void sumprod_fiber(Scalar a, TileGraph::TileNode* t1, TileGraph::TileNode* t2, S
         throw std::invalid_argument("sumprod_fiber");
     if(t1 == t2 || t1 == dst || t2 == dst)
         throw std::invalid_argument("sumprod_fiber: distinct");
-    t1->graph()->add_op(std::make_shared<TileSumprodFiberOp>(a, t1, t2, b, dst, ax, r));
+    t1->graph()->add_op(nntile::make_op<TileSumprodFiberOp>(a, t1, t2, b, dst, ax, r));
 }
 void TileSumprodFiberOp::execute(Runtime& runtime) const
 {

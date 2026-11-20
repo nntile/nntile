@@ -123,7 +123,7 @@ void norm_fiber_inplace(
     validate_fiber_shape_and_merge(dst, src, axis, batch_ndim,
                                    "norm_fiber_inplace");
 
-    auto op = std::make_shared<TensorNormFiberInplaceOp>(
+    auto op = nntile::make_op<TensorNormFiberInplaceOp>(
         alpha, beta, src, dst, axis, batch_ndim, redux);
     src->graph()->add_op(op);
 }

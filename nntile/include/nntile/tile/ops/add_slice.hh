@@ -37,7 +37,7 @@ struct TileAddSliceOp : TileGraph::OpNode
     void execute(Runtime& runtime) const override;
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileAddSliceOp>(*this);
+        return nntile::make_op<TileAddSliceOp>(*this);
     }
 };
 //! Add slice: dst = alpha * src1 + beta * src2 (uses existing output)

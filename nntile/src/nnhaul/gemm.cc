@@ -21,12 +21,14 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <type_traits>
 
 // Third-party headers
 
 // Other NNTile headers
 #include "nntile/kernel/cblas.hh"
 #include "nntile/kernel/cublas.hh"
+#include "nntile/kernel/gemm_chunked/cuda.hh"
 #include "nntile/kernel/copy/cuda.hh"
 #include "nntile/nnhaul/chunk_units.hh"
 
@@ -81,17 +83,24 @@ Gemm<std::tuple<T>>::Gemm():
 //         (their leading chunk IS the classic base) and are never
 //         staged; a scattered C always takes a workspace slot for the
 //         OUTPUT and scatters back after the call;
-//   (ii)  the EXISTING kernel::cublas::gemm entry -- the exact classic
-//         call -- runs once on the workspace/contiguous pointers, on
-//         the compute stream;
+//   (ii)  the GEMM on the workspace/contiguous pointers, on the
+//         compute stream: [campaign2/p6-staged] flat beta=0 batch-1
+//         classic calls try the p5 embedded CUTLASS flat engine FIRST
+//         (gemm_chunked::flat_engine, the measured per-shape winner
+//         table); every other call -- and every decline -- is the
+//         EXISTING kernel::cublas::gemm entry, the exact classic
+//         call;
 //   (iii) the multi-chunk output C is scattered back into its chunks,
 //         again ONE fused kernel launch.
 //
-// cuBLAS sees the same values and layouts as the classic contiguous
-// call, so the result is BITWISE the classic call's (gather/scatter
-// are exact copies); the chunked checks enforce this by memcmp. The
-// single in-order compute stream makes each task's
-// gather -> cuBLAS -> scatter chain stream-ordered, so consecutive
+// The gather/scatter legs are exact copies, and the cuBLAS leg sees
+// the same values and layouts as the classic contiguous call, so a
+// cuBLAS-legged staged call is BITWISE the classic call's; the engine
+// leg (beta=0 classic shapes only) is fp32 FMA-accumulated -- the
+// native family's accuracy class, carrying the p5 campaign battery
+// (BETA0 poison gate, ALPHA=2 probe, bitwise run-to-run determinism).
+// The single in-order compute stream makes each task's
+// gather -> GEMM -> scatter chain stream-ordered, so consecutive
 // tasks cannot overlap their workspace use and every task reuses the
 // workspace from OFFSET 0 -- no allocator, no free list.
 //
@@ -139,12 +148,18 @@ struct GemmStagingMeters
 {
     std::atomic<std::uint64_t> calls{0};      // every CUDA gemm body
     std::atomic<std::uint64_t> contiguous{0}; // classic + fast-forward
+    std::atomic<std::uint64_t> native{0};     // native chunked kernels
     std::atomic<std::uint64_t> staged{0};     // workspace-staged path
     std::atomic<std::uint64_t> staged_a{0};   // per-operand staging
     std::atomic<std::uint64_t> staged_b{0};
     std::atomic<std::uint64_t> staged_c{0};
     std::atomic<std::uint64_t> gather_bytes{0};  // inputs -> workspace
     std::atomic<std::uint64_t> scatter_bytes{0}; // workspace -> C
+    //! [campaign2/p6-staged] staged calls whose GEMM leg ran the p5
+    //! CUTLASS flat engine instead of cuBLAS (the rest of the staged
+    //! calls keep the cuBLAS leg: beta != 0, batch > 1, foreign shape,
+    //! engine-less build).
+    std::atomic<std::uint64_t> staged_engine{0};
 };
 
 GemmStagingMeters &gemm_meters() noexcept
@@ -180,20 +195,26 @@ struct GemmStagingReport
             std::memory_order_relaxed);
         std::uint64_t const gb = m.gather_bytes.load(
             std::memory_order_relaxed);
+        std::uint64_t const nat = m.native.load(std::memory_order_relaxed);
         std::uint64_t const sbt = m.scatter_bytes.load(
             std::memory_order_relaxed);
+        std::uint64_t const eng = m.staged_engine.load(
+            std::memory_order_relaxed);
         std::fprintf(stderr,
-            "[gemm-stats] calls=%llu contiguous=%llu staged=%llu "
+            "[gemm-stats] calls=%llu contiguous=%llu native=%llu "
+            "staged=%llu "
             "staged_A=%llu staged_B=%llu staged_C=%llu "
-            "gather_MiB=%.1f scatter_MiB=%.1f\n",
+            "gather_MiB=%.1f scatter_MiB=%.1f staged_engine=%llu\n",
             static_cast<unsigned long long>(calls),
             static_cast<unsigned long long>(contig),
+            static_cast<unsigned long long>(nat),
             static_cast<unsigned long long>(staged),
             static_cast<unsigned long long>(sa),
             static_cast<unsigned long long>(sb),
             static_cast<unsigned long long>(sc),
             static_cast<double>(gb) / (1024.0 * 1024.0),
-            static_cast<double>(sbt) / (1024.0 * 1024.0));
+            static_cast<double>(sbt) / (1024.0 * 1024.0),
+            static_cast<unsigned long long>(eng));
     }
 };
 
@@ -243,6 +264,159 @@ bool chain_contiguous(::nnhaul::Buffer *buf) noexcept
 }
 
 #ifdef NNTILE_USE_CUDA
+//! Kill switch for the native kernel family (default on): read once per
+//! process, the table-hook pattern. The staged path is the fallback.
+bool gemm_native_enabled() noexcept
+{
+    static bool const cached = [] {
+        char const *e = std::getenv("NNHAUL_GEMM_NATIVE");
+        return e == nullptr || std::atoi(e) != 0;
+    }();
+    return cached;
+}
+
+//! The NATIVE chunked-kernel driver: kernel::gemm_chunked consumes the
+//! operands' chunk tables IN PLACE (or a flat base for a contiguous
+//! chain) -- zero gather/scatter bytes, one kernel launch whose tables
+//! ride the chunk-ptr table as one merged upload. fp32 only (the
+//! campaign's dtype; every other repr type keeps the staged path).
+//! Returns false without side effects when the picker does not own the
+//! shape (the caller falls through to the workspace-staged path).
+template<typename T>
+bool gemm_kernel_native(TransOp transA, TransOp transB, Index m, Index n,
+    Index k, Index batch, Scalar alpha, Scalar beta, bool broadcast_a,
+    bool broadcast_b, ::nnhaul::Buffer *bufA, ::nnhaul::Buffer *bufB,
+    ::nnhaul::Buffer *bufC, cudaStream_t stream, bool force = false)
+{
+    if constexpr(std::is_same_v<T, fp32_t>)
+    {
+        if(!gemm_native_enabled())
+        {
+            return false;
+        }
+        using kernel::gemm_chunked::Operand;
+        using kernel::gemm_chunked::Op;
+        Op const ta = transA.value == TransOp::NoTrans ? Op::NoTrans
+                                                       : Op::Trans;
+        Op const tb = transB.value == TransOp::NoTrans ? Op::NoTrans
+                                                       : Op::Trans;
+        if(!kernel::gemm_chunked::supports(ta, tb, m, n, k, batch))
+        {
+            return false;
+        }
+        chunkunits::ChunkView<T> const cv_a(bufA);
+        chunkunits::ChunkView<T> const cv_b(bufB);
+        chunkunits::ChunkView<T> const cv_c(bufC);
+        //! A contiguous chain IS the flat buffer: chunk 0 is the base
+        ///  and the kernel adds element offsets with no indirection.
+        ///  [rescue, 2026-11-12] The force arg (the workspace-overflow
+        ///  rescue's escape hatch) ALWAYS runs in table mode -- a
+        ///  contiguous multi-chunk chain uploads its chunk-pointer
+        ///  table like a scattered chain, so the rescue launch never
+        ///  depends on how the chunks are laid. A 1-chunk buffer has
+        ///  no chain at all (it IS one chunk, the sentinel degenerate)
+        ///  -- its chunk-0 base is the only form it has.
+        bool const flat_a = !cv_a.real
+            || (!force && chain_contiguous<T>(bufA));
+        bool const flat_b = !cv_b.real
+            || (!force && chain_contiguous<T>(bufB));
+        bool const flat_c = !cv_c.real
+            || (!force && chain_contiguous<T>(bufC));
+        chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
+        tabs.clear();
+        std::size_t off_a = 0, off_b = 0, off_c = 0;
+        if(!flat_a)
+        {
+            off_a = tabs.add(cv_a);
+        }
+        if(!flat_b)
+        {
+            off_b = tabs.add(cv_b);
+        }
+        if(!flat_c)
+        {
+            off_c = tabs.add(cv_c);
+        }
+        chunkunits::ChunkPtrTable &table = chunkunits::chunk_ptr_table();
+        //! [owner directive, 2026-11-11] An ALL-FLAT call (every operand
+        ///  contiguous or single-chunk — the forced regime's normal
+        ///  case) has ZERO tables to upload: the table serves nothing,
+        ///  upload_tables would return its empty-service failure and a
+        ///  servable native launch would be refused. Skip the table
+        ///  entirely — the Operands below use chunk-0 bases with
+        ///  shift=0 and need no table view. table.end is likewise
+        ///  conditional below (a never-begun table must not be ended).
+        bool const any_table = !flat_a || !flat_b || !flat_c;
+        void const *table_base = nullptr;
+        if(any_table)
+        {
+            if(!table.begin(stream))
+            {
+                return false;
+            }
+            table_base = table.upload_tables(tabs);
+            if(table_base == nullptr)
+            {
+                return false;
+            }
+        }
+        Operand const oa{flat_a ? reinterpret_cast<void const *>(
+                                     bufA->get_chunk_ptr<T>(0))
+                                : reinterpret_cast<void const *>(
+                                     const_cast<float const **>(
+                                         chunkunits::ChunkPtrTable::
+                                             table_view<float const *>(
+                                                 table_base, off_a))),
+            flat_a ? 0 : cv_a.shift};
+        Operand const ob{flat_b ? reinterpret_cast<void const *>(
+                                     bufB->get_chunk_ptr<T>(0))
+                                : reinterpret_cast<void const *>(
+                                     const_cast<float const **>(
+                                         chunkunits::ChunkPtrTable::
+                                             table_view<float const *>(
+                                                 table_base, off_b))),
+            flat_b ? 0 : cv_b.shift};
+        Operand const oc{flat_c ? reinterpret_cast<void *>(
+                                     bufC->get_chunk_ptr<T>(0))
+                                : reinterpret_cast<void *>(
+                                     const_cast<float **>(
+                                         chunkunits::ChunkPtrTable::
+                                             table_view<float *>(
+                                                 table_base, off_c))),
+            flat_c ? 0 : cv_c.shift};
+        long long const sa =
+            broadcast_a ? 0LL : static_cast<long long>(m) * k;
+        long long const sb =
+            broadcast_b ? 0LL : static_cast<long long>(k) * n;
+        long long const sc = static_cast<long long>(m) * n;
+        bool const launched = force
+            ? kernel::gemm_chunked::launch_forced(ta, tb,
+                static_cast<int>(m), static_cast<int>(n),
+                static_cast<int>(k), static_cast<int>(batch),
+                static_cast<float>(alpha), oa, ob, static_cast<float>(beta),
+                oc, sa, sb, sc, stream)
+            : kernel::gemm_chunked::launch(ta, tb, static_cast<int>(m),
+                static_cast<int>(n), static_cast<int>(k),
+                static_cast<int>(batch), static_cast<float>(alpha), oa, ob,
+                static_cast<float>(beta), oc, sa, sb, sc, stream);
+        if(any_table)
+        {
+            table.end(stream);
+        }
+        if(launched)
+        {
+            gemm_meters().native.fetch_add(1, std::memory_order_relaxed);
+            note_gemm_kernel_native();
+        }
+        return launched;
+    }
+    else
+    {
+        (void)stream;
+        return false;
+    }
+}
+
 //! The workspace-staged chunked driver (see the policy block above).
 //! Throws nnhaul::Error when the staged bytes exceed the workspace
 //! (nominal: the codelet is noexcept, so the throw terminates the
@@ -263,9 +437,18 @@ void gemm_workspace_staged(cublasHandle_t handle, TransOp transA,
     // no copy. A scattered C still takes a workspace slot (the output
     // needs a contiguous home; it is gathered first only when
     // beta != 0 reads it).
-    bool const stage_a = !chain_contiguous<T>(bufA);
-    bool const stage_b = !chain_contiguous<T>(bufB);
-    bool const stage_c = !chain_contiguous<T>(bufC);
+    //! [owner directive, 2026-11-11, vocabulary corrected] Under
+    ///  FORCE_CHUNKED this body owns EVERY gemm: all inputs are copied
+    ///  into the workspace, cuBLAS runs on the copies, and the output
+    ///  is copied back to the chunks -- a contiguous chain stages
+    ///  exactly like a scattered one (the same gather->cuBLAS->
+    ///  scatter sequence no matter how the chunks are laid). The
+    ///  flag-off per-operand rule stays: an operand stages iff its
+    ///  own chain is scattered.
+    bool const forced = chunkunits::force_chunked_kernels();
+    bool const stage_a = forced || !chain_contiguous<T>(bufA);
+    bool const stage_b = forced || !chain_contiguous<T>(bufB);
+    bool const stage_c = forced || !chain_contiguous<T>(bufC);
     // The staging meters (owner order, 2026-10-31): one staged call,
     // the per-operand staging flags, and the in-node staging volume --
     // the gathers of every staged INPUT operand (C reads its slot only
@@ -395,12 +578,25 @@ void gemm_workspace_staged(cublasHandle_t handle, TransOp transA,
         slot_off[2] = tabs.add(cvC);
     }
     chunkunits::ChunkPtrTable &table = chunkunits::chunk_ptr_table();
-    if(!table.begin(stream))
+    //! [owner directive, 2026-11-11] An ALL-CONTIGUOUS call (nothing
+    ///  stages — the forced regime's lm_head class: contiguous operands
+    ///  the native family cannot serve) has ZERO tables to upload and
+    ///  needs neither table nor workspace: the classic call below runs
+    ///  directly on the operands' chunk-0 bases. This path was
+    ///  unreachable before FORCE_CHUNKED gated the contiguous
+    ///  fast-forward; the empty upload's rule-11 abort is not a
+    ///  servable answer for it.
+    bool const any_staged = stage_a || stage_b || stage_c;
+    void const *table_base = nullptr;
+    if(any_staged)
     {
-        std::fprintf(stderr,
-            "nntile_gemm: chunk-ptr table init failed (rule 11 -- no "
-            "fallback exists)\n");
-        std::abort();
+        if(!table.begin(stream))
+        {
+            std::fprintf(stderr,
+                "nntile_gemm: chunk-ptr table init failed (rule 11 -- no "
+                "fallback exists)\n");
+            std::abort();
+        }
     }
     // (3, user directive 2026-10-19: reuse the SCALABLE chunk-table
     // kernel) The staging IS kernel::copy::chunked -- the proven
@@ -434,14 +630,18 @@ void gemm_workspace_staged(cublasHandle_t handle, TransOp transA,
     {
         ws_off[2] = ws_slots(2);
     }
-    // ONE merged upload: operand tables + workspace slots.
-    void const *table_base = table.upload_tables(tabs);
-    if(table_base == nullptr)
+    // ONE merged upload: operand tables + workspace slots (staged
+    // operands only; the all-contiguous degenerate skips the table).
+    if(any_staged)
     {
-        std::fprintf(stderr,
-            "nntile_gemm: chunk-ptr table cannot serve the launch (rule "
-            "11 -- no fallback exists)\n");
-        std::abort();
+        table_base = table.upload_tables(tabs);
+        if(table_base == nullptr)
+        {
+            std::fprintf(stderr,
+                "nntile_gemm: chunk-ptr table cannot serve the launch "
+                "(rule 11 -- no fallback exists)\n");
+            std::abort();
+        }
     }
     // ONE gather call for ALL staged input operands: the segments ride
     // distinct chunk-table slices but a single kernel launch (grid.y
@@ -478,7 +678,7 @@ void gemm_workspace_staged(cublasHandle_t handle, TransOp transA,
     }
     // (ii) the classic call itself, verbatim shape, on the
     // staged/contiguous pointers: same values, same layouts as the
-    // flag-off dispatch, hence bitwise its result.
+    // flag-off dispatch.
     T const *pa = stage_a
         ? reinterpret_cast<T const *>(ws.base + seg_chunk[0] * cls)
         : bufA->get_chunk_ptr<T>(0);
@@ -488,8 +688,56 @@ void gemm_workspace_staged(cublasHandle_t handle, TransOp transA,
     T *pc = stage_c
         ? reinterpret_cast<T *>(ws.base + seg_chunk[2] * cls)
         : bufC->get_chunk_ptr<T>(0);
-    kernel::cublas::gemm<T>(handle, transA, transB, m, n, k, batch, alpha,
-        pa, pb, beta, pc, broadcast_a, broadcast_b);
+    // [campaign2/p6-staged] The GEMM leg first tries
+    // the p5 embedded CUTLASS flat engine (gemm_chunked::flat_engine —
+    // the p5-cutlass round-1 winner table, ids 30-38, WINNERS ONLY:
+    // the 77 of 288 classic rows whose measured p5 flat ratio is at
+    // or under 0.995; the wash/loss rows keep cuBLAS so the leg never
+    // regresses) on EXACTLY the flat beta=0 batch-1 classic calls.
+    // Everything else falls through UNTOUCHED
+    // to the cuBLAS call: beta != 0 (the table is beta=0-measured),
+    // batch > 1 (broadcast included), non-classic shapes, and the
+    // engine-less build (flat_engine is a constant false without the
+    // CUTLASS headers -- no __has_include drift). The gather/scatter
+    // legs are unchanged: the engine reads the same gathered A/B and
+    // overwrites all m*n elements of C's workspace slot without
+    // reading it (the p5 BETA0 poison-gate property), so the scatter
+    // still rewrites C's whole flat byte range. Numerics: the leg is
+    // fp32 FMA-accumulated (the native family's accuracy class), not
+    // bitwise cuBLAS; the engines carry the campaign battery (BETA0
+    // poison, ALPHA=2, bitwise run-to-run determinism -- p5 r1).
+    bool engine_leg = false;
+    if constexpr(std::is_same_v<T, fp32_t>)
+    {
+        //! [owner directive, 2026-11-12, FINAL] Under FORCE the staged
+        ///  body is gather -> cuBLAS -> scatter for EVERY call: the
+        ///  winners-table CUTLASS leg is a flag-off optimization only
+        ///  (staged means cuBLAS by definition).
+        if(!forced && batch == 1)
+        {
+            using kernel::gemm_chunked::Op;
+            Op const ta = transA.value == TransOp::NoTrans
+                ? Op::NoTrans
+                : Op::Trans;
+            Op const tb = transB.value == TransOp::NoTrans
+                ? Op::NoTrans
+                : Op::Trans;
+            engine_leg = kernel::gemm_chunked::flat_engine(ta, tb,
+                static_cast<int>(m), static_cast<int>(n),
+                static_cast<int>(k), static_cast<float>(alpha), pa, pb,
+                static_cast<float>(beta), pc, stream);
+        }
+    }
+    if(engine_leg)
+    {
+        gemm_meters().staged_engine.fetch_add(1,
+            std::memory_order_relaxed);
+    }
+    else
+    {
+        kernel::cublas::gemm<T>(handle, transA, transB, m, n, k, batch,
+            alpha, pa, pb, beta, pc, broadcast_a, broadcast_b);
+    }
     if(stage_c)
     {
         kernel::copy::chunked(
@@ -502,13 +750,16 @@ void gemm_workspace_staged(cublasHandle_t handle, TransOp transA,
             Index(chunkunits::kChunkClassBytes),
             Index(chunkunits::kChunkClassBytes));
     }
-    table.end(stream);
+    if(any_staged)
+    {
+        table.end(stream);
+    }
     if(gemm_stats())
     {
         std::fprintf(stderr,
             "nntile_gemm: path=W tA=%c tB=%c m=%lld n=%lld k=%lld "
             "batch=%lld chunks=%zu/%zu/%zu staged=%c%c%c "
-            "staged_bytes=%zu calls=1\n",
+            "staged_bytes=%zu engine_leg=%c calls=1\n",
             transA.value == TransOp::Trans ? 'T' : 'N',
             transB.value == TransOp::Trans ? 'T' : 'N',
             static_cast<long long>(m), static_cast<long long>(n),
@@ -516,7 +767,7 @@ void gemm_workspace_staged(cublasHandle_t handle, TransOp transA,
             cvA.nchunks, cvB.nchunks, cvC.nchunks,
             stage_a ? 'A' : '-', stage_b ? 'B' : '-',
             stage_c ? 'C' : '-',
-            used_chunks * cls);
+            used_chunks * cls, engine_leg ? 'y' : 'n');
     }
 }
 #endif // NNTILE_USE_CUDA
@@ -740,7 +991,12 @@ void Gemm<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         );
         return;
     }
-    if(chain_contiguous<T>(buf_a) && chain_contiguous<T>(buf_b)
+    //! [owner directive, 2026-11-11] FORCE_CHUNKED: the contiguous-chain
+    ///  fast-forward is OFF under the flag — the call falls through to
+    ///  the native chunked family (gemm_kernel_native with force=true,
+    ///  the union router) instead of cuBLAS-on-chunk-0.
+    if(!chunkunits::force_chunked_kernels()
+        && chain_contiguous<T>(buf_a) && chain_contiguous<T>(buf_b)
         && chain_contiguous<T>(buf_c))
     {
         // The fast-forward body (user directive, 2026-10-28): every
@@ -771,6 +1027,63 @@ void Gemm<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
             buf_b->chunk_count(), buf_c->chunk_count());
         note_gemm_native_chunked();
         return;
+    }
+    //! [owner directive, 2026-11-12, FINAL] FORCE means a GEMM is
+    ///  ALWAYS staged, no matter if the data is contiguous or not:
+    ///  every input is copied into the workspace and the output is
+    ///  copied back to the chunks. The native attempt is therefore
+    ///  skipped entirely under the flag (it stays the flag-off fast
+    ///  path, and the workspace-overflow rescue's escape hatch below).
+    if(!chunkunits::force_chunked_kernels()
+        && gemm_kernel_native<T>(args->transA, args->transB, args->m,
+            args->n, args->k, args->batch, args->alpha, args->beta,
+            args->broadcast_a, args->broadcast_b, buf_a, buf_b, buf_c,
+            stream))
+    {
+        note_gemm_native_chunked();
+        return;
+    }
+    // Workspace-overflow rescue: a call whose staged bytes exceed the
+    // gemm workspace would THROW (the staged path's rule-11 error, no
+    // fallback) — the native kernel has no such cap, so it owns the
+    // call whatever the ownership policy says.
+    {
+        // Chunk-class rounding, IDENTICAL to gemm_workspace_staged's
+        // demand ((nbytes+cls-1)/cls*cls per staged operand): a 16-byte
+        // pad under-approximates, and a forced call in the gap would
+        // hit the staged path's rule-11 throw instead of the rescue.
+        std::size_t const cls = chunkunits::kChunkClassBytes;
+        auto const padded = [cls](std::size_t nbytes) {
+            return (nbytes + cls - 1) / cls * cls;
+        };
+        //! Under FORCE_CHUNKED every operand stages, so every operand
+        ///  counts toward the workspace demand -- the rescue gate must
+        ///  see the same need the staged path will compute, or a
+        ///  too-large forced call would throw instead of rescuing.
+        bool const forced_rescue = chunkunits::force_chunked_kernels();
+        std::size_t need = 0;
+        if(forced_rescue || !chain_contiguous<T>(buf_a))
+        {
+            need += padded(buf_a->nbytes());
+        }
+        if(forced_rescue || !chain_contiguous<T>(buf_b))
+        {
+            need += padded(buf_b->nbytes());
+        }
+        if(forced_rescue || !chain_contiguous<T>(buf_c))
+        {
+            need += padded(buf_c->nbytes());
+        }
+        if(need > 0 && need > kernel::gemm::workspace().bytes
+            && gemm_kernel_native<T>(args->transA, args->transB, args->m,
+                args->n, args->k, args->batch, args->alpha, args->beta,
+                args->broadcast_a, args->broadcast_b, buf_a, buf_b, buf_c,
+                stream, true))
+        {
+            note_gemm_kernel_native();
+            note_gemm_native_chunked();
+            return;
+        }
     }
     gemm_workspace_staged<T>(handle, args->transA, args->transB, args->m,
         args->n, args->k, args->batch, args->alpha, args->beta,

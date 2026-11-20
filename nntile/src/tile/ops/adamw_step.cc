@@ -96,7 +96,7 @@ void adamw_step(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps,
     TileGraph::TileNode* first_moment, TileGraph::TileNode* second_moment,
     TileGraph::TileNode* p)
 {
-    auto op = std::make_shared<TileAdamwStepOp>(num_iter, beta_1, beta_2, eps, lr,
+    auto op = nntile::make_op<TileAdamwStepOp>(num_iter, beta_1, beta_2, eps, lr,
         weight_decay, grad, first_moment, second_moment, p);
     grad->graph()->add_op(op);
 }

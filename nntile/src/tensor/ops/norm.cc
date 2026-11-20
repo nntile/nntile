@@ -58,7 +58,7 @@ void norm(TensorGraph::TensorNode* x, TensorGraph::TensorNode* y,
             "norm: input and output tensors must have the same dtype");
     }
 
-    auto op = std::make_shared<TensorNormOp>(x, y, alpha, beta);
+    auto op = nntile::make_op<TensorNormOp>(x, y, alpha, beta);
     x->graph()->add_op(op);
 }
 

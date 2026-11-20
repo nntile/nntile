@@ -15,7 +15,10 @@
 
 #include "nntile/tile/append_tensor_graph_phase.hh"
 
+#include <chrono>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <stdexcept>
 #include <vector>
 
@@ -23,6 +26,8 @@
 #include "nntile/tile/graph.hh"
 #include <nntile/runtime.hh>
 #include "nntile/tile/lower_from_tensor.hh"
+#include "nntile/tensor/graph_data_node.hh"
+
 
 namespace nntile
 {
@@ -30,35 +35,84 @@ namespace nntile
 namespace
 {
 
-std::string tile_node_name(
+//! [C1 diag] env-gated compile sub-pass brackets (NNTILE_COMPILE_BREAKDOWN).
+bool compile_breakdown_enabled()
+{
+    return env_flag_enabled("NNTILE_COMPILE_BREAKDOWN");
+}
+
+double breakdown_ms_since(std::chrono::steady_clock::time_point t0)
+{
+    return std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - t0).count();
+}
+
+void tile_node_name(
+    std::string& out,
     std::string const& logical_name,
     Index group_id,
     Index linear,
     Index grid_volume)
 {
-    std::string base =
-        logical_name + "__g" + std::to_string(static_cast<long long>(group_id));
-    if(grid_volume == 1)
+    // Build into a caller-reused buffer: the old form made 3-5 string
+    // temporaries per tile (the build pass's dominant allocation churn).
+    out.clear();
+    out += logical_name;
+    out += "__g";
+    out += std::to_string(static_cast<long long>(group_id));
+    if(grid_volume != 1)
     {
-        return base;
+        out += "__t";
+        out += std::to_string(static_cast<long long>(linear));
     }
-    return base + "__t" + std::to_string(static_cast<long long>(linear));
 }
+
+//! Dense id bitmap scratch shared by the two collect walks below (the
+//! random per-node touch_gen writes were the last scatter in the
+//! recorder-side compile passes).
+class TensorIdBits
+{
+  public:
+    explicit TensorIdBits(TensorGraph const& tg)
+        : bits_(tg.num_data(), 0)
+    {
+    }
+    bool note(TensorGraph::TensorNode const* t)
+    {
+        if(t == nullptr)
+        {
+            return false;
+        }
+        std::size_t const id = static_cast<std::size_t>(t->id());
+        // id==slot invariant: TensorNode ids are dense slots into the
+        // graph's data-node space (bits_ is sized by it); fail loudly on
+        // a violation instead of writing past the array.
+        check_tensor_id_slot(t->id(), bits_.size(),
+            "append_tensor_graph_phase: TensorIdBits::note");
+        if(bits_[id] != 0)
+        {
+            return false;
+        }
+        bits_[id] = 1;
+        return true;
+    }
+
+  private:
+    std::vector<std::uint8_t> bits_;
+};
 
 void collect_phase_tensors(
     TensorGraph const& tg,
     TensorGraph::PhaseSnapshot const& phase,
     std::vector<TensorGraph::TensorNode const*>& out,
-    std::uint32_t gen)
+    TensorIdBits& bits)
 {
     auto note = [&](TensorGraph::TensorNode const* t)
     {
-        if(t == nullptr || t->touch_gen() == gen)
+        if(bits.note(t))
         {
-            return;
+            out.push_back(t);
         }
-        t->set_touch_gen(gen);
-        out.push_back(t);
     };
     for(TensorGraph::TensorNode const* t : phase.carried_tensors)
     {
@@ -88,13 +142,13 @@ std::vector<TileGraph::TileNode*> create_tile_nodes_only(
     std::vector<TileGraph::TileNode*> tiles;
     tiles.reserve(static_cast<size_t>(vol));
     std::vector<Index> grid_coord;
+    std::string tname;
     for(Index lin = 0; lin < vol; ++lin)
     {
         lay.grid_coord_from_linear(lin, grid_coord);
         const std::vector<Index> tile_shape =
             lay.tile_shape_at(grid_coord);
-        const std::string tname =
-            tile_node_name(tensor_node->name(), group_id, lin, vol);
+        tile_node_name(tname, tensor_node->name(), group_id, lin, vol);
         TileGraph::TileNode* tile_node_ptr = tile_graph.data(
             tile_shape,
             tname,
@@ -136,11 +190,22 @@ std::vector<TileGraph::TileNode*> build_tile_nodes(
     TileGraph& tile_graph,
     TensorGraph::TensorNode const* tensor_node,
     TensorAxisLayout const& lay,
-    Index group_id)
+    Index group_id,
+    double* attach_ms_acc)
 {
     std::vector<TileGraph::TileNode*> tiles = create_tile_nodes_only(
         tile_graph, tensor_node, lay, group_id);
+    if(attach_ms_acc == nullptr)
+    {
+        attach_new_descriptor(tile_graph, tensor_node, lay, tiles);
+        return tiles;
+    }
+    // Diag-only bracket (NNTILE_COMPILE_BREAKDOWN); no clock reads when
+    // the env flag is off.
+    auto const ta0 = std::chrono::steady_clock::now();
     attach_new_descriptor(tile_graph, tensor_node, lay, tiles);
+    *attach_ms_acc += std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - ta0).count();
     return tiles;
 }
 
@@ -172,10 +237,21 @@ void append_tensor_graph_phase(
 
     tile_graph.set_tiling_scheme(tiling);
 
+    bool const cbrk = compile_breakdown_enabled();
+    auto const t_collect = std::chrono::steady_clock::now();
     std::vector<TensorGraph::TensorNode const*> touched;
-    std::uint32_t const gen =
-        TensorGraph::TensorNode::next_touch_gen();
-    collect_phase_tensors(tg, phase, touched, gen);
+    touched.reserve(
+        (phase.op_end - phase.op_begin) + phase.carried_tensors.size()
+        + 8);
+    TensorIdBits bits(tg);
+    collect_phase_tensors(tg, phase, touched, bits);
+    double const collect_ms =
+        cbrk ? breakdown_ms_since(t_collect) : 0.0;
+    auto const t_build = std::chrono::steady_clock::now();
+    double create_ms = 0.0;
+    double attach_ms = 0.0;
+    double maps_ms = 0.0;
+    std::size_t new_tensors = 0;
 
     for(TensorGraph::TensorNode const* t : touched)
     {
@@ -194,11 +270,44 @@ void append_tensor_graph_phase(
         if(!have_tiles)
         {
             const Index gid = state.next_tile_group_id++;
+            // Diag-only brackets (NNTILE_COMPILE_BREAKDOWN): no clock
+            // reads on the ungated path.
+            std::chrono::steady_clock::time_point tc0{};
+            if(cbrk)
+            {
+                tc0 = std::chrono::steady_clock::now();
+            }
+            double *attach_ms_this = nullptr;
+            double attach_before = 0.0;
+            if(cbrk)
+            {
+                attach_ms_this = &attach_ms;
+                attach_before = attach_ms;
+            }
             std::vector<TileGraph::TileNode*> tiles =
-                build_tile_nodes(tile_graph, t, *lay, gid);
+                build_tile_nodes(tile_graph, t, *lay, gid,
+                    attach_ms_this);
+            std::chrono::steady_clock::time_point tc1{};
+            if(cbrk)
+            {
+                tc1 = std::chrono::steady_clock::now();
+            }
             state.tensor_to_tiles[t] = tiles;
             state.tensor_layout_fp[t] = fp;
-            tile_map[t] = tiles;
+            tile_map[t] = std::move(tiles);
+            if(cbrk)
+            {
+                // create_ms EXCLUDES attach time (reported separately
+                // as attach_ms) so the three build2 fields are disjoint.
+                double const build_wall_ms =
+                    std::chrono::duration<double, std::milli>(
+                        tc1 - tc0).count();
+                create_ms += build_wall_ms
+                    - (attach_ms - attach_before);
+                maps_ms += std::chrono::duration<double, std::milli>(
+                    std::chrono::steady_clock::now() - tc1).count();
+            }
+            ++new_tensors;
             continue;
         }
 
@@ -213,6 +322,17 @@ void append_tensor_graph_phase(
 
         tile_map[t] = state.tensor_to_tiles[t];
     }
+    // Snapshot build_ms BEFORE the build2 print: the stderr write must
+    // not pollute the enclosing phase bracket.
+    double const build_ms = cbrk ? breakdown_ms_since(t_build) : 0.0;
+    if(cbrk)
+    {
+        std::fprintf(stderr,
+            "[nntile-cbrk] build2 create_ms=%.3f attach_ms=%.3f "
+            "maps_ms=%.3f\n",
+            create_ms, attach_ms, maps_ms);
+    }
+    auto const t_lower = std::chrono::steady_clock::now();
 
     lower_tensor_ops_to_tile_graph(
         tg,
@@ -220,6 +340,15 @@ void append_tensor_graph_phase(
         tile_map,
         phase.op_begin,
         phase.op_end);
+    if(cbrk)
+    {
+        std::fprintf(stderr,
+            "[nntile-cbrk] phase phase_ops=%zu collect_ms=%.3f "
+            "build_ms=%.3f lower_ms=%.3f touched=%zu new_tensors=%zu\n",
+            static_cast<std::size_t>(phase.op_end - phase.op_begin),
+            collect_ms, build_ms, breakdown_ms_since(t_lower),
+            touched.size(), new_tensors);
+    }
 }
 
 

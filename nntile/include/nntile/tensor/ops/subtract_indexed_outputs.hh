@@ -29,6 +29,7 @@ namespace nntile::tensor
 //! Subtract indexed outputs: dst[labels[i]] -= val
 struct TensorSubtractIndexedOutputsOp : TensorGraph::OpNode
 {
+    bool constrains_reduction_tiles() const override { return true; }
     Scalar val;
     TensorGraph::TensorNode* labels = nullptr;
     TensorGraph::TensorNode* dst = nullptr;
@@ -49,7 +50,7 @@ struct TensorSubtractIndexedOutputsOp : TensorGraph::OpNode
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorSubtractIndexedOutputsOp>(*this);
+        return nntile::make_op<TensorSubtractIndexedOutputsOp>(*this);
     }
 
     void lower_to_tile(const LoweringContext& ctx) const override;

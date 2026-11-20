@@ -48,7 +48,7 @@ void softmax(
     // maxsumexp vs. src shape rules follow nntile::core::softmax (see
     // src/core/softmax.cc)
     maxsumexp_n->graph()->add_op(
-        std::make_shared<TileSoftmaxOp>(maxsumexp_n, src, alpha, dst, axis));
+        nntile::make_op<TileSoftmaxOp>(maxsumexp_n, src, alpha, dst, axis));
 }
 void TileSoftmaxOp::execute(Runtime& runtime) const
 {

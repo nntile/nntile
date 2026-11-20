@@ -31,7 +31,7 @@ void unregister(TensorGraph::TensorNode *x)
             "unregister: tensor must be non-null");
     }
 
-    auto op = std::make_shared<TensorUnregisterOp>(x);
+    auto op = nntile::make_op<TensorUnregisterOp>(x);
     x->graph()->add_op(op);
 }
 

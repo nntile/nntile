@@ -166,7 +166,7 @@ void swap_two_axes(
     }
 
     merge_axes_for_swap(src, dst, dim0, dim1);
-    auto op = std::make_shared<TensorSwapTwoAxesOp>(src, dst, dim0, dim1);
+    auto op = nntile::make_op<TensorSwapTwoAxesOp>(src, dst, dim0, dim1);
     src->graph()->add_op(op);
 }
 

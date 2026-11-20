@@ -48,7 +48,7 @@ void pow(Scalar alpha, Scalar exp, TileGraph::TileNode* A)
     {
         throw std::invalid_argument("tile pow: A must be non-null");
     }
-    auto op = std::make_shared<TilePowOp>(alpha, exp, A);
+    auto op = nntile::make_op<TilePowOp>(alpha, exp, A);
     A->graph()->add_op(op);
 }
 

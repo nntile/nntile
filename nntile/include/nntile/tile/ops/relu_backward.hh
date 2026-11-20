@@ -53,7 +53,7 @@ struct TileReluBackwardOp : TileGraph::OpNode
 
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileReluBackwardOp>(*this);
+        return nntile::make_op<TileReluBackwardOp>(*this);
     }
 };
 

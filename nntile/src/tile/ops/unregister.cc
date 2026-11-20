@@ -29,7 +29,7 @@ void unregister(TileGraph::TileNode *x)
             "tile unregister: input tile must be non-null");
     }
 
-    auto op = std::make_shared<TileUnregisterOp>(x);
+    auto op = nntile::make_op<TileUnregisterOp>(x);
     x->graph()->add_op(op);
 }
 

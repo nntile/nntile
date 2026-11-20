@@ -96,7 +96,7 @@ void rope_backward(TensorGraph::TensorNode *sin,
     }
     validate_same_shape_and_merge(dy, dx, "rope_backward");
 
-    auto op = std::make_shared<TensorRopeBackwardOp>(sin, cos, dy, dx);
+    auto op = nntile::make_op<TensorRopeBackwardOp>(sin, cos, dy, dx);
     dy->graph()->add_op(op);
 }
 

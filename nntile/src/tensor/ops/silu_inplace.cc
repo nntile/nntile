@@ -36,7 +36,7 @@ void silu_inplace(TensorGraph::TensorNode* dst)
             "silu_inplace: dst tensor must be non-null");
     }
 
-    auto op = std::make_shared<TensorSiluInplaceOp>(dst);
+    auto op = nntile::make_op<TensorSiluInplaceOp>(dst);
     dst->graph()->add_op(op);
 }
 

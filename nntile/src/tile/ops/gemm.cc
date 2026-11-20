@@ -85,7 +85,7 @@ void gemm(
         throw std::invalid_argument("tile gemm: dtype mismatch");
     }
 
-    auto op = std::make_shared<TileGemmOp>(
+    auto op = nntile::make_op<TileGemmOp>(
         a, b, c, alpha, beta, trans_a, trans_b, ndim, batch_ndim);
     a->graph()->add_op(op);
 }

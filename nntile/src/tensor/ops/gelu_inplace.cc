@@ -36,7 +36,7 @@ void gelu_inplace(TensorGraph::TensorNode* dst)
             "gelu_inplace: dst tensor must be non-null");
     }
 
-    auto op = std::make_shared<TensorGeluInplaceOp>(dst);
+    auto op = nntile::make_op<TensorGeluInplaceOp>(dst);
     dst->graph()->add_op(op);
 }
 

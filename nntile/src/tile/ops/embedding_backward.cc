@@ -60,7 +60,7 @@ void embedding_backward(
     {
         index_range = vocab->nelems() / k_size;
     }
-    index->graph()->add_op(std::make_shared<TileEmbeddingBackwardOp>(
+    index->graph()->add_op(nntile::make_op<TileEmbeddingBackwardOp>(
         m, n, k, k_start, k_size, index_range, alpha, beta, index, embed,
         vocab, redux));
 }

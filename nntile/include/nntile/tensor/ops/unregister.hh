@@ -27,6 +27,7 @@ namespace nntile::tensor
 //! Async unregister at tensor level (no outputs; side-effect on ``x``).
 struct TensorUnregisterOp : TensorGraph::OpNode
 {
+    bool is_unregister() const override { return true; }
     TensorGraph::TensorNode *x = nullptr;
 
     TensorUnregisterOp() = default;
@@ -41,7 +42,7 @@ struct TensorUnregisterOp : TensorGraph::OpNode
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorUnregisterOp>(*this);
+        return nntile::make_op<TensorUnregisterOp>(*this);
     }
 
     void lower_to_tile(const LoweringContext &ctx) const override;

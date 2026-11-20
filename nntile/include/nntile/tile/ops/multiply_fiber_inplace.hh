@@ -37,7 +37,7 @@ struct TileMultiplyFiberInplaceOp : TileGraph::OpNode
     void execute(Runtime& runtime) const override;
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileMultiplyFiberInplaceOp>(*this);
+        return nntile::make_op<TileMultiplyFiberInplaceOp>(*this);
     }
 };
 void multiply_fiber_inplace(Scalar a, TileGraph::TileNode* s, TileGraph::TileNode* d, Index axis);

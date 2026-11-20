@@ -34,7 +34,7 @@ void fill(Scalar val, TensorGraph::TensorNode* x)
     }
 
     x->set_constant_value(val);
-    auto op = std::make_shared<TensorFillOp>(x, val);
+    auto op = nntile::make_op<TensorFillOp>(x, val);
     x->graph()->add_op(op);
 }
 

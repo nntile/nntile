@@ -40,7 +40,7 @@ TensorGraph::TensorNode *sqrt(TensorGraph::TensorNode *src)
         src->graph()->emplace_data(std::move(output_shape), src->dtype());
     output->set_axes(src->axes());
 
-    auto op = std::make_shared<TensorSqrtOp>(src, output);
+    auto op = nntile::make_op<TensorSqrtOp>(src, output);
     src->graph()->add_op(op);
 
     return output;
@@ -69,7 +69,7 @@ void sqrt(TensorGraph::TensorNode *src, TensorGraph::TensorNode *dst)
     }
     validate_same_shape_and_merge(src, dst, "sqrt");
 
-    auto op = std::make_shared<TensorSqrtOp>(src, dst);
+    auto op = nntile::make_op<TensorSqrtOp>(src, dst);
     src->graph()->add_op(op);
 }
 

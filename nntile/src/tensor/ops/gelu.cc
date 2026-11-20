@@ -40,7 +40,7 @@ TensorGraph::TensorNode *gelu(TensorGraph::TensorNode *x)
         x->graph()->emplace_data(std::move(output_shape), x->dtype());
     output->set_axes(x->axes());
 
-    auto op = std::make_shared<TensorGeluOp>(x, output);
+    auto op = nntile::make_op<TensorGeluOp>(x, output);
     x->graph()->add_op(op);
 
     return output;
@@ -68,7 +68,7 @@ void gelu(TensorGraph::TensorNode *x, TensorGraph::TensorNode *y)
     }
     validate_same_shape_and_merge(x, y, "gelu");
 
-    auto op = std::make_shared<TensorGeluOp>(x, y);
+    auto op = nntile::make_op<TensorGeluOp>(x, y);
     x->graph()->add_op(op);
 }
 

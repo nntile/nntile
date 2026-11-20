@@ -47,7 +47,7 @@ void clear(TileGraph::TileNode* x)
         throw std::invalid_argument("tile clear: input tile must be non-null");
     }
 
-    auto op = std::make_shared<TileClearOp>(x);
+    auto op = nntile::make_op<TileClearOp>(x);
     x->graph()->add_op(op);
 }
 

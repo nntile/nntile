@@ -40,7 +40,7 @@ void multiply_fiber(Scalar a, TileGraph::TileNode* t1, TileGraph::TileNode* t2, 
         throw std::invalid_argument("multiply_fiber");
     if(t1 == t2 || t1 == d || t2 == d)
         throw std::invalid_argument("multiply_fiber");
-    t1->graph()->add_op(std::make_shared<TileMultiplyFiberOp>(a, t1, t2, d, axis));
+    t1->graph()->add_op(nntile::make_op<TileMultiplyFiberOp>(a, t1, t2, d, axis));
 }
 void TileMultiplyFiberOp::execute(Runtime& runtime) const
 {

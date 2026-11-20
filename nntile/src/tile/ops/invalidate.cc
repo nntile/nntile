@@ -29,7 +29,7 @@ void invalidate(TileGraph::TileNode *x)
             "tile invalidate: input tile must be non-null");
     }
 
-    auto op = std::make_shared<TileInvalidateOp>(x);
+    auto op = nntile::make_op<TileInvalidateOp>(x);
     x->graph()->add_op(op);
 }
 

@@ -36,7 +36,7 @@ struct TileScaleInplaceOp : TileGraph::OpNode
     void execute(Runtime& runtime) const override;
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileScaleInplaceOp>(*this);
+        return nntile::make_op<TileScaleInplaceOp>(*this);
     }
 };
 //! Scale in-place: dst = alpha * dst

@@ -28,6 +28,7 @@ namespace nntile::tensor
 //! LogSumExp operation: dst = logsumexp(src)
 struct TensorLogsumexpOp : TensorGraph::OpNode
 {
+    bool constrains_reduction_tiles() const override { return true; }
     TensorGraph::TensorNode *src = nullptr;
     TensorGraph::TensorNode *dst = nullptr;
 
@@ -44,7 +45,7 @@ struct TensorLogsumexpOp : TensorGraph::OpNode
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorLogsumexpOp>(*this);
+        return nntile::make_op<TensorLogsumexpOp>(*this);
     }
 
     void lower_to_tile(const LoweringContext &ctx) const override;

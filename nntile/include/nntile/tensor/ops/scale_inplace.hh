@@ -44,7 +44,7 @@ struct TensorScaleInplaceOp : TensorGraph::OpNode
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorScaleInplaceOp>(*this);
+        return nntile::make_op<TensorScaleInplaceOp>(*this);
     }
 
     void lower_to_tile(const LoweringContext& ctx) const override;

@@ -107,7 +107,7 @@ void embedding(TensorGraph::TensorNode *index,
             "embedding: vocab and embed must have same dtype");
     validate_embedding_shape_and_merge(embed, index, vocab, "embedding");
 
-    auto op = std::make_shared<TensorEmbeddingOp>(index, vocab, embed, axis);
+    auto op = nntile::make_op<TensorEmbeddingOp>(index, vocab, embed, axis);
     embed->graph()->add_op(op);
 }
 

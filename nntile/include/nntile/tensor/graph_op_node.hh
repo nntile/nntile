@@ -15,11 +15,13 @@
 #pragma once
 
 // Standard library headers
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <vector>
 
 // NNTile headers
+#include <nntile/op_arena.hh>
 #include <nntile/tensor/graph_data_node.hh>
 
 namespace nntile
@@ -41,14 +43,33 @@ public:
     void set_name(const std::string& n) { name_ = n; }
     NodeId id() const { return id_; }
 
-    const std::vector<TensorGraph::TensorNode*>& inputs() const
+    //! Max edges a shipped tensor op uses inline (largest dynamic builder:
+    //! torch batch-norm backward, 8). Beyond this the span spills.
+    static constexpr std::size_t kMaxInlineInputs = 12;
+    static constexpr std::size_t kMaxInlineOutputs = 4;
+
+    using EdgeSpanIn =
+        OpEdgeSpan<TensorGraph::TensorNode, kMaxInlineInputs>;
+    using EdgeSpanOut =
+        OpEdgeSpan<TensorGraph::TensorNode, kMaxInlineOutputs>;
+
+    const EdgeSpanIn& inputs() const
     {
         return inputs_;
     }
-    const std::vector<TensorGraph::TensorNode*>& outputs() const
+    const EdgeSpanOut& outputs() const
     {
         return outputs_;
     }
+
+    //! Cheap kind probe replacing per-op virtual ``op_name()`` string
+    //! construction in the hot invalidate scan. Default: not this kind.
+    virtual bool is_unregister() const { return false; }
+
+    //! Cheap pre-filter for ``constrain_reduction_tiles``: the tiling pass
+    //! ran three dynamic_casts over EVERY graph op per compile (RTTI
+    //! string walks); only these three kinds ever constrain.
+    virtual bool constrains_reduction_tiles() const { return false; }
 
     virtual std::shared_ptr<TensorGraph::OpNode> clone() const = 0;
 
@@ -61,8 +82,8 @@ protected:
 
     NodeId id_ = -1;
     std::string name_;
-    std::vector<TensorGraph::TensorNode*> inputs_;
-    std::vector<TensorGraph::TensorNode*> outputs_;
+    EdgeSpanIn inputs_;
+    EdgeSpanOut outputs_;
 
     friend class TensorGraph;
 };

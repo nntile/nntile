@@ -33,7 +33,7 @@ void clear(TensorGraph::TensorNode* x)
         throw std::invalid_argument("clear: input tensor must be non-null");
     }
 
-    auto op = std::make_shared<TensorClearOp>(x);
+    auto op = nntile::make_op<TensorClearOp>(x);
     x->graph()->add_op(op);
 }
 

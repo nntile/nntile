@@ -34,7 +34,7 @@ void log_scalar(const std::string& name, TileGraph::TileNode* value)
 {
     if(!value)
         throw std::invalid_argument("tile log_scalar: null");
-    value->graph()->add_op(std::make_shared<TileLogScalarOp>(name, value));
+    value->graph()->add_op(nntile::make_op<TileLogScalarOp>(name, value));
 }
 void TileLogScalarOp::execute(Runtime& runtime) const
 {

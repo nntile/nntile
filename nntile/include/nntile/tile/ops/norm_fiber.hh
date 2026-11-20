@@ -38,7 +38,7 @@ struct TileNormFiberOp : TileGraph::OpNode
     void execute(Runtime& runtime) const override;
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileNormFiberOp>(*this);
+        return nntile::make_op<TileNormFiberOp>(*this);
     }
 };
 void norm_fiber(Scalar a, TileGraph::TileNode* t1, Scalar b, TileGraph::TileNode* t2, TileGraph::TileNode* dst, Index ax, Index bd, int r = 0);

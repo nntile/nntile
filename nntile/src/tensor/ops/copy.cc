@@ -51,7 +51,7 @@ void copy(TensorGraph::TensorNode *src, TensorGraph::TensorNode *dst)
             "copy: src and dst must be distinct tensors");
     validate_same_shape_and_merge(src, dst, "copy");
 
-    auto op = std::make_shared<TensorCopyOp>(src, dst);
+    auto op = nntile::make_op<TensorCopyOp>(src, dst);
     src->graph()->add_op(op);
 }
 

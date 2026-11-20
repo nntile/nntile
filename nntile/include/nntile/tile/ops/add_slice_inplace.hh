@@ -37,7 +37,7 @@ struct TileAddSliceInplaceOp : TileGraph::OpNode
     void execute(Runtime& runtime) const override;
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileAddSliceInplaceOp>(*this);
+        return nntile::make_op<TileAddSliceInplaceOp>(*this);
     }
 };
 //! Add slice in-place: dst = alpha * src + beta * dst

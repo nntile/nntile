@@ -46,6 +46,19 @@ class TensorNodeToTileMap
         return slot.tiles;
     }
 
+    //! Raw slot address for prefetching (no occupancy check).
+    void const *try_get_slot(key_type node) const
+    {
+        if (node == nullptr)
+        {
+            return nullptr;
+        }
+        auto const id = static_cast<size_t>(node->id());
+        return id < slots_.size()
+            ? static_cast<void const *>(&slots_[id])
+            : nullptr;
+    }
+
     mapped_type *try_get(key_type node)
     {
         if (node == nullptr)

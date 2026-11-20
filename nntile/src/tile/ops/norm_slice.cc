@@ -40,7 +40,7 @@ void norm_slice(Scalar a, TileGraph::TileNode* t1, Scalar b, TileGraph::TileNode
         throw std::invalid_argument("norm_slice");
     if(t1 == t2 || t1 == d || t2 == d)
         throw std::invalid_argument("norm_slice");
-    t1->graph()->add_op(std::make_shared<TileNormSliceOp>(a, t1, b, t2, d, ax, r));
+    t1->graph()->add_op(nntile::make_op<TileNormSliceOp>(a, t1, b, t2, d, ax, r));
 }
 void TileNormSliceOp::execute(Runtime& runtime) const
 {

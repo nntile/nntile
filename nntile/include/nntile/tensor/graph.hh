@@ -36,7 +36,7 @@ inline TensorGraph::TensorNode *TensorGraph::emplace_data(
     std::vector<Index> shape, DataType dtype)
 {
     GraphFillScope fill;
-    auto node = std::make_unique<TensorNode>(
+    TensorNodePtr node = make_arena_unique<TensorNode>(
         next_data_id_, this, std::move(shape), dtype, "");
     ++next_data_id_;
     TensorNode *node_ptr = node.get();
@@ -142,9 +142,15 @@ inline TensorGraph::PhaseSnapshot TensorGraph::seal_phase()
     // marked_io_: every historical mark_input (e.g. preloaded batches)
     // lives there, and scanning it made seal O(session) each compile.
     // Live outputs used later appear as op inputs/outputs in that phase.
-    std::unordered_set<TensorNode const *> touched;
-    const size_t phase_ops = ops_.size() - phase_seal_cursor_;
-    touched.reserve(phase_ops * 4 + 8);
+    //
+    // Dense bitmap over node ids: one random 4-byte write per edge into
+    // the node objects was the remaining scatter (the same capacity
+    // superlinearity the compile passes had); the bitmap is written
+    // sequentially and emit walks data_ slots in id order (naturally
+    // id-sorted, so the pending-compile equality checks stay
+    // deterministic and the sort disappears too).
+    const std::size_t id_space = data_.size();
+    std::vector<std::uint8_t> touched(id_space, 0);
     for (size_t i = phase_seal_cursor_; i < ops_.size(); ++i)
     {
         std::shared_ptr<OpNode> const &op = ops_[i];
@@ -156,29 +162,26 @@ inline TensorGraph::PhaseSnapshot TensorGraph::seal_phase()
         {
             if (in != nullptr)
             {
-                touched.insert(in);
+                touched[static_cast<std::size_t>(in->id())] = 1;
             }
         }
         for (TensorNode *ot : op->outputs())
         {
             if (ot != nullptr)
             {
-                touched.insert(ot);
+                touched[static_cast<std::size_t>(ot->id())] = 1;
             }
         }
     }
-    std::vector<TensorNode const *> carried(
-        touched.begin(),
-        touched.end());
-    // Stable order by node id so pending-compile equality checks compare
-    // carried lists by index deterministically.
-    std::sort(
-        carried.begin(),
-        carried.end(),
-        [](TensorNode const *a, TensorNode const *b)
+    std::vector<TensorNode const *> carried;
+    carried.reserve(ops_.size() - phase_seal_cursor_ + 8);
+    for (std::size_t id = 0; id < id_space; ++id)
+    {
+        if (touched[id] != 0)
         {
-            return a->id() < b->id();
-        });
+            carried.push_back(data_[id].get());
+        }
+    }
     return seal_phase(std::move(carried));
 }
 
@@ -220,7 +223,7 @@ inline void TensorGraph::drop_all_ops()
 inline size_t TensorGraph::num_live_data() const
 {
     size_t n = 0;
-    for (std::unique_ptr<TensorNode> const &up : data_)
+    for (TensorNodePtr const &up : data_)
     {
         if (up)
         {
@@ -257,7 +260,7 @@ TensorGraph::collect_dead_data_nodes() const
         }
     }
     std::vector<TensorNode *> dead;
-    for (std::unique_ptr<TensorNode> const &up : data_)
+    for (TensorNodePtr const &up : data_)
     {
         TensorNode *t = up.get();
         if (t == nullptr)

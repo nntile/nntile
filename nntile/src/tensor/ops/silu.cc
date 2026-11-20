@@ -67,7 +67,7 @@ void silu(TensorGraph::TensorNode *src, TensorGraph::TensorNode *dst)
     }
     validate_same_shape_and_merge(src, dst, "silu");
 
-    auto op = std::make_shared<TensorSiluOp>(src, dst);
+    auto op = nntile::make_op<TensorSiluOp>(src, dst);
     src->graph()->add_op(op);
 }
 

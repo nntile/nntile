@@ -50,7 +50,7 @@ void add_fiber(
     if(s1 == s2 || s1 == dst || s2 == dst)
         throw std::invalid_argument("add_fiber");
     s1->graph()->add_op(
-        std::make_shared<TileAddFiberOp>(a, s1, b, s2, dst, axis, batch_ndim));
+        nntile::make_op<TileAddFiberOp>(a, s1, b, s2, dst, axis, batch_ndim));
 }
 void TileAddFiberOp::execute(Runtime& runtime) const
 {

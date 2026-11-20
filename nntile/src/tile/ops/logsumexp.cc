@@ -40,7 +40,7 @@ void logsumexp(TileGraph::TileNode* src, TileGraph::TileNode* dst)
         throw std::invalid_argument("tile logsumexp: dtype");
     if(src == dst)
         throw std::invalid_argument("tile logsumexp: distinct");
-    src->graph()->add_op(std::make_shared<TileLogsumexpOp>(src, dst));
+    src->graph()->add_op(nntile::make_op<TileLogsumexpOp>(src, dst));
 }
 void TileLogsumexpOp::execute(Runtime& runtime) const
 {

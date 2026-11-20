@@ -43,7 +43,7 @@ void randn(
     if(!dst)
         throw std::invalid_argument("tile randn: null");
     dst->graph()->add_op(
-        std::make_shared<TileRandnOp>(start, underlying_shape, seed, mean, stddev, dst));
+        nntile::make_op<TileRandnOp>(start, underlying_shape, seed, mean, stddev, dst));
 }
 void TileRandnOp::execute(Runtime& runtime) const
 {

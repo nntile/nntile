@@ -24,6 +24,35 @@ option(NNTILE_USE_NNHAUL
     "Link libnnhaul instead of StarPU (one backend per build)" OFF)
 option(NNTILE_FORCE_CHUNKED_KERNELS
     "Dispatch every op through its chunked kernel, including contiguous operands" OFF)
+# The native chunked-GEMM kernel family (kernel/gemm_chunked): the
+# hand-written table-aware CUDA kernels plus the optional CUTLASS
+# engines. OFF removes the whole family from CUDA builds and links
+# constant-decline stubs instead -- every GEMM stays on cuBLAS: the
+# workspace-staged path (gather operands into the gemm workspace,
+# cuBLAS, scatter back) for chunked operands, the classic contiguous
+# call otherwise. That is the route the GPT-2 forced-run protocol
+# always uses. This drops the tree's heaviest translation unit and cuts
+# the build time accordingly. What OFF gives up: the in-place
+# table-native kernels (zero gather/scatter bytes) and the
+# workspace-overflow rescue (a call whose staged demand exceeds the gemm
+# workspace throws rule-11 instead of being rescued by a native launch).
+option(USE_CHUNKED_GEMM
+    "Compile the native chunked-GEMM kernel family (OFF = cuBLAS staged/contiguous only)" ON)
+# CUTLASS 2.11 chunked/flat GEMM engines (gemm_chunked's CUTLASS family:
+# flat beta=0 engines + the chunk-table bridge). Only meaningful when
+# USE_CHUNKED_GEMM=ON -- the engines are instantiated inside that
+# family's translation unit. ON fetches the pinned
+# release tarball (FetchContent) and compiles the engines; OFF compiles
+# the kernel with constant-false engine stubs (every GEMM keeps
+# cuBLAS/native routing verbatim) and skips the download -- a faster
+# compile for builds that do not need CUTLASS. CUDA-only: a configure
+# without CUDA kernels degrades to OFF with a warning. Note the engines
+# arm via the kernel TU's own __has_include(<cutlass/...>): an OFF build
+# that independently puts CUTLASS headers on that TU's include path
+# (e.g. via CPATH) still compiles them. Per-hardware CUTLASS version
+# selection is planned on top of this switch.
+option(USE_CUTLASS
+    "Compile the CUTLASS 2.11 GEMM engines (fetched via FetchContent)" ON)
 option(USE_CUDA "Use CUDA toolkit (cuBLAS and cuDNN are required)" ON)
 option(USE_CUDA_FP16 "Enable FP16 CUDA support" ON)
 option(USE_CUDA_TF32 "Enable TF32 CUDA support" ON)

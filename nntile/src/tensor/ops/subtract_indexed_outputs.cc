@@ -94,7 +94,7 @@ void subtract_indexed_outputs(Scalar val,
         merge_axis(labels->mutable_axes()[i], dst->mutable_axes()[i]);
     }
 
-    auto op = std::make_shared<TensorSubtractIndexedOutputsOp>(
+    auto op = nntile::make_op<TensorSubtractIndexedOutputsOp>(
         val, labels, dst, ignore_index);
     dst->graph()->add_op(op);
 }
