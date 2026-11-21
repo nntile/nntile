@@ -211,11 +211,28 @@ void Runtime::compile()
             "NNTile/NNHaul: this graph lowers torch_dispatch ops "
             "(TILE_TORCH_*), which cannot consume chunked NNHaul tiles, "
             "but chunked tile handles are already allocated in this "
-            "session (NNHAUL_CHUNK_TILES is enabled and tiles exceed the "
-            "chunking threshold). Set NNHAUL_CHUNK_TILES=0 for "
-            "torch-native graphs.");
+            "session (the chunked-tile gate is on and chunked handles "
+            "were allocated before this graph compiled). For classic "
+            "sessions set NNHAUL_CHUNK_TILES=0 from process start; for "
+            "torch_nntile sessions make sure NNHAUL_CHUNK_TILES is "
+            "UNSET (the session policy then disables chunked tiles "
+            "automatically) and that the libtorch_nntile.so in this "
+            "process matches the installed libnntile.so.");
     }
-    ::nntile::haul::set_tile_chunking(!graph_has_torch_ops_);
+    // Monotonic session law: a torch-op graph disables chunked tiles
+    // for the REST of the session (future allocations only — the guard
+    // above has already thrown if chunked handles were alive). Classic
+    // graphs no longer FORCE chunking back on: a session that started
+    // with chunking off (the torch_nntile session policy or
+    // NNHAUL_CHUNK_TILES=0) keeps it off, while pure-classic sessions
+    // are unaffected (the default is on and nothing ever turned it
+    // off). The old unconditional form re-enabled chunking after every
+    // classic graph's compile, which clobbered a session-level flip
+    // made before any torch-op graph had compiled.
+    if(graph_has_torch_ops_)
+    {
+        ::nntile::haul::set_tile_chunking(false);
+    }
 #endif
 
     auto const t_dce = std::chrono::steady_clock::now();

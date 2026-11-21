@@ -1526,6 +1526,11 @@ void set_platform_hooks(
     PlatformFlushHook flush)
 {
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    // The platform session starts here — the earliest point where this
+    // is a torch_nntile session. Apply the chunked-tile session policy
+    // before any device tensor can allocate (see
+    // apply_torch_session_chunk_policy).
+    apply_torch_session_chunk_policy();
     g_platform_ingress = std::move(ingress);
     g_platform_flush = std::move(flush);
     g_platform_mode.store(true, std::memory_order_release);
