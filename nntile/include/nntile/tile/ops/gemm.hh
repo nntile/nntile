@@ -69,7 +69,7 @@ struct TileGemmOp : TileGraph::OpNode
 
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileGemmOp>(*this);
+        return nntile::make_op<TileGemmOp>(*this);
     }
 };
 

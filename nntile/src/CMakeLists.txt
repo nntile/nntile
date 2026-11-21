@@ -174,6 +174,15 @@ if(NOT HAVE_STARPU_SIMGRID)
                 "kernel/flash_sdpa_bwd_cudnn/cuda.cc"
             )
         endif()
+        # The native chunked-GEMM family is option-gated (USE_CHUNKED_GEMM,
+        # root CMakeLists). OFF links the constant-decline stub instead --
+        # every GEMM keeps the workspace-staged cuBLAS path -- and drops
+        # this tree's heaviest translation unit from the build.
+        if(USE_CHUNKED_GEMM)
+            list(APPEND KERNEL_CUDA_SRC "kernel/gemm_chunked/cuda.cu")
+        else()
+            list(APPEND KERNEL_CPU_SRC "kernel/gemm_chunked/stub.cc")
+        endif()
     endif(NNTILE_USE_CUDA)
 endif(NOT HAVE_STARPU_SIMGRID)
 

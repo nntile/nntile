@@ -41,7 +41,7 @@ struct TileSumFiberOp : TileGraph::OpNode
     void execute(Runtime& runtime) const override;
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileSumFiberOp>(*this);
+        return nntile::make_op<TileSumFiberOp>(*this);
     }
 };
 //! Sum along fibers: y = alpha * sum_fiber(x) + beta * y (uses existing output)

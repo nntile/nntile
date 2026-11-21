@@ -63,7 +63,7 @@ void relu_backward(Scalar alpha, TensorGraph::TensorNode *x,
             "relu_backward: x, dy, and dx must be distinct tensors");
     validate_same_shape_and_merge(x, dy, "relu_backward");
     validate_same_shape_and_merge(x, dx, "relu_backward");
-    auto op = std::make_shared<TensorReluBackwardOp>(x, dy, dx, alpha, beta);
+    auto op = nntile::make_op<TensorReluBackwardOp>(x, dy, dx, alpha, beta);
     x->graph()->add_op(op);
 }
 

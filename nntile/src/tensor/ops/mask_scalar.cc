@@ -64,7 +64,7 @@ void mask_scalar(TensorGraph::TensorNode* mask,
         merge_axis(mask->mutable_axes()[i], A->mutable_axes()[a_ax]);
     }
 
-    auto op = std::make_shared<TensorMaskScalarOp>(mask, val, A, batch_ndim);
+    auto op = nntile::make_op<TensorMaskScalarOp>(mask, val, A, batch_ndim);
     A->graph()->add_op(op);
 }
 

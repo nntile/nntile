@@ -38,7 +38,7 @@ struct TileSoftmaxInplaceOp : TileGraph::OpNode
     void execute(Runtime& runtime) const override;
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileSoftmaxInplaceOp>(*this);
+        return nntile::make_op<TileSoftmaxInplaceOp>(*this);
     }
 };
 void softmax_inplace(TileGraph::TileNode* mse, Scalar alpha, TileGraph::TileNode* dst, Index axis);

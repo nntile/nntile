@@ -48,7 +48,7 @@ void fill(Scalar val, TileGraph::TileNode* x)
         throw std::invalid_argument("tile fill: input tile must be non-null");
     }
 
-    auto op = std::make_shared<TileFillOp>(x, val);
+    auto op = nntile::make_op<TileFillOp>(x, val);
     x->graph()->add_op(op);
 }
 

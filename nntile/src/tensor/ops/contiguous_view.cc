@@ -67,7 +67,7 @@ void contiguous_view(
     }
     validate_contiguous_view(src, dst, "contiguous_view");
 
-    auto op = std::make_shared<TensorContiguousViewOp>(src, dst);
+    auto op = nntile::make_op<TensorContiguousViewOp>(src, dst);
     src->graph()->add_op(op);
 }
 

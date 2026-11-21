@@ -42,7 +42,7 @@ void log_scalar(const std::string& name,
 {
     if(value == nullptr)
         throw std::invalid_argument("log_scalar: value tensor must be non-null");
-    auto op = std::make_shared<TensorLogScalarOp>(name, value);
+    auto op = nntile::make_op<TensorLogScalarOp>(name, value);
     value->graph()->add_op(op);
 }
 

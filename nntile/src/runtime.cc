@@ -40,6 +40,8 @@
 #include "nntile/tile/lowering_context.hh"
 
 #include <chrono>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <stdexcept>
 #include <string>
@@ -52,6 +54,19 @@ namespace nntile
 
 namespace
 {
+
+//! [C1 diag] env-gated compile sub-pass brackets (NNTILE_COMPILE_BREAKDOWN).
+//! Pure observation: steady-clock reads + one stderr line per compile.
+bool compile_breakdown_enabled()
+{
+    return env_flag_enabled("NNTILE_COMPILE_BREAKDOWN");
+}
+
+double breakdown_ms_since(std::chrono::steady_clock::time_point t0)
+{
+    return std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - t0).count();
+}
 
 //! True if the tile's logical tensor still has a live ``TensorRef``.
 bool tile_logical_is_live(TileGraph::TileNode const *tile)
@@ -104,33 +119,9 @@ template <typename T>
 void allocate_tile_and_register(
     TileGraph::TileNode *node, const std::vector<Index> &shape)
 {
-    auto t = std::make_shared<nntile::core::Tile<T>>(shape);
+    auto t = nntile::make_arena_shared<nntile::core::Tile<T>>(shape);
     node->set_payload(std::move(t));
     sync_logical_starpu_flag(node);
-}
-
-//! Enqueue op I/O tiles that are not yet live. Accumulators listed only as
-//! outputs still need a live edge (in-place / incremental IR).
-void enqueue_op_io(
-    TileGraph::OpNode const &op,
-    std::unordered_set<TileGraph::TileNode const *> &live,
-    std::vector<TileGraph::TileNode const *> &work)
-{
-    auto note = [&](TileGraph::TileNode const *tile)
-    {
-        if (tile != nullptr && live.insert(tile).second)
-        {
-            work.push_back(tile);
-        }
-    };
-    for (TileGraph::TileNode const *in : op.inputs())
-    {
-        note(in);
-    }
-    for (TileGraph::TileNode const *out : op.outputs())
-    {
-        note(out);
-    }
 }
 
 } // namespace
@@ -179,19 +170,26 @@ void Runtime::compile()
     }
     if (compiled_graph_op_count_ < graph_ops.size())
     {
-        execution_order_.reserve(
-            execution_order_.size() +
-            (graph_ops.size() - compiled_graph_op_count_));
+        bool const cbrk = compile_breakdown_enabled();
+        auto const t_append = std::chrono::steady_clock::now();
+        size_t const new_ops = graph_ops.size() - compiled_graph_op_count_;
+        execution_order_.reserve(execution_order_.size() + new_ops);
         for (size_t i = compiled_graph_op_count_; i < graph_ops.size(); ++i)
         {
             execution_order_.push_back(graph_ops[i]);
-            if (!graph_has_torch_ops_
-                && graph_ops[i]->op_name().rfind("TILE_TORCH_", 0) == 0)
+            if (!graph_has_torch_ops_ && graph_ops[i]->is_torch_dispatch())
             {
                 graph_has_torch_ops_ = true;
             }
         }
         compiled_graph_op_count_ = graph_ops.size();
+        if (cbrk)
+        {
+            std::fprintf(stderr,
+                "[nntile-cbrk] rt new_ops=%zu eo=%zu append_ms=%.3f\n",
+                new_ops, execution_order_.size(),
+                breakdown_ms_since(t_append));
+        }
     }
 #ifdef NNTILE_USE_NNHAUL
     // Chunked tiles are for the classic stack only. Torch_dispatch ops
@@ -219,11 +217,24 @@ void Runtime::compile()
 #endif
 
     auto const t_dce = std::chrono::steady_clock::now();
-    eliminate_dead_ops();
+    // One flat SoA snapshot of the pending suffix, shared by the compile
+    // passes below (DCE adjacency + mark, allocate_missing_tiles' needed
+    // walk). Per-compile scratch only.
+    PendingPhaseSnapshot snap = build_pending_phase_snapshot();
+    if (compile_breakdown_enabled())
+    {
+        std::fprintf(stderr,
+            "[nntile-cbrk] snap pending=%zu build_ms=%.3f "
+            "in_edges=%zu out_edges=%zu\n",
+            snap.in_off.size() - 1,
+            breakdown_ms_since(t_dce), snap.in_edges.size(),
+            snap.out_edges.size());
+    }
+    eliminate_dead_ops(&snap);
     last_compile_dce_s_ = std::chrono::duration<double>(
         std::chrono::steady_clock::now() - t_dce).count();
     auto const t_alloc = std::chrono::steady_clock::now();
-    allocate_missing_tiles();
+    allocate_missing_tiles(&snap);
     last_compile_alloc_s_ = std::chrono::duration<double>(
         std::chrono::steady_clock::now() - t_alloc).count();
     tile_adoption_.clear();
@@ -823,29 +834,120 @@ void Runtime::require_compiled() const
     }
 }
 
-void Runtime::allocate_missing_tiles()
+Runtime::PendingPhaseSnapshot Runtime::build_pending_phase_snapshot() const
 {
-    std::unordered_set<const TileGraph::TileNode *> needed_by_pending;
+    PendingPhaseSnapshot snap;
+    const size_t n = execution_order_.size();
+    const size_t begin = executed_op_end_ < n ? executed_op_end_ : n;
+    snap.op_begin = begin;
+    const size_t pending = n - begin;
+    snap.in_off.assign(pending + 1, 0);
+    snap.out_off.assign(pending + 1, 0);
+    snap.is_unregister.assign(pending, 0);
+    for (size_t local = 0; local < pending; ++local)
+    {
+        auto const &op = execution_order_[begin + local];
+        auto const &ins = op->inputs();
+        auto const &outs = op->outputs();
+        for (const TileNode *t : ins)
+        {
+            snap.in_edges.push_back(t);
+        }
+        for (const TileNode *t : outs)
+        {
+            snap.out_edges.push_back(t);
+        }
+        snap.in_off[local + 1] =
+            static_cast<std::uint32_t>(snap.in_edges.size());
+        snap.out_off[local + 1] =
+            static_cast<std::uint32_t>(snap.out_edges.size());
+        snap.is_unregister[local] = op->is_tile_unregister() ? 1 : 0;
+    }
+    return snap;
+}
+
+void Runtime::allocate_missing_tiles(PendingPhaseSnapshot const *snap_in)
+{
+    bool const cbrk = compile_breakdown_enabled();
+    auto const t_need = std::chrono::steady_clock::now();
     const size_t n = execution_order_.size();
     const size_t begin =
         executed_op_end_ < n ? executed_op_end_ : n;
-    for (size_t i = begin; i < n; ++i)
+    const size_t pending = n - begin;
+    // Use the shared per-compile snapshot when it matches this pending
+    // window; otherwise (Runtime::execute path) build a local one.
+    PendingPhaseSnapshot own;
+    PendingPhaseSnapshot const *snap = snap_in;
+    if (snap == nullptr || snap->op_begin != begin
+        || snap->in_off.size() != pending + 1)
     {
-        for (const auto *in : execution_order_[i]->inputs())
+        own = build_pending_phase_snapshot();
+        snap = &own;
+    }
+    // Dense needed-tile bitmap over the PENDING WINDOW's tile-id span.
+    // TileNode ids are absolute slots in TileGraph::tile_nodes()
+    // (session-monotonic), so the bitmap keeps absolute indices but is
+    // sized to max tile id over the snapshot's op edges + 1: every edge
+    // tile id is below that bound by construction, so indexing stays
+    // absolute while the zero-init and scan cost scale with the pending
+    // phase, not with session length. (A DCE-eliminated op's tiles are
+    // never marked: DCE compacts execution_order_ before this pass and
+    // the staleness check above rebuilds the snapshot from the post-DCE
+    // order, which is what guarantees post-DCE correctness here.)
+    size_t max_pending_id = 0;
+    for (const TileNode *t : snap->in_edges)
+    {
+        if (t != nullptr)
         {
-            if (in != nullptr)
+            size_t const id = static_cast<size_t>(t->id());
+            if (id > max_pending_id)
             {
-                needed_by_pending.insert(in);
-            }
-        }
-        for (const auto *out : execution_order_[i]->outputs())
-        {
-            if (out != nullptr)
-            {
-                needed_by_pending.insert(out);
+                max_pending_id = id;
             }
         }
     }
+    for (const TileNode *t : snap->out_edges)
+    {
+        if (t != nullptr)
+        {
+            size_t const id = static_cast<size_t>(t->id());
+            if (id > max_pending_id)
+            {
+                max_pending_id = id;
+            }
+        }
+    }
+    const size_t id_bound = max_pending_id + 1;
+    std::vector<std::uint8_t> needed(id_bound, 0);
+    for (size_t local = 0; local < pending; ++local)
+    {
+        for (std::uint32_t e = snap->in_off[local];
+             e < snap->in_off[local + 1]; ++e)
+        {
+            const TileNode *t = snap->in_edges[e];
+            if (t != nullptr)
+            {
+                needed[static_cast<size_t>(t->id())] = 1;
+            }
+        }
+        for (std::uint32_t e = snap->out_off[local];
+             e < snap->out_off[local + 1]; ++e)
+        {
+            const TileNode *t = snap->out_edges[e];
+            if (t != nullptr)
+            {
+                needed[static_cast<size_t>(t->id())] = 1;
+            }
+        }
+    }
+    auto const &all_tiles = graph_.tile_nodes();
+    size_t needed_count = 0;
+    for (size_t id = 0; id < id_bound; ++id)
+    {
+        needed_count += needed[id] != 0 ? 1 : 0;
+    }
+    double const need_ms = cbrk ? breakdown_ms_since(t_need) : 0.0;
+    auto const t_loop = std::chrono::steady_clock::now();
 
     auto try_allocate = [&](const TileGraph::TileNode *tile_key,
         bool require_live_or_needed)
@@ -858,7 +960,7 @@ void Runtime::allocate_missing_tiles()
         // (ingress staging lowered before any scatter is appended) pass
         // require_live_or_needed=false so they still get buffers.
         if (require_live_or_needed && !tile_logical_is_live(tile_key) &&
-            needed_by_pending.count(tile_key) == 0)
+            !needed[static_cast<std::size_t>(tile_key->id())])
         {
             return;
         }
@@ -876,40 +978,45 @@ void Runtime::allocate_missing_tiles()
         }
         // graph_.tile_nodes() owns the unique_ptr; tile_key is non-owning.
         DataType dtype = tile_key->dtype();
-        std::vector<Index> shape = tile_key->shape();
         auto *node = const_cast<TileGraph::TileNode *>(tile_key);
 
         switch (dtype)
         {
         case DataType::FP32:
-            allocate_tile_and_register<nntile::fp32_t>(node, shape);
+            allocate_tile_and_register<nntile::fp32_t>(
+                node, tile_key->shape());
             break;
         case DataType::FP32_FAST_TF32:
             allocate_tile_and_register<nntile::fp32_fast_tf32_t>(
-                node, shape);
+                node, tile_key->shape());
             break;
         case DataType::FP32_FAST_FP16:
             allocate_tile_and_register<nntile::fp32_fast_fp16_t>(
-                node, shape);
+                node, tile_key->shape());
             break;
         case DataType::FP32_FAST_BF16:
             allocate_tile_and_register<nntile::fp32_fast_bf16_t>(
-                node, shape);
+                node, tile_key->shape());
             break;
         case DataType::FP64:
-            allocate_tile_and_register<nntile::fp64_t>(node, shape);
+            allocate_tile_and_register<nntile::fp64_t>(
+                node, tile_key->shape());
             break;
         case DataType::FP16:
-            allocate_tile_and_register<nntile::fp16_t>(node, shape);
+            allocate_tile_and_register<nntile::fp16_t>(
+                node, tile_key->shape());
             break;
         case DataType::BF16:
-            allocate_tile_and_register<nntile::bf16_t>(node, shape);
+            allocate_tile_and_register<nntile::bf16_t>(
+                node, tile_key->shape());
             break;
         case DataType::INT64:
-            allocate_tile_and_register<nntile::int64_t>(node, shape);
+            allocate_tile_and_register<nntile::int64_t>(
+                node, tile_key->shape());
             break;
         case DataType::BOOL:
-            allocate_tile_and_register<nntile::bool_t>(node, shape);
+            allocate_tile_and_register<nntile::bool_t>(
+                node, tile_key->shape());
             break;
         default:
             throw std::runtime_error(
@@ -917,23 +1024,38 @@ void Runtime::allocate_missing_tiles()
         }
     };
 
-    // Only touch pending I/O, DCE-live tiles, and newly lowered tile nodes -
-    // never scan the full historical tile_nodes() list (that made compile
-    // O(session length)). New nodes cover ingress staging lowered before any
-    // scatter op is appended to execution_order_.
-    for (const auto *tile : needed_by_pending)
+    // Only touch pending I/O, DCE-live tiles, and newly lowered tile nodes.
+    // The loops below are bounded by the pending window's id span
+    // (id_bound) or by live_tile_nodes_ (whose ids are edges of surviving
+    // pending ops, hence < id_bound) - the historical tail of
+    // tile_nodes() above the window's max id is never scanned or
+    // zero-initialized, so this stays O(pending phase), not O(session
+    // length). New nodes cover ingress staging lowered before any scatter
+    // op is appended to execution_order_.
+    // Count freshly-allocated tiles only (adoption from tile_adoption_
+    // is NOT a fresh allocation). No per-tile clock brackets: the alloc
+    // line's loop_ms is the labeled pass total (a nested sub-line was
+    // both double-counted inside it and structurally zero in its
+    // livechk field - deleted in review).
+    std::size_t n_fresh = 0;
+    for (size_t id = 0; id < id_bound; ++id)
     {
-        try_allocate(tile, true);
+        // fresh = will actually allocate (payloadless AND not adoptable
+        // from tile_adoption_) - adoption is not a fresh allocation.
+        if (needed[id] && !all_tiles[id]->has_payload()
+            && tile_adoption_.find(all_tiles[id].get())
+                == tile_adoption_.end())
+        {
+            ++n_fresh;
+        }
     }
     for (const auto *tile : live_tile_nodes_)
     {
-        if (needed_by_pending.count(tile) != 0)
+        if (tile != nullptr && !needed[static_cast<size_t>(tile->id())])
         {
-            continue;
+            try_allocate(tile, true);
         }
-        try_allocate(tile, true);
     }
-    const auto &all_tiles = graph_.tile_nodes();
     if (compiled_tile_node_count_ > all_tiles.size())
     {
         compiled_tile_node_count_ = 0;
@@ -943,6 +1065,14 @@ void Runtime::allocate_missing_tiles()
         try_allocate(all_tiles[i].get(), false);
     }
     compiled_tile_node_count_ = all_tiles.size();
+    if (cbrk)
+    {
+        std::fprintf(stderr,
+            "[nntile-cbrk] alloc pending=%zu need_ms=%.3f loop_ms=%.3f "
+            "needed=%zu live_slots=%zu all_tiles=%zu fresh=%zu\n",
+            n - begin, need_ms, breakdown_ms_since(t_loop), needed_count,
+            live_tile_nodes_.size(), all_tiles.size(), n_fresh);
+    }
 }
 
 void Runtime::execute_range(
@@ -1207,7 +1337,7 @@ void Runtime::flush_queued_dead_tiles()
     queued_dead_tiles_.clear();
 }
 
-void Runtime::eliminate_dead_ops()
+void Runtime::eliminate_dead_ops(PendingPhaseSnapshot *snap_in)
 {
     live_tile_nodes_.clear();
     size_t const n = execution_order_.size();
@@ -1225,47 +1355,136 @@ void Runtime::eliminate_dead_ops()
     }
     size_t const pending = n - pending_begin;
 
-    using TNode = TileGraph::TileNode const *;
-    // Adjacency is pending-local op indices. A std::set of live ops plus
-    // re-scanning all live tiles every round was O(E log E) and quadratic
-    // in the untilled HF graphs (one tile per tensor, thousands of ops).
-    std::unordered_map<TNode, std::vector<size_t>> producer;
-    std::unordered_map<TNode, std::vector<size_t>> consumer;
-    std::unordered_set<TNode> consumed;
-    producer.reserve(pending * 2);
-    consumer.reserve(pending * 2);
-    consumed.reserve(pending * 2);
+    bool const cbrk = compile_breakdown_enabled();
+    auto const t_fill = std::chrono::steady_clock::now();
 
-    for (size_t i = pending_begin; i < n; ++i)
+    // Shared per-compile snapshot (compile() builds it once); fall back to
+    // a local build for direct calls.
+    PendingPhaseSnapshot own_snap;
+    if (snap_in == nullptr || snap_in->op_begin != pending_begin
+        || snap_in->in_off.size() != pending + 1)
     {
-        size_t const local = i - pending_begin;
-        auto const &op = execution_order_[i];
-        for (TNode out : op->outputs())
+        own_snap = build_pending_phase_snapshot();
+        snap_in = &own_snap;
+    }
+    PendingPhaseSnapshot const &snap = *snap_in;
+
+    // CSR adjacency over dense tile ids: TileNode::id() is the absolute
+    // slot index in TileGraph::tile_nodes() (session-monotonic, GC holes
+    // included), so producer/consumer adjacency lives in contiguous
+    // offset arrays plus flat edge arrays of pending-local op indices.
+    // Indices stay ABSOLUTE; only the extents shrink to the pending
+    // window: the arrays are sized to the max tile id over the
+    // snapshot's op edges + 1 (every edge tile id is below that bound by
+    // construction), so allocate/zero/scan cost scales with the pending
+    // phase, not with the session-wide tile_nodes() high-water. Two-pass
+    // count-then-fill. This replaces the old hash-map-of-vectors
+    // adjacency (~2 x pending map nodes with per-element heap vectors)
+    // whose scattered layout made the per-element cost grow with graph
+    // size (capacity superlinearity).
+    size_t max_pending_id = 0;
+    for (TileNode const *t : snap.in_edges)
+    {
+        if (t != nullptr)
         {
-            if (out != nullptr)
+            size_t const id = static_cast<size_t>(t->id());
+            if (id > max_pending_id)
             {
-                producer[out].push_back(local);
-            }
-        }
-        for (TNode in : op->inputs())
-        {
-            if (in != nullptr)
-            {
-                consumed.insert(in);
-                consumer[in].push_back(local);
+                max_pending_id = id;
             }
         }
     }
-
-    std::unordered_set<TNode> live_data;
-    std::vector<TNode> work;
-    live_data.reserve(pending * 2);
-    work.reserve(pending * 2);
-    auto seed_tile = [&](TNode tile)
+    for (TileNode const *t : snap.out_edges)
     {
-        if (tile != nullptr && live_data.insert(tile).second)
+        if (t != nullptr)
         {
-            work.push_back(tile);
+            size_t const id = static_cast<size_t>(t->id());
+            if (id > max_pending_id)
+            {
+                max_pending_id = id;
+            }
+        }
+    }
+    size_t const id_bound = max_pending_id + 1;
+    std::vector<std::uint32_t> prod_off(id_bound + 1, 0);
+    std::vector<std::uint32_t> cons_off(id_bound + 1, 0);
+    for (size_t local = 0; local < pending; ++local)
+    {
+        for (std::uint32_t e = snap.out_off[local];
+             e < snap.out_off[local + 1]; ++e)
+        {
+            TileNode const *t = snap.out_edges[e];
+            if (t != nullptr)
+            {
+                ++prod_off[static_cast<size_t>(t->id()) + 1];
+            }
+        }
+        for (std::uint32_t e = snap.in_off[local];
+             e < snap.in_off[local + 1]; ++e)
+        {
+            TileNode const *t = snap.in_edges[e];
+            if (t != nullptr)
+            {
+                ++cons_off[static_cast<size_t>(t->id()) + 1];
+            }
+        }
+    }
+    for (size_t id = 0; id < id_bound; ++id)
+    {
+        prod_off[id + 1] += prod_off[id];
+        cons_off[id + 1] += cons_off[id];
+    }
+    std::vector<std::uint32_t> prod_edges(prod_off[id_bound]);
+    std::vector<std::uint32_t> cons_edges(cons_off[id_bound]);
+    {
+        std::vector<std::uint32_t> prod_cursor(prod_off.begin(),
+            prod_off.end() - 1);
+        std::vector<std::uint32_t> cons_cursor(cons_off.begin(),
+            cons_off.end() - 1);
+        for (size_t local = 0; local < pending; ++local)
+        {
+            for (std::uint32_t e = snap.out_off[local];
+                 e < snap.out_off[local + 1]; ++e)
+            {
+                TileNode const *t = snap.out_edges[e];
+                if (t != nullptr)
+                {
+                    prod_edges[prod_cursor[static_cast<size_t>(t->id())]++] =
+                        static_cast<std::uint32_t>(local);
+                }
+            }
+            for (std::uint32_t e = snap.in_off[local];
+                 e < snap.in_off[local + 1]; ++e)
+            {
+                TileNode const *t = snap.in_edges[e];
+                if (t != nullptr)
+                {
+                    cons_edges[cons_cursor[static_cast<size_t>(t->id())]++] =
+                        static_cast<std::uint32_t>(local);
+                }
+            }
+        }
+    }
+    double const fill_ms = cbrk ? breakdown_ms_since(t_fill) : 0.0;
+    auto const t_seed = std::chrono::steady_clock::now();
+
+    // Live-tile bitmap + work list of dense tile ids (absolute ids,
+    // bounded by the pending window's max id as above). The mark closure
+    // is the same reachability fixpoint as the old hash-set version; set
+    // contents are order-independent, only scratch layout changed.
+    std::vector<std::uint8_t> live_tile(id_bound, 0);
+    std::vector<std::uint32_t> work;
+    work.reserve(1024);
+    auto seed_tile = [&](TileNode const *tile)
+    {
+        if (tile != nullptr)
+        {
+            size_t const id = static_cast<size_t>(tile->id());
+            if (!live_tile[id])
+            {
+                live_tile[id] = 1;
+                work.push_back(static_cast<std::uint32_t>(id));
+            }
         }
     };
 
@@ -1273,24 +1492,26 @@ void Runtime::eliminate_dead_ops()
     // TILE_UNREGISTER is recorded when that TensorRef is already gone;
     // the StarPU handle stays until this op runs, so seed its inputs
     // even though tile_logical_is_live is false.
-    for (size_t i = pending_begin; i < n; ++i)
+    for (size_t local = 0; local < pending; ++local)
     {
-        auto const &op = execution_order_[i];
-        bool const unregister =
-            op->op_name() == "TILE_UNREGISTER";
-        for (TNode out : op->outputs())
+        bool const unregister = snap.is_unregister[local] != 0;
+        for (std::uint32_t e = snap.out_off[local];
+             e < snap.out_off[local + 1]; ++e)
         {
-            if (out != nullptr && tile_logical_is_live(out))
+            TileNode const *t = snap.out_edges[e];
+            if (t != nullptr && tile_logical_is_live(t))
             {
-                seed_tile(out);
+                seed_tile(t);
             }
         }
-        for (TNode in : op->inputs())
+        for (std::uint32_t e = snap.in_off[local];
+             e < snap.in_off[local + 1]; ++e)
         {
-            if (in != nullptr &&
-                (unregister || tile_logical_is_live(in)))
+            TileNode const *t = snap.in_edges[e];
+            if (t != nullptr
+                && (unregister || tile_logical_is_live(t)))
             {
-                seed_tile(in);
+                seed_tile(t);
             }
         }
     }
@@ -1303,67 +1524,97 @@ void Runtime::eliminate_dead_ops()
     // stayed uninitialized and StarPU aborted on
     // _starpu_data_check_initialized. Seed sinks unconditionally -
     // liveness of other tiles is unaffected (their consumers still
-    // propagate through the work list).
-    for (auto const &p : producer)
+    // propagate through the work list). Ids above the window's max have
+    // no producers in the window, so scanning to id_bound sees every
+    // sink there is.
+    for (size_t id = 0; id < id_bound; ++id)
     {
-        if (consumed.count(p.first) == 0)
+        if (prod_off[id + 1] > prod_off[id]
+            && cons_off[id + 1] == cons_off[id] && !live_tile[id])
         {
-            seed_tile(p.first);
+            live_tile[id] = 1;
+            work.push_back(static_cast<std::uint32_t>(id));
         }
     }
-    if (live_data.empty())
+    if (work.empty())
     {
+        if (cbrk)
+        {
+            std::fprintf(stderr,
+                "[nntile-cbrk] dce pending_pre=%zu fill_ms=%.3f seed_ms=%.3f "
+                "mark_ms=0.000 compact_ms=0.000 live_ops=0 live_tiles=0\n",
+                pending, fill_ms, breakdown_ms_since(t_seed));
+        }
         return;
     }
+    double const seed_ms = cbrk ? breakdown_ms_since(t_seed) : 0.0;
+    auto const t_mark = std::chrono::steady_clock::now();
 
-    std::vector<char> live_op(pending, 0);
+    std::vector<std::uint8_t> live_op(pending, 0);
     size_t live_op_count = 0;
-    auto mark_ops =
-        [&](std::vector<size_t> const *ops)
+    auto mark_local = [&](size_t local)
     {
-        if (ops == nullptr)
+        if (live_op[local] != 0)
         {
             return;
         }
-        for (size_t local : *ops)
+        live_op[local] = 1;
+        ++live_op_count;
+        // enqueue_op_io over the snapshot: newly marked ops seed their
+        // I/O tiles into the work list (dedup via the live bitmap).
+        for (std::uint32_t e = snap.in_off[local];
+             e < snap.in_off[local + 1]; ++e)
         {
-            if (live_op[local] != 0)
-            {
-                continue;
-            }
-            live_op[local] = 1;
-            ++live_op_count;
-            enqueue_op_io(
-                *execution_order_[pending_begin + local],
-                live_data,
-                work);
+            seed_tile(snap.in_edges[e]);
+        }
+        for (std::uint32_t e = snap.out_off[local];
+             e < snap.out_off[local + 1]; ++e)
+        {
+            seed_tile(snap.out_edges[e]);
         }
     };
 
     size_t wi = 0;
     while (wi < work.size())
     {
-        TNode const t = work[wi++];
-        auto const prod_it = producer.find(t);
-        if (prod_it != producer.end())
+        size_t const id = work[wi++];
+        for (std::uint32_t k = prod_off[id]; k < prod_off[id + 1]; ++k)
         {
-            mark_ops(&prod_it->second);
+            mark_local(prod_edges[k]);
         }
         // Consumers of a live tile may be sinks (empty outputs).
-        auto const cons_it = consumer.find(t);
-        if (cons_it != consumer.end())
+        for (std::uint32_t k = cons_off[id]; k < cons_off[id + 1]; ++k)
         {
-            mark_ops(&cons_it->second);
+            mark_local(cons_edges[k]);
         }
     }
+    double const mark_ms = cbrk ? breakdown_ms_since(t_mark) : 0.0;
+    auto const t_compact = std::chrono::steady_clock::now();
 
     // Keep the executed prefix in place. Rebuilding the full vector every
     // compile recopied O(history) shared_ptrs and made step time grow.
     if (live_op_count == pending)
     {
-        live_tile_nodes_ = std::move(live_data);
+        if (cbrk)
+        {
+            std::fprintf(stderr,
+                "[nntile-cbrk] dce pending_pre=%zu fill_ms=%.3f seed_ms=%.3f "
+                "mark_ms=%.3f compact_ms=0.000 live_ops=%zu "
+                "live_tiles=%zu\n",
+                pending, fill_ms, seed_ms, mark_ms, live_op_count,
+                work.size());
+        }
+        live_tile_nodes_.reserve(work.size());
+        for (std::uint32_t id : work)
+        {
+            live_tile_nodes_.insert(graph_.tile_nodes()[id].get());
+        }
         return;
     }
+    // No survivor bits are published: allocate_missing_tiles detects the
+    // shrunken execution_order_ (snapshot op_begin/pending mismatch) and
+    // rebuilds from the post-DCE order, which is what guarantees its
+    // needed-walk sees exactly the surviving ops.
     size_t write = pending_begin;
     for (size_t i = pending_begin; i < n; ++i)
     {
@@ -1378,7 +1629,19 @@ void Runtime::eliminate_dead_ops()
         ++write;
     }
     execution_order_.resize(write);
-    live_tile_nodes_ = std::move(live_data);
+    if (cbrk)
+    {
+        std::fprintf(stderr,
+            "[nntile-cbrk] dce pending_pre=%zu fill_ms=%.3f seed_ms=%.3f "
+            "mark_ms=%.3f compact_ms=%.3f live_ops=%zu live_tiles=%zu\n",
+            pending, fill_ms, seed_ms, mark_ms,
+            breakdown_ms_since(t_compact), live_op_count, work.size());
+    }
+    live_tile_nodes_.reserve(work.size());
+    for (std::uint32_t id : work)
+    {
+        live_tile_nodes_.insert(graph_.tile_nodes()[id].get());
+    }
 }
 
 std::string Runtime::execution_op_name(size_t i) const

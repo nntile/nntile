@@ -50,7 +50,7 @@ void adam_step(Index num_iter, Scalar beta_1, Scalar beta_2,
     validate_same_shape_and_merge(grad, first_moment, "adam_step");
     validate_same_shape_and_merge(grad, second_moment, "adam_step");
     validate_same_shape_and_merge(grad, p, "adam_step");
-    auto op = std::make_shared<TensorAdamStepOp>(
+    auto op = nntile::make_op<TensorAdamStepOp>(
         num_iter, beta_1, beta_2, eps, lr, weight_decay,
         grad, first_moment, second_moment, p);
     p->graph()->add_op(op);

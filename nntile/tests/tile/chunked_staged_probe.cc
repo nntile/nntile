@@ -608,6 +608,13 @@ struct FakeTorchOp : TileGraph::OpNode
         return "TILE_TORCH_PROBE";
     }
 
+    //! The compile-time chunk gate is type-based (is_torch_dispatch),
+    //! not name-prefix-based - say yes like a real torch_dispatch op.
+    bool is_torch_dispatch() const override
+    {
+        return true;
+    }
+
     void execute(Runtime &) const override {}
 
     std::shared_ptr<TileGraph::OpNode> clone() const override

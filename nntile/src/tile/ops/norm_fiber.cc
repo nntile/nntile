@@ -41,7 +41,7 @@ void norm_fiber(
         throw std::invalid_argument("norm_fiber");
     if(t1 == t2 || t1 == d || t2 == d)
         throw std::invalid_argument("norm_fiber");
-    t1->graph()->add_op(std::make_shared<TileNormFiberOp>(a, t1, b, t2, d, ax, bd, r));
+    t1->graph()->add_op(nntile::make_op<TileNormFiberOp>(a, t1, b, t2, d, ax, bd, r));
 }
 void TileNormFiberOp::execute(Runtime& runtime) const
 {

@@ -40,7 +40,7 @@ struct TileSiluOp : TileGraph::OpNode
 
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileSiluOp>(*this);
+        return nntile::make_op<TileSiluOp>(*this);
     }
 };
 

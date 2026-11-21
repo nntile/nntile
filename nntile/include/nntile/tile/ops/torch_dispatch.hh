@@ -27,6 +27,7 @@ namespace nntile::tile
 
 struct TileTorchUnaryOp : TileGraph::OpNode
 {
+    bool is_torch_dispatch() const override { return true; }
     starpu::TorchKind kind = starpu::TorchKind::Relu;
     starpu::TorchDispatchArgs extra{};
     TileGraph::TileNode *in = nullptr;
@@ -60,12 +61,13 @@ struct TileTorchUnaryOp : TileGraph::OpNode
 
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileTorchUnaryOp>(*this);
+        return nntile::make_op<TileTorchUnaryOp>(*this);
     }
 };
 
 struct TileTorchBinaryOp : TileGraph::OpNode
 {
+    bool is_torch_dispatch() const override { return true; }
     starpu::TorchKind kind = starpu::TorchKind::Mul;
     starpu::TorchDispatchArgs extra{};
     TileGraph::TileNode *a = nullptr;
@@ -94,12 +96,13 @@ struct TileTorchBinaryOp : TileGraph::OpNode
 
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileTorchBinaryOp>(*this);
+        return nntile::make_op<TileTorchBinaryOp>(*this);
     }
 };
 
 struct TileTorchTernaryOp : TileGraph::OpNode
 {
+    bool is_torch_dispatch() const override { return true; }
     starpu::TorchKind kind = starpu::TorchKind::Addmm;
     starpu::TorchDispatchArgs extra{};
     TileGraph::TileNode *a = nullptr;
@@ -135,12 +138,13 @@ struct TileTorchTernaryOp : TileGraph::OpNode
 
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileTorchTernaryOp>(*this);
+        return nntile::make_op<TileTorchTernaryOp>(*this);
     }
 };
 
 struct TileTorchEmbeddingOp : TileGraph::OpNode
 {
+    bool is_torch_dispatch() const override { return true; }
     starpu::TorchDispatchArgs extra{};
     TileGraph::TileNode *weight = nullptr;
     TileGraph::TileNode *indices = nullptr;
@@ -170,12 +174,13 @@ struct TileTorchEmbeddingOp : TileGraph::OpNode
 
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileTorchEmbeddingOp>(*this);
+        return nntile::make_op<TileTorchEmbeddingOp>(*this);
     }
 };
 
 struct TileTorchWhereOp : TileGraph::OpNode
 {
+    bool is_torch_dispatch() const override { return true; }
     starpu::TorchDispatchArgs extra{};
     TileGraph::TileNode *condition = nullptr;
     TileGraph::TileNode *self = nullptr;
@@ -208,12 +213,13 @@ struct TileTorchWhereOp : TileGraph::OpNode
 
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileTorchWhereOp>(*this);
+        return nntile::make_op<TileTorchWhereOp>(*this);
     }
 };
 
 struct TileTorchArangeOp : TileGraph::OpNode
 {
+    bool is_torch_dispatch() const override { return true; }
     starpu::TorchDispatchArgs extra{};
     TileGraph::TileNode *out = nullptr;
 
@@ -237,12 +243,13 @@ struct TileTorchArangeOp : TileGraph::OpNode
 
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileTorchArangeOp>(*this);
+        return nntile::make_op<TileTorchArangeOp>(*this);
     }
 };
 
 struct TileTorchGtOp : TileGraph::OpNode
 {
+    bool is_torch_dispatch() const override { return true; }
     starpu::TorchDispatchArgs extra{};
     TileGraph::TileNode *a = nullptr;
     TileGraph::TileNode *b = nullptr;
@@ -272,12 +279,13 @@ struct TileTorchGtOp : TileGraph::OpNode
 
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileTorchGtOp>(*this);
+        return nntile::make_op<TileTorchGtOp>(*this);
     }
 };
 
 struct TileTorchCatOp : TileGraph::OpNode
 {
+    bool is_torch_dispatch() const override { return true; }
     Index dim = 0;
     std::vector<TileGraph::TileNode *> inputs_tiles;
     TileGraph::TileNode *out = nullptr;
@@ -302,7 +310,7 @@ struct TileTorchCatOp : TileGraph::OpNode
 
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileTorchCatOp>(*this);
+        return nntile::make_op<TileTorchCatOp>(*this);
     }
 };
 
@@ -363,6 +371,7 @@ void torch_cat(
 
 struct TileTorchEmbeddingDenseBackwardOp : TileGraph::OpNode
 {
+    bool is_torch_dispatch() const override { return true; }
     starpu::TorchDispatchArgs extra{};
     TileGraph::TileNode *grad = nullptr;
     TileGraph::TileNode *indices = nullptr;
@@ -392,7 +401,7 @@ struct TileTorchEmbeddingDenseBackwardOp : TileGraph::OpNode
 
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileTorchEmbeddingDenseBackwardOp>(
+        return nntile::make_op<TileTorchEmbeddingDenseBackwardOp>(
             *this);
     }
 };
@@ -405,6 +414,7 @@ void torch_embedding_dense_backward(
 
 struct TileTorchConvolutionOp : TileGraph::OpNode
 {
+    bool is_torch_dispatch() const override { return true; }
     starpu::TorchDispatchArgs extra{};
     TileGraph::TileNode *input = nullptr;
     TileGraph::TileNode *weight = nullptr;
@@ -441,7 +451,7 @@ struct TileTorchConvolutionOp : TileGraph::OpNode
 
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileTorchConvolutionOp>(*this);
+        return nntile::make_op<TileTorchConvolutionOp>(*this);
     }
 };
 
@@ -454,6 +464,7 @@ void torch_convolution(
 
 struct TileTorchConvolutionBackwardOp : TileGraph::OpNode
 {
+    bool is_torch_dispatch() const override { return true; }
     starpu::TorchDispatchArgs extra{};
     bool need_grad_input = false;
     bool need_grad_weight = false;
@@ -512,7 +523,7 @@ struct TileTorchConvolutionBackwardOp : TileGraph::OpNode
 
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileTorchConvolutionBackwardOp>(*this);
+        return nntile::make_op<TileTorchConvolutionBackwardOp>(*this);
     }
 };
 
@@ -530,6 +541,7 @@ void torch_convolution_backward(
 
 struct TileTorchMaxPool2dWithIndicesOp : TileGraph::OpNode
 {
+    bool is_torch_dispatch() const override { return true; }
     starpu::TorchDispatchArgs extra{};
     TileGraph::TileNode *input = nullptr;
     TileGraph::TileNode *out = nullptr;
@@ -559,7 +571,7 @@ struct TileTorchMaxPool2dWithIndicesOp : TileGraph::OpNode
 
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileTorchMaxPool2dWithIndicesOp>(*this);
+        return nntile::make_op<TileTorchMaxPool2dWithIndicesOp>(*this);
     }
 };
 
@@ -571,6 +583,7 @@ void torch_max_pool2d_with_indices(
 
 struct TileTorchMaxPool2dWithIndicesBackwardOp : TileGraph::OpNode
 {
+    bool is_torch_dispatch() const override { return true; }
     starpu::TorchDispatchArgs extra{};
     TileGraph::TileNode *grad_out = nullptr;
     TileGraph::TileNode *input = nullptr;
@@ -617,6 +630,7 @@ void torch_max_pool2d_with_indices_backward(
 
 struct TileTorchNativeBatchNormOp : TileGraph::OpNode
 {
+    bool is_torch_dispatch() const override { return true; }
     starpu::TorchDispatchArgs extra{};
     bool training = false;
     TileGraph::TileNode *input = nullptr;
@@ -688,7 +702,7 @@ struct TileTorchNativeBatchNormOp : TileGraph::OpNode
 
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileTorchNativeBatchNormOp>(*this);
+        return nntile::make_op<TileTorchNativeBatchNormOp>(*this);
     }
 };
 
@@ -706,6 +720,7 @@ void torch_native_batch_norm(
 
 struct TileTorchNativeBatchNormBackwardOp : TileGraph::OpNode
 {
+    bool is_torch_dispatch() const override { return true; }
     starpu::TorchDispatchArgs extra{};
     bool need_grad_input = false;
     bool need_grad_weight = false;
@@ -796,7 +811,7 @@ struct TileTorchNativeBatchNormBackwardOp : TileGraph::OpNode
 
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileTorchNativeBatchNormBackwardOp>(*this);
+        return nntile::make_op<TileTorchNativeBatchNormBackwardOp>(*this);
     }
 };
 
@@ -818,6 +833,7 @@ void torch_native_batch_norm_backward(
 
 struct TileTorchSdpaBackwardOp : TileGraph::OpNode
 {
+    bool is_torch_dispatch() const override { return true; }
     bool is_causal = false;
     starpu::TorchDispatchArgs extra{};
     TileGraph::TileNode *q = nullptr;
@@ -869,7 +885,7 @@ struct TileTorchSdpaBackwardOp : TileGraph::OpNode
 
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileTorchSdpaBackwardOp>(*this);
+        return nntile::make_op<TileTorchSdpaBackwardOp>(*this);
     }
 };
 
@@ -887,6 +903,7 @@ void torch_sdpa_backward(
 
 struct TileTorchNllLossForwardOp : TileGraph::OpNode
 {
+    bool is_torch_dispatch() const override { return true; }
     Index reduction = 1;
     Index ignore_index = -100;
     starpu::TorchDispatchArgs extra{};
@@ -925,7 +942,7 @@ struct TileTorchNllLossForwardOp : TileGraph::OpNode
 
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileTorchNllLossForwardOp>(*this);
+        return nntile::make_op<TileTorchNllLossForwardOp>(*this);
     }
 };
 
@@ -940,6 +957,7 @@ void torch_nll_loss_forward(
 
 struct TileTorchNllLossBackwardOp : TileGraph::OpNode
 {
+    bool is_torch_dispatch() const override { return true; }
     Index reduction = 1;
     Index ignore_index = -100;
     starpu::TorchDispatchArgs extra{};
@@ -985,7 +1003,7 @@ struct TileTorchNllLossBackwardOp : TileGraph::OpNode
 
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileTorchNllLossBackwardOp>(*this);
+        return nntile::make_op<TileTorchNllLossBackwardOp>(*this);
     }
 };
 

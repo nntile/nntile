@@ -39,7 +39,7 @@ void subtract_indexed_outputs(Scalar v, TileGraph::TileNode* labels, TileGraph::
     if(labels->graph() != dst->graph() || labels->dtype() != DataType::INT64)
         throw std::invalid_argument("subtract_indexed_outputs");
     dst->graph()->add_op(
-        std::make_shared<TileSubtractIndexedOutputsOp>(v, labels, dst, ignore_index));
+        nntile::make_op<TileSubtractIndexedOutputsOp>(v, labels, dst, ignore_index));
 }
 void TileSubtractIndexedOutputsOp::execute(Runtime& runtime) const
 {

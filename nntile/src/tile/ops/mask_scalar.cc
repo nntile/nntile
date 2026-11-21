@@ -40,7 +40,7 @@ void mask_scalar(TileGraph::TileNode* mask, Scalar val, TileGraph::TileNode* a, 
         throw std::invalid_argument("tile mask_scalar: same graph");
     if(mask->dtype() != DataType::BOOL)
         throw std::invalid_argument("tile mask_scalar: mask must be BOOL");
-    a->graph()->add_op(std::make_shared<TileMaskScalarOp>(mask, val, a, batch_ndim));
+    a->graph()->add_op(nntile::make_op<TileMaskScalarOp>(mask, val, a, batch_ndim));
 }
 void TileMaskScalarOp::execute(Runtime& runtime) const
 {

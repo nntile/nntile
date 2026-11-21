@@ -86,7 +86,7 @@ void silu_backward(Scalar alpha, TensorGraph::TensorNode *x,
     validate_same_shape_and_merge(x, dy, "silu_backward");
     validate_same_shape_and_merge(x, dx, "silu_backward");
 
-    auto op = std::make_shared<TensorSiluBackwardOp>(x, dy, dx, alpha, beta);
+    auto op = nntile::make_op<TensorSiluBackwardOp>(x, dy, dx, alpha, beta);
     x->graph()->add_op(op);
 }
 

@@ -63,7 +63,7 @@ void gelutanh(TileGraph::TileNode* src, TileGraph::TileNode* dst)
         throw std::invalid_argument("tile gelutanh: shape mismatch");
     }
 
-    auto op = std::make_shared<TileGelutanhOp>(src, dst);
+    auto op = nntile::make_op<TileGelutanhOp>(src, dst);
     src->graph()->add_op(op);
 }
 

@@ -86,7 +86,7 @@ void gelutanh_backward(Scalar alpha, TensorGraph::TensorNode *x,
     validate_same_shape_and_merge(x, dy, "gelutanh_backward");
     validate_same_shape_and_merge(x, dx, "gelutanh_backward");
 
-    auto op = std::make_shared<TensorGelutanhBackwardOp>(x, dy, dx, alpha, beta);
+    auto op = nntile::make_op<TensorGelutanhBackwardOp>(x, dy, dx, alpha, beta);
     x->graph()->add_op(op);
 }
 

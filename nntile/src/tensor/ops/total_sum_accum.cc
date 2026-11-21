@@ -110,7 +110,7 @@ void total_sum_accum(
     validate_same_shape_and_merge(logsumexp, class_labels, "total_sum_accum");
     validate_logsumexp_shape_and_merge(src, logsumexp, "total_sum_accum");
 
-    auto op = std::make_shared<TensorTotalSumAccumOp>(
+    auto op = nntile::make_op<TensorTotalSumAccumOp>(
         alpha, logsumexp, src, class_labels, val, ignore_index);
     logsumexp->graph()->add_op(op);
 }

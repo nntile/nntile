@@ -89,7 +89,7 @@ void gelu_backward(
     validate_same_shape_and_merge(x, dy, "gelu_backward");
     validate_same_shape_and_merge(x, dx, "gelu_backward");
 
-    auto op = std::make_shared<TensorGeluBackwardOp>(x, dy, dx, alpha, beta);
+    auto op = nntile::make_op<TensorGeluBackwardOp>(x, dy, dx, alpha, beta);
     x->graph()->add_op(op);
 }
 

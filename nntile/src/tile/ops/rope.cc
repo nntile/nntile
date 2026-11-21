@@ -51,7 +51,7 @@ void rope(TileGraph::TileNode* s1, TileGraph::TileNode* c, TileGraph::TileNode* 
     if(s1 == c || s1 == s || s1 == d || c == s || c == d || s == d)
         throw std::invalid_argument("rope");
     s1->graph()->add_op(
-        std::make_shared<TileRopeOp>(s1, c, s, d, sin_pair0));
+        nntile::make_op<TileRopeOp>(s1, c, s, d, sin_pair0));
 }
 
 void TileRopeOp::execute(Runtime& runtime) const

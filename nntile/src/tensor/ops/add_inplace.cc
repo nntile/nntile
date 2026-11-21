@@ -56,7 +56,7 @@ void add_inplace(
     }
     validate_same_shape_and_merge(x, y, "add_inplace");
 
-    auto op = std::make_shared<TensorAddInplaceOp>(x, y, alpha, beta);
+    auto op = nntile::make_op<TensorAddInplaceOp>(x, y, alpha, beta);
     x->graph()->add_op(op);
 }
 

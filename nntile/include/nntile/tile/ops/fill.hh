@@ -41,7 +41,7 @@ struct TileFillOp : TileGraph::OpNode
 
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileFillOp>(*this);
+        return nntile::make_op<TileFillOp>(*this);
     }
 };
 

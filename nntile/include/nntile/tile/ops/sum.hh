@@ -39,7 +39,7 @@ struct TileSumOp : TileGraph::OpNode
     void execute(Runtime& runtime) const override;
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileSumOp>(*this);
+        return nntile::make_op<TileSumOp>(*this);
     }
 };
 //! Sum all elements: dst = alpha * sum(src) + beta * dst

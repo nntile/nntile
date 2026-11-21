@@ -308,7 +308,7 @@ void copy_intersection(TensorGraph::TensorNode* src,
     if(src_offset.size() != src->ndim() || dst_offset.size() != dst->ndim())
         throw std::invalid_argument(
             "copy_intersection: offset sizes must match tensor ndim");
-    auto op = std::make_shared<TensorCopyIntersectionOp>(
+    auto op = nntile::make_op<TensorCopyIntersectionOp>(
         src, src_offset, dst, dst_offset);
     dst->graph()->add_op(op);
 }

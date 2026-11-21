@@ -100,7 +100,7 @@ void conv2d_inplace(Scalar alpha,
     if(X->dtype() != C->dtype() || C->dtype() != Y->dtype())
         throw std::invalid_argument(
             "conv2d_inplace: tensors must have same dtype");
-    auto op = std::make_shared<TensorConv2dInplaceOp>(
+    auto op = nntile::make_op<TensorConv2dInplaceOp>(
         alpha, X, C, beta, Y, padding, stride, dilation);
     Y->graph()->add_op(op);
 }

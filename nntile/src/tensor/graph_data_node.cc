@@ -1,8 +1,7 @@
-#include <nntile/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
- *                              (AIRI), Russia. All rights reserved.
+ *                 (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -13,6 +12,8 @@
  * @version 1.1.0
  * */
 
+#include <nntile/common.hh>
+#include <nntile/op_arena.hh>
 #include "nntile/tensor/graph.hh"
 #include "nntile/tensor/graph_fill_timer.hh"
 
@@ -98,7 +99,7 @@ TensorGraph::TensorNode::TensorNode(
     member_index_.reserve(shape_.size());
     for(size_t i = 0; i < shape_.size(); ++i)
     {
-        auto desc = std::make_shared<AxisDescriptor>();
+        auto desc = nntile::make_arena_shared<AxisDescriptor>();
         desc->extent = shape_[i];
         desc->members.push_back({static_cast<void*>(this),
                                   static_cast<int>(i)});
@@ -109,17 +110,6 @@ TensorGraph::TensorNode::TensorNode(
         }
         axes_.push_back(std::move(desc));
     }
-}
-
-std::uint32_t TensorGraph::TensorNode::next_touch_gen()
-{
-    static std::uint32_t next = 1;
-    std::uint32_t const gen = next++;
-    if (next == 0)
-    {
-        next = 1;
-    }
-    return gen;
 }
 
 void TensorGraph::TensorNode::note_member_index(int dim, std::size_t idx)

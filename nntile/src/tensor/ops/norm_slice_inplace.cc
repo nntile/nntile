@@ -117,7 +117,7 @@ void norm_slice_inplace(
     }
     validate_slice_shape_and_merge(dst, src, axis, "norm_slice_inplace");
 
-    auto op = std::make_shared<TensorNormSliceInplaceOp>(
+    auto op = nntile::make_op<TensorNormSliceInplaceOp>(
         alpha, beta, src, dst, axis, redux);
     src->graph()->add_op(op);
 }

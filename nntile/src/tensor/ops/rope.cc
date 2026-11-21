@@ -97,7 +97,7 @@ void rope(TensorGraph::TensorNode *sin,
     }
     validate_same_shape_and_merge(src, dst, "rope");
 
-    auto op = std::make_shared<TensorRopeOp>(sin, cos, src, dst);
+    auto op = nntile::make_op<TensorRopeOp>(sin, cos, src, dst);
     src->graph()->add_op(op);
 }
 

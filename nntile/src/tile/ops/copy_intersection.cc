@@ -54,7 +54,7 @@ void copy_intersection(
     if(src == dst)
         throw std::invalid_argument("copy_intersection");
     src->graph()->add_op(
-        std::make_shared<TileCopyIntersectionOp>(src_offset, dst_offset, src, dst, scratch));
+        nntile::make_op<TileCopyIntersectionOp>(src_offset, dst_offset, src, dst, scratch));
 }
 void TileCopyIntersectionOp::execute(Runtime& runtime) const
 {

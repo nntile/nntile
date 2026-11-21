@@ -39,7 +39,7 @@ void conv2d_bwd_weight_inplace(
     if(s1->graph() != s2->graph() || s1->graph() != dst->graph() || s1->dtype() != s2->dtype() || s1->dtype() != dst->dtype())
         throw std::invalid_argument("conv2d_bwd_weight_inplace");
     s1->graph()->add_op(
-        std::make_shared<TileConv2dBwdWeightInplaceOp>(src1_m, src1_n, src1_channels, batch, src2_m, src2_n, stride_m, stride_n, src2_channels, offset_m, offset_n, alpha, s1, s2, dst_m, dst_n, dilation_m, dilation_n, beta, dst));
+        nntile::make_op<TileConv2dBwdWeightInplaceOp>(src1_m, src1_n, src1_channels, batch, src2_m, src2_n, stride_m, stride_n, src2_channels, offset_m, offset_n, alpha, s1, s2, dst_m, dst_n, dilation_m, dilation_n, beta, dst));
 }
 void TileConv2dBwdWeightInplaceOp::execute(Runtime& runtime) const
 {

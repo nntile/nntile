@@ -53,7 +53,7 @@ void embedding(
         index_range = vocab->nelems() / k_size;
     }
     index->graph()->add_op(
-        std::make_shared<TileEmbeddingOp>(m, n, k, k_start, k_size, index_range, index, vocab, embed));
+        nntile::make_op<TileEmbeddingOp>(m, n, k, k_start, k_size, index_range, index, vocab, embed));
 }
 void TileEmbeddingOp::execute(Runtime& runtime) const
 {

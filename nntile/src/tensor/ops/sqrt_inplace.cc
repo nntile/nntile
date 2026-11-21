@@ -40,7 +40,7 @@ void sqrt_inplace(TensorGraph::TensorNode* dst)
         throw std::invalid_argument("sqrt_inplace: input tensor must be non-null");
     }
 
-    auto op = std::make_shared<TensorSqrtInplaceOp>(dst);
+    auto op = nntile::make_op<TensorSqrtInplaceOp>(dst);
     dst->graph()->add_op(op);
 }
 

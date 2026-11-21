@@ -39,7 +39,7 @@ struct TileNormOp : TileGraph::OpNode
     void execute(Runtime& runtime) const override;
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileNormOp>(*this);
+        return nntile::make_op<TileNormOp>(*this);
     }
 };
 //! Euclidean norm: y = alpha * norm(x) + beta * y

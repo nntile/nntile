@@ -43,7 +43,7 @@ struct TileMultiplySliceOp : TileGraph::OpNode
 
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileMultiplySliceOp>(*this);
+        return nntile::make_op<TileMultiplySliceOp>(*this);
     }
 };
 

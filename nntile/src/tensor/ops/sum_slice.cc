@@ -73,7 +73,7 @@ TensorGraph::TensorNode *sum_slice(TensorGraph::TensorNode *src,
 
     validate_slice_shape_and_merge(output, src, axis, "sum_slice");
 
-    auto op = std::make_shared<TensorSumSliceOp>(
+    auto op = nntile::make_op<TensorSumSliceOp>(
         src, output, axis, redux, alpha, beta);
     src->graph()->add_op(op);
 
@@ -114,7 +114,7 @@ void sum_slice(TensorGraph::TensorNode *src,
     validate_slice_shape_and_merge(dst, src, axis, "sum_slice");
 
     auto op =
-        std::make_shared<TensorSumSliceOp>(src, dst, axis, redux, alpha, beta);
+        nntile::make_op<TensorSumSliceOp>(src, dst, axis, redux, alpha, beta);
     src->graph()->add_op(op);
 }
 

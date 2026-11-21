@@ -38,7 +38,7 @@ struct TileConv2dBwdWeightInplaceOp : TileGraph::OpNode
     void execute(Runtime& runtime) const override;
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileConv2dBwdWeightInplaceOp>(*this);
+        return nntile::make_op<TileConv2dBwdWeightInplaceOp>(*this);
     }
 };
 //! Conv2D backward weight: dC = alpha*conv_bwd(X,dY) + beta*dC

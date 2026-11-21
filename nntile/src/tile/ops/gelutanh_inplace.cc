@@ -45,7 +45,7 @@ void gelutanh_inplace(TileGraph::TileNode* dst)
         throw std::invalid_argument(
             "tile gelutanh_inplace: dst must be non-null");
     }
-    auto op = std::make_shared<TileGelutanhInplaceOp>(dst);
+    auto op = nntile::make_op<TileGelutanhInplaceOp>(dst);
     dst->graph()->add_op(op);
 }
 

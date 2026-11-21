@@ -36,7 +36,7 @@ void gelutanh_inplace(TensorGraph::TensorNode* dst)
             "gelutanh_inplace: dst tensor must be non-null");
     }
 
-    auto op = std::make_shared<TensorGelutanhInplaceOp>(dst);
+    auto op = nntile::make_op<TensorGelutanhInplaceOp>(dst);
     dst->graph()->add_op(op);
 }
 

@@ -17,9 +17,9 @@
 #pragma once
 
 #include <cstdint>
-#include <map>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include <nntile/core/execution_worker.hh>
@@ -65,7 +65,12 @@ struct ExecutionSchedule
     bool use_cuda_workers = false;
     std::vector<ScheduleWorkerInfo> workers;
     ExecutionScheduleFingerprint fingerprint;
-    std::map<std::string, int> tile_virtual_worker;
+    //! [owner directive, 2026-11-12] Unordered: the table serves pure
+    //! name lookups (the old std::map paid a lexicographic
+    //! string-compare walk per tile per plan build); no consumer
+    //! depends on key order (validation iterates order-independently,
+    //! the JSON writer collects and sorts name-ascending).
+    std::unordered_map<std::string, int> tile_virtual_worker;
     std::vector<ScheduledOpEntry> ops;
 
     int worker_for_op(size_t execution_index) const;

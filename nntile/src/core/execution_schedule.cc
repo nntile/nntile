@@ -64,51 +64,62 @@ void collect_writable_tiles(
     }
 }
 
-std::map<int, size_t> writable_bytes_by_worker(
+//! [owner directive, 2026-11-12] O(1) planner tables: the per-tile
+//! worker maps are unordered (pointer- and string-hashed lookups, no
+//! ordered consumer), and the per-worker byte aggregation is a DENSE
+//! VECTOR indexed by worker id — the ascending scan keeps the old
+//! std::map tie-break (equal bytes -> lowest worker id) exactly, so
+//! placement stays bitwise deterministic.
+std::vector<std::size_t> writable_bytes_by_worker(
     std::vector<TileGraph::TileNode const *> const &writable,
-    std::map<TileGraph::TileNode const *, int> const &tile_worker)
+    std::unordered_map<TileGraph::TileNode const *, int> const
+        &tile_worker,
+    int num_workers)
 {
-    std::map<int, size_t> bytes;
+    std::vector<std::size_t> bytes(
+        num_workers > 0 ? static_cast<std::size_t>(num_workers) : 1, 0);
     for (TileGraph::TileNode const *t : writable)
     {
         auto it = tile_worker.find(t);
-        if (it == tile_worker.end())
+        if (it == tile_worker.end() || it->second < 0
+            || it->second >= num_workers)
         {
             continue;
         }
-        bytes[it->second] += static_cast<size_t>(t->size_bytes());
+        bytes[static_cast<std::size_t>(it->second)] +=
+            static_cast<size_t>(t->size_bytes());
     }
     return bytes;
 }
 
 int pick_worker_max_writable_dependency(
     std::vector<TileGraph::TileNode const *> const &writable,
-    std::map<TileGraph::TileNode const *, int> const &tile_worker)
+    std::unordered_map<TileGraph::TileNode const *, int> const
+        &tile_worker,
+    int num_workers)
 {
-    std::map<int, size_t> const by_worker =
-        writable_bytes_by_worker(writable, tile_worker);
-    if (by_worker.empty())
+    std::vector<std::size_t> const by_worker =
+        writable_bytes_by_worker(writable, tile_worker, num_workers);
+    int best_worker = 0;
+    std::size_t best_bytes = 0;
+    bool any = false;
+    for (std::size_t w = 0; w < by_worker.size(); ++w)
     {
-        return 0;
-    }
-    int best_worker = by_worker.begin()->first;
-    size_t best_bytes = by_worker.begin()->second;
-    for (auto const &[w, nbytes] : by_worker)
-    {
-        if (nbytes > best_bytes || (nbytes == best_bytes && w < best_worker))
+        if (!any || by_worker[w] > best_bytes)
         {
-            best_bytes = nbytes;
-            best_worker = w;
+            any = true;
+            best_bytes = by_worker[w];
+            best_worker = static_cast<int>(w);
         }
     }
-    return best_worker;
+    return any ? best_worker : 0;
 }
 
 void assign_tensor_tiles_round_robin(
     TileGraph::TensorDescriptor const &td,
     int num_workers,
-    std::map<TileGraph::TileNode const *, int> &tile_worker,
-    std::map<std::string, int> &tile_virtual_worker)
+    std::unordered_map<TileGraph::TileNode const *, int> &tile_worker,
+    std::unordered_map<std::string, int> &tile_virtual_worker)
 {
     Index const vol = static_cast<Index>(td.tiles.size());
     for (Index lin = 0; lin < vol; ++lin)
@@ -128,8 +139,8 @@ void assign_tensor_tiles_round_robin(
 void assign_tensor_tiles_affinity_batch(
     TileGraph::TensorDescriptor const &td,
     int num_workers,
-    std::map<TileGraph::TileNode const *, int> &tile_worker,
-    std::map<std::string, int> &tile_virtual_worker)
+    std::unordered_map<TileGraph::TileNode const *, int> &tile_worker,
+    std::unordered_map<std::string, int> &tile_virtual_worker)
 {
     Index const vol = static_cast<Index>(td.tiles.size());
     Index batch_stride = 1;
@@ -165,8 +176,8 @@ ExecutionSchedule build_execution_schedule(
     std::string policy,
     void (*assign_tiles)(TileGraph::TensorDescriptor const &,
         int,
-        std::map<TileGraph::TileNode const *, int> &,
-        std::map<std::string, int> &))
+        std::unordered_map<TileGraph::TileNode const *, int> &,
+        std::unordered_map<std::string, int> &))
 {
     ExecutionSchedule schedule;
     schedule.policy = std::move(policy);
@@ -193,7 +204,7 @@ ExecutionSchedule build_execution_schedule(
         schedule.num_workers = 1;
     }
 
-    std::map<TileGraph::TileNode const *, int> tile_worker;
+    std::unordered_map<TileGraph::TileNode const *, int> tile_worker;
 
     for (auto const &td_uptr : graph.tensor_descriptors())
     {
@@ -261,7 +272,7 @@ ExecutionSchedule build_execution_schedule(
         else if (!writable.empty())
         {
             entry.worker = pick_worker_max_writable_dependency(
-                writable, tile_worker);
+                writable, tile_worker, schedule.num_workers);
         }
         else
         {
@@ -525,9 +536,24 @@ std::string execution_schedule_to_json(ExecutionSchedule const &schedule)
     fp["op_names"] = schedule.fingerprint.op_names;
     j["schedule_fingerprint"] = fp;
     nlohmann::json tiles = nlohmann::json::array();
-    for (auto const &[name, worker] : schedule.tile_virtual_worker)
+    // Name-ascending, as the old ordered map emitted them — the table
+    // is unordered now, the FILE stays byte-identical.
     {
-        tiles.push_back({{"tile", name}, {"virtual_worker", worker}});
+        std::vector<std::pair<std::string const *, int const *>> rows;
+        rows.reserve(schedule.tile_virtual_worker.size());
+        for (auto const &kv : schedule.tile_virtual_worker)
+        {
+            rows.emplace_back(&kv.first, &kv.second);
+        }
+        std::sort(rows.begin(), rows.end(),
+            [](auto const &a, auto const &b) {
+                return *a.first < *b.first;
+            });
+        for (auto const &row : rows)
+        {
+            tiles.push_back(
+                {{"tile", *row.first}, {"virtual_worker", *row.second}});
+        }
     }
     j["virtual_tile_workers"] = tiles;
 

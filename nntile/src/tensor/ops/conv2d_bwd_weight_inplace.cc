@@ -101,7 +101,7 @@ void conv2d_bwd_weight_inplace(Scalar alpha,
     if(X->dtype() != dY->dtype() || dY->dtype() != dC->dtype())
         throw std::invalid_argument(
             "conv2d_bwd_weight_inplace: tensors must have same dtype");
-    auto op = std::make_shared<TensorConv2dBwdWeightInplaceOp>(
+    auto op = nntile::make_op<TensorConv2dBwdWeightInplaceOp>(
         alpha, X, dY, beta, dC, padding, stride, dilation);
     dC->graph()->add_op(op);
 }

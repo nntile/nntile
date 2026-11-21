@@ -67,7 +67,7 @@ TensorGraph::TensorNode *multiply_fiber(Scalar alpha,
     dst->set_axes(src2->axes());
 
     auto op =
-        std::make_shared<TensorMultiplyFiberOp>(alpha, src1, src2, dst, axis);
+        nntile::make_op<TensorMultiplyFiberOp>(alpha, src1, src2, dst, axis);
     src1->graph()->add_op(op);
 
     return dst;
@@ -112,7 +112,7 @@ void multiply_fiber(Scalar alpha,
     validate_same_shape_and_merge(src2, dst, "multiply_fiber");
 
     auto op =
-        std::make_shared<TensorMultiplyFiberOp>(alpha, src1, src2, dst, axis);
+        nntile::make_op<TensorMultiplyFiberOp>(alpha, src1, src2, dst, axis);
     src1->graph()->add_op(op);
 }
 

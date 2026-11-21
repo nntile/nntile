@@ -35,7 +35,7 @@ struct TileCopyOp : TileGraph::OpNode
     void execute(Runtime& runtime) const override;
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileCopyOp>(*this);
+        return nntile::make_op<TileCopyOp>(*this);
     }
 };
 
@@ -54,7 +54,7 @@ struct TileCopySameNumelOp : TileGraph::OpNode
     void execute(Runtime& runtime) const override;
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileCopySameNumelOp>(*this);
+        return nntile::make_op<TileCopySameNumelOp>(*this);
     }
 };
 

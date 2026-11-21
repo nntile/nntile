@@ -37,7 +37,7 @@ void scale_slice(Scalar a, TileGraph::TileNode* s, TileGraph::TileNode* d, Index
         throw std::invalid_argument("scale_slice");
     if(s->graph() != d->graph() || s->dtype() != d->dtype() || s == d)
         throw std::invalid_argument("scale_slice");
-    s->graph()->add_op(std::make_shared<TileScaleSliceOp>(a, s, d, axis));
+    s->graph()->add_op(nntile::make_op<TileScaleSliceOp>(a, s, d, axis));
 }
 void TileScaleSliceOp::execute(Runtime& runtime) const
 {

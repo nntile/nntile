@@ -43,7 +43,7 @@ void sgd_step(Index num_iter, Scalar momentum, Scalar lr,
         throw std::invalid_argument("sgd_step: tensors must have same dtype");
     validate_same_shape_and_merge(grad, velocity, "sgd_step");
     validate_same_shape_and_merge(grad, p, "sgd_step");
-    auto op = std::make_shared<TensorSgdStepOp>(
+    auto op = nntile::make_op<TensorSgdStepOp>(
         num_iter, momentum, lr, weight_decay, dampening, nesterov,
         grad, velocity, p);
     p->graph()->add_op(op);

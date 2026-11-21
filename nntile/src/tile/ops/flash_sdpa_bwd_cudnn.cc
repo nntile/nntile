@@ -62,7 +62,7 @@ void flash_sdpa_bwd_cudnn(
     if(logsumexp->dtype() != DataType::FP32)
         throw std::invalid_argument("flash_sdpa_bwd_cudnn");
     K->graph()->add_op(
-        std::make_shared<TileFlashSdpaBwdCudnnOp>(K, Q, V, A, dA, mask, logsumexp, dK, dQ, dV));
+        nntile::make_op<TileFlashSdpaBwdCudnnOp>(K, Q, V, A, dA, mask, logsumexp, dK, dQ, dV));
 }
 void TileFlashSdpaBwdCudnnOp::execute(Runtime& runtime) const
 {

@@ -28,6 +28,8 @@
 #include <nntile/dtype.hh>
 #include <nntile/tensor/graph_decl.hh>
 #include <nntile/tensor/graph_data_node.hh>
+
+#include <nntile/op_arena.hh>
 #include <nntile/tensor/tensor_graph_tiling.hh>
 
 namespace nntile
@@ -111,7 +113,10 @@ class TileGraph
     const TensorDescriptor *get_tensor_descriptor(
         TensorGraph::TensorNode const *source) const;
 
-    const std::vector<std::unique_ptr<TensorDescriptor>> &
+    using TensorDescriptorPtr = std::unique_ptr<TensorDescriptor,
+        ArenaNodeDeleter<TensorDescriptor>>;
+
+    const std::vector<TensorDescriptorPtr> &
     tensor_descriptors() const
     {
         return tensors_;
@@ -120,7 +125,10 @@ class TileGraph
     //! Labels for printing (non-unique); one entry per named tile in order.
     std::vector<std::string> data_names() const;
 
-    const std::vector<std::unique_ptr<TileNode>> &tile_nodes() const
+    using TileNodePtr =
+        std::unique_ptr<TileNode, ArenaNodeDeleter<TileNode>>;
+
+    const std::vector<TileNodePtr> &tile_nodes() const
     {
         return data_;
     }
@@ -142,10 +150,10 @@ class TileGraph
   private:
     std::shared_ptr<const TensorGraphTiling> tiling_scheme_;
     std::string name_;
-    std::vector<std::unique_ptr<TileNode>> data_;
+    std::vector<TileNodePtr> data_;
     std::vector<std::shared_ptr<TileGraph::OpNode>> ops_;
     //! Owned descriptors, dense by source ``TensorNode::id()``. Holes after GC.
-    std::vector<std::unique_ptr<TensorDescriptor>> tensors_;
+    std::vector<TensorDescriptorPtr> tensors_;
 
     NodeId next_data_id_ = 0;
     NodeId next_op_id_ = 0;

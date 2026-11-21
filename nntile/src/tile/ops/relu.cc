@@ -61,7 +61,7 @@ void relu(TileGraph::TileNode* src, TileGraph::TileNode* dst)
         throw std::invalid_argument("tile relu: shape mismatch");
     }
 
-    auto op = std::make_shared<TileReluOp>(src, dst);
+    auto op = nntile::make_op<TileReluOp>(src, dst);
     src->graph()->add_op(op);
 }
 

@@ -29,6 +29,7 @@ namespace nntile::tensor
 //! Total sum accumulating: (alpha, logsumexp, src, class_labels, val, ignore_index)
 struct TensorTotalSumAccumOp : TensorGraph::OpNode
 {
+    bool constrains_reduction_tiles() const override { return true; }
     Scalar alpha;
     Index ignore_index;
     TensorGraph::TensorNode* logsumexp = nullptr;
@@ -56,7 +57,7 @@ struct TensorTotalSumAccumOp : TensorGraph::OpNode
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorTotalSumAccumOp>(*this);
+        return nntile::make_op<TensorTotalSumAccumOp>(*this);
     }
 
     void lower_to_tile(const LoweringContext& ctx) const override;

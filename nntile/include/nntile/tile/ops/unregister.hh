@@ -22,6 +22,7 @@ namespace nntile::tile
 //! Async unregister of a tile handle (StarPU-ordered after last use).
 struct TileUnregisterOp : TileGraph::OpNode
 {
+    bool is_tile_unregister() const override { return true; }
     TileGraph::TileNode *x = nullptr;
 
     TileUnregisterOp() = default;
@@ -40,7 +41,7 @@ struct TileUnregisterOp : TileGraph::OpNode
 
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileUnregisterOp>(*this);
+        return nntile::make_op<TileUnregisterOp>(*this);
     }
 };
 

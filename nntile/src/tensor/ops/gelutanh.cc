@@ -68,7 +68,7 @@ void gelutanh(TensorGraph::TensorNode *src, TensorGraph::TensorNode *dst)
     }
     validate_same_shape_and_merge(src, dst, "gelutanh");
 
-    auto op = std::make_shared<TensorGelutanhOp>(src, dst);
+    auto op = nntile::make_op<TensorGelutanhOp>(src, dst);
     src->graph()->add_op(op);
 }
 

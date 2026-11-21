@@ -80,7 +80,7 @@ void multiply_fiber_inplace(
     validate_fiber_shape_and_merge(src, dst, axis, 0,
                                   "multiply_fiber_inplace");
 
-    auto op = std::make_shared<TensorMultiplyFiberInplaceOp>(
+    auto op = nntile::make_op<TensorMultiplyFiberInplaceOp>(
         alpha, src, dst, axis);
     src->graph()->add_op(op);
 }

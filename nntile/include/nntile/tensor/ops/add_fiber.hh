@@ -64,7 +64,7 @@ struct TensorAddFiberOp : TensorGraph::OpNode
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorAddFiberOp>(*this);
+        return nntile::make_op<TensorAddFiberOp>(*this);
     }
 
     void lower_to_tile(const LoweringContext &ctx) const override;

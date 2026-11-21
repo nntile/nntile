@@ -68,7 +68,7 @@ void sumprod_slice(
     validate_same_shape_and_merge(src1, src2, "sumprod_slice");
     validate_slice_shape_and_merge(dst, src1, axis, "sumprod_slice");
 
-    auto op = std::make_shared<TensorSumprodSliceOp>(
+    auto op = nntile::make_op<TensorSumprodSliceOp>(
         src1, src2, dst, axis, redux, alpha, beta);
     src1->graph()->add_op(op);
 }

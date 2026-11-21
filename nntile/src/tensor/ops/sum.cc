@@ -82,7 +82,7 @@ void sum(
             "sum: dst must be a scalar (0-dimensional tensor)");
     }
 
-    auto op = std::make_shared<TensorSumOp>(src, dst, alpha, beta);
+    auto op = nntile::make_op<TensorSumOp>(src, dst, alpha, beta);
     src->graph()->add_op(op);
 }
 

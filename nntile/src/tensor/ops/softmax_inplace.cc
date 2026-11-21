@@ -54,7 +54,7 @@ void softmax_inplace(
     validate_maxsumexp_shape_and_merge(
         dst, maxsumexp, axis, "softmax_inplace");
 
-    auto op = std::make_shared<TensorSoftmaxInplaceOp>(
+    auto op = nntile::make_op<TensorSoftmaxInplaceOp>(
         maxsumexp, dst, alpha, axis);
     maxsumexp->graph()->add_op(op);
 }

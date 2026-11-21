@@ -44,7 +44,7 @@ struct TensorSiluOp : TensorGraph::OpNode
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorSiluOp>(*this);
+        return nntile::make_op<TensorSiluOp>(*this);
     }
 
     void lower_to_tile(const LoweringContext &ctx) const override;

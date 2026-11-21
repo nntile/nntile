@@ -56,7 +56,7 @@ TensorGraph::TensorNode *add(Scalar alpha,
     TensorGraph::TensorNode *output = x->graph()->emplace_data(x->shape(), x->dtype());
     output->set_axes(x->axes());
 
-    auto op = std::make_shared<TensorAddOp>(x, y, output, alpha, beta);
+    auto op = nntile::make_op<TensorAddOp>(x, y, output, alpha, beta);
     x->graph()->add_op(op);
 
     return output;
@@ -90,7 +90,7 @@ void add(Scalar alpha,
     validate_same_shape_and_merge(x, y, "add");
     validate_same_shape_and_merge(x, z, "add");
 
-    auto op = std::make_shared<TensorAddOp>(x, y, z, alpha, beta);
+    auto op = nntile::make_op<TensorAddOp>(x, y, z, alpha, beta);
     x->graph()->add_op(op);
 }
 

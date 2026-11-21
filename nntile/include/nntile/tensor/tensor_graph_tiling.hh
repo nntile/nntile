@@ -77,6 +77,14 @@ class TensorAxisLayout
         Index &global_lo,
         Index &global_hi_inclusive) const;
 
+    //! Same range, addressed directly by the axis's segment index (the
+    //! grid_coord form reads exactly one element; this form lets hot
+    //! lowering loops skip building a throwaway coordinate vector).
+    void tile_axis_segment_range(Index dim,
+        Index seg,
+        Index &global_lo,
+        Index &global_hi_inclusive) const;
+
     //! Segment index on axis dim that contains global_index.
     Index tile_index_containing(Index dim, Index global_index) const;
 
@@ -86,10 +94,29 @@ class TensorAxisLayout
     //! O(1) reuse check for incremental lowering.
     std::uint64_t layout_fingerprint_hash() const;
 
+    //! Warm the flat geometry buffers for a following lowering probe.
+    void prefetch_data() const
+    {
+        __builtin_prefetch(row_.data(), 0, 1);
+        __builtin_prefetch(grid_shape_.data(), 0, 1);
+        __builtin_prefetch(segs_.data(), 0, 1);
+        __builtin_prefetch(origins_.data(), 0, 1);
+    }
+
   private:
+    //! Flat row storage: one buffer for all axes' segments (padded to
+    //! seg-count+1 per axis so the same row table indexes the prefix
+    //! origins) and one for the origins, plus per-axis row offsets.
+    //! The old ``vector<vector<Index>>`` pair was 2*ndim scattered heap
+    //! blocks per layout; every lowering probe then missed on each. Hot
+    //! geometry (tile bboxes, k-decodes) now touches 2 contiguous blocks.
     std::vector<Index> shape_;
-    std::vector<std::vector<Index>> segments_;
-    std::vector<std::vector<Index>> axis_origin_;
+    std::vector<Index> segs_;
+    std::vector<Index> origins_;
+    //! Row table for BOTH segs_ and origins_: axis d owns
+    //! [row_[d], row_[d+1]) and its origin row is one entry longer than
+    //! its segment row (prefix sums), so segments rows carry +1 padding.
+    std::vector<Index> row_;
     std::vector<Index> grid_shape_;
     Index grid_volume_ = 1;
     mutable std::string fingerprint_;
@@ -129,6 +156,29 @@ class TensorGraphTiling
 
     const TensorAxisLayout *find(
         const TensorGraph::TensorNode *node) const;
+
+    //! Raw storage slot for prefetching (may be empty / out of range).
+    const void *find_slot(const TensorGraph::TensorNode *node) const
+    {
+        if (node == nullptr)
+        {
+            return nullptr;
+        }
+        auto const id = static_cast<size_t>(node->id());
+        return id < layouts_by_id_.size()
+            ? static_cast<const void *>(&layouts_by_id_[id])
+            : nullptr;
+    }
+
+    //! Warm a present layout's flat geometry buffers (no-op if absent).
+    void prefetch_layout_data(const TensorGraph::TensorNode *node) const
+    {
+        const TensorAxisLayout *lay = find(node);
+        if (lay != nullptr)
+        {
+            lay->prefetch_data();
+        }
+    }
 
     bool contains(const TensorGraph::TensorNode *node) const
     {

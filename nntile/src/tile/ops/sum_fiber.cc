@@ -40,7 +40,7 @@ void sum_fiber(
     if(src->graph() != dst->graph() || src->dtype() != dst->dtype() || src == dst)
         throw std::invalid_argument("tile sum_fiber: invalid");
     src->graph()->add_op(
-        std::make_shared<TileSumFiberOp>(alpha, src, beta, dst, axis, batch_ndim, redux));
+        nntile::make_op<TileSumFiberOp>(alpha, src, beta, dst, axis, batch_ndim, redux));
 }
 void TileSumFiberOp::execute(Runtime& runtime) const
 {

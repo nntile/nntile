@@ -40,7 +40,7 @@ void relu_inplace(TensorGraph::TensorNode* dst)
         throw std::invalid_argument("relu_inplace: input tensor must be non-null");
     }
 
-    auto op = std::make_shared<TensorReluInplaceOp>(dst);
+    auto op = nntile::make_op<TensorReluInplaceOp>(dst);
     dst->graph()->add_op(op);
 }
 

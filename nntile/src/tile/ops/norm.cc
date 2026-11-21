@@ -41,7 +41,7 @@ void norm(Scalar alpha, TileGraph::TileNode* src, Scalar beta, TileGraph::TileNo
         throw std::invalid_argument("tile norm: dtype");
     if(src == dst)
         throw std::invalid_argument("tile norm: distinct");
-    src->graph()->add_op(std::make_shared<TileNormOp>(alpha, beta, src, dst));
+    src->graph()->add_op(nntile::make_op<TileNormOp>(alpha, beta, src, dst));
 }
 void TileNormOp::execute(Runtime& runtime) const
 {

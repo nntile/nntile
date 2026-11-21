@@ -20,6 +20,8 @@
 #include <nntile/nnhaul/chunk_gate.hh>
 #include <nntile/nnhaul/stage.hh>
 
+#include <nntile/op_arena.hh>
+
 #include <nnhaul/nnhaul.hh>
 
 #include <cstring>
@@ -39,7 +41,9 @@ class Tile: public TileTraits
 {
     struct Payload
     {
-        std::unique_ptr<::nnhaul::Handle> handle;
+        std::unique_ptr<::nnhaul::Handle,
+            ArenaNodeDeleter<::nnhaul::Handle>>
+            handle;
         bool live = true;
 
         ~Payload()
@@ -69,7 +73,7 @@ class Tile: public TileTraits
 
     void alloc_handle()
     {
-        payload_ = std::make_shared<Payload>();
+        payload_ = nntile::make_arena_shared<Payload>();
         std::size_t const nbytes = storage_bytes(nelems);
         // Classic-stack chunked tiles: one chunk class under the new
         // nnhaul engine (every tile decomposes into whole class chunks).
@@ -78,7 +82,8 @@ class Tile: public TileTraits
             ? ::nnhaul::kChunkClassBytes
             : 0;
         payload_->handle =
-            std::make_unique<::nnhaul::Handle>(nbytes, chunk_bytes);
+            nntile::make_arena_unique<::nnhaul::Handle>(
+                nbytes, chunk_bytes);
         if (chunk_bytes != 0)
         {
             // Exact chunkedness for the stage helper and the compile-time

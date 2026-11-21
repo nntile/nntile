@@ -50,7 +50,7 @@ struct TensorSumOp : TensorGraph::OpNode
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorSumOp>(*this);
+        return nntile::make_op<TensorSumOp>(*this);
     }
 
     void lower_to_tile(const LoweringContext& ctx) const override;

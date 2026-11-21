@@ -50,7 +50,7 @@ void total_sum_accum(Scalar a, TileGraph::TileNode* lse, TileGraph::TileNode* sr
     if(lse->dtype() != src->dtype())
         throw std::invalid_argument("total_sum_accum");
     lse->graph()->add_op(
-        std::make_shared<TileTotalSumAccumOp>(a, lse, src, labels, val, ignore_index));
+        nntile::make_op<TileTotalSumAccumOp>(a, lse, src, labels, val, ignore_index));
 }
 void TileTotalSumAccumOp::execute(Runtime& runtime) const
 {

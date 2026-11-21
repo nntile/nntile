@@ -40,7 +40,7 @@ void pow(
             "pow: input tensor must be non-null");
     }
 
-    auto op = std::make_shared<TensorPowOp>(alpha, exp, A);
+    auto op = nntile::make_op<TensorPowOp>(alpha, exp, A);
     A->graph()->add_op(op);
 }
 

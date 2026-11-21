@@ -44,7 +44,7 @@ struct TileTransposeOp : TileGraph::OpNode
     void execute(Runtime& runtime) const override;
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileTransposeOp>(*this);
+        return nntile::make_op<TileTransposeOp>(*this);
     }
 };
 

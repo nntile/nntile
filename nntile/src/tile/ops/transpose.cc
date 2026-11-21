@@ -59,7 +59,7 @@ void transpose(Scalar alpha, TileGraph::TileNode* src, TileGraph::TileNode* dst,
     {
         throw std::invalid_argument("tile transpose: src and dst must be distinct");
     }
-    auto op = std::make_shared<TileTransposeOp>(alpha, src, dst, ndim);
+    auto op = nntile::make_op<TileTransposeOp>(alpha, src, dst, ndim);
     src->graph()->add_op(op);
 }
 

@@ -1227,11 +1227,29 @@ void compile_graph_locked()
     // UNREGISTER ops in this phase (submitted with compute so StarPU
     // orders them).
     flush_released_logicals_locked();
+    // Diag flag, read once per process (was a per-compile getenv probe).
+    static bool const cbrk =
+        nntile::env_flag_enabled("NNTILE_COMPILE_BREAKDOWN");
+    double pre_glue_ms = 0.0;
+    double inval_ms = 0.0;
+    double seal_ms = 0.0;
+    double tiling_ms = 0.0;
+    auto const t_glue = SteadyClock::now();
     nntile::tensor::append_invalidates_for_unmarked_unsealed(*g_graph);
+    auto const t_inval = SteadyClock::now();
+    if (cbrk)
+    {
+        pre_glue_ms = std::chrono::duration<double, std::milli>(
+            t_glue - t0).count();
+        inval_ms = std::chrono::duration<double, std::milli>(
+            t_inval - t_glue).count();
+    }
     g_timing.compile_pre_s += seconds_since(t0);
 
     SteadyClock::time_point t_part = SteadyClock::now();
+    SteadyClock::time_point const t_seal_begin = t_part;
     const nntile::TensorGraph::PhaseSnapshot phase = g_graph->seal_phase();
+    SteadyClock::time_point const t_seal_end = SteadyClock::now();
     g_timing.compile_seal_s += seconds_since(t_part);
 
     // Phase-scoped tiling: full-graph from_tensor_graph rebuilt layouts for
@@ -1239,6 +1257,7 @@ void compile_graph_locked()
     // Session-scoped tiling only constructs layouts for newly touched tensors
     // and is shared into TileGraph (no per-compile deep copy).
     t_part = SteadyClock::now();
+    SteadyClock::time_point const t_tiling_begin = t_part;
     if (g_exec->session_tiling == nullptr)
     {
         g_exec->session_tiling =
@@ -1246,6 +1265,18 @@ void compile_graph_locked()
     }
     g_exec->session_tiling->ensure_phase_layouts(*g_graph, phase);
     g_timing.compile_tiling_s += seconds_since(t_part);
+    SteadyClock::time_point const t_tiling_end = SteadyClock::now();
+    if (cbrk)
+    {
+        seal_ms = std::chrono::duration<double, std::milli>(
+            t_seal_end - t_seal_begin).count();
+        tiling_ms = std::chrono::duration<double, std::milli>(
+            t_tiling_end - t_tiling_begin).count();
+        std::fprintf(stderr,
+            "[nntile-cbrk] rec pre_glue_ms=%.3f inval_ms=%.3f "
+            "seal_ms=%.3f tiling_ms=%.3f\n",
+            pre_glue_ms, inval_ms, seal_ms, tiling_ms);
+    }
 
     t_part = SteadyClock::now();
     try
@@ -1298,6 +1329,23 @@ void run_graph_locked()
     {
         return;
     }
+    // [K7] the run-act trainer-side brackets (diagnosis only, never
+    // control flow): absolute steady-clock nanoseconds at the run act's
+    // walls — entry, the execution-schedule install, execute_range (the
+    // per-op enqueue into the engine), signal_graph_end (the engine's
+    // close-and-plan ISSUE act), and the post-submit compact. Same clock
+    // domain as nnhaul's [nnhaul-boundary-*] lines (std::chrono::
+    // steady_clock), so the two decompose one wall offline.
+    // Diag flag, read once per process (was a per-run getenv probe).
+    static bool const run_brk =
+        nntile::env_flag_enabled("NNTILE_RUN_BREAKDOWN");
+    std::uint64_t const tb_enter = run_brk
+        ? static_cast<std::uint64_t>(std::chrono::duration_cast<
+              std::chrono::nanoseconds>(
+              SteadyClock::now().time_since_epoch())
+              .count())
+        : 0;
+    std::uint64_t tb_sched = 0, tb_xr = 0, tb_sig = 0;
     // Submit the pending tile-op range. INVALIDATE / UNREGISTER ops are
     // already in the execution stream. Join StarPU via wait() for readout.
     if (g_exec->pending_exec_op_end > g_exec->pending_exec_op_begin)
@@ -1313,10 +1361,22 @@ void run_graph_locked()
             g_exec->runtime
                 ->install_default_execution_schedule_if_missing();
         }
+        tb_sched = run_brk
+            ? static_cast<std::uint64_t>(std::chrono::duration_cast<
+                  std::chrono::nanoseconds>(
+                  SteadyClock::now().time_since_epoch())
+                  .count())
+            : 0;
         g_exec->runtime->execute_range(
             g_exec->pending_exec_op_begin,
             g_exec->pending_exec_op_end,
             submit);
+        tb_xr = run_brk
+            ? static_cast<std::uint64_t>(std::chrono::duration_cast<
+                  std::chrono::nanoseconds>(
+                  SteadyClock::now().time_since_epoch())
+                  .count())
+            : 0;
         g_timing.run_s += seconds_since(t0);
         ++g_timing.run_calls;
         g_timing.run_ops += phase_ops;
@@ -1331,8 +1391,30 @@ void run_graph_locked()
     ::nnhaul::signal_graph_end();
 #endif
 #endif
+    tb_sig = run_brk
+        ? static_cast<std::uint64_t>(std::chrono::duration_cast<
+              std::chrono::nanoseconds>(
+              SteadyClock::now().time_since_epoch())
+              .count())
+        : 0;
     g_run_cleanup_pending = true;
     compact_after_submit_locked();
+    if (run_brk)
+    {
+        std::uint64_t const tb_exit =
+            static_cast<std::uint64_t>(std::chrono::duration_cast<
+                std::chrono::nanoseconds>(
+                SteadyClock::now().time_since_epoch())
+                .count());
+        std::fprintf(stderr,
+            "[nntile-run-brk] t_enter=%llu t_sched=%llu t_xr=%llu "
+            "t_sig=%llu t_exit=%llu\n",
+            static_cast<unsigned long long>(tb_enter),
+            static_cast<unsigned long long>(tb_sched),
+            static_cast<unsigned long long>(tb_xr),
+            static_cast<unsigned long long>(tb_sig),
+            static_cast<unsigned long long>(tb_exit));
+    }
 }
 
 void finish_run_locked()
@@ -2602,4 +2684,6 @@ double record_nntile_seconds()
 }
 
 } // namespace torch_nntile
+
+#include "nntile/tensor/graph_data_node.hh"
 

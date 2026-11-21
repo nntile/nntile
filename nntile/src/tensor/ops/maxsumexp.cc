@@ -56,7 +56,7 @@ TensorGraph::TensorNode *maxsumexp(
     validate_maxsumexp_shape_and_merge(src, dst, axis, "maxsumexp");
 
     // New dst: overwrite (beta=0); lowering uses beta=1 for later axis segments
-    auto op = std::make_shared<TensorMaxsumexpOp>(src, dst, axis,
+    auto op = nntile::make_op<TensorMaxsumexpOp>(src, dst, axis,
             Scalar{0.0}, redux);
     src->graph()->add_op(op);
 
@@ -91,7 +91,7 @@ void maxsumexp(TensorGraph::TensorNode *src,
     }
     validate_maxsumexp_shape_and_merge(src, dst, axis, "maxsumexp");
 
-    auto op = std::make_shared<TensorMaxsumexpOp>(src, dst, axis, beta, redux);
+    auto op = nntile::make_op<TensorMaxsumexpOp>(src, dst, axis, beta, redux);
     src->graph()->add_op(op);
 }
 

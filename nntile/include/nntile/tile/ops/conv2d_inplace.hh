@@ -58,7 +58,7 @@ struct TileConv2dInplaceOp : TileGraph::OpNode
     void execute(Runtime& runtime) const override;
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
-        return std::make_shared<TileConv2dInplaceOp>(*this);
+        return nntile::make_op<TileConv2dInplaceOp>(*this);
     }
 };
 //! Conv2D forward: Y = alpha*conv(X,C) + beta*Y
