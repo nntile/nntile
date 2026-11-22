@@ -95,9 +95,9 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha_, const T *src_,
 template<typename T>
 struct AddInplaceChunkTables
 {
-    const T* const* src; //!< device-ring view of the src pointer array
+    const T* const* src; //!< device-table view of the src pointer array
     Index nsrc;
-    T* const* dst; //!< device-ring view of the dst pointer array
+    T* const* dst; //!< device-table view of the dst pointer array
     Index ndst;
     Index elems_src; //!< elements in a full src chunk
     Index elems_dst; //!< elements in a full dst chunk
@@ -162,14 +162,14 @@ void chunked_cuda_kernel(AddInplaceChunkTables<T> t)
     }
 }
 
-//! Chunked add_inplace with every operand inside its chunk 0 (each ring
+//! Chunked add_inplace with every operand inside its chunk 0 (each table
 //! holds one chunk, so every flat offset is a plain element offset of
-//! ring[0]).  The two chunk-0 bases are resolved once per thread (two
+//! table[0]).  The two chunk-0 bases are resolved once per thread (two
 //! warp-uniform loads hoisted out of the loop) and the body is
 //! cuda_kernel's verbatim -- same flat thread mapping, same unrolled
 //! loop, same per-element expression and therefore the same float
 //! association nvcc chose for cuda() -- so the per-element instruction
-//! stream matches the classic kernel's and the per-element ring loads
+//! stream matches the classic kernel's and the per-element table loads
 //! and shift/mask of the multi-chunk walk are gone.
 template<typename T, int BLOCK, int LOOP>
 static __global__
@@ -262,11 +262,11 @@ void chunked(cudaStream_t stream, Index nelems, Scalar alpha,
     }
     if(nsrc == 1 and ndst == 1)
     {
-        // Every operand inside its chunk 0 (each ring holds one chunk,
+        // Every operand inside its chunk 0 (each table holds one chunk,
         // i.e. any contiguous buffer below the chunk class, e.g. every
         // GPT-2 add_inplace call).  A 4-multiple element count on a
         // 4-byte type takes the quad kernel; anything else takes the
-        // classic body over the ring[0] bases, resolved once per thread.
+        // classic body over the table[0] bases, resolved once per thread.
         if constexpr(sizeof(T) == 4)
         {
             if((nelems & 3) == 0)

@@ -246,9 +246,9 @@ void panel(cudaStream_t stream, Index m, Index n, Index nr, Index nc,
 }
 
 //! Single-chunk transpose tile kernel: both operands sit inside their
-//! chunk 0 (each ring holds one chunk, i.e. any contiguous buffer below
+//! chunk 0 (each table holds one chunk, i.e. any contiguous buffer below
 //! the chunk class, e.g. every GPT-2 transpose_heads call). The two
-//! ring[0] bases are resolved once per block (a block-uniform read of
+//! table[0] bases are resolved once per block (a block-uniform read of
 //! two pointers; the table itself is device memory, so this is the
 //! earliest place a host launch can resolve it) and everything after is
 //! the whole-buffer kernel's tile code VERBATIM, so the launch is the
@@ -261,7 +261,7 @@ template<typename T, int BLOCK_ROW, int BLOCK_COL, int BLOCK_LOOP>
 static __global__
 void single_chunk_cuda_kernel(Index m, Index n, Scalar alpha_,
     const T* const* src_tab, T* const* dst_tab)
-//! Transpose a one-chunk ring on CUDA
+//! Transpose a one-chunk table on CUDA
 /*! dst[i,j] = alpha * src[j,i], tiles and expression of cuda_kernel
  *
  * @param[in] m: Number of rows of src and columns of dst
@@ -336,8 +336,8 @@ static void launch_single_chunk(cudaStream_t stream, Index m, Index n,
 template<typename T>
 struct ChunkTables
 {
-    const T* const* src; //!< device-ring view of the src chunk-pointer array
-    T* const* dst; //!< device-ring view of the dst chunk-pointer array
+    const T* const* src; //!< device-table view of the src chunk-pointer array
+    T* const* dst; //!< device-table view of the dst chunk-pointer array
     Index nsrc;
     Index ndst;
     Index elems_src; //!< elements in a full src chunk
@@ -372,7 +372,7 @@ static __device__ __forceinline__ Index dst_chunk_of(ChunkTables<T> const &t,
 //! launch-geometry family as cuda_kernel above (the caller picks the
 //! <BR, BC, BL> configuration from the aspect ratio like the whole-buffer
 //! entry does), but each operand is addressed through its chunk table.
-//! The tables are read from the device chunk-pointer ring (a block-uniform
+//! The tables are read from the device chunk-pointer table (a block-uniform
 //! read); in the healthy regime a tile's flat range spans at most two
 //! chunks, so the two candidate base pointers are hoisted once per block
 //! (a block-uniform constant read) and only a per-element compare picks
@@ -544,9 +544,9 @@ void chunked(cudaStream_t stream, Index m, Index n, Scalar alpha,
     }
     if(nsrc == 1 and ndst == 1)
     {
-        // Every operand inside its chunk 0 (each ring holds one chunk,
+        // Every operand inside its chunk 0 (each table holds one chunk,
         // i.e. any contiguous buffer below the chunk class). Resolve the
-        // two ring[0] bases once per block and run the whole-buffer tile
+        // two table[0] bases once per block and run the whole-buffer tile
         // code, so the launch is the classic one plus two pointer loads
         // per block -- no per-tile chunk resolution, no table reads in
         // the element loops. Tile choice (by aspect only, never by chunk

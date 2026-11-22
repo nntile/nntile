@@ -249,20 +249,20 @@ void SumFiber<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     }
     // Chunked single-launch path: the WHOLE reduction is issued as ONE
     // chunk-aware kernel with the two chunk base-pointer tables read from
-    // the shared device chunk-ptr ring (no chunk-count cap), instead of the
+    // the shared device chunk-ptr table (no chunk-count cap), instead of the
     // per-piece driver's O(chunk-resident planes x straddles) launches. The
     // kernel keeps cuda()'s thread geometry and per-thread accumulation
     // order, so the result is cuda()'s up to the same atomic ordering
-    // nondeterminism. A launch whose pointer set exceeds the ring, and the
+    // nondeterminism. A launch whose pointer set exceeds the table, and the
     // arbitrary factorizations, keep the piece
     // driver below as the fallback.
     // Piece C (2026-10-18c): the all-1-chunk degenerate launch is
     // the FIRST thing the chunked block does -- the chunk counts are
     // read straight off the buffers, before any
-    // ChunkView/UnitSpan/RingTables work exists, so the degenerate
+    // ChunkView/UnitSpan/LaunchTables work exists, so the degenerate
     // host path is as lean as the classic dispatch above (gemm
     // path-F precedent; launch pointer-identical, bitwise by
-    // construction, ring untouched).
+    // construction, table untouched).
     if(args->m > 0 && args->n > 0 && args->k > 0 && args->batch > 0
         && buf_src->chunk_count() == 1
         && buf_dst->chunk_count() == 1)
@@ -276,20 +276,20 @@ void SumFiber<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     chunkunits::ChunkView<T> const cv_dst(buf_dst);
     if(args->m > 0 && args->n > 0 && args->k > 0 && args->batch > 0)
     {
-        chunkunits::RingTables &tabs = chunkunits::ring_tables();
+        chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
         tabs.clear();
         std::size_t const o_src_ptrs = tabs.add(cv_src);
         std::size_t const o_dst_ptrs = tabs.add(cv_dst);
-        chunkunits::ChunkPtrRing &arena = chunkunits::chunk_ptr_ring();
+        chunkunits::ChunkPtrTable &arena = chunkunits::chunk_ptr_table();
         if(arena.begin(stream))
         {
-            void const *ring_base = arena.upload_tables(tabs);
-            if(ring_base != nullptr)
+            void const *table_base = arena.upload_tables(tabs);
+            if(table_base != nullptr)
             {
                 const T *const *src_tab = arena.table_view<const T *>(
-                    ring_base, o_src_ptrs);
+                    table_base, o_src_ptrs);
                 T *const *dst_tab = arena.table_view<T *>(
-                    ring_base, o_dst_ptrs);
+                    table_base, o_dst_ptrs);
                 kernel::sum_fiber::chunked<T>(
                     stream,
                     args->m,
@@ -310,11 +310,11 @@ void SumFiber<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         }
     }
         // (rule 11, user directive 2026-10-19) There is no per-piece
-    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot ring
+    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot table
     // serve any launch up to a 16 TiB operand, so a failed upload is an
     // invariant violation, not a mode to stage around.
     std::fprintf(stderr,
-        "nntile_sum_fiber: chunk-ptr ring cannot serve this launch (invariant "
+        "nntile_sum_fiber: chunk-ptr table cannot serve this launch (invariant "
         "violation; the per-piece staging fallback was deleted by rule "
         "11)\n");
     std::abort();

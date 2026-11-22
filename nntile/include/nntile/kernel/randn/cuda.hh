@@ -53,7 +53,7 @@ void cuda(
  * @param[in] shape: Strided output shape
  * @param[in] underlying_shape: Shape of the underlying array
  * @param[in] stride: Strides of the output in the underlying array
- * @param[in] dst_chunks: Device-ring view of dst's chunk pointers
+ * @param[in] dst_chunks: Device-table view of dst's chunk pointers
  * @param[in] ndst: Number of dst chunks
  * @param[in] elems_dst: Elements in a full dst chunk
  * */

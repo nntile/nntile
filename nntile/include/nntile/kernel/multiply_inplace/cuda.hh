@@ -31,7 +31,7 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *src, T *dst)
  * tail on the last chunk). The WHOLE nelems range is issued as ONE kernel
  * launch: the two chunk base-pointer tables are host arrays in pinned,
  * device-mapped memory (built by the driver through the shared
- * ChunkPtrRing) whose device-ring views travel as `src_chunks`/`dst_chunks`,
+ * ChunkPtrTable) whose device-table views travel as `src_chunks`/`dst_chunks`,
  * and each block stages them into shared memory once. Each element resolves
  * its src chunk from its flat offset via i / elems_src, i % elems_src and its
  * dst chunk via i / elems_dst, i % elems_dst (shift/mask on the compile-time

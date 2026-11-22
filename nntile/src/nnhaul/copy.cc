@@ -74,7 +74,7 @@ void Copy::cuda(void *buffers[], void *cl_args)
     // Chunked single-launch path: when at least one operand is chunked (or
     // the force flag is on), move the WHOLE flat
     // byte range as ONE chunk-aware kernel instead of the per-piece walk's
-    // memcpys. The merged chunk table rides the device ring (ONE
+    // memcpys. The merged chunk table rides the device table (ONE
     // event-ordered control-stream copy per launch; rule 10: no smem
     // staging) and the kernel reads it per-thread by shift/mask. No
     // chunk-count cap. Copying has no value freedom, so the result is
@@ -93,10 +93,10 @@ void Copy::cuda(void *buffers[], void *cl_args)
                 // Piece C (2026-10-18c): the all-1-chunk degenerate
                 // launch is the FIRST thing the chunked block does --
                 // the chunk counts are read straight off the buffers,
-                // before any ChunkView/RingTables work exists, so the
+                // before any ChunkView/LaunchTables work exists, so the
                 // degenerate host path is as lean as the classic
                 // dispatch above (gemm path-F precedent; launch
-                // pointer-identical, bitwise by construction, ring
+                // pointer-identical, bitwise by construction, table
                 // untouched).
                 ::cudaMemcpyAsync(buf_dst->get_ptr<unsigned char>(), buf_src->get_ptr<unsigned char>(), args->nbytes,
                     ::cudaMemcpyDeviceToDevice, stream);
@@ -104,20 +104,20 @@ void Copy::cuda(void *buffers[], void *cl_args)
             }
             chunkunits::ChunkView<unsigned char> const cvs(buf_src);
             chunkunits::ChunkView<unsigned char> const cvd(buf_dst);
-            chunkunits::RingTables &tabs = chunkunits::ring_tables();
+            chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
             tabs.clear();
             std::size_t const o_ps = tabs.add(cvs);
             std::size_t const o_pd = tabs.add(cvd);
-            chunkunits::ChunkPtrRing &arena = chunkunits::chunk_ptr_ring();
+            chunkunits::ChunkPtrTable &arena = chunkunits::chunk_ptr_table();
             if(arena.begin(stream))
             {
-                void const *ring_base = arena.upload_tables(tabs);
-                if(ring_base != nullptr)
+                void const *table_base = arena.upload_tables(tabs);
+                if(table_base != nullptr)
                 {
                     const unsigned char *const *ts = arena.table_view<const unsigned char *>(
-                        ring_base, o_ps);
+                        table_base, o_ps);
                     unsigned char *const *td = arena.table_view<unsigned char *>(
-                        ring_base, o_pd);
+                        table_base, o_pd);
                     kernel::copy::chunked(
                         stream,
                         Index(args->nbytes),
@@ -131,11 +131,11 @@ void Copy::cuda(void *buffers[], void *cl_args)
                     return;
                 }
                     // (rule 11, user directive 2026-10-19) There is no per-piece
-                    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot ring
+                    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot table
                     // serve any launch up to a 16 TiB operand, so a failed upload is an
                     // invariant violation, not a mode to stage around.
                     std::fprintf(stderr,
-                        "nntile_copy: chunk-ptr ring cannot serve this launch (invariant "
+                        "nntile_copy: chunk-ptr table cannot serve this launch (invariant "
                         "violation; the per-piece staging fallback was deleted by rule "
                         "11)\n");
                     std::abort();

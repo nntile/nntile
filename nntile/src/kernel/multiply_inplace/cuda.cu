@@ -84,17 +84,17 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *src, T *dst)
 }
 
 //! Chunk descriptors for the one-launch chunked multiply_inplace (see
-//! cuda.hh). `src`/`dst` are device-ring views of host pointer arrays
-//! built by the driver through the shared ChunkPtrRing (no chunk-count
-//! cap); each thread reads its chunk pointer straight from the ring
+//! cuda.hh). `src`/`dst` are device-table views of host pointer arrays
+//! built by the driver through the shared ChunkPtrTable (no chunk-count
+//! cap); each thread reads its chunk pointer straight from the table
 //! (piece 9 / rule 10: no staging), so the whole flat range is one
 //! launch.
 template<typename T>
 struct ChunkTables
 {
-    const T *const* src; //!< device-ring view of the src pointer array
+    const T *const* src; //!< device-table view of the src pointer array
     Index nsrc;
-    T *const* dst; //!< device-ring view of the dst pointer array
+    T *const* dst; //!< device-table view of the dst pointer array
     Index ndst;
     Index elems_src; //!< elements in a full src chunk
     Index elems_dst; //!< elements in a full dst chunk

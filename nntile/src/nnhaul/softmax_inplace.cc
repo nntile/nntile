@@ -223,24 +223,24 @@ void SoftmaxInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // table via per-thread shift/mask reads. The elementwise formula is
     // byte-for-byte cuda()'s, so the result is bitwise cuda()'s. (The
     // historical piecewise fallback is DELETED -- rule 11: a launch the
-    // ring cannot serve aborts.)
+    // table cannot serve aborts.)
     chunkunits::ChunkView<T> const cv_mse(buf_mse);
     chunkunits::ChunkView<T> const cv_dst(buf_dst);
     {
-        chunkunits::RingTables &tabs = chunkunits::ring_tables();
+        chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
         tabs.clear();
         std::size_t const o_mse_ptrs = tabs.add(cv_mse);
         std::size_t const o_dst_ptrs = tabs.add(cv_dst);
-        chunkunits::ChunkPtrRing &arena = chunkunits::chunk_ptr_ring();
+        chunkunits::ChunkPtrTable &arena = chunkunits::chunk_ptr_table();
         if(arena.begin(stream))
         {
-            void const *ring_base = arena.upload_tables(tabs);
-            if(ring_base != nullptr)
+            void const *table_base = arena.upload_tables(tabs);
+            if(table_base != nullptr)
             {
                 const T *const *mse_tab = arena.table_view<const T *>(
-                    ring_base, o_mse_ptrs);
+                    table_base, o_mse_ptrs);
                 T *const *dst_tab = arena.table_view<T *>(
-                    ring_base, o_dst_ptrs);
+                    table_base, o_dst_ptrs);
                 kernel::softmax_inplace::chunked<T>(stream, args->m,
                     args->n, args->k, mse_tab, Index(cv_mse.nchunks),
                     args->alpha, dst_tab, Index(cv_dst.nchunks),
@@ -251,11 +251,11 @@ void SoftmaxInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         }
     }
         // (rule 11, user directive 2026-10-19) There is no per-piece
-    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot ring
+    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot table
     // serve any launch up to a 16 TiB operand, so a failed upload is an
     // invariant violation, not a mode to stage around.
     std::fprintf(stderr,
-        "nntile_softmax_inplace: chunk-ptr ring cannot serve this launch (invariant "
+        "nntile_softmax_inplace: chunk-ptr table cannot serve this launch (invariant "
         "violation; the per-piece staging fallback was deleted by rule "
         "11)\n");
     std::abort();

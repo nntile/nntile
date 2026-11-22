@@ -55,7 +55,7 @@ struct Workspace
  * binary no matter how many translation units call this -- a
  * header-inline accessor could not promise that. First call allocates
  * (NNHAUL_GEMM_WORKSPACE_BYTES test hook, read once per process like
- * the ring's hooks; default exactly 1 GiB); a cudaMalloc failure is a
+ * the table's hooks; default exactly 1 GiB); a cudaMalloc failure is a
  * LOUD error (stderr + abort -- there is no fallback); a later call on
  * a different CUDA device throws (the workspace is per-GPU; this is a
  * single-GPU campaign). Never throws for any other reason. */
@@ -63,12 +63,12 @@ Workspace &workspace();
 
 //! One staged operand of the fused gather/scatter: the WHOLE flat byte
 //! space of a multi-chunk buffer (equal 16 MiB-class chunks plus a
-//! shorter tail), its chunk-pointer table (a device chunk-ptr-ring
+//! shorter tail), its chunk-pointer table (a device chunk-ptr-table
 //! view) and its contiguous slot in the gemm workspace.
-/*! (user directive, 2026-10-19: reuse the scalable ring-table kernel)
+/*! (user directive, 2026-10-19: reuse the scalable table-driven kernel)
  * The staging IS kernel::copy::chunked (see src/nnhaul/gemm.cc): each
  * staged operand is a chunked->workspace (or workspace->chunked) copy
- * whose workspace side rides the ring as a 1-entry table. The
+ * whose workspace side rides the table as a 1-entry table. The
  * gemm-local fused stage kernel, StageSeg/StagePlan and their entry
  * points are deleted. This module keeps ONLY the workspace. */
 

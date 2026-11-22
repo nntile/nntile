@@ -161,16 +161,16 @@ void Conv2dInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     chunkunits::ChunkView<T> const cv_src1(buf_src1);
     chunkunits::ChunkView<T> const cv_src2(buf_src2);
     chunkunits::ChunkView<T> const cv_dst(buf_dst);
-    chunkunits::RingTables &tabs = chunkunits::ring_tables();
+    chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
     tabs.clear();
     std::size_t const o_src1 = tabs.add(cv_src1);
     std::size_t const o_src2 = tabs.add(cv_src2);
     std::size_t const o_dst = tabs.add(cv_dst);
-    chunkunits::ChunkPtrRing &ring = chunkunits::chunk_ptr_ring();
-    if(ring.begin(stream))
+    chunkunits::ChunkPtrTable &table = chunkunits::chunk_ptr_table();
+    if(table.begin(stream))
     {
-        void const *ring_base = ring.upload_tables(tabs);
-        if(ring_base != nullptr)
+        void const *table_base = table.upload_tables(tabs);
+        if(table_base != nullptr)
         {
             kernel::conv2d_inplace::chunked<T>(
                 stream,
@@ -186,11 +186,11 @@ void Conv2dInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
                 args->offset_m,
                 args->offset_n,
                 args->alpha,
-                ring.table_view<T const *>(ring_base, o_src1),
+                table.table_view<T const *>(table_base, o_src1),
                 Index(cv_src1.nchunks),
-                ring.table_view<T const *>(ring_base, o_src2),
+                table.table_view<T const *>(table_base, o_src2),
                 Index(cv_src2.nchunks),
-                ring.table_view<T *>(ring_base, o_dst),
+                table.table_view<T *>(table_base, o_dst),
                 Index(cv_dst.nchunks),
                 args->dst_m,
                 args->dst_n,
@@ -200,12 +200,12 @@ void Conv2dInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
                 Index(cv_src1.chunk_elems),
                 Index(cv_src2.chunk_elems),
                 Index(cv_dst.chunk_elems));
-            ring.end(stream);
+            table.end(stream);
             return;
         }
     }
     std::fprintf(stderr,
-        "nntile_conv2d_inplace: chunk-ptr ring cannot serve this launch "
+        "nntile_conv2d_inplace: chunk-ptr table cannot serve this launch "
         "(invariant violation; no staging fallback exists)\n");
     std::abort();
 }

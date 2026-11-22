@@ -157,7 +157,7 @@ namespace
 template<typename T>
 struct RandnChunkTable
 {
-    T *const *dst; //!< device-ring view of dst's chunk pointers
+    T *const *dst; //!< device-table view of dst's chunk pointers
     Index elems_dst; //!< elements in a full dst chunk
     int shift_dst; //!< class shift, or the single-chunk sentinel
 };

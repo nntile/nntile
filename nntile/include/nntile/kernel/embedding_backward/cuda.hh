@@ -35,13 +35,14 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index k_start,
  * is backed by a chain of equal-size chunk allocations (a shorter tail on
  * the last chunk). The whole scatter-add is issued as ONE atomicAdd kernel
  * launch whose chunk base-pointer tables are read from the device
- * chunk-pointer ring (no per-tile or handle cap); each element derives its
+ * chunk-pointer table (no per-tile or handle cap); each element derives its
  * chunk index from its own flat offset (chunk = offset / elems, in-chunk
  * offset = offset % elems). The beta==0 zeroing is a single chunk-aware
  * kernel launch as well. The accumulation is atomicAdd exactly as the
  * whole-buffer entry's, so the result is the same unordered sum (and
  * bitwise the whole-buffer call when every token is unique). A launch
- * whose pointer set exceeds the ring falls back to the per-segment driver.
+ * whose pointer set exceeds the table aborts (rule 11, 2026-10-19: no
+ * per-segment fallback exists).
  *
  * @param[in] stream: CUDA stream
  * @param[in] m: Size of the first mode of index and embed tensors
@@ -53,13 +54,13 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index k_start,
  * @param[in] vocab_nelems: Total elements of the vocab buffer (for beta=0)
  * @param[in] alpha: Scalar multiplier of the contribution
  * @param[in] beta: 0 to zero vocab first, 1 to accumulate only
- * @param[in] index_chunks: Device-ring view of index's chunk base pointers
+ * @param[in] index_chunks: Device-table view of index's chunk base pointers
  * @param[in] nindex: Number of index chunks
  * @param[in] elems_index: Elements in a full index chunk (uniform)
- * @param[in] embed_chunks: Device-ring view of embed's chunk base pointers
+ * @param[in] embed_chunks: Device-table view of embed's chunk base pointers
  * @param[in] nembed: Number of embed chunks
  * @param[in] elems_embed: Elements in a full embed chunk (uniform)
- * @param[in] vocab_chunks: Device-ring view of vocab's chunk base pointers
+ * @param[in] vocab_chunks: Device-table view of vocab's chunk base pointers
  * @param[in] nvocab: Number of vocab chunks
  * @param[in] elems_vocab: Elements in a full vocab chunk (uniform)
  * */

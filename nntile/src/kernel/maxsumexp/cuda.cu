@@ -350,7 +350,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *src,
 // ---------------------------------------------------------------------------
 // One-launch chunk-aware variant (see cuda.hh).  The chunk base-pointer
 // tables live in device memory (the driver uploads them through the shared
-// ring).  The arithmetic is copied verbatim from cuda_kernel/cuda_kernel_m1:
+// table).  The arithmetic is copied verbatim from cuda_kernel/cuda_kernel_m1:
 // same thread partition over the reduction axis, same max/atomicAdd combine,
 // same m==1 tree.  Only the element address changes (flat offset -> chunk
 // index + in-chunk offset), so the result is the contiguous kernel's up to

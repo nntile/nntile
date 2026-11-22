@@ -360,12 +360,12 @@ void Embedding<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     }
     // Chunked single-launch path: the WHOLE gather is issued as ONE
     // chunk-aware kernel with the three chunk base-pointer tables read from
-    // the shared device chunk-ptr ring (no chunk-count cap) - each element
+    // the shared device chunk-ptr table (no chunk-count cap) - each element
     // derives its chunk index from its own flat offset by divmod - instead
     // of the per-segment 2D-copy driver below (which issued ~1k
     // cudaMemcpy2DAsync launches for the GPT-2 token embedding). A pure
     // copy, bitwise the whole-buffer call.  A launch whose pointer
-    // set exceeds the ring ABORTS (rule 11 -- no fallback exists).
+    // set exceeds the table ABORTS (rule 11 -- no fallback exists).
     {
         EmbChunkView<int64_t> const cv_index(buf_index);
         EmbChunkView<T> const cv_vocab(buf_vocab);
@@ -378,7 +378,7 @@ void Embedding<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
             // resolved chunk bases -- the piece-4/6 degenerate-launch
             // pattern (geometry and instruction stream identical to the
             // flag-off path, bitwise by construction; no pointer table
-            // to read, so the ring is untouched). This covers the GPT-2
+            // to read, so the table is untouched). This covers the GPT-2
             // position-embedding call (wpe: 3 MiB vocab, 6 MiB embed
             // tile, 8 KiB index -- all 1-chunk at the class; pair-4
             // informational 1.59x med). The chunked kernel stays the
@@ -396,23 +396,23 @@ void Embedding<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
                 cv_embed.ptr(0, 0));
             return;
         }
-        chunkunits::RingTables &tabs = chunkunits::ring_tables();
+        chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
         tabs.clear();
         std::size_t const o_index_ptrs = tabs.add(cv_index);
         std::size_t const o_vocab_ptrs = tabs.add(cv_vocab);
         std::size_t const o_embed_ptrs = tabs.add(cv_embed);
-        chunkunits::ChunkPtrRing &arena = chunkunits::chunk_ptr_ring();
+        chunkunits::ChunkPtrTable &arena = chunkunits::chunk_ptr_table();
         if(arena.begin(stream))
         {
-            void const *ring_base = arena.upload_tables(tabs);
-            if(ring_base != nullptr)
+            void const *table_base = arena.upload_tables(tabs);
+            if(table_base != nullptr)
             {
                 const int64_t *const *index_tab = arena.table_view<const int64_t *>(
-                    ring_base, o_index_ptrs);
+                    table_base, o_index_ptrs);
                 const T *const *vocab_tab = arena.table_view<const T *>(
-                    ring_base, o_vocab_ptrs);
+                    table_base, o_vocab_ptrs);
                 T *const *embed_tab = arena.table_view<T *>(
-                    ring_base, o_embed_ptrs);
+                    table_base, o_embed_ptrs);
                 kernel::embedding::chunked<T>(
                     stream,
                     args->m,
@@ -436,11 +436,11 @@ void Embedding<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         }
     }
         // (rule 11, user directive 2026-10-19) There is no per-piece
-    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot ring
+    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot table
     // serve any launch up to a 16 TiB operand, so a failed upload is an
     // invariant violation, not a mode to stage around.
     std::fprintf(stderr,
-        "nntile_embedding: chunk-ptr ring cannot serve this launch (invariant "
+        "nntile_embedding: chunk-ptr table cannot serve this launch (invariant "
         "violation; the per-piece staging fallback was deleted by rule "
         "11)\n");
     std::abort();

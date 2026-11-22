@@ -11,7 +11,7 @@
  *
  * 1. ONE plain cudaMalloc'd workspace, default exactly 1 GiB, allocated
  *    ONCE per process on first use and NEVER freed, resized or
- *    reallocated -- the chunk-ptr ring's discipline. Exactly ONE
+ *    reallocated -- the chunk-ptr table's discipline. Exactly ONE
  *    instance exists in the whole binary: the accessor's
  *    function-local static has C++'s ODR-guaranteed uniqueness, and the
  *    accessor is a NON-inline function with this file as its single
@@ -82,7 +82,7 @@ void gemm_ws_print()
 
 //! Test hook: NNHAUL_GEMM_WORKSPACE_BYTES shrinks the workspace so the
 //! wrapper's overflow check can be exercised cheaply. Read ONCE per
-//! process (the ring hooks' discipline). Default: exactly 1 GiB.
+//! process (the table hooks' discipline). Default: exactly 1 GiB.
 static std::size_t workspace_bytes_from_env() noexcept
 {
     char const *e = std::getenv("NNHAUL_GEMM_WORKSPACE_BYTES");

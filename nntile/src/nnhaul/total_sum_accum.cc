@@ -275,7 +275,7 @@ void TotalSumAccum<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     }
     // Chunked single-launch path: whenever any operand is chunked, do the
     // WHOLE op with ONE chunk-aware kernel. The chunk base-pointer arrays are
-    // rides the device ring (ONE event-ordered control-stream copy per
+    // rides the device table (ONE event-ordered control-stream copy per
     // launch) and the kernel reads it per-thread by shift/mask. Each
     // thread's per-column reads and the block-shared float atomicAdd
     // grouping are identical to cuda()'s, so the result is cuda()'s up
@@ -289,24 +289,24 @@ void TotalSumAccum<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // and val are all SINGLE-CHUNK (the graph shape beside the
     // multi-chunk src), their resolved bases travel as plain kernel
     // parameters -- so ONLY the src table is built, uploaded and read
-    // through the ring. This halves the host table work and the upload
+    // through the table. This halves the host table work and the upload
     // payload of the latency-bound 4-block launch, and removes one
-    // dependent ring-slot load per operand per thread from the serial
+    // dependent table-slot load per operand per thread from the serial
     // chain. The general four-table form below (and the piecewise
     // fallback) keeps every other shape.
     if(cv_lse.nchunks == 1 && cv_lab.nchunks == 1 && cv_val.nchunks == 1)
     {
-        chunkunits::RingTables &tabs = chunkunits::ring_tables();
+        chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
         tabs.clear();
         std::size_t const o_src_ptrs = tabs.add(cv_src);
-        chunkunits::ChunkPtrRing &arena = chunkunits::chunk_ptr_ring();
+        chunkunits::ChunkPtrTable &arena = chunkunits::chunk_ptr_table();
         if(arena.begin(stream))
         {
-            void const *ring_base = arena.upload_tables(tabs);
-            if(ring_base != nullptr)
+            void const *table_base = arena.upload_tables(tabs);
+            if(table_base != nullptr)
             {
                 const T *const *src_tab = arena.table_view<const T *>(
-                    ring_base, o_src_ptrs);
+                    table_base, o_src_ptrs);
                 kernel::total_sum_accum::chunked<T>(stream, alpha, n_labels,
                     n_outputs, ignore_index, nullptr, 1, src_tab,
                     Index(cv_src.nchunks), nullptr, 1, nullptr, 1, 1,
@@ -319,31 +319,31 @@ void TotalSumAccum<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         }
     }
     {
-        chunkunits::RingTables &tabs = chunkunits::ring_tables();
+        chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
         tabs.clear();
         std::size_t const o_lse_ptrs = tabs.add(cv_lse);
         std::size_t const o_src_ptrs = tabs.add(cv_src);
         std::size_t const o_lab_ptrs = tabs.add(cv_lab);
         std::size_t const o_val_ptrs = tabs.add(cv_val);
-        chunkunits::ChunkPtrRing &arena = chunkunits::chunk_ptr_ring();
+        chunkunits::ChunkPtrTable &arena = chunkunits::chunk_ptr_table();
         if(arena.begin(stream))
         {
-            void const *ring_base = arena.upload_tables(tabs);
-            if(ring_base != nullptr)
+            void const *table_base = arena.upload_tables(tabs);
+            if(table_base != nullptr)
             {
                 const T *const *lse_tab = arena.table_view<const T *>(
-                    ring_base, o_lse_ptrs);
+                    table_base, o_lse_ptrs);
                 const T *const *src_tab = arena.table_view<const T *>(
-                    ring_base, o_src_ptrs);
+                    table_base, o_src_ptrs);
                 const nntile::int64_t *const *lab_tab = arena.table_view<const nntile::int64_t *>(
-                    ring_base, o_lab_ptrs);
+                    table_base, o_lab_ptrs);
                 float *const *val_tab = arena.table_view<float *>(
-                    ring_base, o_val_ptrs);
+                    table_base, o_val_ptrs);
                 // Piece C: the single-chunk small operands (lse,
                 // labels, val -- the graph shape) also hand their
                 // resolved bases straight to the kernel, the per-operand
                 // degenerate resolution; only a multi-chunk src still
-                // reads the ring table.
+                // reads the table table.
                 kernel::total_sum_accum::chunked<T>(stream, alpha, n_labels,
                     n_outputs, ignore_index, lse_tab, Index(cv_lse.nchunks),
                     src_tab, Index(cv_src.nchunks), lab_tab,
@@ -359,11 +359,11 @@ void TotalSumAccum<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         }
     }
         // (rule 11, user directive 2026-10-19) There is no per-piece
-    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot ring
+    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot table
     // serve any launch up to a 16 TiB operand, so a failed upload is an
     // invariant violation, not a mode to stage around.
     std::fprintf(stderr,
-        "nntile_total_sum_accum: chunk-ptr ring cannot serve this launch (invariant "
+        "nntile_total_sum_accum: chunk-ptr table cannot serve this launch (invariant "
         "violation; the per-piece staging fallback was deleted by rule "
         "11)\n");
     std::abort();

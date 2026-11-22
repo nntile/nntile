@@ -36,18 +36,19 @@ void panel(cudaStream_t stream, Index m, Index n, Index nr, Index nc,
  * are backed by a chain of equal-size chunk allocations (a shorter tail on
  * the last chunk). The whole m-by-n transpose is issued as ONE kernel
  * launch: the chunk base-pointer tables are read from the device
- * chunk-pointer ring (no per-tile or handle cap), and each element's chunk
+ * chunk-pointer table (no per-tile or handle cap), and each element's chunk
  * index is derived from its flat offset. Elementwise and deterministic, so
  * the result is bitwise the whole-buffer cuda() call. A launch whose
- * pointer set exceeds the ring falls back to the per-panel driver.
+ * pointer set exceeds the table aborts (rule 11, 2026-10-19: no
+ * per-panel fallback exists).
  *
  * @param[in] stream: CUDA stream
  * @param[in] m: Number of rows of src (columns of dst)
  * @param[in] n: Number of columns of src (rows of dst)
  * @param[in] alpha: Scalar multiplier
- * @param[in] src_chunks: Device-ring view of src's chunk base pointers
+ * @param[in] src_chunks: Device-table view of src's chunk base pointers
  * @param[in] nsrc: Number of src chunks
- * @param[in] dst_chunks: Device-ring view of dst's chunk base pointers
+ * @param[in] dst_chunks: Device-table view of dst's chunk base pointers
  * @param[in] ndst: Number of dst chunks
  * @param[in] elems_src: Elements in a full src chunk (uniform)
  * @param[in] elems_dst: Elements in a full dst chunk (uniform)

@@ -509,13 +509,13 @@ void EmbeddingBackward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     }
     // Chunked single-launch path: the WHOLE scatter-add is issued as ONE
     // chunk-aware atomicAdd kernel (the three chunk base-pointer tables are
-    // read from the device chunk-ptr ring, no chunk-count cap; each
+    // read from the device chunk-ptr table, no chunk-count cap; each
     // element's chunk from its own flat offset by divmod) and the beta==0
     // zeroing as ONE chunk-aware kernel launch, instead of the per-chunk
     // arena driver below (which copied the whole 147 MiB GPT-2 table out and
     // back and ran 37 full kernel launches). The accumulation is atomicAdd
     // exactly as the whole-buffer entry's.  A launch whose pointer
-    // set exceeds the ring ABORTS (rule 11 -- no fallback exists).
+    // set exceeds the table ABORTS (rule 11 -- no fallback exists).
     {
         EmbBwdChunkView<int64_t> const cv_index(buf_index);
         EmbBwdChunkView<T> const cv_embed(buf_embed);
@@ -526,7 +526,7 @@ void EmbeddingBackward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
             // Piece 7: every operand is single-chunk, so the chunked
             // operation degenerates to the classic kernel on the
             // resolved chunk bases -- the piece-4/6 degenerate-launch
-            // pattern (bitwise by construction; ring untouched). Covers
+            // pattern (bitwise by construction; table untouched). Covers
             // the GPT-2 position-embedding-backward call (3 MiB dy, 3
             // MiB wpe grad, 8 KiB index -- all 1-chunk at the class;
             // pair-4 informational med 1.167 on that group). The
@@ -548,23 +548,23 @@ void EmbeddingBackward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
                 cv_vocab.ptr(0, 0));
             return;
         }
-        chunkunits::RingTables &tabs = chunkunits::ring_tables();
+        chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
         tabs.clear();
         std::size_t const o_index_ptrs = tabs.add(cv_index);
         std::size_t const o_embed_ptrs = tabs.add(cv_embed);
         std::size_t const o_vocab_ptrs = tabs.add(cv_vocab);
-        chunkunits::ChunkPtrRing &arena = chunkunits::chunk_ptr_ring();
+        chunkunits::ChunkPtrTable &arena = chunkunits::chunk_ptr_table();
         if(arena.begin(stream))
         {
-            void const *ring_base = arena.upload_tables(tabs);
-            if(ring_base != nullptr)
+            void const *table_base = arena.upload_tables(tabs);
+            if(table_base != nullptr)
             {
                 const int64_t *const *index_tab = arena.table_view<const int64_t *>(
-                    ring_base, o_index_ptrs);
+                    table_base, o_index_ptrs);
                 const T *const *embed_tab = arena.table_view<const T *>(
-                    ring_base, o_embed_ptrs);
+                    table_base, o_embed_ptrs);
                 T *const *vocab_tab = arena.table_view<T *>(
-                    ring_base, o_vocab_ptrs);
+                    table_base, o_vocab_ptrs);
                 kernel::embedding_backward::chunked<T>(
                     stream,
                     args->m,
@@ -591,11 +591,11 @@ void EmbeddingBackward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         }
     }
     // (rule 11, user directive 2026-10-19) There is no per-piece
-    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot ring
+    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot table
     // serve any launch up to a 16 TiB operand, so a failed upload is an
     // invariant violation, not a mode to stage around.
     std::fprintf(stderr,
-        "nntile_embedding_backward: chunk-ptr ring cannot serve this launch "
+        "nntile_embedding_backward: chunk-ptr table cannot serve this launch "
         "(invariant violation; the per-piece staging fallback was deleted "
         "by rule 11)\n");
     std::abort();

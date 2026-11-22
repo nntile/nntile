@@ -57,7 +57,7 @@ namespace nntile::haul
 // checked at submit), the (nrows=shape[0])-element columns of the
 // kernel's matrix view are CONTIGUOUS flat runs, column c covering flat
 // [c*nrows, (c+1)*nrows). Consecutive columns' underlying positions are
-// consecutive only within one dim-1 run (i1 does not wrap), so:
+// consecutive only within one dim-1 run (i1 does not rewind), so:
 //  - whole-column pieces are 2-D sub-calls (m=nrows, L columns)
 //    reading start' = (start[0], col_lin(c0)) with underlying_shape' =
 //    (underlying_shape[0], anything - the kernel never reads dim 1 of a
@@ -534,14 +534,14 @@ void Randn<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         // per-position kernel with the destination chunk table (bitwise
         // the classic CUDA call).
         chunkunits::ChunkView<T> const cv(buf_data);
-        chunkunits::RingTables &tabs = chunkunits::ring_tables();
+        chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
         tabs.clear();
         std::size_t const o_dst = tabs.add(cv);
-        chunkunits::ChunkPtrRing &ring = chunkunits::chunk_ptr_ring();
-        if(ring.begin(stream))
+        chunkunits::ChunkPtrTable &table = chunkunits::chunk_ptr_table();
+        if(table.begin(stream))
         {
-            void const *ring_base = ring.upload_tables(tabs);
-            if(ring_base != nullptr)
+            void const *table_base = table.upload_tables(tabs);
+            if(table_base != nullptr)
             {
                 kernel::randn::chunked<T>(
                     stream,
@@ -554,15 +554,15 @@ void Randn<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
                     shape,
                     underlying_shape,
                     stride,
-                    ring.table_view<T *>(ring_base, o_dst),
+                    table.table_view<T *>(table_base, o_dst),
                     Index(cv.nchunks),
                     Index(cv.chunk_elems));
-                ring.end(stream);
+                table.end(stream);
                 return;
             }
         }
         std::fprintf(stderr,
-            "nntile_randn: chunk-ptr ring cannot serve this launch "
+            "nntile_randn: chunk-ptr table cannot serve this launch "
             "(invariant violation; no staging fallback exists)\n");
         std::abort();
     }

@@ -28,7 +28,7 @@ namespace nntile::haul
 // i2*d3*d4 + i3*d4 + i4 and at dst flat i0*d3*d2*d1*d4 + i3*d2*d1*d4 +
 // i2*d1*d4 + i1*d4 + i4 - axes 1 and 3 swap, and d4 is the CONTIGUOUS
 // axis on BOTH sides. The chunked entry uses that map with every flat
-// offset resolved through the device chunk-pointer ring (power-of-two
+// offset resolved through the device chunk-pointer table (power-of-two
 // class shift/mask), so a chunked buffer is the unchunked call plus
 // pointer arithmetic. All-unchunked buffers keep the single classic call.
 //
@@ -138,19 +138,19 @@ void SwapTwoAxes<std::tuple<T>>::cuda(
             buf_dst->get_ptr<T>());
         return;
     }
-    // Chunked single-launch path: one ring upload, one kernel over the
+    // Chunked single-launch path: one table upload, one kernel over the
     // whole element space.
     chunkunits::ChunkView<T> const cv_src(buf_src);
     chunkunits::ChunkView<T> const cv_dst(buf_dst);
-    chunkunits::RingTables &tabs = chunkunits::ring_tables();
+    chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
     tabs.clear();
     std::size_t const o_src = tabs.add(cv_src);
     std::size_t const o_dst = tabs.add(cv_dst);
-    chunkunits::ChunkPtrRing &ring = chunkunits::chunk_ptr_ring();
-    if(ring.begin(stream))
+    chunkunits::ChunkPtrTable &table = chunkunits::chunk_ptr_table();
+    if(table.begin(stream))
     {
-        void const *ring_base = ring.upload_tables(tabs);
-        if(ring_base != nullptr)
+        void const *table_base = table.upload_tables(tabs);
+        if(table_base != nullptr)
         {
             kernel::swap_two_axes::chunked<T>(
                 stream,
@@ -159,21 +159,21 @@ void SwapTwoAxes<std::tuple<T>>::cuda(
                 args->d2,
                 args->d3,
                 args->d4,
-                ring.table_view<T const *>(ring_base, o_src),
+                table.table_view<T const *>(table_base, o_src),
                 Index(cv_src.nchunks),
-                ring.table_view<T *>(ring_base, o_dst),
+                table.table_view<T *>(table_base, o_dst),
                 Index(cv_dst.nchunks),
                 Index(cv_src.chunk_elems),
                 Index(cv_dst.chunk_elems));
-            ring.end(stream);
+            table.end(stream);
             return;
         }
     }
-    // Rule 11: the 16 MiB pow2 chunk class and the 2^20-slot ring serve any
+    // Rule 11: the 16 MiB pow2 chunk class and the 2^20-slot table serve any
     // launch; a failed upload is an invariant violation, not a mode to
     // stage around.
     std::fprintf(stderr,
-        "nntile_swap_two_axes: chunk-ptr ring cannot serve this launch "
+        "nntile_swap_two_axes: chunk-ptr table cannot serve this launch "
         "(invariant violation; no staging fallback exists)\n");
     std::abort();
 }

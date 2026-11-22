@@ -35,11 +35,11 @@ void cuda(cudaStream_t stream, Index src1_m, Index src1_n, Index src1_channels,
  * whole-buffer call.
  *
  * @param[in] stream: CUDA stream
- * @param[in] src1_chunks: Device-ring view of src1's chunk pointers
+ * @param[in] src1_chunks: Device-table view of src1's chunk pointers
  * @param[in] nsrc1: Number of src1 chunks
- * @param[in] src2_chunks: Device-ring view of src2's chunk pointers
+ * @param[in] src2_chunks: Device-table view of src2's chunk pointers
  * @param[in] nsrc2: Number of src2 chunks
- * @param[in] dst_chunks: Device-ring view of dst's chunk pointers
+ * @param[in] dst_chunks: Device-table view of dst's chunk pointers
  * @param[in] ndst: Number of dst chunks
  * @param[in] elems_src1: Elements in a full src1 chunk
  * @param[in] elems_src2: Elements in a full src2 chunk

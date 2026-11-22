@@ -109,7 +109,7 @@ struct TotalSumAccumChunkTables
 static constexpr unsigned kTsaScratchBlocks = 8192;
 static __device__ double tsa_scratch[kTsaScratchBlocks];
 //! Arrival ticket for the deterministic tail: the last block of a launch
-//! resets it to 0 (atomicInc wraps) so the next launch starts clean. This
+//! resets it to 0 (atomicInc rewinds) so the next launch starts clean. This
 //! assumes launches are serialized on one stream, which is how the engine
 //! calls the kernel (and how `val` is already accumulated).
 static __device__ unsigned tsa_ticket = 0;
@@ -241,8 +241,8 @@ void chunked_cuda_kernel(TotalSumAccumChunkTables<T> t)
 //! 8 KiB, val 4 B beside the 196.32 MiB src). The single-chunk bases
 //! travel as plain kernel parameters (the piece-4 degenerate-launch
 //! resolution applied per operand: a 1-chunk table is its own base
-//! pointer, so the ring keeps serving only the genuinely multi-chunk
-//! src). This removes one dependent ring-slot load per operand per
+//! pointer, so the table keeps serving only the genuinely multi-chunk
+//! src). This removes one dependent table-slot load per operand per
 //! thread from the serial chain of this 4-block latency-bound kernel;
 //! the read of src keeps its table hop (the row is a random scatter,
 //! no run structure to walk). Block partial via the warp tree (see
@@ -327,7 +327,7 @@ void chunked(cudaStream_t stream, Scalar alpha, Index n_labels,
     // Piece C: mixed shape (small operands single-chunk, src
     // multi-chunk) takes the smalls-direct variant: the 1-chunk bases
     // arrive as plain parameters (the degenerate resolution per
-    // operand), only src reads the ring. Falls back to the fully
+    // operand), only src reads the table. Falls back to the fully
     // tabular kernel whenever any small operand is multi-chunk or the
     // direct bases were not supplied.
     if(lse0 != nullptr && labels0 != nullptr && val0 != nullptr)
@@ -378,7 +378,7 @@ void chunked(cudaStream_t stream, Scalar alpha, Index n_labels,
     t.alpha = alpha;
     // Same geometry as the whole-buffer entry: one thread per column.
     // Rule 10: no dynamic shared memory (the tables are read from the
-    // ring directly; only the static block_val reduction cell remains).
+    // table directly; only the static block_val reduction cell remains).
     dim3 blocks((n_outputs + 255) / 256), threads(256);
     (chunked_cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(t);
 }

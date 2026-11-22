@@ -23,7 +23,7 @@ namespace nntile::kernel::clear
 //! Zero-fill chunked buffers on CUDA (ONE launch)
 /*! Semantically a memset of `nbytes` bytes to zero, rounded up to a
  * 16-byte multiple (the overclear lands in allocation padding); every
- * 16-byte unit resolves through its device-ring chunk table and stores
+ * 16-byte unit resolves through its device chunk table and stores
  * one unconditional uint4. A single kernel because per-chunk memsets do
  * not scale with bandwidth (a 16 MiB chunk is ~4 us of fill at 3.6
  * TB/s, where launch overhead dominates). */

@@ -248,7 +248,7 @@ void SubtractIndexedOutputs<std::tuple<T>>::cuda(
     }
     // Chunked single-launch path: whenever any operand is chunked, do the
     // WHOLE op with ONE chunk-aware kernel. The chunk base-pointer arrays are
-    // rides the device ring (ONE event-ordered control-stream copy per
+    // rides the device table (ONE event-ordered control-stream copy per
     // launch) and the kernel reads it per-thread by shift/mask.
     // Column-local updates, so the result is bitwise the contiguous
     // call's. (The historical piecewise fallback is DELETED -- rule 11.)
@@ -257,22 +257,22 @@ void SubtractIndexedOutputs<std::tuple<T>>::cuda(
     // Piece C (2026-10-18c) smalls-direct fast path: a single-chunk
     // labels operand (the graph shape beside the multi-chunk dst)
     // travels as its resolved base pointer, so ONLY the dst table is
-    // built, uploaded and read through the ring; the labels load
-    // shortens by the ring-table hop. The general two-table form below
+    // built, uploaded and read through the table; the labels load
+    // shortens by the table hop. The general two-table form below
     // (and the piecewise fallback) keeps every other shape.
     if(cv_lab.nchunks == 1)
     {
-        chunkunits::RingTables &tabs = chunkunits::ring_tables();
+        chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
         tabs.clear();
         std::size_t const o_dst_ptrs = tabs.add(cv_dst);
-        chunkunits::ChunkPtrRing &arena = chunkunits::chunk_ptr_ring();
+        chunkunits::ChunkPtrTable &arena = chunkunits::chunk_ptr_table();
         if(arena.begin(stream))
         {
-            void const *ring_base = arena.upload_tables(tabs);
-            if(ring_base != nullptr)
+            void const *table_base = arena.upload_tables(tabs);
+            if(table_base != nullptr)
             {
                 T *const *dst_tab = arena.table_view<T *>(
-                    ring_base, o_dst_ptrs);
+                    table_base, o_dst_ptrs);
                 kernel::subtract_indexed_outputs::chunked<T>(stream,
                     n_labels, n_outputs, ignore_index, args->value,
                     nullptr, 1, dst_tab, Index(cv_dst.nchunks), 1,
@@ -283,20 +283,20 @@ void SubtractIndexedOutputs<std::tuple<T>>::cuda(
         }
     }
     {
-        chunkunits::RingTables &tabs = chunkunits::ring_tables();
+        chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
         tabs.clear();
         std::size_t const o_lab_ptrs = tabs.add(cv_lab);
         std::size_t const o_dst_ptrs = tabs.add(cv_dst);
-        chunkunits::ChunkPtrRing &arena = chunkunits::chunk_ptr_ring();
+        chunkunits::ChunkPtrTable &arena = chunkunits::chunk_ptr_table();
         if(arena.begin(stream))
         {
-            void const *ring_base = arena.upload_tables(tabs);
-            if(ring_base != nullptr)
+            void const *table_base = arena.upload_tables(tabs);
+            if(table_base != nullptr)
             {
                 const nntile::int64_t *const *lab_tab = arena.table_view<const nntile::int64_t *>(
-                    ring_base, o_lab_ptrs);
+                    table_base, o_lab_ptrs);
                 T *const *dst_tab = arena.table_view<T *>(
-                    ring_base, o_dst_ptrs);
+                    table_base, o_dst_ptrs);
                 kernel::subtract_indexed_outputs::chunked<T>(stream,
                     n_labels, n_outputs, ignore_index, args->value, lab_tab,
                     Index(cv_lab.nchunks), dst_tab, Index(cv_dst.nchunks),
@@ -307,11 +307,11 @@ void SubtractIndexedOutputs<std::tuple<T>>::cuda(
         }
     }
         // (rule 11, user directive 2026-10-19) There is no per-piece
-    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot ring
+    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot table
     // serve any launch up to a 16 TiB operand, so a failed upload is an
     // invariant violation, not a mode to stage around.
     std::fprintf(stderr,
-        "nntile_subtract_indexed_outputs: chunk-ptr ring cannot serve this launch (invariant "
+        "nntile_subtract_indexed_outputs: chunk-ptr table cannot serve this launch (invariant "
         "violation; the per-piece staging fallback was deleted by rule "
         "11)\n");
     std::abort();

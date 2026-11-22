@@ -128,8 +128,8 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch,
 template<typename T>
 struct SumFiberChunkTables
 {
-    const T* const* src; //!< device-ring view of the src chunk-pointer array
-    T* const* dst; //!< device-ring view of the dst chunk-pointer array
+    const T* const* src; //!< device-table view of the src chunk-pointer array
+    T* const* dst; //!< device-table view of the dst chunk-pointer array
     Index nsrc;
     Index ndst;
     Index elems_src; //!< elements in a full src chunk

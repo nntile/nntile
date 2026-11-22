@@ -74,9 +74,9 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index k_start,
 template<typename T>
 struct EmbBwdChunkTables
 {
-    const int64_t *const *index; //!< device-ring view of the index table
-    const T *const *embed; //!< device-ring view of the embed table
-    T *const *vocab; //!< device-ring view of the vocab table
+    const int64_t *const *index; //!< device-table view of the index table
+    const T *const *embed; //!< device-table view of the embed table
+    T *const *vocab; //!< device-table view of the vocab table
     Index nindex;
     Index nembed;
     Index nvocab;
@@ -112,7 +112,7 @@ static __device__ __forceinline__ long chunk_off(long f, long mask)
 //! thread geometry and atomicAdd as cuda_kernel above, but each of the
 //! three operands is addressed through its chunk table. Piece 9 (rule
 //! 10): NO shared-memory staging -- every thread reads its chunk pointer
-//! straight from the device ring (a handful of L1-resident entries), so
+//! straight from the device table (a handful of L1-resident entries), so
 //! the kernel carries no table __syncthreads at all; the in-chunk masks
 //! stay hoisted into registers once per kernel (piece 7).
 template<typename T>
@@ -226,7 +226,7 @@ void chunked_zero_cuda_kernel(EmbBwdChunkTables<T> t, long total)
 //! classic stride-m pattern -- coalescing and occupancy unchanged), but
 //! each thread reads its token (and validates it) ONCE and then walks
 //! the k axis in blockDim.x strides with REGISTER chunk pointers that
-//! rebase from the ring only at full-chunk boundaries (the advance is a
+//! rebase from the table only at full-chunk boundaries (the advance is a
 //! plain increment otherwise, interlaced behind the issued atomic of the
 //! same iteration; guarded so the final iteration never reads past the
 //! table's last entry). Compile-time chunk shifts (the IDX1/EMB1/VOC1
@@ -274,8 +274,8 @@ void chunked_strided_cuda_kernel(EmbBwdChunkTables<T> t, Scalar alpha_)
     }
     unsigned const row = unsigned(t.k_size)*unsigned(token);
     unsigned const fe_col = unsigned(i1)*unsigned(t.k) + unsigned(t.k_start);
-    // Chunk-walk state: rebases from the ring only at full-chunk
-    // boundaries (in-chunk offset wrapping below the stride is exactly
+    // Chunk-walk state: rebases from the table only at full-chunk
+    // boundaries (in-chunk offset rewinding below the stride is exactly
     // the crossing predicate: no-cross keeps new_off >= stride).
     unsigned fv = row + unsigned(threadIdx.x);
     unsigned fe = (fe_col + unsigned(threadIdx.x))*u_m + unsigned(i0);
@@ -285,7 +285,7 @@ void chunked_strided_cuda_kernel(EmbBwdChunkTables<T> t, Scalar alpha_)
     // iterate: a thread with tid >= k_size never enters the loop below,
     // and forming its vbp/ebp anyway can index one slot past a table
     // when fv/fe sit exactly on a chunk multiple (piece-B critic's
-    // latent OOB ring-slot read; never dereferenced, now unreachable).
+    // latent OOB table-slot read; never dereferenced, now unreachable).
     // (piece F, 2026-10-19) BLOCK-UNIFORM VOCAB FAST PATH: row, and the
     // whole vocab walk [row, row+k_size), is uniform per block (one
     // token per occurrence), and k_size*4 bytes is far below the chunk

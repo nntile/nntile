@@ -317,14 +317,14 @@ void chunked_cuda_kernel_staged(SoftmaxChunkTables<T> t, long total,
 //! the chunk pointers resolved by a per-thread SEGMENT WALK in registers:
 //! each (block, row) 256-element run of the middle axis either lies
 //! inside one chunk (the overwhelmingly common case -- its base pointer
-//! is resolved by ONE ring-table read per (thread, row) and the hot loops
+//! is resolved by ONE chunk-table read per (thread, row) and the hot loops
 //! then address it exactly like the classic kernel's src_fiber/dst_fiber)
 //! or the block falls to the per-element chunk-resolved path (in practice
 //! only the one block per row whose run actually contains a chunk
 //! boundary). Rule 10: no chunk-TABLE staging, no pointer ever transits
 //! shared memory -- the shared arrays are the classic kernel's own
 //! algorithmic (max, sum) row staging and dst_block value staging. The
-//! dst walk is computed between the two phases, so its ring-table reads
+//! dst walk is computed between the two phases, so its chunk-table reads
 //! issue while the phase-1 data loads are in flight. Every element
 //! performs exactly the operations cuda_kernel_m1 performs, so the result
 //! is bitwise cuda()'s.
@@ -364,7 +364,7 @@ void chunked_cuda_kernel_m1(SoftmaxChunkTables<T> t)
         if((dst_block_j+1)*BLOCK_COL <= n)
         {
             // src segment walk: run base per (row) in registers, one
-            // ring-table read per row; strad flags the (rare) block whose
+            // chunk-table read per row; strad flags the (rare) block whose
             // run crosses a chunk boundary.
             bool strad = false;
             long const mmask_s = (1LL << t.shift_src) - 1;
@@ -388,7 +388,7 @@ void chunked_cuda_kernel_m1(SoftmaxChunkTables<T> t)
                 {
                     dst_block[dst_l][c] = sp[c][rel];
                 }
-                // dst segment walk: its ring-table reads issue while the
+                // dst segment walk: its chunk-table reads issue while the
                 // phase-1 data loads are in flight.
                 long const mmask_d = (1LL << t.shift_dst) - 1;
                 sc = long(global_dst_j)*long(k) + l0;

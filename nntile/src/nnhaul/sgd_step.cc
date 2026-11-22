@@ -142,15 +142,15 @@ void SGDStep<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // chunk boundary crossing. The per-element arithmetic is byte-for-byte
     // the classic kernel's, so the result is bitwise the whole-buffer call.
     //
-    // Transport: the device chunk-pointer ring is the only regime.
+    // Transport: the device chunk-pointer table is the only regime.
     {
         // Piece C (2026-10-18c): the all-1-chunk degenerate launch is
         // the FIRST thing the chunked block does -- the chunk counts
         // are read straight off the buffers, before any ChunkView /
-        // RingTables / per-operand work exists, so the degenerate host
+        // LaunchTables / per-operand work exists, so the degenerate host
         // path is as lean as the classic dispatch above (gemm path-F
         // precedent; launch pointer-identical, bitwise by construction,
-        // ring untouched).
+        // table untouched).
         if(args->num_elems > 0
             && buf_grad->chunk_count() == 1
             && buf_vel->chunk_count() == 1
@@ -169,21 +169,21 @@ void SGDStep<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         if(args->num_elems > 0)
         {
             // ONE merged table (grad | velocity | param) in the reusable
-            // thread-local staging, ONE ring upload per launch.
-            chunkunits::RingTables &tabs = chunkunits::ring_tables();
+            // thread-local staging, ONE table upload per launch.
+            chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
             tabs.clear();
             std::size_t const o_grad = tabs.add(cv_grad);
             std::size_t const o_vel = tabs.add(cv_vel);
             std::size_t const o_p = tabs.add(cv_p);
-            chunkunits::ChunkPtrRing &ring = chunkunits::chunk_ptr_ring();
-            if(ring.begin(stream))
+            chunkunits::ChunkPtrTable &table = chunkunits::chunk_ptr_table();
+            if(table.begin(stream))
             {
-                void const *ring_base = ring.upload_tables(tabs);
-                if(ring_base != nullptr)
+                void const *table_base = table.upload_tables(tabs);
+                if(table_base != nullptr)
                 {
-                    T *const *g_tab = ring.table_view<T *>(ring_base, o_grad);
-                    T *const *v_tab = ring.table_view<T *>(ring_base, o_vel);
-                    T *const *p_tab = ring.table_view<T *>(ring_base, o_p);
+                    T *const *g_tab = table.table_view<T *>(table_base, o_grad);
+                    T *const *v_tab = table.table_view<T *>(table_base, o_vel);
+                    T *const *p_tab = table.table_view<T *>(table_base, o_p);
                     kernel::sgd_step::chunked<T>(
                         stream,
                         args->num_iter,
@@ -202,15 +202,15 @@ void SGDStep<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
                         Index(cv_grad.chunk_elems),
                         Index(cv_vel.chunk_elems),
                         Index(cv_p.chunk_elems));
-                    ring.end(stream);
+                    table.end(stream);
                     return;
                 }
                     // (rule 11, user directive 2026-10-19) There is no per-piece
-                    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot ring
+                    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot table
                     // serve any launch up to a 16 TiB operand, so a failed upload is an
                     // invariant violation, not a mode to stage around.
                     std::fprintf(stderr,
-                        "nntile_sgd_step: chunk-ptr ring cannot serve this launch (invariant "
+                        "nntile_sgd_step: chunk-ptr table cannot serve this launch (invariant "
                         "violation; the per-piece staging fallback was deleted by rule "
                         "11)\n");
                     std::abort();

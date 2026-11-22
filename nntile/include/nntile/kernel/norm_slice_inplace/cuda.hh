@@ -31,7 +31,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
  * shorter tail on the last chunk). The whole in-place update is issued as
  * ONE kernel launch: the two chunk base-pointer tables are host arrays in
  * device-resident memory (built by the driver through the shared
- * ChunkPtrRing) whose device-ring views travel as the `*_chunks` args, and
+ * ChunkPtrTable) whose device-table views travel as the `*_chunks` args, and
  * each block stages them into shared memory once. Every element derives its
  * chunk index from its own flat offset (chunk = offset / elems, in-chunk
  * offset = offset % elems; a shift/mask on the compile-time chunk class; a single-chunk operand uses the sentinel shift 62 so there is no runtime-divisor path). The

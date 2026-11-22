@@ -218,9 +218,9 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
 template<typename T>
 struct SumProdSliceChunkTables
 {
-    const T* const* src1; //!< device-ring view of the src1 pointer array
-    const T* const* src2; //!< device-ring view of the src2 pointer array
-    T* const* dst; //!< device-ring view of the dst pointer array
+    const T* const* src1; //!< device-table view of the src1 pointer array
+    const T* const* src2; //!< device-table view of the src2 pointer array
+    T* const* dst; //!< device-table view of the dst pointer array
     Index nsrc1;
     Index nsrc2;
     Index ndst;

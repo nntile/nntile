@@ -60,9 +60,9 @@ void cuda(cudaStream_t stream, Index nelems, const T *src, T *dst)
 template<typename T>
 struct ChunkTables
 {
-    const T *const* src; //!< device-ring view of the src pointer array
+    const T *const* src; //!< device-table view of the src pointer array
     Index nsrc;
-    T *const* dst; //!< device-ring view of the dst pointer array
+    T *const* dst; //!< device-table view of the dst pointer array
     Index ndst;
     Index elems_src; //!< elements in a full src chunk
     Index elems_dst; //!< elements in a full dst chunk
@@ -81,7 +81,7 @@ static __device__ __forceinline__ long gelutanh_chunk_index(long f,
 //! and the SAME per-element expression (copied verbatim from cuda_kernel,
 //! including the per-thread constant derivation, so nvcc's contraction
 //! decisions are the classic kernel's) with every operand address resolved
-//! through its chunk table read straight from the device ring (piece
+//! through its chunk table read straight from the device table (piece
 //! 9 / rule 10: no staging, no table __syncthreads). The result is
 //! bitwise cuda()'s.
 template<typename T>

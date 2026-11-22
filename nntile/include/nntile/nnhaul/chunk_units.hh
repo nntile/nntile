@@ -66,14 +66,14 @@ inline constexpr std::size_t kChunkClassBytes = ::nnhaul::kChunkClassBytes;
 //! flag, dispatching a classic contiguous kernel is a wiring bug -- every
 //! op must go through its chunked kernel, and the flag-on training run
 //! itself then proves zero classic dispatches by surviving. (rule 11,
-//! 2026-10-19: the structural-overflow ring fallthrough no longer exists
-//! -- a launch the ring cannot serve aborts; every wrapper passes false.)
+//! 2026-10-19: the structural-overflow table fallthrough no longer exists
+//! -- a launch the table cannot serve aborts; every wrapper passes false.)
 //! Unconditional: no env gate. Compiles to nothing when the flag is off.
-inline void classic_dispatch_tripwire(char const *op, bool ring_overflow)
+inline void classic_dispatch_tripwire(char const *op, bool table_overflow)
     noexcept
 {
 #ifdef NNTILE_FORCE_CHUNKED_KERNELS
-    if(!ring_overflow)
+    if(!table_overflow)
     {
         std::fprintf(stderr,
             "nntile %s: classic kernel dispatch under "
@@ -83,7 +83,7 @@ inline void classic_dispatch_tripwire(char const *op, bool ring_overflow)
     }
 #else
     (void)op;
-    (void)ring_overflow;
+    (void)table_overflow;
 #endif
 }
 
@@ -310,7 +310,7 @@ struct ArenaCuda
     }
 };
 
-//! Cyclic DEVICE ring of chunk base-pointer slots for the coarse-chunk
+//! Linear DEVICE table of chunk base-pointer slots for the coarse-chunk
 //! transport (docs/chunked-tiles.md §2/§4). This replaces the earlier
 //! host-mapped arena, which was a correctness hazard: a kernel read the
 //! pinned host array AT EXECUTION TIME, and with the driver running ahead
@@ -319,7 +319,7 @@ struct ArenaCuda
 //! offloaded and prefetched between two uses changes its chunk addresses,
 //! so the earlier kernel would dereference the later use's pointers).
 //!
-//! The ring lives in device memory, is read-only to kernels, and is
+//! The table lives in device memory, is read-only to kernels, and is
 //! written BEFORE the launch with a stream-ordered `cudaMemcpyAsync` on
 //! the SAME compute stream the kernel runs on. Stream order then makes
 //! reuse safe by construction: a later upload into a slot executes after
@@ -327,65 +327,69 @@ struct ArenaCuda
 //! read the slot). The upload is enqueued immediately before the kernel
 //! and there is no cross-stream dependency: the data manager's
 //! offload/prefetch work rides its own copy streams and never touches the
-//! ring, only the chunk data blocks the kernel reads.
+//! table, only the chunk data blocks the kernel reads.
 //!
-//! Per launch, each operand's `n` chunk pointers are appended at the
-//! cursor (exactly `n` slots -- nothing is reserved per tile) and the
-//! kernel is handed the DEVICE pointer `ring + start` plus its count, i.e.
-//! a `T const* const*` view, exactly as before. A tile with any number of
-//! chunks simply needs that many consecutive slots; there is no per-tile
-//! or in-flight-handle cap. The only bound is the ring's free-slot count:
-//! when a launch's pointers do not fit in the remaining space, the ring
-//! waits for the most recent recorded launch to complete (its event, in
-//! stream order, is after every earlier kernel) and wraps the cursor to 0.
-//! The one structural case the ring skips is a single launch whose pointer
-//! set exceeds kChunkPtrRingSlots even when empty: `upload` returns
+//! The table is NOT a ring: it is a plain array of slots with an append
+//! cursor, and a launch's operand tables are always ONE CONTIGUOUS slot
+//! range. Per launch, each operand's `n` chunk pointers are appended at
+//! the cursor (exactly `n` slots -- nothing is reserved per tile) and the
+//! kernel is handed the DEVICE pointer `dev + start` plus its count, i.e.
+//! a `T const* const*` view over a plain array. A circular structure
+//! (slot indices modulo capacity) could not offer that one-pointer-plus-
+//! count view for a table straddling the physical end -- linearity is
+//! what keeps the kernel's tile representation this simple. When a new
+//! table would not fit into the slots remaining to the physical end, the
+//! table waits for the most recent recorded launch to complete (its
+//! event, in stream order, is after every earlier kernel) and REWINDS:
+//! the cursor restarts from slot 0 of the same array. The one structural
+//! case the table refuses is a single launch whose pointer set exceeds
+//! kChunkPtrTableSlots even when empty: `upload` returns
 //! nullptr -- rule 11 (2026-10-19): callers ABORT; no per-piece driver
 //! exists anywhere.
-//! (piece E, user directives 2026-10-19) The ring is ONE ring on each
-//! side of the bus: the device ring (kChunkPtrRingSlots pow2 slots, the
+//! (piece E, user directives 2026-10-19) The table is ONE table on each
+//! side of the bus: the device table (kChunkPtrTableSlots pow2 slots, the
 //! historical transport) and a PINNED HOST MIRROR with the SAME slot
-//! indexing, sharing ONE cursor, ONE wrap event and ONE wrap. A
+//! indexing, sharing ONE cursor, ONE rewind event and ONE rewind. A
 //! launch builds its merged table straight into the host mirror at the
 //! cursor; the upload is ONE `cudaMemcpyAsync` host+base -> dev+base on
 //! the dedicated CONTROL stream, ordered ahead of the kernel by an
 //! EVENT (record + compute-stream wait) -- the host never blocks and
-//! mirror slots stay append-only until the wrap. Device slots are
-//! append-only until a wrap too, and the wrap
+//! mirror slots stay append-only until the rewind. Device slots are
+//! append-only until a rewind too, and the rewind
 //! synchronizes the compute-stream event recorded after the latest
 //! table-reading kernel (end()) first -- so the full 2^20-slot depth of
-//! the ring is planning room for in-flight launches (kernel 66, or
+//! the table is planning room for in-flight launches (kernel 66, or
 //! kernel 100066, launches whenever total not-yet-copied table slots
-//! fit the ring; no per-launch or 64-launch buffering exists, and every
+//! fit the table; no per-launch or 64-launch buffering exists, and every
 //! launch uploads its table -- 8 bytes per 16 MB chunk is noise).
 //!
 //! The malloc doctrine (user directive): the mirror is one real
-//! cudaHostAlloc of the ring's slot bytes; if it fails, the transport
+//! cudaHostAlloc of the table's slot bytes; if it fails, the transport
 //! cannot exist and the error is loud -- there is no constant-derived
-//! bound anywhere. A single launch whose table exceeds the whole ring
-//! (more chunk slots than the pow2 ring holds) is an invariant
+//! bound anywhere. A single launch whose table exceeds the whole table
+//! (more chunk slots than the pow2 table holds) is an invariant
 //! violation (rule 11): the wrapper aborts.
-struct RingTables;
+struct LaunchTables;
 
-struct ChunkPtrRing
+struct ChunkPtrTable
 {
-    /*! Ring capacity in pointer slots (8 MiB at 8 bytes per slot).
+    /*! Table capacity in pointer slots (8 MiB at 8 bytes per slot).
      * INVARIANT (user directive, 2026-10-18): the slot capacity is a
      * COMPILE-TIME POWER OF TWO, and every effective capacity (the test
      * hook below may only shrink it to another power of two) stays a
-     * power of two -- the cursor/wrap arithmetic may rely on it. This is
-     * the ring's slot capacity only; per-tile chunk counts stay exactly
-     * what they are (per-tile, arbitrary, tails included). */
-    static constexpr std::size_t kChunkPtrRingSlots = std::size_t{1} << 20;
+     * power of two. This is the table's slot capacity only; per-tile
+     * chunk counts stay exactly what they are (per-tile, arbitrary,
+     * tails included). */
+    static constexpr std::size_t kChunkPtrTableSlots = std::size_t{1} << 20;
     static constexpr std::size_t kChunkPtrBytes = sizeof(void *);
-    static constexpr std::size_t kChunkPtrRingBytes =
-        kChunkPtrRingSlots * kChunkPtrBytes;
+    static constexpr std::size_t kChunkPtrTableBytes =
+        kChunkPtrTableSlots * kChunkPtrBytes;
 
     char *dev = nullptr;
     void **host = nullptr; //!< pinned mirror, same slot indexing as dev
     std::size_t cursor = 0; //!< next free slot (host and dev in lockstep)
-    std::size_t capacity = kChunkPtrRingSlots; //!< slots (test hook may shrink)
-    std::size_t wraps = 0; //!< reclamations performed (diagnostic)
+    std::size_t capacity = kChunkPtrTableSlots; //!< slots (test hook may shrink)
+    std::size_t rewinds = 0; //!< reclamations performed (diagnostic)
     cudaStream_t stream = nullptr; //!< the kernel execution (compute) stream
     /*! (user directives 2026-10-19; event-ordered revision after the
      * pair-1 measurement) The CONTROL stream: chunk-pointer H2D rides
@@ -401,23 +405,23 @@ struct ChunkPtrRing
      * chunk gaps 689 us vs 354-501 in every prior traced run, ~0.7 s
      * per traced loop). Host-side table building also proceeds into
      * the append-only mirror while prior kernels fly; only the rare
-     * build-time wrap still synchronizes. */
+     * build-time rewind still synchronizes. */
     cudaStream_t control = nullptr;
     cudaEvent_t ready_ev = nullptr; //!< fires when the latest table copy lands
-    cudaEvent_t wrap_ev = nullptr; //!< behind the latest table-reading kernel
+    cudaEvent_t rewind_ev = nullptr; //!< behind the latest table-reading kernel
     bool ev_recorded = false;
 
-    /*! Test hook: NNHAUL_CHUNK_RING_SLOTS shrinks the ring so the wrap/
-     * reclaim path can be exercised on hardware whose VRAM cannot fill
-     * the default 2^20-slot ring. POW2 ONLY (the capacity invariant
-     * above): a non-power-of-two value warns once and is ignored, so
-     * the invariant cannot be violated even under test. Default stays
-     * kChunkPtrRingSlots. Read ONCE per process (piece 3): the stress
-     * checks set it at main() start. */
-    std::size_t ring_capacity() const noexcept
+    /*! Test hook: NNHAUL_CHUNK_TABLE_SLOTS shrinks the table so the
+     * rewind/reclaim path can be exercised on hardware whose VRAM
+     * cannot fill the default 2^20-slot table. POW2 ONLY (the capacity
+     * invariant above): a non-power-of-two value warns once and is
+     * ignored, so the invariant cannot be violated even under test.
+     * Default stays kChunkPtrTableSlots. Read ONCE per process
+     * (piece 3): the stress checks set it at main() start. */
+    std::size_t table_capacity() const noexcept
     {
         static std::size_t const cached = [] {
-            char const *e = std::getenv("NNHAUL_CHUNK_RING_SLOTS");
+            char const *e = std::getenv("NNHAUL_CHUNK_TABLE_SLOTS");
             if(e != nullptr)
             {
                 long v = std::atol(e);
@@ -429,12 +433,12 @@ struct ChunkPtrRing
                     return static_cast<std::size_t>(v);
                 }
                 std::fprintf(stderr,
-                    "nntile chunk_units: NNHAUL_CHUNK_RING_SLOTS=%s is not "
+                    "nntile chunk_units: NNHAUL_CHUNK_TABLE_SLOTS=%s is not "
                     "a positive power of two; keeping %zu slots\n",
                     e,
-                    kChunkPtrRingSlots);
+                    kChunkPtrTableSlots);
             }
-            return kChunkPtrRingSlots;
+            return kChunkPtrTableSlots;
         }();
         return cached;
     }
@@ -444,7 +448,7 @@ struct ChunkPtrRing
      * transport exists; failure is a loud error, not a fallback). */
     bool ensure_host()
     {
-        capacity = ring_capacity();
+        capacity = table_capacity();
         if(host != nullptr)
         {
             return true;
@@ -463,33 +467,34 @@ struct ChunkPtrRing
         return true;
     }
 
-    //! Ensure the ring exists and remember this instance's compute stream.
-    //! Returns false on allocation failure (the caller aborts: rule 11).
+    //! Ensure the table exists and remember this instance's compute
+    //! stream. Returns false on allocation failure (the caller aborts:
+    //! rule 11).
     bool begin(cudaStream_t s)
     {
         stream = s;
-        capacity = ring_capacity();
+        capacity = table_capacity();
         if(dev == nullptr)
         {
             if(cudaMalloc(reinterpret_cast<void **>(&dev),
-                kChunkPtrRingBytes) != cudaSuccess)
+                kChunkPtrTableBytes) != cudaSuccess)
             {
-                std::fprintf(stderr, "nntile chunk_units: chunk-ptr ring "
-                    "cudaMalloc(%zu) failed\n", kChunkPtrRingBytes);
+                std::fprintf(stderr, "nntile chunk_units: chunk-ptr table "
+                    "cudaMalloc(%zu) failed\n", kChunkPtrTableBytes);
                 return false;
             }
         }
-        if(wrap_ev == nullptr)
+        if(rewind_ev == nullptr)
         {
-            // (critic C6, 2026-10-19) FATAL: wrap_now() rewinds the
+            // (critic C6, 2026-10-19) FATAL: rewind_now() restarts the
             // cursor under the assumption this event exists -- without
-            // it a wrap would silently overwrite slots a queued kernel
+            // it a rewind would silently overwrite slots a queued kernel
             // may still read.
-            if(cudaEventCreateWithFlags(&wrap_ev, cudaEventDisableTiming)
+            if(cudaEventCreateWithFlags(&rewind_ev, cudaEventDisableTiming)
                 != cudaSuccess)
             {
-                std::fprintf(stderr, "nntile chunk_units: wrap event "
-                    "create failed; refusing to run without wrap "
+                std::fprintf(stderr, "nntile chunk_units: rewind event "
+                    "create failed; refusing to run without rewind "
                     "safety\n");
                 return false;
             }
@@ -514,24 +519,25 @@ struct ChunkPtrRing
         return true;
     }
 
-    /*! Wrap NOW: every H2D copy that reads slots [0, cursor) is ordered
-     * before the recorded copy event -- synchronize it, then rewind.
-     * Called at BUILD time by RingTables::reserve_more when a table
-     * would cross the physical end (the table must stay contiguous for
-     * its one memcpy and its kernel's linear indexing). */
-    void wrap_now()
+    /*! Rewind NOW: every H2D copy that reads slots [0, cursor) is
+     * ordered before the recorded copy event -- synchronize it, then
+     * restart the cursor at slot 0. Called at BUILD time by
+     * LaunchTables::reserve_more when a table would cross the physical
+     * end (the table must stay contiguous for its one memcpy and its
+     * kernel's linear indexing). */
+    void rewind_now()
     {
-        if(ev_recorded && wrap_ev != nullptr)
+        if(ev_recorded && rewind_ev != nullptr)
         {
-            cudaEventSynchronize(wrap_ev);
+            cudaEventSynchronize(rewind_ev);
         }
         cursor = 0;
-        ++wraps;
+        ++rewinds;
     }
 
-    /*! Core of the legacy single-table form (the ring stress check
+    /*! Core of the legacy single-table form (the table stress check
      * drives this one directly; drivers use the merged upload_tables).
-     * Wrap/reclaim and slot accounting as ever; the source is the
+     * Rewind/reclaim and slot accounting as ever; the source is the
      * caller's buffer. */
     void const *upload_bytes(void const *src, std::size_t n)
     {
@@ -541,20 +547,20 @@ struct ChunkPtrRing
         }
         if(cursor + n > capacity)
         {
-            wrap_now();
+            rewind_now();
         }
         std::size_t const off = cursor;
         if(cudaMemcpyAsync(dev + off * kChunkPtrBytes, src,
             n * kChunkPtrBytes, cudaMemcpyHostToDevice, stream) != cudaSuccess)
         {
-            std::fprintf(stderr, "nntile chunk_units: chunk-ptr ring "
+            std::fprintf(stderr, "nntile chunk_units: chunk-ptr table "
                 "cudaMemcpyAsync failed\n");
             return nullptr;
         }
         cursor += n;
-        if(wrap_ev != nullptr)
+        if(rewind_ev != nullptr)
         {
-            cudaEventRecord(wrap_ev, stream);
+            cudaEventRecord(rewind_ev, stream);
             ev_recorded = true;
         }
         return dev + off * kChunkPtrBytes;
@@ -566,17 +572,17 @@ struct ChunkPtrRing
     P const *upload(std::vector<P> const &ptrs)
     {
         static_assert(sizeof(P) == kChunkPtrBytes,
-            "ring slots are pointer-sized");
+            "table slots are pointer-sized");
         return reinterpret_cast<P const *>(
             upload_bytes(ptrs.data(), ptrs.size()));
     }
 
     /*! (piece E) ONE merged upload per launch: the operand tables of
-     * the whole launch, built by RingTables into the host mirror at the
-     * shared cursor, ride a single stream-ordered H2D copy into the
-     * same offset of the device ring. Defined after RingTables (it
+     * the whole launch, built by LaunchTables into the host mirror at
+     * the shared cursor, ride a single stream-ordered H2D copy into the
+     * same offset of the device table. Defined after LaunchTables (it
      * reads the builder's base/size). */
-    void const *upload_tables(RingTables &t);
+    void const *upload_tables(LaunchTables &t);
 
     //! Typed device view of the operand table that starts at slot offset
     //! `off` of an upload_tables range. P is the SLOT type: `const T *`
@@ -586,48 +592,49 @@ struct ChunkPtrRing
     static P const *table_view(void const *base, std::size_t off) noexcept
     {
         static_assert(sizeof(P) == kChunkPtrBytes,
-            "ring slots are pointer-sized");
+            "table slots are pointer-sized");
         return reinterpret_cast<P const *>(
             static_cast<char const *>(base) + off * kChunkPtrBytes);
     }
 
     /*! End-of-launch marker: records, on the COMPUTE stream, the event
-     * a future wrap waits on -- with table copies on the (event-ordered)
+     * a future rewind waits on -- with table copies on the (event-ordered)
      * control stream, this event behind the latest table-reading kernel
-     * is the only thing standing between a wrap's overwrite and a
+     * is the only thing standing between a rewind's overwrite and a
      * still-queued reader (stream order finishes every earlier kernel
      * first). */
     void end(cudaStream_t s)
     {
-        if(dev != nullptr && wrap_ev != nullptr)
+        if(dev != nullptr && rewind_ev != nullptr)
         {
-            cudaEventRecord(wrap_ev, s);
+            cudaEventRecord(rewind_ev, s);
             ev_recorded = true;
         }
     }
 };
 
-inline ChunkPtrRing &chunk_ptr_ring() noexcept
+inline ChunkPtrTable &chunk_ptr_table() noexcept
 {
     // Function-local static: one instance across all translation units that
     // include this header.
-    static ChunkPtrRing a;
+    static ChunkPtrTable a;
     return a;
 }
 
 /*! (piece 3, restructured piece E) Launch-scope builder of ONE merged
- * ring upload: each operand's chunk-pointer table is appended into the
+ * table upload: each operand's chunk-pointer table is appended into the
  * SHARED host mirror at the shared cursor (base + n), the whole
  * concatenation rides one cudaMemcpyAsync, and the kernel-visible bytes
  * and slot accounting are exactly the historical merged upload's.
  *
  * The builder keeps only two words of per-launch state: the base slot
  * (captured at clear()) and the running size. A table that would cross
- * the ring's physical end wraps AT BUILD TIME (the ring's one copy
- * event is synchronized, the cursor rewinds, and the few already-written
- * slots are moved to the new base) -- so the uploaded range is always
- * one contiguous slot range and the kernel keeps its linear indexing. */
-struct RingTables
+ * the table's physical end REWINDS AT BUILD TIME (the table's one copy
+ * event is synchronized, the cursor restarts at slot 0, and the few
+ * already-written slots are moved to the new base) -- so the uploaded
+ * range is always one contiguous slot range and the kernel keeps its
+ * linear indexing. */
+struct LaunchTables
 {
     static constexpr std::size_t kSlotBytes = sizeof(void *);
 
@@ -638,41 +645,41 @@ struct RingTables
     //! a failed cudaHostAlloc is a loud error -- there is no fallback).
     void clear() noexcept
     {
-        ChunkPtrRing &r = chunk_ptr_ring();
-        if(!r.ensure_host())
+        ChunkPtrTable &t = chunk_ptr_table();
+        if(!t.ensure_host())
         {
             std::abort();
         }
-        base = r.cursor;
+        base = t.cursor;
         n = 0;
     }
 
-    //! Room for k more slots of THIS launch, wrapping at build time when
-    //! the table would cross the ring's physical end. A table larger
-    //! than the WHOLE ring (more chunk slots than the pow2 ring holds)
+    //! Room for k more slots of THIS launch, rewinding at build time when
+    //! the table would cross the table's physical end. A table larger
+    //! than the WHOLE table (more chunk slots than the pow2 table holds)
     //! is an invariant violation (rule 11) and throws.
     void reserve_more(std::size_t k)
     {
-        ChunkPtrRing &r = chunk_ptr_ring();
-        if(n + k > r.capacity)
+        ChunkPtrTable &t = chunk_ptr_table();
+        if(n + k > t.capacity)
         {
             throw ::nnhaul::Error(
                 "nntile chunk_units: launch table of "
                 + std::to_string(n + k)
-                + " slots exceeds the whole chunk-ptr ring ("
-                + std::to_string(r.capacity)
+                + " slots exceeds the whole chunk-ptr table ("
+                + std::to_string(t.capacity)
                 + " slots; rule 11 -- no fallback exists)");
         }
-        if(base + n + k <= r.capacity)
+        if(base + n + k <= t.capacity)
         {
             return;
         }
         std::size_t const old_base = base;
-        r.wrap_now();
+        t.rewind_now();
         base = 0;
         if(n > 0 && old_base != 0)
         {
-            std::memmove(r.host, r.host + old_base, n * kSlotBytes);
+            std::memmove(t.host, t.host + old_base, n * kSlotBytes);
         }
     }
 
@@ -685,7 +692,7 @@ struct RingTables
     {
         std::size_t const off = n;
         reserve_more(cv.nchunks);
-        void **slots = chunk_ptr_ring().host + base;
+        void **slots = chunk_ptr_table().host + base;
         for(std::size_t c = 0; c < cv.nchunks; ++c)
         {
             slots[n++] = cv.ptr(c, 0);
@@ -699,12 +706,12 @@ struct RingTables
     std::size_t add(std::vector<P> const &ptrs)
     {
         static_assert(sizeof(P) == kSlotBytes,
-            "ring slots are pointer-sized");
+            "table slots are pointer-sized");
         std::size_t const off = n;
         reserve_more(ptrs.size());
         if(!ptrs.empty())
         {
-            std::memcpy(chunk_ptr_ring().host + base + n, ptrs.data(),
+            std::memcpy(chunk_ptr_table().host + base + n, ptrs.data(),
                 ptrs.size() * sizeof(P));
             n += ptrs.size();
         }
@@ -713,7 +720,7 @@ struct RingTables
 
     void const *staging_data() const noexcept
     {
-        return chunk_ptr_ring().host + base;
+        return chunk_ptr_table().host + base;
     }
     std::size_t size() const noexcept
     {
@@ -729,26 +736,26 @@ struct RingTables
  * cannot interleave. Two CUDA workers would build at the same base and
  * corrupt each other's tables -- the runtime forbids that today; this
  * is the transport's load-bearing assumption, stated here. */
-inline RingTables &ring_tables() noexcept
+inline LaunchTables &launch_tables() noexcept
 {
-    thread_local RingTables t;
+    thread_local LaunchTables t;
     return t;
 }
 
 /*! (piece E final form, user directive 2026-10-19: NO cache) The
  * merged upload: ONE cudaMemcpyAsync of the launch's table from the
- * pinned host mirror into the same offset of the device ring, ON THE
+ * pinned host mirror into the same offset of the device table, ON THE
  * CONTROL STREAM, ordered ahead of the kernel by cudaEventRecord +
  * cudaStreamWaitEvent -- the kernel cannot start before its table is
  * resident and the host never blocks; mirror slots stay append-only
- * until the build-time wrap. The cursor advances past
+ * until the build-time rewind. The cursor advances past
  * the table. Every launch uploads its pointers -- 8 bytes per 16 MB
- * chunk is noise -- and the 2^20-slot ring is the planning depth:
- * device slots are append-only until the (rare) build-time wrap
+ * chunk is noise -- and the 2^20-slot table is the planning depth:
+ * device slots are append-only until the (rare) build-time rewind
  * synchronizes end()'s compute-stream event (the last table-reading
- * kernel). A launch larger than the whole ring throws at build time
+ * kernel). A launch larger than the whole table throws at build time
  * (rule 11). */
-inline void const *ChunkPtrRing::upload_tables(RingTables &t)
+inline void const *ChunkPtrTable::upload_tables(LaunchTables &t)
 {
     std::size_t const n = t.size();
     if(n == 0 || n > capacity || dev == nullptr || control == nullptr
@@ -768,7 +775,7 @@ inline void const *ChunkPtrRing::upload_tables(RingTables &t)
     // The kernel enqueued next on the compute stream is ordered behind
     // the copy by ready_ev: it cannot start until its table is resident,
     // and the host never blocked. The mirror slots this table was built
-    // from are reused only after the wrap sync (append-only until then).
+    // from are reused only after the rewind sync (append-only until then).
     cursor = t.base + n;
     return dev + t.base * kChunkPtrBytes;
 }

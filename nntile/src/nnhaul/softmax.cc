@@ -246,33 +246,33 @@ void Softmax<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     }
     // Chunked single-launch path: whenever any operand is chunked, process
     // the WHOLE tensor with ONE chunk-aware kernel. The merged chunk
-    // base-pointer table rides the device ring (ONE control-stream copy
+    // base-pointer table rides the device table (ONE control-stream copy
     // per launch, event-ordered ahead of the kernel); the kernel reads
     // it per-thread by shift/mask. The elementwise formula is
     // byte-for-byte cuda()'s, so the result is bitwise cuda()'s. (The
     // historical piecewise fallback is DELETED -- rule 11; a launch the
-    // ring cannot serve aborts.)
+    // table cannot serve aborts.)
     chunkunits::ChunkView<T> const cv_mse(buf_mse);
     chunkunits::ChunkView<T> const cv_src(buf_src);
     chunkunits::ChunkView<T> const cv_dst(buf_dst);
     {
-        chunkunits::RingTables &tabs = chunkunits::ring_tables();
+        chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
         tabs.clear();
         std::size_t const o_mse_ptrs = tabs.add(cv_mse);
         std::size_t const o_src_ptrs = tabs.add(cv_src);
         std::size_t const o_dst_ptrs = tabs.add(cv_dst);
-        chunkunits::ChunkPtrRing &arena = chunkunits::chunk_ptr_ring();
+        chunkunits::ChunkPtrTable &arena = chunkunits::chunk_ptr_table();
         if(arena.begin(stream))
         {
-            void const *ring_base = arena.upload_tables(tabs);
-            if(ring_base != nullptr)
+            void const *table_base = arena.upload_tables(tabs);
+            if(table_base != nullptr)
             {
                 const T *const *mse_tab = arena.table_view<const T *>(
-                    ring_base, o_mse_ptrs);
+                    table_base, o_mse_ptrs);
                 const T *const *src_tab = arena.table_view<const T *>(
-                    ring_base, o_src_ptrs);
+                    table_base, o_src_ptrs);
                 T *const *dst_tab = arena.table_view<T *>(
-                    ring_base, o_dst_ptrs);
+                    table_base, o_dst_ptrs);
                 kernel::softmax::chunked<T>(stream, args->m, args->n,
                     args->k, mse_tab, Index(cv_mse.nchunks), src_tab,
                     Index(cv_src.nchunks), args->alpha, dst_tab,
@@ -284,11 +284,11 @@ void Softmax<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         }
     }
         // (rule 11, user directive 2026-10-19) There is no per-piece
-    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot ring
+    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot table
     // serve any launch up to a 16 TiB operand, so a failed upload is an
     // invariant violation, not a mode to stage around.
     std::fprintf(stderr,
-        "nntile_softmax: chunk-ptr ring cannot serve this launch (invariant "
+        "nntile_softmax: chunk-ptr table cannot serve this launch (invariant "
         "violation; the per-piece staging fallback was deleted by rule "
         "11)\n");
     std::abort();

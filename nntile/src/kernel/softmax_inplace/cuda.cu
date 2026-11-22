@@ -233,7 +233,7 @@ static __device__ __forceinline__ void smi_set(T *const *sh, Index elems,
 //! Chunk-aware elementwise softmax_inplace, one contiguous span of `span`
 //! elements per block, with the block's maxsumexp pairs read once into shared
 //! memory (see the softmax kernel). Piece 9 (rule 10): the chunk-pointer
-//! tables are read straight from the device ring (no staging, no table
+//! tables are read straight from the device table (no staging, no table
 //! __syncthreads); the dynamic shared memory carries ONLY the per-row
 //! (max, sum) pairs, whose barrier is algorithmic. Bitwise cuda()'s result.
 template<typename T>
@@ -300,7 +300,7 @@ void chunked_cuda_kernel_staged(SoftmaxInplaceChunkTables<T> t, long total,
 //! dst_block), with the chunk pointers resolved by a per-thread SEGMENT
 //! WALK in registers: each (block, row) 256-element run of the middle
 //! axis either lies inside one dst chunk (the common case -- its base
-//! pointer is resolved by ONE ring-table read per (thread, row) and the
+//! pointer is resolved by ONE chunk-table read per (thread, row) and the
 //! hot loops then address it exactly like the classic kernel's dst_fiber)
 //! or the block falls to the per-element chunk-resolved path (only the
 //! one block per row whose run actually contains a chunk boundary).
@@ -345,7 +345,7 @@ void chunked_cuda_kernel_m1(SoftmaxInplaceChunkTables<T> t)
         if((dst_block_j+1)*BLOCK_COL <= n)
         {
             // dst segment walk: run base per (row) in registers, one
-            // ring-table read per row; strad flags the (rare) block whose
+            // chunk-table read per row; strad flags the (rare) block whose
             // run crosses a chunk boundary.
             bool strad = false;
             long const mmask = (1LL << t.shift_dst) - 1;
@@ -414,7 +414,7 @@ void chunked_cuda_kernel_m1(SoftmaxInplaceChunkTables<T> t)
 
 //! Fallback chunk-aware elementwise softmax_inplace (grid-stride): reads the
 //! mse pair per element; used only for shapes whose per-block unit span would
-//! not fit shared memory. Piece 9 (rule 10): direct ring reads.
+//! not fit shared memory. Piece 9 (rule 10): direct table reads.
 template<typename T>
 static __global__
 void chunked_cuda_kernel_naive(SoftmaxInplaceChunkTables<T> t, long total)

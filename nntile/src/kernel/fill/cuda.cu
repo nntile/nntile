@@ -49,7 +49,7 @@ void cuda(cudaStream_t stream, Index nelems, Scalar val, T *data)
 template<typename T>
 struct ChunkTables
 {
-    T *const* data; //!< device-ring view of the data pointer array
+    T *const* data; //!< device-table view of the data pointer array
     Index ndata;
     Index elems_data; //!< elements in a full data chunk
     int shift_data; //!< class shift (multi-chunk) or the 62 single-chunk sentinel
@@ -75,7 +75,7 @@ static __device__ __forceinline__ void fill_store(fp32_t *p, fp32_t v)
 
 //! Chunk-aware fill: the SAME flat thread mapping (i = tid + bid*256) and
 //! the SAME per-element store as cuda_kernel, with the destination address
-//! resolved through its chunk table read straight from the device ring
+//! resolved through its chunk table read straight from the device table
 //! (piece 9 / rule 10: no staging, no table __syncthreads). The result
 //! is bitwise cuda()'s.
 //!
@@ -83,7 +83,7 @@ static __device__ __forceinline__ void fill_store(fp32_t *p, fp32_t v)
 //! case: full chunks hold 2^20 elements, a multiple of the block size)
 //! resolves its chunk base ONCE per block -- the sgd_step pattern -- so
 //! the per-element address work is the classic kernel's own one IMAD and
-//! the ring table is read one pointer per block, not per element.
+//! the table table is read one pointer per block, not per element.
 //! Straddling windows (only possible inside the short tail chunk of a
 //! non-full allocation) resolve every element through the table directly.
 template<typename T>
@@ -117,7 +117,7 @@ void chunked_cuda_kernel(Index nelems, Scalar val_, ChunkTables<T> t)
 
 //! Single-chunk fill (both the whole range and its own table's chunk 0):
 //! the classic kernel's statement stream with the base pointer resolved
-//! through ONE ring-table load issued as the very first statement (via
+//! through ONE chunk-table load issued as the very first statement (via
 //! the read-only data path: the table is never written by this kernel),
 //! so the launch floor pays exactly one dependent load and nothing else.
 //! The fill value arrives pre-converted to the representation type
