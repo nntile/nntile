@@ -10,9 +10,14 @@
 
 #include <mutex>
 #include <stdexcept>
+#include <cstdlib>
 
 #include <nntile/context.hh>
 #include <nntile/defs.h>
+
+#ifdef NNTILE_USE_NNHAUL
+#include <nntile/nnhaul/chunk_gate.hh>
+#endif
 
 #ifndef NNTILE_USE_NNHAUL
 #include <starpu.h>
@@ -22,6 +27,32 @@
 
 namespace torch_nntile
 {
+
+void apply_torch_session_chunk_policy()
+{
+#ifdef NNTILE_USE_NNHAUL
+    // A torch_nntile session may lower torch_dispatch ops (TILE_TORCH_*),
+    // which consume tiles through contiguous torch tensors and cannot
+    // read a chunk chain — the process-wide session law in
+    // nntile/nnhaul/chunk_gate.hh. Flip the chunked-tile gate OFF at
+    // session start, BEFORE the first tile allocates: the gate flip
+    // inside Runtime::compile only affects future allocations, so a
+    // session that allocates tiles before its first torch-op graph
+    // compiles would hit the compile-time guard even with that flip
+    // working as designed (torch_nntile sessions always mix classic and
+    // torch ops on the same tiles, so chunking must be off for the
+    // WHOLE session). An explicitly set NNHAUL_CHUNK_TILES pins the
+    // session's choice (=0 unchunked from the start, =1 chunked for
+    // classic-only sessions that never record torch ops — a torch-op
+    // graph plus chunked tiles still fails loudly at compile); the
+    // default (unset) is unchunked for torch_nntile.
+    if (std::getenv("NNHAUL_CHUNK_TILES") == nullptr
+        && ::nntile::haul::tile_chunking_enabled())
+    {
+        ::nntile::haul::set_tile_chunking(false);
+    }
+#endif
+}
 
 bool built_with_cuda()
 {
@@ -61,6 +92,7 @@ void create_context_locked()
         return;
     }
     g_context_config_locked = true;
+    apply_torch_session_chunk_policy();
     g_context = std::make_unique<nntile::Context>(
         g_context_config.ncpu,
         g_context_config.ncuda,

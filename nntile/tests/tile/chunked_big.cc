@@ -121,7 +121,10 @@ void run_big_tile_chunked_graph()
         nbytes_big / (sizeof(float) * static_cast<std::size_t>(m)));
     REQUIRE(sizeof(float) * m * k == nbytes_big);
 
-    bool const chunking_off = false; // one class: every tile is chunked
+    // NNHAUL_CHUNK_TILES is live again as the tile-handle chunking
+    // knob (see nntile/nnhaul/chunk_gate.hh): with =0 the engagement
+    // assertions are vacuous (handles are flat by construction).
+    bool const chunking_off = !::nntile::haul::tile_chunking_enabled();
     if (chunking_off)
     {
         std::cout << "chunked_big: NNHAUL_CHUNK_TILES=0 - engagement "

@@ -1,5 +1,6 @@
 set(NNHAUL_CODELET_SRC
     "nnhaul/sync_defer.cc"
+    "nnhaul/chunk_gate.cc"
     "nnhaul/accumulate.cc"
     "nnhaul/accumulate_hypot.cc"
     "nnhaul/accumulate_maxsumexp.cc"

@@ -3,6 +3,9 @@
  *                 2023-present Artificial Intelligence Research Institute
  *                              (AIRI), Russia. All rights reserved.
  *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
  * @file include/nntile/nnhaul/chunk_gate.hh
  * Process-wide gate for chunked tile allocation in the NNHaul build.
  *
@@ -12,8 +15,6 @@
 #pragma once
 
 #ifdef NNTILE_USE_NNHAUL
-
-#include <atomic>
 
 namespace nntile::haul
 {
@@ -30,26 +31,25 @@ namespace nntile::haul
  * that is why the throw, not a silent flip, is the guard). The gate is
  * process-wide on purpose: torch_nntile mixes classic and torch ops on
  * the same tiles within one session, so chunking must be off for all
- * graphs of that session. The env knob NNHAUL_CHUNK_TILES=0 forces
- * unchunked handles (the one-class law has no such arm) regardless of
- * this gate.
+ * graphs of that session. The law is ONE-DIRECTIONAL at runtime: a
+ * torch-op graph (or the torch_nntile session policy) turns chunking
+ * off for the rest of the process, and nothing turns it back on.
+ * The env knob NNHAUL_CHUNK_TILES initializes the gate instead:
+ * =0 (strictly parsed, whole value) starts the process with unchunked
+ * handles; any nonzero value pins chunked handles on; unset keeps the
+ * chunked default for classic sessions and the torch_nntile session
+ * policy decides for torch sessions.
+ *
+ * Out-of-line ON PURPOSE (defined in nnhaul/chunk_gate.cc): the flag
+ * must be ONE process-wide instance. An inline function-local static
+ * gives every shared library that inlines it its own copy - a flip
+ * inside torch_nntile's extension module would then never reach the
+ * copy Tile::alloc_handle reads in libnntile.
  * */
-inline std::atomic<bool> &tile_chunking_flag() noexcept
-{
-    static std::atomic<bool> flag{true};
-    return flag;
-}
-
-inline bool tile_chunking_enabled() noexcept
-{
-    return tile_chunking_flag().load(std::memory_order_relaxed);
-}
+bool tile_chunking_enabled() noexcept;
 
 //! Set the chunked-tile allocation gate (see tile_chunking_enabled()).
-inline void set_tile_chunking(bool on) noexcept
-{
-    tile_chunking_flag().store(on, std::memory_order_relaxed);
-}
+void set_tile_chunking(bool on) noexcept;
 
 } // namespace nntile::haul
 

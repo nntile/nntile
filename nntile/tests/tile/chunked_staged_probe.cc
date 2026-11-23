@@ -306,14 +306,16 @@ std::uint64_t run_mixed_chain(bool print)
 TEST_CASE("probe b: mixed chain bitwise vs contiguous mode",
     "[chunked][probe]")
 {
-    // RETIRED PREMISE: the child-side knob NNHAUL_CHUNK_TILES=0 is
-    // dead — the plan engine always uses the compile-time chunk class
-    // and prints a retirement warning where the child's RESULT parsing
-    // looked, so the "contiguous mode" half of the comparison no
-    // longer exists. Chunked-vs-classic parity is enforced in-process
-    // by chunked_ab (and probe a's reference check). Skipped, not red.
-    SKIP("NNHAUL_CHUNK_TILES=0 is retired: no contiguous-mode child "
-         "exists under the plan engine");
+    // RETIRED PREMISE: the ENGINE-level contiguous mode this probe
+    // compared against no longer exists — the plan engine always uses
+    // the compile-time chunk class. (NNHAUL_CHUNK_TILES is live again
+    // as NNTILE's tile-handle chunking knob — see nntile/nnhaul/
+    // chunk_gate.hh — but it only selects flat tile handles, not the
+    // engine-level contiguous operation the child mode asserted.)
+    // Chunked-vs-classic parity is enforced in-process by chunked_ab
+    // (and probe a's reference check). Skipped, not red.
+    SKIP("engine-level contiguous mode retired: compile-time chunk "
+         "class; NNHAUL_CHUNK_TILES now governs tile handles only");
 }
 #if 0 // retired child-mode body, kept for reference
     char self_buf[4096];
@@ -517,11 +519,13 @@ namespace
 TEST_CASE("probe e: gemm-only chain bitwise vs contiguous mode",
     "[chunked][probe]")
 {
-    // RETIRED PREMISE (same as probe b): NNHAUL_CHUNK_TILES=0 is dead,
-    // no contiguous-mode child exists. The gemm-native/staged counter
-    // assertions live on in probe a; skipped, not red.
-    SKIP("NNHAUL_CHUNK_TILES=0 is retired: no contiguous-mode child "
-         "exists under the plan engine");
+    // RETIRED PREMISE (same as probe b): the engine-level
+    // contiguous-mode child no longer exists (compile-time chunk
+    // class; NNHAUL_CHUNK_TILES now governs nntile tile handles only).
+    // The gemm-native/staged counter assertions live on in probe a;
+    // skipped, not red.
+    SKIP("engine-level contiguous mode retired: compile-time chunk "
+         "class; NNHAUL_CHUNK_TILES now governs tile handles only");
 #if 0 // retired child-mode body, kept for reference
     char const *mode = ::getenv("NNHAUL_CHUNK_TILES");
     bool const is_child = mode != nullptr && std::strcmp(mode, "0") == 0;
@@ -636,10 +640,11 @@ TEST_CASE("probe d: torch op plus chunked tiles throws at compile",
         Runtime runtime(classic);
         runtime.compile();
     }
-    if (false) // one class: every tile is chunked
+    if (!::nntile::haul::tile_chunking_enabled())
     {
-        // NNHAUL_CHUNK_TILES=0: chunked tiles cannot exist, the
-        // forbidden combination is unreachable by construction.
+        // NNHAUL_CHUNK_TILES=0: chunked tile handles cannot exist, the
+        // forbidden combination is unreachable by construction (the
+        // knob is live again — see nntile/nnhaul/chunk_gate.hh).
         SUCCEED("chunking disabled: gate combination unreachable");
         return;
     }
