@@ -179,7 +179,26 @@ if(NOT HAVE_STARPU_SIMGRID)
         # every GEMM keeps the workspace-staged cuBLAS path -- and drops
         # this tree's heaviest translation unit from the build.
         if(USE_CHUNKED_GEMM)
-            list(APPEND KERNEL_CUDA_SRC "kernel/gemm_chunked/cuda.cu")
+            list(APPEND KERNEL_CUDA_SRC "kernel/gemm_chunked/cuda.cu"
+                "kernel/gemm_chunked/gemm_chunked_ext.cu")
+            # Extension pieces of the family (gemm_chunked_ext.hh): every
+            # translation unit in ext/ is one piece, registered by its file
+            # name in a generated pieces.inc. A new piece is a new file and
+            # nothing else; the glob re-runs on every build.
+            file(GLOB GEMM_CHUNKED_EXT_PIECES CONFIGURE_DEPENDS
+                "${CMAKE_CURRENT_SOURCE_DIR}/kernel/gemm_chunked/ext/*.cu")
+            set(GEMM_CHUNKED_EXT_PIECE_LINES "")
+            foreach(piece IN LISTS GEMM_CHUNKED_EXT_PIECES)
+                get_filename_component(piece_name "${piece}" NAME_WE)
+                file(RELATIVE_PATH piece "${CMAKE_CURRENT_SOURCE_DIR}"
+                    "${piece}")
+                list(APPEND KERNEL_CUDA_SRC "${piece}")
+                string(APPEND GEMM_CHUNKED_EXT_PIECE_LINES
+                    "GEMM_CHUNKED_EXT_PIECE(${piece_name})\n")
+            endforeach()
+            configure_file("kernel/gemm_chunked/pieces.inc.in"
+                "${CMAKE_BINARY_DIR}/include/nntile/kernel/gemm_chunked/pieces.inc"
+                @ONLY)
         else()
             list(APPEND KERNEL_CPU_SRC "kernel/gemm_chunked/stub.cc")
         endif()

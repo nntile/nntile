@@ -1,0 +1,148 @@
+/*! @copyright (c) 2026-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file src/kernel/gemm_chunked/ext/<name>.cu
+ * <One paragraph: the shapes and layouts this piece serves, and how.>
+ *
+ * @version 1.0.0
+ * */
+
+// Corresponding header
+#include "../gemm_chunked_ext.hh"
+
+#ifdef NNTILE_USE_CUDA
+
+// Third-party headers: the bridge header relies on these (as cuda.cu
+// includes them); CUTLASS 2.11 is on this directory's include path.
+#include <cutlass/gemm/device/gemm.h>
+#include <cutlass/gemm/device/gemm_splitk_parallel.h>
+
+// The chunk-table-aware SIMT mainloop
+#include "../gemm_chunked_bridge.cuh"
+
+namespace nntile::kernel::gemm_chunked
+{
+
+namespace ext
+{
+
+namespace
+{
+
+//! This piece's configuration ids, local to it (the dispatcher adds its
+//! base before handing the id out).
+constexpr int kCfgExample = 0;
+
+using RM = cutlass::layout::RowMajor;
+using CM = cutlass::layout::ColumnMajor;
+
+//! An example: the plain bridge (CUTLASS 2.11 SIMT fp32, threadblock
+//! 128x128x8, warp 32x64x8, 2 stages) with per-operand addressing.
+template <typename LA, typename LB, int ACA, int ACB>
+using Example = cutlass::gemm::device::GemmBridge<float,
+    LA,
+    float,
+    LB,
+    float,
+    RM,
+    float,
+    cutlass::arch::OpClassSimt,
+    cutlass::arch::Sm50,
+    cutlass::gemm::GemmShape<128, 128, 8>,
+    cutlass::gemm::GemmShape<32, 64, 8>,
+    cutlass::gemm::GemmShape<1, 1, 1>,
+    cutlass::epilogue::thread::LinearCombination<float, 1, float, float>,
+    cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<>,
+    2,
+    ACA,
+    ACB>;
+
+template <typename G> bool run(const Call &call, cudaStream_t stream) noexcept
+{
+    using LA = typename G::LayoutA;
+    using LB = typename G::LayoutB;
+    typename G::Arguments args;
+    args.problem_size = cutlass::gemm::GemmCoord(call.m, call.n, call.k);
+    args.ref_A = {
+        static_cast<float const *>(call.a), LA::packed({call.m, call.k})};
+    args.ref_B = {
+        static_cast<float const *>(call.b), LB::packed({call.k, call.n})};
+    args.ref_C = {
+        static_cast<float const *>(call.c), RM::packed({call.m, call.n})};
+    args.ref_D = {static_cast<float *>(call.c), RM::packed({call.m, call.n})};
+    args.epilogue =
+        typename G::EpilogueOutputOp::Params(call.alpha, call.beta);
+    args.shift_A = call.a_shift;
+    args.shift_B = call.b_shift;
+    args.shift_C = call.c_shift;
+    args.shift_D = call.c_shift;
+    G gemm;
+    return gemm.initialize(args, nullptr, stream) ==
+               cutlass::Status::kSuccess &&
+           gemm.run(stream) == cutlass::Status::kSuccess;
+}
+
+} // namespace
+
+int TEMPLATE_pick(int base, const Call &call) noexcept
+{
+    // Claim exactly the calls this piece serves: shape (call.m, call.n,
+    // call.k, call.ta, call.tb) and layout (a_shift, b_shift, c_shift:
+    // 0 is a flat operand, anything else a chunk table).
+    (void) base;
+    (void) call;
+    return -1;
+}
+
+const char *TEMPLATE_name(int cfg) noexcept
+{
+    switch (cfg)
+    {
+    case kCfgExample:
+        return "chunked-ext-TEMPLATE-example";
+    }
+    return "chunked-ext-TEMPLATE-?";
+}
+
+bool TEMPLATE_launch(int cfg, const Call &call, cudaStream_t stream) noexcept
+{
+    if (cfg != kCfgExample || call.batch != 1 || call.m % 128 != 0 ||
+        call.n % 128 != 0 || call.k % 128 != 0)
+    {
+        return false;
+    }
+    // A flat operand is shift 0; anything else is a chunk table.
+    int const ac_a = call.a_shift == 0 ? 0 : 1;
+    int const ac_b = call.b_shift == 0 ? 0 : 1;
+    int const ci =
+        (static_cast<int>(call.ta) << 1) | static_cast<int>(call.tb);
+#define TEMPLATE_RUN4(LA, LB, ACA, ACB)                                       \
+    switch (ci)                                                               \
+    {                                                                         \
+    case 0:                                                                   \
+        return run<Example<LA, LB, ACA, ACB>>(call, stream);                  \
+    case 1:                                                                   \
+        return run<Example<LA, CM, ACA, ACB>>(call, stream);                  \
+    case 2:                                                                   \
+        return run<Example<CM, LB, ACA, ACB>>(call, stream);                  \
+    default:                                                                  \
+        return run<Example<CM, CM, ACA, ACB>>(call, stream);                  \
+    }
+    if (ac_a == 0 && ac_b == 0)
+    {
+        TEMPLATE_RUN4(RM, RM, 0, 0)
+    }
+    return false;
+#undef TEMPLATE_RUN4
+}
+
+} // namespace ext
+
+} // namespace nntile::kernel::gemm_chunked
+
+#endif // NNTILE_USE_CUDA

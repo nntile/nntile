@@ -20,6 +20,9 @@
 
 #ifdef NNTILE_USE_CUDA
 
+// Extension pieces of the family (their own translation units)
+#include "gemm_chunked_ext.hh"
+
 // Standard libraries
 #include <cstdio>
 
@@ -6178,6 +6181,17 @@ int forced_cfg() noexcept
     return cached;
 }
 
+//! Diagnostic hook: NNHAUL_GEMM_CHUNKED_TRACE (any value) makes
+//! launch_forced() name the configuration it runs, one stderr line per
+//! call. Read once per process; unset, nothing is printed.
+bool trace_forced() noexcept
+{
+    static bool const cached = [] {
+        return std::getenv("NNHAUL_GEMM_CHUNKED_TRACE") != nullptr;
+    }();
+    return cached;
+}
+
 //! The shape-driven picker. v1 policy: the 8x16 config owns every
 //! supported shape (half the shared-memory traffic per FMA of the 8x8
 //! baseline); the thin-panel 8x16x16 variant wins on small-k shapes
@@ -6551,6 +6565,10 @@ const char *pick_name(Op transA, Op transB, int m, int n, int k,
     int const cfg = forced_cfg() >= 0 ? forced_cfg()
                                       : pick_cfg(transA, transB, m, n, k,
                                             batch);
+    if(cfg >= ext::kFirstCfg)
+    {
+        return ext::name(cfg);
+    }
     switch(cfg)
     {
         case kCfgA88:
@@ -7959,7 +7977,47 @@ bool launch_forced(Op transA, Op transB, int m, int n, int k, int batch,
     p.sc = stride_c;
     p.alpha = alpha;
     p.beta = beta;
-    int const cfg = pick_cfg_best(transA, transB, m, n, k, batch);
+    // An extension piece claims a call (shape and layout) ahead of the
+    // core rules: the pieces serve only what they measured
+    // (gemm_chunked_ext.hh).
+    ext::Call const call{transA,
+        transB,
+        a.ptr,
+        a.shift,
+        b.ptr,
+        b.shift,
+        const_cast<void *>(c.ptr),
+        c.shift,
+        m,
+        n,
+        k,
+        batch,
+        stride_a,
+        stride_b,
+        stride_c,
+        alpha,
+        beta};
+    int const ext_cfg = ext::pick(call);
+    int const cfg = ext_cfg >= 0
+        ? ext_cfg
+        : pick_cfg_best(transA, transB, m, n, k, batch);
+    bool const trace = trace_forced();
+    if(trace)
+    {
+        std::fprintf(stderr,
+            "gemm_chunked forced ta=%d tb=%d m=%d n=%d k=%d batch=%d "
+            "shifts=%d/%d/%d pick=%d\n",
+            static_cast<int>(transA),
+            static_cast<int>(transB),
+            m,
+            n,
+            k,
+            batch,
+            a.shift,
+            b.shift,
+            c.shift,
+            cfg);
+    }
     //! [owner directive, 2026-11-12] FORCED must do the same things no
     //!  matter how the chunks are laid: the union router's pick is
     //!  shape-driven but its launcher can decline a layout (the mixed
@@ -7974,6 +8032,10 @@ bool launch_forced(Op transA, Op transB, int m, int n, int k, int batch,
     {
         return true;
     }
+    if(trace)
+    {
+        std::fprintf(stderr, "gemm_chunked forced: pick %d declined\n", cfg);
+    }
     if(cfg != kCfgBridge
         && launch_with_cfg(kCfgBridge, transA, transB, p, stream))
     {
@@ -7984,6 +8046,10 @@ bool launch_forced(Op transA, Op transB, int m, int n, int k, int batch,
     {
         return true;
     }
+    if(trace)
+    {
+        std::fprintf(stderr, "gemm_chunked forced: declined\n");
+    }
     return false;
 }
 
@@ -7992,6 +8058,13 @@ bool launch_forced(Op transA, Op transB, int m, int n, int k, int batch,
 bool launch_with_cfg(int cfg, Op transA, Op transB, Params &p,
     cudaStream_t stream) noexcept
 {
+    if(cfg >= ext::kFirstCfg)
+    {
+        ext::Call const call{transA, transB, p.a, p.a_shift, p.b, p.b_shift,
+            p.c, p.c_shift, p.m, p.n, p.k, p.batch, p.sa, p.sb, p.sc,
+            p.alpha, p.beta};
+        return ext::launch(cfg, call, stream);
+    }
     int const ta = static_cast<int>(transA);
     int const tb = static_cast<int>(transB);
     switch(cfg)
