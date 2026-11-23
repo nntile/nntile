@@ -67,7 +67,7 @@ inline constexpr std::size_t kChunkClassBytes = ::nnhaul::kChunkClassBytes;
 //! op must go through its chunked kernel, and the flag-on training run
 //! itself then proves zero classic dispatches by surviving. (rule 11,
 //! 2026-10-19: the structural-overflow table fallthrough no longer exists
-//! -- a launch the table cannot serve aborts; every wrapper passes false.)
+//! -- a structurally oversized launch aborts; every wrapper passes false.)
 //! Unconditional: no env gate. Compiles to nothing when the flag is off.
 inline void classic_dispatch_tripwire(char const *op, bool table_overflow)
     noexcept
@@ -319,15 +319,20 @@ struct ArenaCuda
 //! offloaded and prefetched between two uses changes its chunk addresses,
 //! so the earlier kernel would dereference the later use's pointers).
 //!
-//! The table lives in device memory, is read-only to kernels, and is
-//! written BEFORE the launch with a stream-ordered `cudaMemcpyAsync` on
-//! the SAME compute stream the kernel runs on. Stream order then makes
-//! reuse safe by construction: a later upload into a slot executes after
-//! every earlier kernel on that stream (so the earlier kernel has already
-//! read the slot). The upload is enqueued immediately before the kernel
-//! and there is no cross-stream dependency: the data manager's
-//! offload/prefetch work rides its own copy streams and never touches the
-//! table, only the chunk data blocks the kernel reads.
+//! The table lives in device memory and is read-only to kernels. Each
+//! launch's table is written BEFORE the launch: built in a pinned host
+//! mirror, then copied by ONE `cudaMemcpyAsync` into the same offset of
+//! the device table on the dedicated CONTROL stream, and ordered ahead
+//! of the kernel by an EVENT (record + compute-stream wait) -- the host
+//! takes no per-launch wait (the piece-E paragraph below has the
+//! details). Slot reuse is safe because slots are APPEND-ONLY: nothing
+//! overwrites a slot until a rewind, and a rewind first waits for the
+//! event recorded after the latest table-reading kernel, so every kernel
+//! that reads the old slots has finished before slot 0 is reused. (Only
+//! the legacy single-table form `upload_bytes` still copies on the
+//! compute stream itself, where stream order alone suffices.) The data
+//! manager's offload/prefetch work rides its own copy streams and never
+//! touches the table, only the chunk data blocks the kernel reads.
 //!
 //! The table is NOT a ring: it is a plain array of slots with an append
 //! cursor, and a launch's operand tables are always ONE CONTIGUOUS slot
@@ -343,9 +348,11 @@ struct ArenaCuda
 //! event, in stream order, is after every earlier kernel) and REWINDS:
 //! the cursor restarts from slot 0 of the same array. The one structural
 //! case the table refuses is a single launch whose pointer set exceeds
-//! kChunkPtrTableSlots even when empty: `upload` returns
-//! nullptr -- rule 11 (2026-10-19): callers ABORT; no per-piece driver
-//! exists anywhere.
+//! kChunkPtrTableSlots even when empty: LaunchTables::reserve_more
+//! throws while that launch's table is being built, before anything is
+//! uploaded (rule 11, 2026-10-19) -- no fallback driver is taken for an
+//! oversized launch, and the noexcept codelet body terminates on the
+//! throw. upload_tables guards the same condition by returning nullptr.
 //! (piece E, user directives 2026-10-19) The table is ONE table on each
 //! side of the bus: the device table (kChunkPtrTableSlots pow2 slots, the
 //! historical transport) and a PINNED HOST MIRROR with the SAME slot
