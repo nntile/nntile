@@ -40,6 +40,15 @@ if(USE_CHUNKED_GEMM)
     list(APPEND TESTS "gemm_chunked")
 endif()
 
+# The GPT-2 GEMM route benchmark (cublas vs staged vs chunked) is a manual
+# tool, not a ctest entry: bench_gemm_chunked_gpt2 [class_mib,...]
+# [tokens,...] [models,...]. It links the family like the kernel test.
+if(USE_CHUNKED_GEMM)
+    add_executable(bench_gemm_chunked_gpt2 gemm_chunked_gpt2_bench.cc)
+    target_link_libraries(bench_gemm_chunked_gpt2 PRIVATE nntile::nntile
+        $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>)
+endif()
+
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED
     "conv2d_bwd_input_inplace"
