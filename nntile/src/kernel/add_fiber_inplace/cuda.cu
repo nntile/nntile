@@ -99,8 +99,8 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch,
 template<typename T>
 struct AddFiberInplaceChunkTables
 {
-    const T* const* src; //!< device-ring view of the src pointer array
-    T* const* dst; //!< device-ring view of the dst pointer array
+    const T* const* src; //!< device-table view of the src pointer array
+    T* const* dst; //!< device-table view of the dst pointer array
     bool one_s; //!< src is a single chunk (chunk 0 for every element)
     bool one_d; //!< dst is a single chunk
     int shift_src; //!< log2 of src full-chunk elems (62 if one chunk)
@@ -125,8 +125,8 @@ static __device__ __forceinline__ double adfbi_fma(double a, double b,
 }
 
 //! Chunked add_fiber_inplace with every operand inside its chunk 0 (each
-//! ring holds one chunk, so every flat offset is a plain element offset
-//! of ring[0]).  Geometry matches cuda(): thread .x walks the contiguous
+//! table holds one chunk, so every flat offset is a plain element offset
+//! of table[0]).  Geometry matches cuda(): thread .x walks the contiguous
 //! i2 fiber (the src mode), blockIdx.y is i0 and blockIdx.z walks the
 //! i1 rows with a grid stride so any m/n fits; each thread loops over
 //! batch with all invariants hoisted, so the inner loop is pointer
@@ -191,7 +191,7 @@ void chunked_cuda_kernel_one(AddFiberInplaceOneChunk<T> t)
 }
 
 //! Chunked add_fiber_inplace with m == 1, k a multiple of 4 and every
-//! operand inside its chunk 0 (each ring holds one chunk).  m == 1 makes
+//! operand inside its chunk 0 (each table holds one chunk).  m == 1 makes
 //! the i2 fiber the contiguous mode, so a thread can own one aligned quad
 //! of 4 consecutive elements and move 16 bytes per load/store instead
 //! of 4 -- a quarter of the memory instructions of the scalar walk for
@@ -247,7 +247,7 @@ void chunked_cuda_kernel_one_v4(AddFiberInplaceOneChunk<T> t)
 //! chunks.  Same geometry as chunked_cuda_kernel_one, but each element's
 //! chunk is resolved from its flat offset by a pure shift/mask on the
 //! chunk class (never a runtime division) and the chunk base is read
-//! from the ring; per-thread invariants -- the hoisted chunk-0 bases,
+//! from the table; per-thread invariants -- the hoisted chunk-0 bases,
 //! the batch-stride, the src step and the shift/mask constants -- stay
 //! out of the inner loop.  dst is read and written in place, once per
 //! element, by its sole owning thread.  Same per-element expression as
@@ -283,7 +283,7 @@ void chunked_cuda_kernel_many(AddFiberInplaceChunkTables<T> t)
             {
                 // A single-chunk operand keeps its hoisted chunk-0
                 // base; a multi-chunk one reads the chunk base from the
-                // ring.
+                // table.
                 const T * const ps = t.one_s ? ps_0
                     : t.src[Index(f1 >> t.shift_src)];
                 Y const sv = static_cast<Y>(ps[f1 & ms]);
@@ -314,7 +314,7 @@ void chunked(cudaStream_t stream, Index m, Index n, Index k, Index batch,
     // is i0 and blockIdx.z walks the i1 rows (grid-stride, so any m/n
     // fits).  Each thread then loops over batch with every chunk and
     // stride invariant hoisted, which is what closes the gap to cuda()
-    // on the GPT-2 shapes -- the generic path paid two ring-table
+    // on the GPT-2 shapes -- the generic path paid two chunk-table
     // loads plus the shift/mask chunk resolution per element.
     int const tx = int(k < 1024 ? k : 1024);
     dim3 threads(tx, 1, 1);
@@ -359,7 +359,7 @@ void chunked(cudaStream_t stream, Index m, Index n, Index k, Index batch,
     {
         // Every operand inside its chunk 0 (any tensor below the chunk
         // class, e.g. every GPT-2 add_fiber_inplace call): the minimal
-        // pointer-bump kernel, cuda()'s inner loop plus two ring
+        // pointer-bump kernel, cuda()'s inner loop plus two table
         // dereferences per thread.
         AddFiberInplaceOneChunk<T> t;
         t.src = src_chunks;

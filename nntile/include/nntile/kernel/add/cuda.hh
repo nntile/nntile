@@ -32,7 +32,7 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *src1,
  * shorter tail on the last chunk). The whole addition is issued as ONE
  * kernel launch: each operand's chunk base-pointer table is a host array in
  * device-resident memory (built by the driver through the shared
- * ChunkPtrRing) whose device-ring view travels as `src1_chunks`, and each
+ * ChunkPtrTable) whose device-table view travels as `src1_chunks`, and each
  * block stages it into shared memory once. Every element derives its chunk
  * index from its own flat offset (chunk = offset / elems, in-chunk offset =
  * offset % elems; a shift/mask on the compile-time chunk class; a single-chunk operand uses the sentinel shift 62 so there is no runtime-divisor path). The chunked

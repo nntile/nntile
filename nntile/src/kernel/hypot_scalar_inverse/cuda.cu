@@ -65,7 +65,7 @@ void cuda(cudaStream_t stream, Index nelems, Scalar eps, Scalar alpha, T *dst)
 template<typename T>
 struct ChunkTables
 {
-    T *const* dst; //!< device-ring view of the dst pointer array
+    T *const* dst; //!< device-table view of the dst pointer array
     Index ndst;
     Index elems_dst; //!< elements in a full dst chunk
     int shift_dst; //!< class shift (multi-chunk) or the 62 single-chunk sentinel
@@ -82,7 +82,7 @@ static __device__ __forceinline__ long hsi_chunk_index(long f, Index elems,
 //! (i = tid + bid*256) and the SAME per-element expression (copied
 //! verbatim from cuda_kernel; hypot is a call, so there is no
 //! FMA-contraction freedom) with the destination address resolved through
-//! its chunk table read straight from the device ring (piece 9 / rule
+//! its chunk table read straight from the device table (piece 9 / rule
 //! 10: no staging, no table __syncthreads). The result is bitwise
 //! cuda()'s.
 template<typename T>
@@ -105,7 +105,7 @@ void chunked_cuda_kernel(Index nelems, Scalar eps_, Scalar alpha_,
 
 //! Single-chunk hypot_scalar_inverse (the whole range is chunk 0 of its
 //! table): the classic kernel's statement stream verbatim with the base
-//! pointer resolved through ONE ring-table load issued as the very first
+//! pointer resolved through ONE chunk-table load issued as the very first
 //! statement (via the read-only data path: the table is never written by
 //! this kernel), so the launch-floor shapes run the shortest possible
 //! instruction stream for this API -- one dependent table load on the

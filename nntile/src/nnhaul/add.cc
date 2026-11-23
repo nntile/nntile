@@ -106,7 +106,7 @@ void Add<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Chunked single-launch path: when at least one operand is chunked, issue the WHOLE flat addition as ONE
     // chunk-aware kernel instead of the per-piece walk's launches. The chunk
     // base-pointer tables are built on the host from the ChunkViews and
-    // parked in the shared device chunk-ptr ring; the
+    // parked in the shared device chunk-ptr table; the
     // kernel reads the table per-thread by shift/mask (rule 10: no smem staging). No chunk-count cap.
     // Elements are independent and the expression is identical, so the
     // result is cuda()'s bitwise. The all-unchunked case and a failed table
@@ -124,10 +124,10 @@ void Add<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
                 // Piece C (2026-10-18c): the all-1-chunk degenerate
                 // launch is the FIRST thing the chunked block does --
                 // the chunk counts are read straight off the buffers,
-                // before any ChunkView/RingTables work exists, so the
+                // before any ChunkView/LaunchTables work exists, so the
                 // degenerate host path is as lean as the classic
                 // dispatch above (gemm path-F precedent; launch
-                // pointer-identical, bitwise by construction, ring
+                // pointer-identical, bitwise by construction, table
                 // untouched).
                 kernel::add::cuda<T>(stream, args->nelems, args->alpha,
                     buf_src1->get_ptr<T>(), args->beta, buf_src2->get_ptr<T>(), buf_dst->get_ptr<T>());
@@ -136,23 +136,23 @@ void Add<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
             chunkunits::ChunkView<T> const cv1(buf_src1);
             chunkunits::ChunkView<T> const cv2(buf_src2);
             chunkunits::ChunkView<T> const cvd(buf_dst);
-            chunkunits::RingTables &tabs = chunkunits::ring_tables();
+            chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
             tabs.clear();
             std::size_t const o_p1 = tabs.add(cv1);
             std::size_t const o_p2 = tabs.add(cv2);
             std::size_t const o_pd = tabs.add(cvd);
-            chunkunits::ChunkPtrRing &arena =
-                chunkunits::chunk_ptr_ring();
+            chunkunits::ChunkPtrTable &arena =
+                chunkunits::chunk_ptr_table();
             if(arena.begin(stream))
             {
-                void const *ring_base = arena.upload_tables(tabs);
-                if(ring_base != nullptr)
+                void const *table_base = arena.upload_tables(tabs);
+                if(table_base != nullptr)
                 {
                     const T *const *t1 = arena.table_view<const T *>(
-                        ring_base, o_p1);
+                        table_base, o_p1);
                     const T *const *t2 = arena.table_view<const T *>(
-                        ring_base, o_p2);
-                    T *const *td = arena.table_view<T *>(ring_base, o_pd);
+                        table_base, o_p2);
+                    T *const *td = arena.table_view<T *>(table_base, o_pd);
                     kernel::add::chunked<T>(
                         stream,
                         args->nelems,
@@ -171,11 +171,11 @@ void Add<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
                     return;
                 }
                     // (rule 11, user directive 2026-10-19) There is no per-piece
-                    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot ring
+                    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot table
                     // serve any launch up to a 16 TiB operand, so a failed upload is an
                     // invariant violation, not a mode to stage around.
                     std::fprintf(stderr,
-                        "nntile_add: chunk-ptr ring cannot serve this launch (invariant "
+                        "nntile_add: chunk-ptr table cannot serve this launch (invariant "
                         "violation; the per-piece staging fallback was deleted by rule "
                         "11)\n");
                     std::abort();

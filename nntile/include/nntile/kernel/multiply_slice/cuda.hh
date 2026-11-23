@@ -34,7 +34,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
  * are backed by a chain of equal-size chunk allocations (a shorter tail on
  * the last chunk). The WHOLE region is issued as ONE kernel launch: the two
  * chunk base-pointer tables are host arrays in device-resident memory
- * (built by the driver through the device chunk-ptr ring) whose UVA device
+ * (built by the driver through the device chunk-ptr table) whose UVA device
  * views travel as `src_chunks`/`dst_chunks`, and each block stages them into
  * shared memory once. Each element resolves its src chunk from its flat slice
  * offset f = i0 + m*i1 via f / elems_src, f % elems_src and its dst chunk

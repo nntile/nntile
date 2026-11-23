@@ -152,7 +152,7 @@ Context::Context(
         // 90% of the free VRAM MINUS the workspace size, so the arena
         // can never starve those cudaMallocs (before this, the 90%
         // arena left an uncapped init failing on its own workspace or
-        // on nntile's 8-MiB chunk-pointer ring).
+        // on nntile's 8-MiB chunk-pointer table).
         std::size_t workspace_bytes = std::size_t{1024} << 20;
         if (char const *ws = std::getenv("NNHAUL_WORKSPACE_MB"))
         {

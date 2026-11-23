@@ -27,7 +27,7 @@ void cuda(cudaStream_t stream, Index nelems, const T *maxsumexp, T *logsumexp)
 
 //! Logsumexp over chunked buffers on CUDA (ONE launch)
 /*! maxsumexp is addressed as 2*nelems elements and logsumexp as nelems,
- * each through its own device-ring chunk table. */
+ * each through its own device-table chunk table. */
 template<typename T>
 void chunked(cudaStream_t stream, Index nelems,
         const T* const* maxsumexp_chunks, Index nmse,

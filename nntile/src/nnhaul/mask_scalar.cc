@@ -41,7 +41,7 @@ namespace
  * NNHAUL_BODY_DIAG discipline, ONE representative wrapper): with
  * NNHAUL_RING_DIAG=1 in the environment, every chunked mask instance
  * records steady-clock section times of the merged-table host work --
- * (1) staging build (clear + the operand adds) and (2) the ring upload
+ * (1) staging build (clear + the operand adds) and (2) the table upload
  * (begin + upload_tables, i.e. the single H2D copy) -- and the
  * process-exit summary prints medians/tails. This is the instrument the
  * piece-3 pinned-vs-pageable decision was measured with (an
@@ -87,7 +87,7 @@ struct RingDiag
             return;
         }
         std::printf("NNHAUL_RING_DIAG mask_scalar host sections "
-            "(build = staging clear+adds; up = ring begin + ONE merged "
+            "(build = staging clear+adds; up = table begin + ONE merged "
             "upload):\n");
         dump("build", build_ns);
         dump("up", up_ns);
@@ -312,11 +312,11 @@ void MaskScalar<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     }
     // Chunked single-launch path: the WHOLE region is issued as ONE
     // chunk-aware kernel, elementwise and bitwise the whole-buffer call.
-    // Transport: the device chunk-pointer ring is the only regime.
+    // Transport: the device chunk-pointer table is the only regime.
     {
         chunkunits::ChunkView<T> const cv_data(buf_data);
         chunkunits::ChunkView<nntile::bool_t> const cv_mask(buf_mask);
-        chunkunits::RingTables &tabs = chunkunits::ring_tables();
+        chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
         RingDiag &rdiag = ring_diag();
         std::chrono::steady_clock::time_point dt0, dt1;
         if(rdiag.on)
@@ -326,15 +326,15 @@ void MaskScalar<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         tabs.clear();
         std::size_t const o_data_ptrs = tabs.add(cv_data);
         std::size_t const o_mask_ptrs = tabs.add(cv_mask);
-        chunkunits::ChunkPtrRing &arena = chunkunits::chunk_ptr_ring();
+        chunkunits::ChunkPtrTable &arena = chunkunits::chunk_ptr_table();
         if(arena.begin(stream))
         {
             if(rdiag.on)
             {
                 dt1 = std::chrono::steady_clock::now();
             }
-            void const *ring_base = arena.upload_tables(tabs);
-            if(ring_base != nullptr)
+            void const *table_base = arena.upload_tables(tabs);
+            if(table_base != nullptr)
             {
                 if(rdiag.on)
                 {
@@ -347,9 +347,9 @@ void MaskScalar<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
                             .count());
                 }
                 T *const *data_tab = arena.table_view<T *>(
-                    ring_base, o_data_ptrs);
+                    table_base, o_data_ptrs);
                 const nntile::bool_t *const *mask_tab = arena.table_view<const nntile::bool_t *>(
-                    ring_base, o_mask_ptrs);
+                    table_base, o_mask_ptrs);
                 kernel::mask_scalar::chunked<T>(
                     stream,
                     args->nrows,
@@ -367,11 +367,11 @@ void MaskScalar<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         }
     }
         // (rule 11, user directive 2026-10-19) There is no per-piece
-    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot ring
+    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot table
     // serve any launch up to a 16 TiB operand, so a failed upload is an
     // invariant violation, not a mode to stage around.
     std::fprintf(stderr,
-        "nntile_mask_scalar: chunk-ptr ring cannot serve this launch (invariant "
+        "nntile_mask_scalar: chunk-ptr table cannot serve this launch (invariant "
         "violation; the per-piece staging fallback was deleted by rule "
         "11)\n");
     std::abort();

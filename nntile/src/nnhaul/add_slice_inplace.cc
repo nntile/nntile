@@ -225,7 +225,7 @@ void AddSliceInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Chunked single-launch path: ONE chunk-aware kernel over the whole
     // (m, n, k) range instead of the per-piece driver's launches. The chunk
     // base-pointer tables are built on the host and parked in the shared
-    // device chunk-ptr ring (no chunk-count cap); the
+    // device chunk-ptr table (no chunk-count cap); the
     // kernel reads the table per-thread by shift/mask (rule 10: no smem staging). Elements are
     // independent and the expression (including the m == 1 case) is
     // identical, so the result is cuda()'s bitwise. The piece driver below
@@ -234,10 +234,10 @@ void AddSliceInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Piece C (2026-10-18c): the all-1-chunk degenerate launch is
     // the FIRST thing the chunked block does -- the chunk counts are
     // read straight off the buffers, before any
-    // ChunkView/UnitSpan/RingTables work exists, so the degenerate
+    // ChunkView/UnitSpan/LaunchTables work exists, so the degenerate
     // host path is as lean as the classic dispatch above (gemm
     // path-F precedent; launch pointer-identical, bitwise by
-    // construction, ring untouched).
+    // construction, table untouched).
     if(args->m > 0 && args->n > 0 && args->k > 0
         && buf_src->chunk_count() == 1
         && buf_dst->chunk_count() == 1)
@@ -251,19 +251,19 @@ void AddSliceInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     chunkunits::ChunkView<T> const cv_dst(buf_dst);
     if(args->m > 0 && args->n > 0 && args->k > 0)
     {
-        chunkunits::RingTables &tabs = chunkunits::ring_tables();
+        chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
         tabs.clear();
         std::size_t const o_ps = tabs.add(cv_src);
         std::size_t const o_pd = tabs.add(cv_dst);
-        chunkunits::ChunkPtrRing &arena = chunkunits::chunk_ptr_ring();
+        chunkunits::ChunkPtrTable &arena = chunkunits::chunk_ptr_table();
         if(arena.begin(stream))
         {
-            void const *ring_base = arena.upload_tables(tabs);
-            if(ring_base != nullptr)
+            void const *table_base = arena.upload_tables(tabs);
+            if(table_base != nullptr)
             {
                 const T *const *ts = arena.table_view<const T *>(
-                    ring_base, o_ps);
-                T *const *td = arena.table_view<T *>(ring_base, o_pd);
+                    table_base, o_ps);
+                T *const *td = arena.table_view<T *>(table_base, o_pd);
                 kernel::add_slice_inplace::chunked<T>(
                     stream,
                     args->m,
@@ -283,11 +283,11 @@ void AddSliceInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         }
     }
         // (rule 11, user directive 2026-10-19) There is no per-piece
-    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot ring
+    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot table
     // serve any launch up to a 16 TiB operand, so a failed upload is an
     // invariant violation, not a mode to stage around.
     std::fprintf(stderr,
-        "nntile_add_slice_inplace: chunk-ptr ring cannot serve this launch (invariant "
+        "nntile_add_slice_inplace: chunk-ptr table cannot serve this launch (invariant "
         "violation; the per-piece staging fallback was deleted by rule "
         "11)\n");
     std::abort();

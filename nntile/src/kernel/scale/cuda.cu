@@ -65,9 +65,9 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *src_,
 template<typename T>
 struct ChunkTables
 {
-    const T *const* src; //!< device-ring view of the src pointer array
+    const T *const* src; //!< device-table view of the src pointer array
     Index nsrc;
-    T *const* dst; //!< device-ring view of the dst pointer array
+    T *const* dst; //!< device-table view of the dst pointer array
     Index ndst;
     Index elems_src; //!< elements in a full src chunk
     Index elems_dst; //!< elements in a full dst chunk
@@ -85,7 +85,7 @@ static __device__ __forceinline__ long scale_chunk_index(long f, Index elems,
 //! Chunk-aware scale: the SAME flat thread mapping (i = tid + bid*256)
 //! and the SAME per-element expression (a single multiply, so there is
 //! no FMA-contraction freedom) as cuda_kernel, with every operand address
-//! resolved through its chunk table read straight from the device ring
+//! resolved through its chunk table read straight from the device table
 //! (piece 9 / rule 10: no shared-memory staging, no table __syncthreads;
 //! the table is a handful of L1-resident entries). The result is bitwise
 //! cuda()'s.

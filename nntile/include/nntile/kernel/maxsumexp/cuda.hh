@@ -50,7 +50,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *src,
 /*! Same operation and arithmetic order as cuda() above, but the src and
  * maxsumexp flat ranges are backed by chains of equal-size chunks. Each
  * operand's chunk base-pointer table is built by the driver through the
- * device chunk-ptr ring and travels as `*_chunks`. Every fiber
+ * device chunk-ptr table and travels as `*_chunks`. Every fiber
  * element resolves its chunk from its flat offset (chunk = offset / elems,
  * in-chunk offset = offset % elems; shift/mask on a power-of-two elems).
  * The per-thread reduction partition, the max/atomicAdd combine and the

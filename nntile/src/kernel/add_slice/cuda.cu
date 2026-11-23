@@ -93,11 +93,11 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
 template<typename T>
 struct AddSliceChunkTables
 {
-    const T* const* src1; //!< device-ring view of the src1 pointer array
+    const T* const* src1; //!< device-table view of the src1 pointer array
     Index nsrc1;
-    const T* const* src2; //!< device-ring view of the src2 pointer array
+    const T* const* src2; //!< device-table view of the src2 pointer array
     Index nsrc2;
-    T* const* dst; //!< device-ring view of the dst pointer array
+    T* const* dst; //!< device-table view of the dst pointer array
     Index ndst;
     Index elems_src1; //!< elements in a full src1 chunk
     Index elems_src2; //!< elements in a full src2 chunk
@@ -170,14 +170,14 @@ void chunked_cuda_kernel(AddSliceChunkTables<T> t)
     }
 }
 
-//! Chunked add_slice with every operand inside its chunk 0 (each ring
+//! Chunked add_slice with every operand inside its chunk 0 (each table
 //! holds one chunk, i.e. any contiguous buffer below the chunk class).
 //! The three chunk-0 bases are resolved once per thread (warp-uniform
 //! loads hoisted out of the address arithmetic) and the body is
 //! cuda_kernel's verbatim -- same (i0, i1, i2) thread geometry, same
 //! per-element expression and therefore the same float association
 //! nvcc chose for cuda() -- so the per-element instruction stream
-//! matches the classic kernel's and the per-element ring loads and
+//! matches the classic kernel's and the per-element table loads and
 //! shift/mask of the multi-chunk walk are gone.
 template<typename T>
 static __global__
@@ -266,13 +266,13 @@ void chunked(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
     }
     if(nsrc1 == 1 and nsrc2 == 1 and ndst == 1)
     {
-        // Every operand inside its chunk 0 (each ring holds one chunk,
+        // Every operand inside its chunk 0 (each table holds one chunk,
         // i.e. any contiguous buffer below the chunk class, e.g. every
         // GPT-2 add_slice call).  The m == 1 shape with a 4-multiple k
         // and a 4-byte element type takes the quad walk over the flat
         // space (n is the grid's row dimension, capped by the CUDA
         // limit of 65535 blocks in y); anything else takes the classic
-        // body over the ring[0] bases, resolved once per thread.
+        // body over the table[0] bases, resolved once per thread.
         if constexpr(sizeof(T) == 4)
         {
             if(m == 1 and (k & 3) == 0 and n <= 65535)

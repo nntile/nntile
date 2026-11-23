@@ -162,9 +162,9 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
 template<typename T>
 struct AddSliceInplaceChunkTables
 {
-    const T* const* src; //!< device-ring view of the src pointer array
+    const T* const* src; //!< device-table view of the src pointer array
     Index nsrc;
-    T* const* dst; //!< device-ring view of the dst pointer array
+    T* const* dst; //!< device-table view of the dst pointer array
     Index ndst;
     Index elems_src; //!< elements in a full src chunk
     Index elems_dst; //!< elements in a full dst chunk

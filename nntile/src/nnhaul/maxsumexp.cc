@@ -254,20 +254,20 @@ void MaxSumExp<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         // launch now, so there is no host-side panel list and no third
         // table -- the merged upload is just (src | dst).
         // ONE merged table (src | dst) in the reusable thread-local
-        // staging, ONE ring upload per launch.
-        chunkunits::RingTables &tabs = chunkunits::ring_tables();
+        // staging, ONE table upload per launch.
+        chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
         tabs.clear();
         std::size_t const o_src = tabs.add(cv_src);
         std::size_t const o_dst = tabs.add(cv_dst);
-        chunkunits::ChunkPtrRing &ring = chunkunits::chunk_ptr_ring();
-        if(ring.begin(stream))
+        chunkunits::ChunkPtrTable &table = chunkunits::chunk_ptr_table();
+        if(table.begin(stream))
         {
-            void const *ring_base = ring.upload_tables(tabs);
-            if(ring_base != nullptr)
+            void const *table_base = table.upload_tables(tabs);
+            if(table_base != nullptr)
             {
-                const T *const *tps = ring.table_view<const T *>(ring_base,
+                const T *const *tps = table.table_view<const T *>(table_base,
                     o_src);
-                T *const *tpd = ring.table_view<T *>(ring_base, o_dst);
+                T *const *tpd = table.table_view<T *>(table_base, o_dst);
                 kernel::maxsumexp::chunked<T>(
                     stream,
                     args->m,
@@ -282,17 +282,17 @@ void MaxSumExp<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
                     Index(cv_dst.chunk_elems),
                     long(cv_src.total_elems),
                     long(cv_dst.total_elems));
-                ring.end(stream);
+                table.end(stream);
                 return;
             }
         }
     }
         // (rule 11, user directive 2026-10-19) There is no per-piece
-    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot ring
+    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot table
     // serve any launch up to a 16 TiB operand, so a failed upload is an
     // invariant violation, not a mode to stage around.
     std::fprintf(stderr,
-        "nntile_maxsumexp: chunk-ptr ring cannot serve this launch (invariant "
+        "nntile_maxsumexp: chunk-ptr table cannot serve this launch (invariant "
         "violation; the per-piece staging fallback was deleted by rule "
         "11)\n");
     std::abort();

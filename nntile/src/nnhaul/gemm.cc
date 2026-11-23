@@ -76,7 +76,7 @@ Gemm<std::tuple<T>>::Gemm():
 //         is gathered from its chunk chain into one contiguous
 //         workspace slot, the WHOLE gather being ONE fused kernel
 //         launch (segments [A bytes][B bytes][C bytes?], the chunk
-//         tables riding the device chunk-ptr ring as one merged
+//         tables riding the device chunk-ptr table as one merged
 //         launch table); contiguous operands pass to cuBLAS directly
 //         (their leading chunk IS the classic base) and are never
 //         staged; a scattered C always takes a workspace slot for the
@@ -99,7 +99,7 @@ Gemm<std::tuple<T>>::Gemm():
 // padded to the fused kernel's 16-byte unit) must fit the workspace or
 // the driver THROWS nnhaul::Error -- no fallback exists (rule 11). The
 // NNHAUL_GEMM_WORKSPACE_BYTES env hook (read once per process, like
-// the ring's hooks) shrinks the workspace so a check can exercise the
+// the table's hooks) shrinks the workspace so a check can exercise the
 // throw cheaply.
 //
 // What this mechanism REPLACED (deleted 2026-10-19, ~690 lines): the
@@ -376,10 +376,10 @@ void gemm_workspace_staged(cublasHandle_t handle, TransOp transA,
             + " bytes) for " + need);
     }
     // (2) one merged chunk-ptr table for every staged operand, on the
-    // ring (the event-ordered control-stream upload lives inside
+    // table (the event-ordered control-stream upload lives inside
     // upload_tables; only table bytes ride it -- never workspace
     // memory).
-    chunkunits::RingTables &tabs = chunkunits::ring_tables();
+    chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
     tabs.clear();
     std::size_t slot_off[3] = {0, 0, 0};
     if(stage_a)
@@ -394,18 +394,18 @@ void gemm_workspace_staged(cublasHandle_t handle, TransOp transA,
     {
         slot_off[2] = tabs.add(cvC);
     }
-    chunkunits::ChunkPtrRing &ring = chunkunits::chunk_ptr_ring();
-    if(!ring.begin(stream))
+    chunkunits::ChunkPtrTable &table = chunkunits::chunk_ptr_table();
+    if(!table.begin(stream))
     {
         std::fprintf(stderr,
-            "nntile_gemm: chunk-ptr ring init failed (rule 11 -- no "
+            "nntile_gemm: chunk-ptr table init failed (rule 11 -- no "
             "fallback exists)\n");
         std::abort();
     }
-    // (3, user directive 2026-10-19: reuse the SCALABLE ring-table
+    // (3, user directive 2026-10-19: reuse the SCALABLE chunk-table
     // kernel) The staging IS kernel::copy::chunked -- the proven
     // one-launch chunked->chunked flat copy every other op uses. Each
-    // staged operand's workspace slot rides the SAME merged ring upload
+    // staged operand's workspace slot rides the SAME merged table upload
     // as a 1-entry table (the starting point + element count interface;
     // the 1-chunk sentinel shift makes the whole workspace one chunk).
     // The earlier gemm-local fused kernel (and its StagePlan parameter
@@ -435,26 +435,26 @@ void gemm_workspace_staged(cublasHandle_t handle, TransOp transA,
         ws_off[2] = ws_slots(2);
     }
     // ONE merged upload: operand tables + workspace slots.
-    void const *ring_base = ring.upload_tables(tabs);
-    if(ring_base == nullptr)
+    void const *table_base = table.upload_tables(tabs);
+    if(table_base == nullptr)
     {
         std::fprintf(stderr,
-            "nntile_gemm: chunk-ptr ring cannot serve the launch (rule "
+            "nntile_gemm: chunk-ptr table cannot serve the launch (rule "
             "11 -- no fallback exists)\n");
         std::abort();
     }
     // ONE gather call for ALL staged input operands: the segments ride
-    // distinct ring-table slices but a single kernel launch (grid.y
+    // distinct chunk-table slices but a single kernel launch (grid.y
     // selects the segment, so no flat-range stitching and no per-operand
     // launch).
     kernel::copy::Segment segs[3];
     int nseg = 0;
     auto add_segment = [&](int i, ::nnhaul::Buffer *buf) {
         kernel::copy::Segment &g = segs[nseg++];
-        g.src = ring.table_view<const unsigned char *>(ring_base,
+        g.src = table.table_view<const unsigned char *>(table_base,
             slot_off[i]);
         g.nsrc = Index(buf->chunk_count());
-        g.dst = ring.table_view<unsigned char *>(ring_base, ws_off[i]);
+        g.dst = table.table_view<unsigned char *>(table_base, ws_off[i]);
         g.ndst = Index(seg_nchunk[i]);
         g.nbytes = Index(buf->nbytes());
         g.elems_src = Index(chunkunits::kChunkClassBytes);
@@ -495,14 +495,14 @@ void gemm_workspace_staged(cublasHandle_t handle, TransOp transA,
         kernel::copy::chunked(
             stream,
             Index(bufC->nbytes()),
-            ring.table_view<const unsigned char *>(ring_base, ws_off[2]),
+            table.table_view<const unsigned char *>(table_base, ws_off[2]),
             Index(seg_nchunk[2]),
-            ring.table_view<unsigned char *>(ring_base, slot_off[2]),
+            table.table_view<unsigned char *>(table_base, slot_off[2]),
             Index(bufC->chunk_count()),
             Index(chunkunits::kChunkClassBytes),
             Index(chunkunits::kChunkClassBytes));
     }
-    ring.end(stream);
+    table.end(stream);
     if(gemm_stats())
     {
         std::fprintf(stderr,

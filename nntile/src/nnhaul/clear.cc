@@ -94,31 +94,31 @@ void Clear::cuda(void *buffers[], void *cl_args)
                 return;
             }
             chunkunits::ChunkView<unsigned char> const cvd(buf_data);
-            chunkunits::RingTables &tabs = chunkunits::ring_tables();
+            chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
             tabs.clear();
             std::size_t const o_pd = tabs.add(cvd);
-            chunkunits::ChunkPtrRing &ring = chunkunits::chunk_ptr_ring();
-            if(ring.begin(stream))
+            chunkunits::ChunkPtrTable &table = chunkunits::chunk_ptr_table();
+            if(table.begin(stream))
             {
-                void const *ring_base = ring.upload_tables(tabs);
-                if(ring_base != nullptr)
+                void const *table_base = table.upload_tables(tabs);
+                if(table_base != nullptr)
                 {
                     unsigned char *const *td =
-                        ring.table_view<unsigned char *>(ring_base, o_pd);
+                        table.table_view<unsigned char *>(table_base, o_pd);
                     kernel::clear::chunked(stream, Index(nbytes), td,
                         Index(cvd.nchunks), Index(cvd.chunk_elems));
-                    ring.end(stream);
+                    table.end(stream);
                     return;
                 }
                 // (rule 11) No per-piece fallback exists: a launch the
-                // ring cannot serve is an invariant violation.
+                // table cannot serve is an invariant violation.
                 std::fprintf(stderr,
-                    "nntile_clear: chunk-ptr ring cannot serve this "
+                    "nntile_clear: chunk-ptr table cannot serve this "
                     "launch (invariant violation; rule 11)\n");
                 std::abort();
             }
             std::fprintf(stderr,
-                "nntile_clear: chunk-ptr ring init failed (rule 11)\n");
+                "nntile_clear: chunk-ptr table init failed (rule 11)\n");
             std::abort();
         }
         if(nbytes > 0)

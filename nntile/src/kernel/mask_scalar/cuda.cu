@@ -79,7 +79,7 @@ void cuda(cudaStream_t stream, Index nrows, Index ncols, const bool_t *mask_,
 
 //! Chunk-aware mask-scalar kernel: EXACTLY the classic cuda_kernel2's
 //! generated code shape, with the two operands addressed through their
-//! device-ring chunk tables. The parity-relevant facts (all verified in
+//! device chunk tables. The parity-relevant facts (all verified in
 //! SASS): (1) the classic kernel stages the row-mask byte into shared
 //! memory but never READS the staged value (its branch re-reads
 //! mask[global_i] from global), so nvcc's dead-store elimination
@@ -120,7 +120,7 @@ void cuda(cudaStream_t stream, Index nrows, Index ncols, const bool_t *mask_,
 //! slot is ever read, even when the last column step overshoots the
 //! buffer). U32 selects the 32-bit walk (host-guaranteed by
 //! nrows*ncols < 2^32); U32=false keeps 64-bit flat offsets for
-//! arbitrarily large tiles (the ring's no-cap contract). The stores
+//! arbitrarily large tiles (the table's no-cap contract). The stores
 //! are the classic's idempotent conditional val assignments to the
 //! classic's exact element set in the classic's exact order, so the
 //! result is bitwise the whole-buffer cuda() call's, in-place dst
@@ -358,7 +358,7 @@ static void launch_mask_chunked(cudaStream_t stream, Index nrows,
 }
 
 //! Chunked mask_scalar with the base-pointer tables in the device
-//! chunk-pointer ring (no chunk-count cap; the caller supplies a device view).
+//! chunk-pointer table (no chunk-count cap; the caller supplies a device view).
 template<typename T>
 void chunked(cudaStream_t stream, Index nrows, Index ncols, Scalar val,
     T *const *data_chunks, Index ndata, Index elems_data,

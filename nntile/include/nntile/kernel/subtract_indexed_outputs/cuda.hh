@@ -29,7 +29,7 @@ void cuda(cudaStream_t stream, Index n_labels, Index n_outputs, Index ignore_ind
 /*! Same operation as cuda() above, but each operand's flat element range is
  * backed by a chain of equal-size chunk allocations (a shorter, exact-size
  * tail on the last chunk). The whole op is ONE kernel: the chunk
- * base-pointer arrays are the device-ring views of device-ring arrays built
+ * base-pointer arrays are device-table views of the operand tables built
  * by the driver, and each block copies them into shared memory once. Output
  * column i's actions (the ignore_index zero-fill, or the single
  * dst[labels[i], i] -= val) are entirely column-local, so the result is

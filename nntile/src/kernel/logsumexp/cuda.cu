@@ -54,9 +54,9 @@ void cuda(cudaStream_t stream, Index nelems, const T *maxsumexp_,
 template<typename T>
 struct ChunkTables
 {
-    const T *const* mse; //!< device-ring view of the maxsumexp ptr array
+    const T *const* mse; //!< device-table view of the maxsumexp ptr array
     Index nmse;
-    T *const* lse; //!< device-ring view of the logsumexp ptr array
+    T *const* lse; //!< device-table view of the logsumexp ptr array
     Index nlse;
     Index elems_mse; //!< elements in a full maxsumexp chunk
     Index elems_lse; //!< elements in a full logsumexp chunk
@@ -77,7 +77,7 @@ static __device__ __forceinline__ long lse_chunk_index(long f, Index elems,
 //! maxsumexp PAIR at mse-flat offsets 2i and 2i+1 -- the two halves may
 //! live in different maxsumexp chunks -- and writes logsumexp[i]; every
 //! address is resolved through its operand's chunk table read straight
-//! from the device ring (piece 9 / rule 10: no staging). The result is bitwise cuda()'s.
+//! from the device table (piece 9 / rule 10: no staging). The result is bitwise cuda()'s.
 template<typename T>
 static __global__
 void chunked_cuda_kernel(Index nelems, ChunkTables<T> t)
@@ -100,7 +100,7 @@ void chunked_cuda_kernel(Index nelems, ChunkTables<T> t)
 
 //! Single-chunk logsumexp (both operands are chunk 0 of their tables):
 //! the classic kernel's statement stream verbatim with the two base
-//! pointers resolved through two ring-table loads issued as the very
+//! pointers resolved through two chunk-table loads issued as the very
 //! first statements (via the read-only data path: the tables are never
 //! written by this kernel; the loads are independent, one broadcast
 //! transaction per warp each), so the launch-floor shape runs the

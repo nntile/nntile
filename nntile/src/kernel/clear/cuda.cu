@@ -23,7 +23,7 @@ namespace nntile::kernel::clear
 //! Chunk tables for the one-launch chunked clear (see cuda.hh).
 struct ChunkTables
 {
-    unsigned char *const* data; //!< device-ring view of the data ptr array
+    unsigned char *const* data; //!< device-table view of the data ptr array
     Index ndata;
     Index elems_data; //!< bytes in a full data chunk
     int shift_data; //!< class shift (multi-chunk) or the 62 sentinel

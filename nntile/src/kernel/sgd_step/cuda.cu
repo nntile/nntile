@@ -175,10 +175,10 @@ static __device__ __forceinline__ long sgs_off_of(long f, Index elems,
 //! call. A block whose 256-element window lies inside a single chunk of
 //! every operand (the common case: full chunks hold 2^20 elements, a
 //! multiple of the block size) reads just its own three chunk base
-//! pointers straight from the ring -- no shared-memory table staging, no
+//! pointers straight from the table -- no shared-memory table staging, no
 //! __syncthreads, so the per-block cost over the classic kernel is three
 //! 8-byte loads. Straddling blocks (non-power-of-two chunk element
-//! counts) resolve every element through the ring tables directly
+//! counts) resolve every element through the table tables directly
 //! (piece 9 / rule 10: no staging, no table __syncthreads).
 template<typename T, typename Tab>
 static __global__
@@ -253,7 +253,7 @@ void chunked_cuda_kernel(Tab t)
     else
     {
         // Window straddles a chunk boundary of some operand: resolve every
-        // element through the ring tables directly (rule 10: no staging,
+        // element through the table tables directly (rule 10: no staging,
         // no table __syncthreads; same arithmetic).
         Y p_val = static_cast<Y>(
             t.p[sgs_chunk_of(f, t.elems_p, t.shift_p)][sgs_off_of(f, t.elems_p, t.shift_p)]);
@@ -396,7 +396,7 @@ void chunked_cuda_kernel_one_v4_wd(Index num_elems,
 }
 
 //! Single-chunk chunked sgd_step: every operand sits inside its chunk 0
-//! (each ring holds one chunk, i.e. any contiguous buffer below the chunk
+//! (each table holds one chunk, i.e. any contiguous buffer below the chunk
 //! class -- e.g. every GPT-2 attention weight block or bias vector). The
 //! three chunk-0 base pointers are resolved once per thread (warp-uniform
 //! broadcast loads) and the body is the classic kernel's verbatim with the
@@ -551,7 +551,7 @@ void chunked(cudaStream_t stream, Index num_iter, Index num_elems,
     }
     if(ngrad == 1 and nvel == 1 and np == 1)
     {
-        // Every operand inside its chunk 0 (each ring holds one chunk,
+        // Every operand inside its chunk 0 (each table holds one chunk,
         // i.e. any contiguous buffer below the chunk class). The scalar
         // branches of the classic kernel that the HOST can already
         // resolve (momentum/weight_decay exactly zero -- the same

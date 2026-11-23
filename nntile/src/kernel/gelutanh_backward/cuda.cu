@@ -92,11 +92,11 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *x, const T *
 template<typename T>
 struct ChunkTables
 {
-    const T *const* x; //!< device-ring view of the x pointer array
+    const T *const* x; //!< device-table view of the x pointer array
     Index nx;
-    const T *const* dy; //!< device-ring view of the dy pointer array
+    const T *const* dy; //!< device-table view of the dy pointer array
     Index ndy;
-    T *const* dx; //!< device-ring view of the dx pointer array
+    T *const* dx; //!< device-table view of the dx pointer array
     Index ndx;
     Index elems_x; //!< elements in a full x chunk
     Index elems_dy; //!< elements in a full dy chunk
@@ -194,7 +194,7 @@ static __device__ __forceinline__ Y gtb_one(Y z, Y dyv, Y dxv, Y alpha_,
 //! verbatim from cuda_kernel, including the per-thread constant
 //! derivation and the beta special cases, so nvcc's contraction decisions
 //! are the classic kernel's) with every operand address resolved through
-//! its chunk table read straight from the device ring (piece 9 / rule
+//! its chunk table read straight from the device table (piece 9 / rule
 //! 10: no staging, no table __syncthreads). The result is bitwise
 //! cuda()'s.
 template<typename T>
@@ -258,7 +258,7 @@ void chunked_cuda_kernel(Index nelems, Scalar alpha, Scalar beta,
 //! multi-chunk elementwise pattern, see add/cuda.cu): a 4-byte type on a
 //! 4-multiple element count walks the flat space in aligned float4
 //! quads, ONE QUAD PER THREAD. Every operand address is resolved through
-//! its chunk table read straight from the device ring (piece 9 / rule
+//! its chunk table read straight from the device table (piece 9 / rule
 //! 10: no staging, no table __syncthreads), but the resolution -- three
 //! warp-uniform table reads plus the shift/mask offset math -- happens
 //! ONCE PER THREAD and is amortized over the quad's four elements, and

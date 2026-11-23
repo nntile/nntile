@@ -33,17 +33,17 @@ void cuda(cudaStream_t stream, Index src1_m, Index src1_n, Index src1_channels,
 /*! Same operation as cuda() above, but each operand's flat element range
  * is backed by a chain of equal-size chunk allocations. The whole
  * destination range is processed by ONE launch; every src1/src2/dst flat
- * offset is resolved through the device chunk-pointer ring with the
+ * offset is resolved through the device chunk-pointer table with the
  * power-of-two class shift/mask. The per-element arithmetic (index bounds,
  * loop order, Kahan accumulation, alpha/beta handling) is identical to the
  * whole-buffer kernel, so the result is bitwise.
  *
  * @param[in] stream: CUDA stream
- * @param[in] src1_chunks: Device-ring view of src1's chunk pointers
+ * @param[in] src1_chunks: Device-table view of src1's chunk pointers
  * @param[in] nsrc1: Number of src1 chunks
- * @param[in] src2_chunks: Device-ring view of src2's chunk pointers
+ * @param[in] src2_chunks: Device-table view of src2's chunk pointers
  * @param[in] nsrc2: Number of src2 chunks
- * @param[in] dst_chunks: Device-ring view of dst's chunk pointers
+ * @param[in] dst_chunks: Device-table view of dst's chunk pointers
  * @param[in] ndst: Number of dst chunks
  * @param[in] elems_src1: Elements in a full src1 chunk
  * @param[in] elems_src2: Elements in a full src2 chunk

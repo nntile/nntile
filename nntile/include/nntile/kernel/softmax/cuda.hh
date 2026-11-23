@@ -29,7 +29,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp,
 /*! Same operation as cuda() above, but each operand's flat element range is
  * backed by a chain of equal-size chunk allocations (a shorter, exact-size
  * tail on the last chunk). The whole tensor is processed by ONE kernel: the
- * chunk base-pointer arrays are the device-ring views of device-ring arrays
+ * chunk base-pointer arrays are device-table views of the operand tables
  * built by the driver, and each block copies them into shared memory once
  * (O(chunks) mapped-host reads per block, not O(elements)). Every element's
  * chunk is derived from its own flat offset, so the underoccupied tail needs

@@ -97,9 +97,9 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index k_start,
 template<typename T>
 struct EmbChunkTables
 {
-    const int64_t *const *index; //!< device-ring view of the index table
-    const T *const *vocab; //!< device-ring view of the vocab table
-    T *const *embed; //!< device-ring view of the embed table
+    const int64_t *const *index; //!< device-table view of the index table
+    const T *const *vocab; //!< device-table view of the vocab table
+    T *const *embed; //!< device-table view of the embed table
     Index nindex;
     Index nvocab;
     Index nembed;
@@ -129,7 +129,7 @@ static __device__ __forceinline__ Index chunk_of(long f, Index elems,
 //! Chunk-aware embedding gather: the same (i0, i1, i2) thread geometry as
 //! cuda_kernel above, but each of the three operands is addressed through
 //! its chunk table. Piece 9 (rule 10): NO shared-memory staging -- every
-//! thread reads its chunk pointer straight from the device ring (the
+//! thread reads its chunk pointer straight from the device table (the
 //! tables are a handful of L1-resident entries); the piece-7 staging
 //! predates the rule-7 compile-time shifts and was a workaround for
 //! runtime shifts. The per-operand chunk shifts stay COMPILE-TIME
@@ -138,7 +138,7 @@ static __device__ __forceinline__ Index chunk_of(long f, Index elems,
 //! rule-7 class shift). U32=true (host-guaranteed when every operand's
 //! flat span fits 32 bits) runs the flat arithmetic in 32 bits; U32=false
 //! keeps piece-4's compare-first 64-bit global-table body for huge tiles
-//! (the ring's no-cap contract). The dispatch is template parameters,
+//! (the table's no-cap contract). The dispatch is template parameters,
 //! never per-element selects. A pure copy with the staged form's own
 //! pointer VALUES, so bitwise the whole-buffer call.
 template<typename T, bool IDX1, bool EMB1, bool VOC1, bool U32>
@@ -162,7 +162,7 @@ void chunked_cuda_kernel(EmbChunkTables<T> t)
         {
             // 32-bit flat offsets with compile-time shifts; 1-chunk
             // operands resolve to their table slot-0 pointer with no
-            // chunk arithmetic, read directly from the ring (rule 10).
+            // chunk arithmetic, read directly from the table (rule 10).
             unsigned const u_i0 = unsigned(i0), u_i1 = unsigned(i1),
                 u_i2 = unsigned(i2);
             unsigned const u_m = unsigned(t.m),
@@ -195,7 +195,7 @@ void chunked_cuda_kernel(EmbChunkTables<T> t)
         }
         else
         {
-            // Piece 4's compare-first resolution against the global ring
+            // Piece 4's compare-first resolution against the global table
             // tables (single-chunk operands resolve with one compare --
             // table[0] + f -- so the chunk arithmetic runs only for
             // genuinely multi-chunk operands). Same addresses either way.
@@ -254,7 +254,7 @@ void chunked_cuda_kernel(EmbChunkTables<T> t)
 //! along the k axis (a vocab row is contiguous along k, so the random
 //! row read becomes one wide load per 16/sizeof(T) elements instead of
 //! one 4-byte load per element), and the token read, its validation and
-//! the ring chunk reads amortize over the whole run -- 1/16th the
+//! the table chunk reads amortize over the whole run -- 1/16th the
 //! dependent-load chains of the elementwise form on the graph shape.
 //! The embed store addresses (column-major: stride m between consecutive
 //! k elements; lanes along i0 so every store instruction is one
@@ -626,7 +626,7 @@ void chunked(cudaStream_t stream, Index m, Index n, Index k, Index k_start,
     }
     if(u32)
     {
-        // Direct-ring instantiation cross (8 kernels): the flags pick the
+        // Direct-table instantiation cross (8 kernels): the flags pick the
         // compile-time shifts; U32=true is the fast path.
 #define NNHAUL_EMB_LAUNCH(I1, E1, V1) \
     (chunked_cuda_kernel<T, I1, E1, V1, true>)<<<blocks, threads, 0, \

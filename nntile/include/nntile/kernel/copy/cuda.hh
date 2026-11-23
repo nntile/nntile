@@ -22,7 +22,7 @@ namespace nntile::kernel::copy
 
 //! Byte-copy chunked buffers on CUDA (ONE launch, chunk tables via UVA)
 /*! Semantically a memcpy of `nbytes` bytes; each source/destination byte is
- * resolved through its operand's device-ring chunk table. */
+ * resolved through its operand's device chunk table. */
 void chunked(cudaStream_t stream, Index nbytes,
         const unsigned char* const* src_chunks, Index nsrc,
         unsigned char* const* dst_chunks, Index ndst, Index elems_src,
@@ -32,9 +32,9 @@ void chunked(cudaStream_t stream, Index nbytes,
 //! One of up to three discontiguous chunked byte ranges.
 struct Segment
 {
-    const unsigned char *const *src = nullptr; //!< device-ring src table
+    const unsigned char *const *src = nullptr; //!< device-table src table
     Index nsrc = 0;
-    unsigned char *const *dst = nullptr; //!< device-ring dst table
+    unsigned char *const *dst = nullptr; //!< device-table dst table
     Index ndst = 0;
     Index nbytes = 0;
     Index elems_src = 0; //!< bytes in a full src chunk

@@ -30,7 +30,7 @@ void cuda(cudaStream_t stream, Scalar alpha, Index n_labels, Index n_outputs,
 /*! Same operation as cuda() above, but each operand's flat element range is
  * backed by a chain of equal-size chunk allocations (a shorter, exact-size
  * tail on the last chunk). The whole op is ONE kernel: the chunk
- * base-pointer arrays are the device-ring views of device-ring arrays built
+ * base-pointer arrays are device-table views of the operand tables built
  * by the driver, and each block copies them into shared memory once. Each
  * thread's per-column read (logsumexp[i], labels[i], src[labels[i], i]) is
  * identical to cuda()'s, so the block partial and the global float

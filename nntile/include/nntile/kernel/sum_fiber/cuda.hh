@@ -31,7 +31,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch, Scalar al
  * flat element ranges are backed by a chain of equal-size chunk
  * allocations (a shorter tail on the last chunk). The whole reduction is
  * issued as ONE kernel launch: the two chunk base-pointer tables are read
- * from the device chunk-pointer ring (no per-tile or handle cap), and
+ * from the device chunk-pointer table (no per-tile or handle cap), and
  * every element derives its chunk index from its own flat offset (chunk =
  * offset / elems, in-chunk offset = offset % elems; a shift/mask when elems
  * is resolved by the class shift/mask). The kernel reproduces cuda()'s thread geometry and
@@ -39,7 +39,8 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch, Scalar al
  * the same values in the same order and the shared-memory atomicAdd sees
  * the same partial sums: the result is cuda()'s, up to the same atomic
  * ordering nondeterminism cuda() itself already has. A launch whose pointer
- * set exceeds the ring falls back to the per-piece driver.
+ * set exceeds the table aborts (rule 11, 2026-10-19: no per-piece
+ * fallback exists).
  *
  * @param[in] stream: CUDA stream
  * @param[in] m: Size of the first mode of src
@@ -47,10 +48,10 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch, Scalar al
  * @param[in] k: Size of the middle mode of src and the only mode of dst
  * @param[in] batch: Size of the batch dimension
  * @param[in] alpha: Scaling factor for src
- * @param[in] src_chunks: Device-ring view of src's chunk base pointers
+ * @param[in] src_chunks: Device-table view of src's chunk base pointers
  * @param[in] nsrc: Number of src chunks
  * @param[in] beta: Scaling factor for dst
- * @param[in] dst_chunks: Device-ring view of dst's chunk base pointers
+ * @param[in] dst_chunks: Device-table view of dst's chunk base pointers
  * @param[in] ndst: Number of dst chunks
  * @param[in] elems_src: Elements in a full src chunk (uniform)
  * @param[in] elems_dst: Elements in a full dst chunk (uniform)

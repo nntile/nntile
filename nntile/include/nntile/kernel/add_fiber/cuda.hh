@@ -31,7 +31,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch, Scalar al
  * ranges are backed by chains of equal-size chunks. One kernel launch over
  * the whole (m, n, k, batch) range; each operand's chunk base-pointer table
  * is a host array in device-resident memory (built by the driver
- * through the device chunk-ptr ring) whose device-ring view travels as the
+ * through the device chunk-ptr table) whose device-table view travels as the
  * `*_chunks` args, and each block stages it into shared memory once. Every
  * element resolves its chunk from its flat offset (chunk = offset / elems,
  * in-chunk offset = offset % elems; shift/mask on a power-of-two elems).

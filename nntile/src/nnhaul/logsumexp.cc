@@ -197,18 +197,18 @@ void LogSumExp<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // chunk-aware kernel (each element reads its maxsumexp pair through the
     // mse chunk table -- the pair may straddle chunks -- and writes its
     // logsumexp through the lse table). The tables are parked in the shared
-    // device chunk-ptr ring; no chunk-count cap. The per-element expression
+    // device chunk-ptr table; no chunk-count cap. The per-element expression
     // is identical, so the result is cuda()'s bitwise. The piece driver
-    // below stays as the ring-overflow fallback and for degenerate shapes.
+    // below stays as the table-overflow fallback and for degenerate shapes.
     if(args->nelems > 0)
     {
         // Piece C (2026-10-18c): the all-1-chunk degenerate launch is
         // the FIRST thing the chunked block does -- the chunk counts
         // are read straight off the buffers, before any
-        // ChunkView/RingTables work exists, so the degenerate host
+        // ChunkView/LaunchTables work exists, so the degenerate host
         // path is as lean as the classic dispatch above (gemm path-F
         // precedent; launch pointer-identical, bitwise by
-        // construction, ring untouched).
+        // construction, table untouched).
         if(buf_mse->chunk_count() == 1 && buf_lse->chunk_count() == 1)
         {
             kernel::logsumexp::cuda<T>(
@@ -218,19 +218,19 @@ void LogSumExp<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         }
         chunkunits::ChunkView<T> const cv_mse(buf_mse);
         chunkunits::ChunkView<T> const cv_lse(buf_lse);
-        chunkunits::RingTables &tabs = chunkunits::ring_tables();
+        chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
         tabs.clear();
         std::size_t const o_pm = tabs.add(cv_mse);
         std::size_t const o_pl = tabs.add(cv_lse);
-        chunkunits::ChunkPtrRing &ring = chunkunits::chunk_ptr_ring();
-        if(ring.begin(stream))
+        chunkunits::ChunkPtrTable &table = chunkunits::chunk_ptr_table();
+        if(table.begin(stream))
         {
-            void const *ring_base = ring.upload_tables(tabs);
-            if(ring_base != nullptr)
+            void const *table_base = table.upload_tables(tabs);
+            if(table_base != nullptr)
             {
-                const T *const *tm = ring.table_view<const T *>(
-                    ring_base, o_pm);
-                T *const *tl = ring.table_view<T *>(ring_base, o_pl);
+                const T *const *tm = table.table_view<const T *>(
+                    table_base, o_pm);
+                T *const *tl = table.table_view<T *>(table_base, o_pl);
                 kernel::logsumexp::chunked<T>(
                     stream,
                     args->nelems,
@@ -240,17 +240,17 @@ void LogSumExp<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
                     Index(cv_lse.nchunks),
                     Index(cv_mse.chunk_elems),
                     Index(cv_lse.chunk_elems));
-                ring.end(stream);
+                table.end(stream);
                 return;
             }
         }
     }
         // (rule 11, user directive 2026-10-19) There is no per-piece
-    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot ring
+    // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot table
     // serve any launch up to a 16 TiB operand, so a failed upload is an
     // invariant violation, not a mode to stage around.
     std::fprintf(stderr,
-        "nntile_logsumexp: chunk-ptr ring cannot serve this launch (invariant "
+        "nntile_logsumexp: chunk-ptr table cannot serve this launch (invariant "
         "violation; the per-piece staging fallback was deleted by rule "
         "11)\n");
     std::abort();

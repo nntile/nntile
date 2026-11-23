@@ -225,8 +225,8 @@ namespace
 template<typename T>
 struct ChunkTables
 {
-    const T *const *src; //!< device-ring view of src's chunk pointers
-    T *const *dst; //!< device-ring view of dst's chunk pointers
+    const T *const *src; //!< device-table view of src's chunk pointers
+    T *const *dst; //!< device-table view of dst's chunk pointers
     Index elems_src; //!< elements in a full src chunk
     Index elems_dst; //!< elements in a full dst chunk
     int shift_src; //!< class shift, or the single-chunk sentinel

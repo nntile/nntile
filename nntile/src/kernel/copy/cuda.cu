@@ -25,9 +25,9 @@ namespace nntile::kernel::copy
 //! Chunk descriptors for the one-launch chunked copy (see cuda.hh).
 struct ChunkTables
 {
-    const unsigned char *const* src; //!< device-ring view of src pointers
+    const unsigned char *const* src; //!< device-table view of src pointers
     Index nsrc;
-    unsigned char *const* dst; //!< device-ring view of dst pointers
+    unsigned char *const* dst; //!< device-table view of dst pointers
     Index ndst;
     Index elems_src; //!< bytes in a full src chunk
     Index elems_dst; //!< bytes in a full dst chunk
@@ -93,7 +93,7 @@ void chunked_cuda_kernel(Index nbytes, ChunkTables t)
 //! With the single-chunk sentinel shift the table-walk kernel has
 //! cs=cd=0 and offs=offd=f for every 16-byte unit, so it degenerated to
 //! this memcpy plus a per-thread read of two table entries. The tables
-//! are device memory (the ring upload and the callers' chunk buffers are
+//! are device memory (the table upload and the callers' chunk buffers are
 //! cudaMalloc'd arrays), so a launch cannot resolve the two chunk bases
 //! any earlier than this block-uniform load -- the same constraint the
 //! transpose single-chunk kernel documents. Dropping the fat ChunkTables

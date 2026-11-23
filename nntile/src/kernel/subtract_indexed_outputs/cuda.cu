@@ -86,7 +86,7 @@ static __device__ __forceinline__ Index sio_chunk_of(long f, Index elems,
 //! the label keeps the column inside that chunk (the label adds < 1 chunk
 //! for any label < elems_dst, which is every valid label of a column-sized
 //! row -- the common case; the miss path falls back to the true table
-//! slot). This takes the second dependent ring-slot hop off the critical
+//! slot). This takes the second dependent table-slot hop off the critical
 //! chain of the latency-bound 4-block kernel: label-table slot, label
 //! element, read-modify-write -- the same depth as cuda() plus one uniform
 //! slot load. c = f >> shift >= cg always (labels[i] >= 0 or the ignore

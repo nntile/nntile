@@ -165,11 +165,11 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
 template<typename T>
 struct ChunkTables
 {
-    const T *const* src1; //!< device-ring view of the src1 pointer array
+    const T *const* src1; //!< device-table view of the src1 pointer array
     Index ns1;
-    const T *const* src2; //!< device-ring view of the src2 pointer array
+    const T *const* src2; //!< device-table view of the src2 pointer array
     Index ns2;
-    T *const* dst; //!< device-ring view of the dst pointer array
+    T *const* dst; //!< device-table view of the dst pointer array
     Index ndst;
     Index elems_s1; //!< elements in a full src1 chunk
     Index elems_s2; //!< elements in a full src2 chunk
