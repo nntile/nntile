@@ -49,11 +49,15 @@
  * alike. p10/p50/p90/min are reported over all iterations.
  *
  * Usage: bench_gemm_chunked_gpt2 [class_mib,...] [tokens,...] [models,...]
+ *                               [rows,...]
  *   class_mib  chunk classes in MiB (default: the engine's class)
  *   tokens     sequence tokens per step, batch*seq (default 1024,4096)
  *   models     small,medium,large,xl (default all)
+ *   rows       row-name prefixes to keep (default: all 15 rows; e.g.
+ *              mlp_ for the six MLP rows, mlp_proj_fwd for one row)
  * Output: CSV lines on stdout, one INFO line per row and class and one
- * SAMPLES line per row, class and route.
+ * SAMPLES line per row, class and route. A kept row is timed exactly as
+ * it is in a full sweep.
  *
  * @version 1.0.0
  * */
@@ -807,6 +811,23 @@ int main(int argc, char **argv)
             names.push_back(model.name);
         }
     }
+    std::vector<std::string> rows =
+        argc > 4 ? split_list(argv[4]) : std::vector<std::string>{};
+    auto row_kept = [&](char const *op)
+    {
+        if (rows.empty())
+        {
+            return true;
+        }
+        for (std::string const &p : rows)
+        {
+            if (std::strncmp(op, p.c_str(), p.size()) == 0)
+            {
+                return true;
+            }
+        }
+        return false;
+    };
     // A pinned configuration would replace the picker's choice everywhere.
     if (std::getenv("NNHAUL_GEMM_CHUNKED_CFG") != nullptr)
     {
@@ -859,7 +880,10 @@ int main(int argc, char **argv)
                 }
                 for (Row const &row : make_rows(*model, S))
                 {
-                    bench_row(ctx, *model, S, cls, int(mib), row);
+                    if (row_kept(row.op))
+                    {
+                        bench_row(ctx, *model, S, cls, int(mib), row);
+                    }
                 }
             }
         }
