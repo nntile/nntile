@@ -6166,6 +6166,18 @@ bool supports(Op transA, Op transB, int m, int n, int k, int batch) noexcept
     return ok_dim(m) && ok_dim(n) && ok_dim(k);
 }
 
+bool supports_forced(Op transA, Op transB, int m, int n, int k,
+    int batch) noexcept
+{
+    if(supports(transA, transB, m, n, k, batch))
+    {
+        return true;
+    }
+    // Shapes outside the law are the extension pieces' (tails: any
+    // batch-1 shape). The ownership picker never sees them.
+    return ext::supports(transA, transB, m, n, k, batch);
+}
+
 namespace
 {
 
@@ -7957,7 +7969,7 @@ bool launch_forced(Op transA, Op transB, int m, int n, int k, int batch,
     const Operand &c, long long stride_a, long long stride_b,
     long long stride_c, cudaStream_t stream) noexcept
 {
-    if(!supports(transA, transB, m, n, k, batch))
+    if(!supports_forced(transA, transB, m, n, k, batch))
     {
         return false;
     }

@@ -89,6 +89,11 @@ using LaunchFn = bool (*)(
 //! The pieces' pick for the call: a configuration id >= kFirstCfg, or -1.
 int pick(const Call &call) noexcept;
 
+//! Whether any piece claims a shape of this transpose combination: the
+//! pieces' pick on a call with null operands (all shifts 0). A pick must
+//! therefore never dereference the operand pointers.
+bool supports(Op ta, Op tb, int m, int n, int k, int batch) noexcept;
+
 //! Name of a piece configuration id.
 const char *name(int cfg) noexcept;
 

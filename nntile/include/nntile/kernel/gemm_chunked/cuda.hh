@@ -98,6 +98,15 @@ enum class Op : int
 //! to the existing workspace-staged cuBLAS path. Never throws.
 bool supports(Op transA, Op transB, int m, int n, int k, int batch) noexcept;
 
+//! True when `launch_forced()` has a configuration for the call: a
+//! shape that passes supports(), or one an extension piece serves (the
+//! tails piece: any batch-1 shape, and the calls with exactly one
+//! single-chunk input that the core bridge declines). The ownership
+//! law is not changed by it: `launch()` still goes by supports().
+//! Never throws.
+bool supports_forced(Op transA, Op transB, int m, int n, int k,
+    int batch) noexcept;
+
 //! Human-readable name of the implementation the picker would choose
 //! (diagnostics and the benchmark harness; empty string when
 //! !supports()).

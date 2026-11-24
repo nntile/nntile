@@ -71,6 +71,28 @@ int pick(const Call &call) noexcept
     return -1;
 }
 
+bool supports(Op ta, Op tb, int m, int n, int k, int batch) noexcept
+{
+    Call const call{ta,
+        tb,
+        nullptr,
+        0,
+        nullptr,
+        0,
+        nullptr,
+        0,
+        m,
+        n,
+        k,
+        batch,
+        0,
+        0,
+        0,
+        1.f,
+        0.f};
+    return pick(call) >= 0;
+}
+
 const char *name(int cfg) noexcept
 {
     int const i = (cfg - kFirstCfg) / kCfgSpan;

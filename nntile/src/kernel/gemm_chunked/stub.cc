@@ -31,6 +31,11 @@ bool supports(Op, Op, int, int, int, int) noexcept
     return false;
 }
 
+bool supports_forced(Op, Op, int, int, int, int) noexcept
+{
+    return false;
+}
+
 const char *pick_name(Op, Op, int, int, int, int) noexcept
 {
     return "";

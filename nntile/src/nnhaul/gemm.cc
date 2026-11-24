@@ -300,7 +300,13 @@ bool gemm_kernel_native(TransOp transA, TransOp transB, Index m, Index n,
                                                        : Op::Trans;
         Op const tb = transB.value == TransOp::NoTrans ? Op::NoTrans
                                                        : Op::Trans;
-        if(!kernel::gemm_chunked::supports(ta, tb, m, n, k, batch))
+        // The forced launch (FORCE_CHUNKED, the workspace-overflow
+        // rescue) also runs the shapes the extension pieces serve; the
+        // ownership launch stays inside the family's shape law.
+        bool const servable = force
+            ? kernel::gemm_chunked::supports_forced(ta, tb, m, n, k, batch)
+            : kernel::gemm_chunked::supports(ta, tb, m, n, k, batch);
+        if(!servable)
         {
             return false;
         }

@@ -11,16 +11,21 @@ three functions in `nntile::kernel::gemm_chunked::ext` (contract:
          piece does not claim it; pieces are asked in file-name order and
          the first claim wins, so claim only the shapes and layouts you
          serve (the call carries the shape, the operand shifts and the
-         strides);
+         strides). The dispatcher also asks every piece for a shape
+         alone, with null operands and all shifts 0 (the family's
+         `supports_forced()`): a pick must not dereference the pointers,
+         and it answers for a shape only if it serves every layout of it;
     const char *<name>_name(int cfg)              the id's display name;
     bool <name>_launch(int cfg, const Call &call, cudaStream_t stream)
          run it; false without launching when the piece cannot take the
          call (the caller then falls back like for any core configuration).
 
 Where the hooks sit (`../cuda.cu`): `launch_forced()` asks `ext::pick()`
-before its shape rules, so a piece's claim is what it runs on that call.
-`launch()` (production ownership) never consults the pieces except
-through the `NNHAUL_GEMM_CHUNKED_CFG` pin. `launch_forced()` retries the
+before its shape rules, so a piece's claim is what it runs on that call,
+and it admits the shapes outside the family's law that a piece answers
+for (`supports_forced()`). `launch()` (production ownership) never
+consults the pieces, not even for those shapes: it goes by `supports()`
+alone, except through the `NNHAUL_GEMM_CHUNKED_CFG` pin. `launch_forced()` retries the
 core bridge and split-K bridge only when the piece declined, never after
 it ran.
 
@@ -39,7 +44,10 @@ What a piece can reuse:
 - the CUTLASS 2.11 headers (on this directory's include path);
 - `ext::scratch(bytes)`: a grow-only device scratch buffer (split-K
   partials);
-- worked launchers for the bridge and its split-K sibling:
+- `BridgeQuadA`/`BridgeQuadB` with `Tails = true`: the bridge's operand
+  loaders with the matrix extent honored (zero-filled and element-wise
+  tails), for shapes that are not 128-multiples; the epilogue needs
+  nothing for them (`tails.cu`);- worked launchers for the bridge and its split-K sibling:
   `../cuda.cu`, `p7cut::run_bridge`, `p7cut::launch_bridge`,
   `p7cut::run_bridge_sk`, `p7cut::launch_bridge_sk`.
 

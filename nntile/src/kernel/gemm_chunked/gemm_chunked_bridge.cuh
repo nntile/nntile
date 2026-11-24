@@ -77,7 +77,14 @@ namespace threadblock {
 //! (Params/TensorRef/Fragment/load/++/clear_mask; ctor as called by
 //! the kernel: (Params, ptr, extent (m,k), thread_id, tile_offset
 //! (m0,k0), gather=nullptr)).
-template <typename GL, int AC>
+//!
+//! Tails = false (every instantiation before the tails piece): the
+//! extent is ignored, as the shape law hands the iterator only
+//! 128-multiples. Tails = true: the extent is honored -- a quad
+//! outside it is zero-filled, a quad that is only partly inside or
+//! not 16-byte aligned is loaded element by element -- so any shape
+//! runs (a 1600-wide row, the 50257-wide vocabulary).
+template <typename GL, int AC, bool Tails = false>
 class BridgeQuadA {
 public:
     using Element = float;
@@ -112,7 +119,6 @@ public:
         int const * = nullptr)
         : ptr_(ptr)
     {
-        (void)extent;
         if constexpr(kIsRowMajor)
         {
             //! A m x k row-major: quad of 4 k-consecutive floats of row
@@ -120,6 +126,15 @@ public:
             elem0_ = LongIndex(tile_offset.row() + (thread_id >> 1))
                 * params.ld + tile_offset.column() + (thread_id & 1) * 4;
             d_ = 8;
+            if constexpr(Tails)
+            {
+                //! The strided coordinate is the row m, the contiguous
+                //! one the column k.
+                strided_ = tile_offset.row() + (thread_id >> 1);
+                strided_lim_ = extent.row();
+                contig_ = tile_offset.column() + (thread_id & 1) * 4;
+                contig_lim_ = extent.column();
+            }
         }
         else
         {
@@ -129,9 +144,33 @@ public:
             elem0_ = LongIndex(tile_offset.column() + (thread_id >> 5))
                 * params.ld + tile_offset.row() + (thread_id & 31) * 4;
             d_ = 8 * params.ld;
+            if constexpr(Tails)
+            {
+                //! The strided coordinate is the row k, the contiguous
+                //! one the column m.
+                strided_ = tile_offset.column() + (thread_id >> 5);
+                strided_lim_ = extent.column();
+                contig_ = tile_offset.row() + (thread_id & 31) * 4;
+                contig_lim_ = extent.row();
+            }
         }
         se_ = params.shift >= 62 ? 62 : params.shift;
         valid_ = true;
+    }
+
+    //! Address of one element of the operand.
+    CUTLASS_DEVICE Element const *at_(LongIndex elem) const
+    {
+        if constexpr(AC == 0)
+        {
+            return ptr_ + elem;
+        }
+        else
+        {
+            int64_t const mask = (int64_t(1) << se_) - 1;
+            return reinterpret_cast<Element const *const *>(ptr_)[elem >> se_]
+                + (elem & mask);
+        }
     }
 
     CUTLASS_DEVICE
@@ -141,24 +180,55 @@ public:
         {
             return; //!< masked (phantom last panel): caller pre-clears
         }
-        Element const *q;
-        if constexpr(AC == 0)
+        if constexpr(Tails)
         {
-            q = ptr_ + elem0_;
+            if(strided_ >= strided_lim_)
+            {
+                frag.clear(); //!< row outside the operand: zero-fill
+                return;
+            }
+            if(contig_ + 4 <= contig_lim_ && (elem0_ & 3) == 0)
+            {
+                //! Whole quad inside and 16-byte aligned: one load (a
+                //! 4-aligned quad never straddles a chunk).
+                *reinterpret_cast<float4 *>(&frag)
+                    = *reinterpret_cast<const float4 *>(at_(elem0_));
+            }
+            else
+            {
+                //! A tail quad, or a row that does not start 16-byte
+                //! aligned: element by element, each through its own
+                //! chunk.
+                CUTLASS_PRAGMA_UNROLL
+                for(int i = 0; i < 4; ++i)
+                {
+                    frag[i] = contig_ + i < contig_lim_
+                        ? *at_(elem0_ + i)
+                        : Element(0);
+                }
+            }
+            return;
         }
-        else
-        {
-            int64_t const mask = (int64_t(1) << se_) - 1;
-            q = reinterpret_cast<Element const *const *>(ptr_)[elem0_ >> se_]
-                + (elem0_ & mask);
-        }
-        *reinterpret_cast<float4 *>(&frag) = *reinterpret_cast<
-            const float4 *>(q);
+        *reinterpret_cast<float4 *>(&frag)
+            = *reinterpret_cast<const float4 *>(at_(elem0_));
     }
 
     CUTLASS_DEVICE BridgeQuadA &operator++()
     {
         elem0_ += d_;
+        if constexpr(Tails)
+        {
+            // One panel further along K: K is the contiguous coordinate
+            // of a row-major A, the strided one of a column-major A.
+            if constexpr(kIsRowMajor)
+            {
+                contig_ += 8;
+            }
+            else
+            {
+                strided_ += 8;
+            }
+        }
         return *this;
     }
 
@@ -170,12 +240,19 @@ private:
     LongIndex d_;
     int se_;
     bool valid_;
+    //! Tails only: the thread's strided coordinate and its limit, its
+    //! contiguous coordinate (the quad's first element) and its limit.
+    int strided_ = 0;
+    int strided_lim_ = 0;
+    int contig_ = 0;
+    int contig_lim_ = 0;
 };
 
 //! B-side global iterator (mirror of BridgeQuadA; tile 8k x 128n).
 //! GL = layout::RowMajor (B is k x n, n-contiguous) or
 //!      layout::ColumnMajor (B is n x k, k-contiguous).
-template <typename GL, int AC>
+//! Tails as for BridgeQuadA.
+template <typename GL, int AC, bool Tails = false>
 class BridgeQuadB {
 public:
     using Element = float;
@@ -208,7 +285,6 @@ public:
         int const * = nullptr)
         : ptr_(ptr)
     {
-        (void)extent;
         if constexpr(kIsRowMajor)
         {
             //! B k x n row-major: quad of 4 n-consecutive floats of
@@ -216,6 +292,13 @@ public:
             elem0_ = LongIndex(tile_offset.row() + (thread_id >> 5))
                 * params.ld + tile_offset.column() + (thread_id & 31) * 4;
             d_ = 8 * params.ld;
+            if constexpr(Tails)
+            {
+                strided_ = tile_offset.row() + (thread_id >> 5);
+                strided_lim_ = extent.row();
+                contig_ = tile_offset.column() + (thread_id & 31) * 4;
+                contig_lim_ = extent.column();
+            }
         }
         else
         {
@@ -225,9 +308,31 @@ public:
             elem0_ = LongIndex(tile_offset.column() + (thread_id >> 1))
                 * params.ld + tile_offset.row() + (thread_id & 1) * 4;
             d_ = 8;
+            if constexpr(Tails)
+            {
+                strided_ = tile_offset.column() + (thread_id >> 1);
+                strided_lim_ = extent.column();
+                contig_ = tile_offset.row() + (thread_id & 1) * 4;
+                contig_lim_ = extent.row();
+            }
         }
         se_ = params.shift >= 62 ? 62 : params.shift;
         valid_ = true;
+    }
+
+    //! Address of one element of the operand.
+    CUTLASS_DEVICE Element const *at_(LongIndex elem) const
+    {
+        if constexpr(AC == 0)
+        {
+            return ptr_ + elem;
+        }
+        else
+        {
+            int64_t const mask = (int64_t(1) << se_) - 1;
+            return reinterpret_cast<Element const *const *>(ptr_)[elem >> se_]
+                + (elem & mask);
+        }
     }
 
     CUTLASS_DEVICE
@@ -237,24 +342,50 @@ public:
         {
             return;
         }
-        Element const *q;
-        if constexpr(AC == 0)
+        if constexpr(Tails)
         {
-            q = ptr_ + elem0_;
+            if(strided_ >= strided_lim_)
+            {
+                frag.clear();
+                return;
+            }
+            if(contig_ + 4 <= contig_lim_ && (elem0_ & 3) == 0)
+            {
+                *reinterpret_cast<float4 *>(&frag)
+                    = *reinterpret_cast<const float4 *>(at_(elem0_));
+            }
+            else
+            {
+                CUTLASS_PRAGMA_UNROLL
+                for(int i = 0; i < 4; ++i)
+                {
+                    frag[i] = contig_ + i < contig_lim_
+                        ? *at_(elem0_ + i)
+                        : Element(0);
+                }
+            }
+            return;
         }
-        else
-        {
-            int64_t const mask = (int64_t(1) << se_) - 1;
-            q = reinterpret_cast<Element const *const *>(ptr_)[elem0_ >> se_]
-                + (elem0_ & mask);
-        }
-        *reinterpret_cast<float4 *>(&frag) = *reinterpret_cast<
-            const float4 *>(q);
+        *reinterpret_cast<float4 *>(&frag)
+            = *reinterpret_cast<const float4 *>(at_(elem0_));
     }
 
     CUTLASS_DEVICE BridgeQuadB &operator++()
     {
         elem0_ += d_;
+        if constexpr(Tails)
+        {
+            // One panel further along K: K is the strided coordinate of
+            // a row-major B, the contiguous one of a column-major B.
+            if constexpr(kIsRowMajor)
+            {
+                strided_ += 8;
+            }
+            else
+            {
+                contig_ += 8;
+            }
+        }
         return *this;
     }
 
@@ -266,6 +397,10 @@ private:
     LongIndex d_;
     int se_;
     bool valid_;
+    int strided_ = 0;
+    int strided_lim_ = 0;
+    int contig_ = 0;
+    int contig_lim_ = 0;
 };
 
 //! A-side smem store iterator (the template MmaPipelined sees):

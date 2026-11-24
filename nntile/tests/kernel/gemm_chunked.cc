@@ -114,6 +114,24 @@ struct DevAllocs
     }
 };
 
+//! A flat device copy of `host`: an operand that fits one chunk.
+struct Flat
+{
+    float *ptr = nullptr;
+};
+
+Flat make_flat(std::vector<float> const &host, DevAllocs &da)
+{
+    float *d = nullptr;
+    TEST_ASSERT(cudaMalloc(&d, host.size() * sizeof(float)) == cudaSuccess);
+    da.ptrs.push_back(d);
+    TEST_ASSERT(cudaMemcpy(d, host.data(), host.size() * sizeof(float),
+                  cudaMemcpyHostToDevice) == cudaSuccess);
+    Flat r;
+    r.ptr = d;
+    return r;
+}
+
 //! Chunk-scattered device copy of `host` plus its device table (the
 //! table's regime); junk allocations interleave the chunks.
 struct Chunked
@@ -160,8 +178,10 @@ Chunked make_chunked(std::vector<float> const &host, DevAllocs &da,
     return r;
 }
 
+//! One GEMM against the CPU reference on every chunk class. `layout`
+//! gives each operand's form: 't' a chunk table, 'f' one flat buffer.
 void run_case(Op ta, Op tb, int m, int n, int k, int batch, bool bcast_a,
-    bool bcast_b, const char *label)
+    bool bcast_b, const char *label, char const *layout = "ttt")
 {
     long long const a_store = ta == Op::NoTrans ? (long long)m * k
                                                 : (long long)k * m;
@@ -182,7 +202,9 @@ void run_case(Op ta, Op tb, int m, int n, int k, int batch, bool bcast_a,
     ref_gemm(ta, tb, m, n, k, batch, 0.7f, ha, hb, 0.3f,
         const_cast<std::vector<float> &>(c_ref), bcast_a, bcast_b);
 
-    if(!kernel::gemm_chunked::supports(ta, tb, m, n, k, batch))
+    // The kernel against the reference: launch_forced(), so what
+    // matters is what it can run (the law, or an extension piece).
+    if(!kernel::gemm_chunked::supports_forced(ta, tb, m, n, k, batch))
     {
         std::printf("gemm_chunked %s: unsupported (fallback owns it)\n",
             label);
@@ -196,10 +218,16 @@ void run_case(Op ta, Op tb, int m, int n, int k, int batch, bool bcast_a,
     Chunked const ca = make_chunked(ha, da, rng, cls);
     Chunked const cb = make_chunked(hb, da, rng, cls);
     Chunked const cc = make_chunked(hc, da, rng, cls);
+    Flat const fa = make_flat(ha, da);
+    Flat const fb = make_flat(hb, da);
+    Flat const fc = make_flat(hc, da);
 
-    Operand const oa_s{ca.table, cls.shift};
-    Operand const ob_s{cb.table, cls.shift};
-    Operand const oc_s{(void *)cc.table, cls.shift};
+    Operand const oa_s{layout[0] == 't' ? (void *)ca.table : (void *)fa.ptr,
+        layout[0] == 't' ? cls.shift : 0};
+    Operand const ob_s{layout[1] == 't' ? (void *)cb.table : (void *)fb.ptr,
+        layout[1] == 't' ? cls.shift : 0};
+    Operand const oc_s{layout[2] == 't' ? (void *)cc.table : (void *)fc.ptr,
+        layout[2] == 't' ? cls.shift : 0};
     long long const sa = bcast_a ? 0LL : a_store;
     long long const sb = bcast_b ? 0LL : b_store;
     // Kernel correctness: force the best config regardless of the
@@ -211,7 +239,13 @@ void run_case(Op ta, Op tb, int m, int n, int k, int batch, bool bcast_a,
     TEST_ASSERT(cudaDeviceSynchronize() == cudaSuccess);
 
     std::vector<float> got(hc.size());
-    for(int c = 0, nch = int((hc.size() + cls.elems - 1) / cls.elems);
+    if(layout[2] == 'f')
+    {
+        TEST_ASSERT(cudaMemcpy(got.data(), fc.ptr, hc.size() * sizeof(float),
+                      cudaMemcpyDeviceToHost) == cudaSuccess);
+    }
+    for(int c = 0, nch = layout[2] == 'f' ? 0
+             : int((hc.size() + cls.elems - 1) / cls.elems);
         c < nch; ++c)
     {
         std::size_t const off = std::size_t(c) * cls.elems;
@@ -318,6 +352,41 @@ int main()
         "NN bcast-a");
     run_case(Op::NoTrans, Op::NoTrans, 128, 64, 1024, 1, 0, 0,
         "NN sb64");
+
+    // Shapes outside the law (the tails piece, through launch_forced):
+    // a 64-wide tail on every side of every transpose combo (GPT-2 XL's
+    // 1600 is 12 x 128 + 64), odd and sub-tile sizes, and flat,
+    // mixed and all-table operands.
+    run_case(Op::NoTrans, Op::Trans, 384, 1600, 1600, 1, 0, 0,
+        "NT tail 1600");
+    run_case(Op::NoTrans, Op::NoTrans, 384, 1600, 1600, 1, 0, 0,
+        "NN tail 1600");
+    run_case(Op::Trans, Op::NoTrans, 1600, 1600, 384, 1, 0, 0,
+        "TN tail 1600");
+    run_case(Op::Trans, Op::Trans, 1600, 384, 1600, 1, 0, 0,
+        "TT tail 1600");
+    run_case(Op::NoTrans, Op::NoTrans, 260, 1601, 301, 1, 0, 0,
+        "NN odd");
+    run_case(Op::NoTrans, Op::Trans, 97, 65, 33, 1, 0, 0,
+        "NT odd small");
+    run_case(Op::Trans, Op::NoTrans, 65, 97, 33, 1, 0, 0,
+        "TN odd small");
+    run_case(Op::Trans, Op::Trans, 1, 1, 7, 1, 0, 0,
+        "TT tiny");
+    run_case(Op::NoTrans, Op::Trans, 384, 1600, 1600, 1, 0, 0,
+        "NT tail fff", "fff");
+    run_case(Op::Trans, Op::NoTrans, 1600, 1600, 384, 1, 0, 0,
+        "TN tail ftt", "ftt");
+    run_case(Op::NoTrans, Op::NoTrans, 384, 1600, 1600, 1, 0, 0,
+        "NN tail tft", "tft");
+    run_case(Op::Trans, Op::Trans, 1600, 384, 1600, 1, 0, 0,
+        "TT tail ttf", "ttf");
+    run_case(Op::NoTrans, Op::NoTrans, 260, 1601, 301, 1, 0, 0,
+        "NN odd fft", "fft");
+    // Law-abiding shape with one single-chunk input: the core bridge
+    // declines it, the tails piece serves it.
+    run_case(Op::NoTrans, Op::Trans, 256, 384, 512, 1, 0, 0,
+        "NT law tft", "tft");
     return 0;
 }
 
