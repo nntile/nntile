@@ -12,10 +12,14 @@
  * family's plain bridge (id 40) exists only with both A and B flat or
  * both table-addressed, so `ftt`, `tft`, `ftf`, `tff` -- and all-flat
  * operands under a table C (`fft`) -- were declined. This piece runs
- * them on the same SIMT mainloop with the operand addressing chosen per
- * operand (mixed_bridge.cuh), claims the measured GPT-2 small, medium
- * and large MLP shapes by exact shape and layout, and carries their
- * deterministic split schedules.
+ * them on the SIMT fp32 mainloop of mixed_bridge.cuh: the addressing is
+ * chosen per operand, a flat operand may go through CUTLASS's own
+ * iterators, a flat C through CUTLASS's own epilogue, and the
+ * underfilled grids get a deterministic K split (single-owner tiles,
+ * then the k pieces to a scratch, then a fixed-order reduction).
+ *
+ * The piece claims the measured GPT-2 small, medium and large MLP
+ * shapes by exact shape and layout; other calls keep their routing.
  *
  * @version 1.0.0
  * */
@@ -48,33 +52,52 @@ namespace
 namespace md = mixed_detail;
 
 //! A configuration id of this piece is an index into MIXED_VARIANTS, the
-//! list of the kernels this translation unit builds. One variant is one
-//! kernel: a threadblock tile, the loader and epilogue choices, the
-//! occupancy hint, one (A, B) addressing pair (0 flat, 1 table) and one
-//! transpose combo (0 NN, 1 NT, 2 TN, 3 TT). The dispatcher adds its base
-//! before handing an id out, so the list holds fewer than 100 entries.
-//! The names read: tile d = 128x128 (256 threads), h = 128x64 and
-//! v = 64x128 (128 threads); loaders q = the quad loaders for both
-//! operands, n = CUTLASS's own iterators for the flat operands; epilogue
-//! c = the table-aware iterator (C flat or table at runtime), f =
-//! CUTLASS's own iterator (flat C); then the CTAs per SM, the (A, B)
-//! addressing and the combo.
-//!
-//! (name, tile, native, native_c, two_ctas, ac_a, ac_b, combo)
-#define MIXED_VARIANTS(X)                                                     \
-    /* 128x128, quad loaders, table-aware epilogue: the claims' kernels */    \
-    X(dqc1_ff_nn, 0, 0, 0, 0, 0, 0, 0)                                        \
-    X(dqc1_ff_nt, 0, 0, 0, 0, 0, 0, 1)                                        \
-    X(dqc1_ft_nn, 0, 0, 0, 0, 0, 1, 0)                                        \
-    X(dqc1_ft_nt, 0, 0, 0, 0, 0, 1, 1)                                        \
-    X(dqc1_ft_tn, 0, 0, 0, 0, 0, 1, 2)                                        \
-    X(dqc1_tf_nn, 0, 0, 0, 0, 1, 0, 0)                                        \
-    X(dqc1_tf_nt, 0, 0, 0, 0, 1, 0, 1)                                        \
-    X(dqc1_tf_tn, 0, 0, 0, 0, 1, 0, 2)                                        \
-    X(dqc1_tt_nn, 0, 0, 0, 0, 1, 1, 0)                                        \
-    X(dqc1_tt_nt, 0, 0, 0, 0, 1, 1, 1)
+//! list of the kernels this translation unit builds. The dispatcher
+//! adds its base before handing an id out, so the list holds fewer than
+//! 100 entries.
 
-#define MIXED_ENUM_ID(nm, tile, nat, natc, two, aca, acb, combo) nm,
+//! The kernels this piece builds, one per line: (name, tile, native
+//! loaders, native epilogue, occupancy hint, AC_A, AC_B, combo). A name
+//! reads <tile><loaders><epilogue><ctas>_<A><B>_<op>:
+//!   tile      d = 128x128 (256 threads), h = 128x64, v = 64x128
+//!             (128 threads; half-size tiles fill a ragged grid better)
+//!   loaders   q = the quad loaders for both operands,
+//!             n = CUTLASS's own iterators for the flat operands
+//!   epilogue  c = the table-aware iterator (C flat or table at runtime),
+//!             f = CUTLASS's own iterator (flat C)
+//!   ctas      1 = no hint, 2 = two CTAs resident per SM (launch bounds)
+//! and <A><B> is the (flat, table) addressing pair, <op> the transposes.
+//! Every line serves a claim below (the measured winner of its case).
+#define MIXED_VARIANTS(X)                                                     \
+    /* 128x128, quad loaders, table-aware epilogue */                         \
+    X(dqc1_ft_nn, 0, 0, 0, 0, 0, 1, 0)                                        \
+    X(dqc1_ft_tn, 0, 0, 0, 0, 0, 1, 2)                                        \
+    X(dqc2_ff_nn, 0, 0, 0, 1, 0, 0, 0)                                        \
+    X(dqc2_ff_nt, 0, 0, 0, 1, 0, 0, 1)                                        \
+    X(dqc2_tt_nt, 0, 0, 0, 1, 1, 1, 1)                                        \
+    /* 128x128, CUTLASS iterators for the flat operand */                     \
+    X(dnc1_ft_nn, 0, 1, 0, 0, 0, 1, 0)                                        \
+    X(dnc1_ft_nt, 0, 1, 0, 0, 0, 1, 1)                                        \
+    X(dnc1_ff_nt, 0, 1, 0, 0, 0, 0, 1)                                        \
+    X(dnc1_tf_tn, 0, 1, 0, 0, 1, 0, 2)                                        \
+    X(dnc2_ft_nt, 0, 1, 0, 1, 0, 1, 1)                                        \
+    X(dnc2_ft_tn, 0, 1, 0, 1, 0, 1, 2)                                        \
+    X(dnc2_tf_tn, 0, 1, 0, 1, 1, 0, 2)                                        \
+    /* 128x128, flat-C epilogue (C is flat) */                                \
+    X(dqf1_tt_nn, 0, 0, 1, 0, 1, 1, 0)                                        \
+    X(dqf1_tt_nt, 0, 0, 1, 0, 1, 1, 1)                                        \
+    X(dqf1_ft_tn, 0, 0, 1, 0, 0, 1, 2)                                        \
+    X(dqf1_tf_nn, 0, 0, 1, 0, 1, 0, 0)                                        \
+    X(dnf1_tf_nt, 0, 1, 1, 0, 1, 0, 1)                                        \
+    X(dnf1_tf_tn, 0, 1, 1, 0, 1, 0, 2)                                        \
+    /* 128x64 (h) and 64x128 (v) tiles, 128 threads */                        \
+    X(hq1_tf_tn, 1, 0, 0, 0, 1, 0, 2)                                         \
+    X(hq1_tt_nt, 1, 0, 0, 0, 1, 1, 1)                                         \
+    X(vq1_ft_tn, 2, 0, 0, 0, 0, 1, 2)                                         \
+    X(vq1_tt_nn, 2, 0, 0, 0, 1, 1, 0)                                         \
+    X(vn1_ff_nn, 2, 1, 0, 0, 0, 0, 0)
+
+#define MIXED_ENUM_ID(nm, tile, nat, natc, occ, aca, acb, combo) nm,
 enum MixedVariantId : int
 {
     MIXED_VARIANTS(MIXED_ENUM_ID) kNumVariants
@@ -114,7 +137,10 @@ struct Claim
 
 //! The measured claims: GPT-2 small / medium / large, 1024 and 4096
 //! tokens, the six MLP GEMMs, on the layouts the 4 MiB and the 16 MiB
-//! engines give them (an operand that fits one chunk is flat).
+//! engines give them (an operand that fits one chunk is flat). The
+//! schedule (FULL, SLICES) is the split of an underfilled grid: the
+//! first FULL output tiles keep one owner, each of the rest is cut
+//! into SLICES k pieces.
 constexpr Claim const kClaims[] = {
     // ---- 4 MiB, GPT-2 medium, 1024 tokens ----
     MIXED_ROW(1024,
@@ -128,17 +154,9 @@ constexpr Claim const kClaims[] = {
         0,
         1), // mlp_fc_dgrad
     MIXED_ROW(
-        1024, 4096, 1024, kNT, 'f', 't', 't', dqc1_ft_nt, 0, 1), // mlp_fc_fwd
-    MIXED_ROW(1024,
-        4096,
-        1024,
-        kTN,
-        'f',
-        't',
-        't',
-        dqc1_ft_tn,
-        0,
-        1), // mlp_fc_wgrad
+        1024, 4096, 1024, kNT, 'f', 't', 't', dnc1_ft_nt, 0, 1), // mlp_fc_fwd
+    MIXED_ROW(
+        1024, 4096, 1024, kTN, 'f', 't', 't', vq1_ft_tn, 0, 1), // mlp_fc_wgrad
     MIXED_ROW(1024,
         1024,
         4096,
@@ -146,7 +164,7 @@ constexpr Claim const kClaims[] = {
         't',
         't',
         'f',
-        dqc1_tt_nn,
+        dqf1_tt_nn,
         0,
         1), // mlp_proj_dgrad
     MIXED_ROW(1024,
@@ -156,7 +174,7 @@ constexpr Claim const kClaims[] = {
         't',
         't',
         'f',
-        dqc1_tt_nt,
+        dqc2_tt_nt,
         0,
         1), // mlp_proj_fwd
     MIXED_ROW(4096,
@@ -166,16 +184,24 @@ constexpr Claim const kClaims[] = {
         't',
         'f',
         't',
-        dqc1_tf_tn,
+        hq1_tf_tn,
         0,
         1), // mlp_proj_wgrad
     // ---- 4 MiB, GPT-2 small, 1024 tokens ----
     MIXED_ROW(
         1024, 3072, 768, kNN, 'f', 't', 't', dqc1_ft_nn, 0, 1), // mlp_fc_dgrad
     MIXED_ROW(
-        1024, 3072, 768, kNT, 'f', 't', 't', dqc1_ft_nt, 0, 1), // mlp_fc_fwd
-    MIXED_ROW(
-        768, 3072, 1024, kTN, 'f', 't', 't', dqc1_ft_tn, 0, 1), // mlp_fc_wgrad
+        1024, 3072, 768, kNT, 'f', 't', 't', dnc1_ft_nt, 0, 1), // mlp_fc_fwd
+    MIXED_ROW(768,
+        3072,
+        1024,
+        kTN,
+        'f',
+        't',
+        't',
+        dnc2_ft_tn,
+        136,
+        8), // mlp_fc_wgrad
     MIXED_ROW(1024,
         768,
         3072,
@@ -183,11 +209,11 @@ constexpr Claim const kClaims[] = {
         't',
         't',
         'f',
-        dqc1_tt_nn,
+        vq1_tt_nn,
         0,
-        1), // mlp_proj_dgrad
+        2), // mlp_proj_dgrad
     MIXED_ROW(
-        1024, 768, 3072, kNT, 't', 't', 'f', dqc1_tt_nt, 0, 1), // mlp_proj_fwd
+        1024, 768, 3072, kNT, 't', 't', 'f', hq1_tt_nt, 0, 2), // mlp_proj_fwd
     MIXED_ROW(3072,
         768,
         1024,
@@ -195,9 +221,9 @@ constexpr Claim const kClaims[] = {
         't',
         'f',
         't',
-        dqc1_tf_tn,
-        0,
-        1), // mlp_proj_wgrad
+        dnc2_tf_tn,
+        136,
+        8), // mlp_proj_wgrad
     // ---- 16 MiB, GPT-2 large, 1024 tokens ----
     MIXED_ROW(1024,
         5120,
@@ -206,21 +232,13 @@ constexpr Claim const kClaims[] = {
         'f',
         't',
         't',
-        dqc1_ft_nn,
-        0,
-        1), // mlp_fc_dgrad
+        dnc1_ft_nn,
+        272,
+        4), // mlp_fc_dgrad
     MIXED_ROW(
-        1024, 5120, 1280, kNT, 'f', 't', 't', dqc1_ft_nt, 0, 1), // mlp_fc_fwd
-    MIXED_ROW(1280,
-        5120,
-        1024,
-        kTN,
-        'f',
-        't',
-        't',
-        dqc1_ft_tn,
-        0,
-        1), // mlp_fc_wgrad
+        1024, 5120, 1280, kNT, 'f', 't', 't', dnc2_ft_nt, 0, 1), // mlp_fc_fwd
+    MIXED_ROW(
+        1280, 5120, 1024, kTN, 'f', 't', 't', vq1_ft_tn, 0, 1), // mlp_fc_wgrad
     MIXED_ROW(1024,
         1280,
         5120,
@@ -228,9 +246,9 @@ constexpr Claim const kClaims[] = {
         't',
         't',
         'f',
-        dqc1_tt_nn,
-        0,
-        1), // mlp_proj_dgrad
+        dqf1_tt_nn,
+        68,
+        5), // mlp_proj_dgrad
     MIXED_ROW(1024,
         1280,
         5120,
@@ -238,9 +256,9 @@ constexpr Claim const kClaims[] = {
         't',
         't',
         'f',
-        dqc1_tt_nt,
-        0,
-        1), // mlp_proj_fwd
+        dqf1_tt_nt,
+        68,
+        5), // mlp_proj_fwd
     MIXED_ROW(5120,
         1280,
         1024,
@@ -248,7 +266,7 @@ constexpr Claim const kClaims[] = {
         't',
         'f',
         't',
-        dqc1_tf_tn,
+        dnc2_tf_tn,
         0,
         1), // mlp_proj_wgrad
     // ---- 16 MiB, GPT-2 medium, 4096 tokens ----
@@ -259,11 +277,19 @@ constexpr Claim const kClaims[] = {
         'f',
         'f',
         't',
-        dqc1_ff_nn,
-        0,
-        1), // mlp_fc_dgrad
-    MIXED_ROW(
-        4096, 4096, 1024, kNT, 'f', 'f', 't', dqc1_ff_nt, 0, 1), // mlp_fc_fwd
+        dqc2_ff_nn,
+        1020,
+        17), // mlp_fc_dgrad
+    MIXED_ROW(4096,
+        4096,
+        1024,
+        kNT,
+        'f',
+        'f',
+        't',
+        dqc2_ff_nt,
+        1020,
+        17), // mlp_fc_fwd
     MIXED_ROW(1024,
         4096,
         4096,
@@ -271,7 +297,7 @@ constexpr Claim const kClaims[] = {
         'f',
         't',
         'f',
-        dqc1_ft_tn,
+        dqf1_ft_tn,
         0,
         1), // mlp_fc_wgrad
     MIXED_ROW(4096,
@@ -281,7 +307,7 @@ constexpr Claim const kClaims[] = {
         't',
         'f',
         'f',
-        dqc1_tf_nn,
+        dqf1_tf_nn,
         0,
         1), // mlp_proj_dgrad
     MIXED_ROW(4096,
@@ -291,7 +317,7 @@ constexpr Claim const kClaims[] = {
         't',
         'f',
         'f',
-        dqc1_tf_nt,
+        dnf1_tf_nt,
         0,
         1), // mlp_proj_fwd
     MIXED_ROW(4096,
@@ -301,16 +327,24 @@ constexpr Claim const kClaims[] = {
         't',
         'f',
         'f',
-        dqc1_tf_tn,
+        dnf1_tf_tn,
         0,
         1), // mlp_proj_wgrad
     // ---- 16 MiB, GPT-2 small, 4096 tokens ----
     MIXED_ROW(
-        4096, 3072, 768, kNN, 'f', 'f', 't', dqc1_ff_nn, 0, 1), // mlp_fc_dgrad
+        4096, 3072, 768, kNN, 'f', 'f', 't', vn1_ff_nn, 0, 1), // mlp_fc_dgrad
     MIXED_ROW(
-        4096, 3072, 768, kNT, 'f', 'f', 't', dqc1_ff_nt, 0, 1), // mlp_fc_fwd
-    MIXED_ROW(
-        768, 3072, 4096, kTN, 'f', 't', 'f', dqc1_ft_tn, 0, 1), // mlp_fc_wgrad
+        4096, 3072, 768, kNT, 'f', 'f', 't', dnc1_ff_nt, 0, 1), // mlp_fc_fwd
+    MIXED_ROW(768,
+        3072,
+        4096,
+        kTN,
+        'f',
+        't',
+        'f',
+        dqc1_ft_tn,
+        136,
+        8), // mlp_fc_wgrad
     MIXED_ROW(4096,
         768,
         3072,
@@ -318,11 +352,11 @@ constexpr Claim const kClaims[] = {
         't',
         'f',
         'f',
-        dqc1_tf_nn,
+        dqf1_tf_nn,
         0,
         1), // mlp_proj_dgrad
     MIXED_ROW(
-        4096, 768, 3072, kNT, 't', 'f', 'f', dqc1_tf_nt, 0, 1), // mlp_proj_fwd
+        4096, 768, 3072, kNT, 't', 'f', 'f', dnf1_tf_nt, 0, 1), // mlp_proj_fwd
     MIXED_ROW(3072,
         768,
         4096,
@@ -330,9 +364,9 @@ constexpr Claim const kClaims[] = {
         't',
         'f',
         'f',
-        dqc1_tf_tn,
-        0,
-        1), // mlp_proj_wgrad
+        dnc1_tf_tn,
+        136,
+        8), // mlp_proj_wgrad
 };
 
 #undef MIXED_ROW
@@ -367,20 +401,27 @@ using LayoutAOf = md::cond_t<(Combo & 2) != 0, md::CM, md::RM>;
 template <int Combo>
 using LayoutBOf = md::cond_t<(Combo & 1) != 0, md::CM, md::RM>;
 
-//! Run one instantiation: the mainloop, then (only under a split
-//! schedule) the reduction that finishes the split tiles.
-template <typename G, bool TwoCtas>
+//! Run one instantiation: the plain kernel over every output tile or,
+//! under a split schedule, the plain kernel on the single-owner tiles,
+//! then the piece kernel, then the reduction that finishes the split
+//! tiles.
+template <typename G, int Occup>
 bool run_gemm(
     const Call &call, cudaStream_t stream, int full, int slices) noexcept
 {
-    using Kernel = md::MixedKernel<typename G::Mma, typename G::Epilogue>;
-    using OutIterator = typename Kernel::Epilogue::OutputTileIterator;
+    using Mma = typename G::Mma;
+    using Epilogue = typename G::Epilogue;
+    using Plain = md::MixedKernel<Mma, Epilogue>;
+    using Piece = md::MixedPieceKernel<Mma, Epilogue>;
+    using OutIterator = typename Epilogue::OutputTileIterator;
     using LA = typename G::LayoutA;
     using LB = typename G::LayoutB;
-    int const tiles_m = call.m / Kernel::kM;
-    int const tiles_n = call.n / Kernel::kN;
+    using RefA = typename Mma::IteratorA::TensorRef;
+    using RefB = typename Mma::IteratorB::TensorRef;
+    int const tiles_m = call.m / Plain::kM;
+    int const tiles_n = call.n / Plain::kN;
     int const tiles = tiles_m * tiles_n;
-    int const panels = call.k / Kernel::kK;
+    int const panels = call.k / Plain::kK;
     if (full < 0 || full > tiles || slices < 1)
     {
         return false;
@@ -390,61 +431,79 @@ bool run_gemm(
     {
         return false;
     }
-    typename Kernel::Params p;
-    p.problem_size = cutlass::gemm::GemmCoord(call.m, call.n, call.k);
-    p.tiles_m = tiles_m;
-    p.tiles_n = tiles_n;
-    LA const la = LA::packed({call.m, call.k});
-    p.ref_A = typename Kernel::Mma::IteratorA::TensorRef(
-        static_cast<float const *>(call.a), la);
-    p.params_A =
-        md::iter_params<typename Kernel::Mma::IteratorA>(la, call.a_shift);
-    LB const lb = LB::packed({call.k, call.n});
-    p.ref_B = typename Kernel::Mma::IteratorB::TensorRef(
-        static_cast<float const *>(call.b), lb);
-    p.params_B =
-        md::iter_params<typename Kernel::Mma::IteratorB>(lb, call.b_shift);
-    md::RM const lc = md::RM::packed({call.m, call.n});
-    p.ref_C =
-        typename OutIterator::TensorRef(static_cast<float *>(call.c), lc);
-    p.params_C = md::iter_params<OutIterator>(lc, call.c_shift);
-    p.ref_D =
-        typename OutIterator::TensorRef(static_cast<float *>(call.c), lc);
-    p.params_D = md::iter_params<OutIterator>(lc, call.c_shift);
-    p.params_ws = md::iter_params<OutIterator>(
-        md::RM::packed({Kernel::kM, Kernel::kN}), 0);
-    p.output_op = typename Kernel::OutputOp::Params(call.alpha, call.beta);
-    int num_ctas = tiles;
+    // Partials of the split tiles: one contiguous kM x kN slot per piece,
+    // in the shared grow-only piece scratch.
+    float *partials = nullptr;
     if (split)
     {
-        // Partials of the split tiles: one contiguous kM x kN slot per
-        // (tile, piece), in the shared grow-only piece scratch.
         size_t const bytes = size_t(tiles - full) * size_t(slices) *
-                             size_t(Kernel::kM) * size_t(Kernel::kN) *
+                             size_t(Plain::kM) * size_t(Plain::kN) *
                              sizeof(float);
-        p.partials = static_cast<float *>(scratch(bytes));
-        if (p.partials == nullptr)
+        partials = static_cast<float *>(scratch(bytes));
+        if (partials == nullptr)
         {
             return false;
         }
-        p.split_full = full;
-        p.split_slices = slices;
-        num_ctas = full + (tiles - full) * slices;
     }
-    int const smem = int(sizeof(typename Kernel::SharedStorage));
-    void (*kernel)(typename Kernel::Params const) =
-        TwoCtas ? &md::mixed_device_kernel_two<Kernel>
-                : &md::mixed_device_kernel<Kernel>;
-    kernel<<<num_ctas, Kernel::kThreadCount, smem, stream>>>(p);
-    if (cudaGetLastError() != cudaSuccess)
+    LA const la = LA::packed({call.m, call.k});
+    LB const lb = LB::packed({call.k, call.n});
+    md::RM const lc = md::RM::packed({call.m, call.n});
+    int const plain_ctas = split ? full : tiles;
+    if (plain_ctas > 0)
     {
-        return false;
+        typename Plain::Params p;
+        p.problem_size = cutlass::gemm::GemmCoord(call.m, call.n, call.k);
+        p.tiles_m = tiles_m;
+        p.tiles_n = tiles_n;
+        p.ref_A =
+            RefA(static_cast<typename RefA::Element *>(
+                     const_cast<float *>(static_cast<float const *>(call.a))),
+                la);
+        p.params_A =
+            md::iter_params<typename Mma::IteratorA>(la, call.a_shift);
+        p.ref_B =
+            RefB(static_cast<typename RefB::Element *>(
+                     const_cast<float *>(static_cast<float const *>(call.b))),
+                lb);
+        p.params_B =
+            md::iter_params<typename Mma::IteratorB>(lb, call.b_shift);
+        p.ref_C =
+            typename OutIterator::TensorRef(static_cast<float *>(call.c), lc);
+        p.params_C = md::iter_params<OutIterator>(lc, call.c_shift);
+        p.ref_D =
+            typename OutIterator::TensorRef(static_cast<float *>(call.c), lc);
+        p.params_D = md::iter_params<OutIterator>(lc, call.c_shift);
+        p.output_op = typename Plain::OutputOp::Params(call.alpha, call.beta);
+        if (!md::launch_kernel<Plain, Occup>(p, plain_ctas, stream))
+        {
+            return false;
+        }
     }
     if (!split)
     {
         return true;
     }
-    constexpr int kTile = Kernel::kM * Kernel::kN;
+    typename Piece::Params q;
+    q.problem_size = cutlass::gemm::GemmCoord(call.m, call.n, call.k);
+    q.tiles_m = tiles_m;
+    q.split_full = full;
+    q.split_slices = slices;
+    q.ref_A = RefA(static_cast<typename RefA::Element *>(const_cast<float *>(
+                       static_cast<float const *>(call.a))),
+        la);
+    q.params_A = md::iter_params<typename Mma::IteratorA>(la, call.a_shift);
+    q.ref_B = RefB(static_cast<typename RefB::Element *>(const_cast<float *>(
+                       static_cast<float const *>(call.b))),
+        lb);
+    q.params_B = md::iter_params<typename Mma::IteratorB>(lb, call.b_shift);
+    q.params_ws = md::iter_params<OutIterator>(
+        md::RM::packed({Plain::kM, Plain::kN}), 0);
+    q.partials = partials;
+    if (!md::launch_kernel<Piece, Occup>(q, (tiles - full) * slices, stream))
+    {
+        return false;
+    }
+    constexpr int kTile = Plain::kM * Plain::kN;
     constexpr int kThreads = 256;
     int const wide = call.n % 4 == 0 ? 4 : 1;
     long long const total =
@@ -453,8 +512,8 @@ bool run_gemm(
         int(std::min<long long>((total + kThreads - 1) / kThreads, 4096));
     if (wide == 4)
     {
-        md::mixed_reduce<Kernel::kM, Kernel::kN, true>
-            <<<blocks, kThreads, 0, stream>>>(p.partials,
+        md::mixed_reduce<Plain::kM, Plain::kN, true>
+            <<<blocks, kThreads, 0, stream>>>(partials,
                 call.c,
                 call.c_shift,
                 call.alpha,
@@ -467,8 +526,8 @@ bool run_gemm(
     }
     else
     {
-        md::mixed_reduce<Kernel::kM, Kernel::kN, false>
-            <<<blocks, kThreads, 0, stream>>>(p.partials,
+        md::mixed_reduce<Plain::kM, Plain::kN, false>
+            <<<blocks, kThreads, 0, stream>>>(partials,
                 call.c,
                 call.c_shift,
                 call.alpha,
@@ -488,7 +547,7 @@ bool run_gemm(
 template <int Tile,
     int Native,
     int NativeC,
-    int TwoCtas,
+    int Occup,
     int ACA,
     int ACB,
     int Combo>
@@ -523,7 +582,7 @@ bool run_variant(
         ACB,
         Native != 0,
         NativeC != 0>;
-    return run_gemm<Gemm, TwoCtas != 0>(call, stream, full, slices);
+    return run_gemm<Gemm, Occup>(call, stream, full, slices);
 }
 
 } // namespace
@@ -536,7 +595,7 @@ int mixed_pick(int base, const Call &call) noexcept
 
 const char *mixed_name(int cfg) noexcept
 {
-#define MIXED_NAMESTR(nm, tile, nat, natc, two, aca, acb, combo) #nm,
+#define MIXED_NAMESTR(nm, tile, nat, natc, occ, aca, acb, combo) #nm,
     static char const *const kNames[] = {
         MIXED_VARIANTS(MIXED_NAMESTR) nullptr};
 #undef MIXED_NAMESTR
@@ -570,9 +629,9 @@ bool mixed_launch(int cfg, const Call &call, cudaStream_t stream) noexcept
     }
     switch (cfg)
     {
-#define MIXED_CASE(nm, tile, nat, natc, two, aca, acb, combo)                 \
+#define MIXED_CASE(nm, tile, nat, natc, occ, aca, acb, combo)                 \
     case nm:                                                                  \
-        return run_variant<tile, nat, natc, two, aca, acb, combo>(            \
+        return run_variant<tile, nat, natc, occ, aca, acb, combo>(            \
             call, stream, full, slices);
         MIXED_VARIANTS(MIXED_CASE)
 #undef MIXED_CASE

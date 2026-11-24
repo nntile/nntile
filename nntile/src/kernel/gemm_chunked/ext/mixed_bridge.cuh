@@ -616,16 +616,24 @@ struct MixedGemm
 };
 
 // =====================================================================
-// The kernel: every CTA computes one (output tile, k panel range) piece
-// of the identity-swizzled tile grid (tile t: m tile t % tiles_m, n tile
-// t / tiles_m). Without a split (partials == nullptr) CTA t owns the
-// whole k of tile t and writes C through the epilogue. With the
-// wave-balanced split, CTAs [0, full) own whole tiles; the remaining
-// tiles are cut into `slices` ascending-k panel ranges (the K panels
-// spread as evenly as possible, in fixed order) and each piece writes
-// its RAW partial to its own contiguous slot of the workspace; a second
-// kernel then sums each split tile's partials in ascending-slice order
-// and finishes C (deterministic: fixed count and order, no atomics).
+// Two kernels over one Mma and Epilogue.
+//
+// MixedKernel (plain): CTA b owns the whole k of output tile b of the
+// identity-swizzled tile grid (tile t: m tile t % tiles_m, n tile
+// t / tiles_m) and finishes C through the epilogue. It carries no
+// split logic on purpose: a kernel that also holds the split schedule
+// and the partial-store path costs the mainloop 16-24 registers, which
+// on this architecture is the difference between two CTAs resident per
+// SM and one.
+//
+// MixedPieceKernel: the pieces of a deterministic wave-balanced K split.
+// The tiles [full, tiles) are cut into `slices` ascending-k panel ranges
+// (the K panels spread as evenly as possible, in fixed order); CTA b
+// computes piece b = (tile full + b / slices, range b % slices) and
+// writes its RAW partial to its own contiguous slot of the workspace.
+// The plain kernel on the tiles [0, full), this one, and the reduction
+// below run back to back on the stream: fixed count and order, no
+// atomics.
 // =====================================================================
 
 template <typename Mma_, typename Epilogue_> struct MixedKernel
@@ -651,23 +659,10 @@ template <typename Mma_, typename Epilogue_> struct MixedKernel
         typename Epilogue::OutputTileIterator::TensorRef ref_C;
         typename Epilogue::OutputTileIterator::Params params_D;
         typename Epilogue::OutputTileIterator::TensorRef ref_D;
-        //! A partial slot: one tile, row-major, ld kN, flat.
-        typename Epilogue::OutputTileIterator::Params params_ws;
-        float *partials;  //!< null: no split
-        int split_full;   //!< tiles [0, split_full) have one owner
-        int split_slices; //!< pieces per tile >= split_full
         typename OutputOp::Params output_op;
 
         CUTLASS_HOST_DEVICE
-        Params() :
-            tiles_m(0),
-            tiles_n(0),
-            partials(nullptr),
-            split_full(0),
-            split_slices(1),
-            output_op()
-        {
-        }
+        Params() : tiles_m(0), tiles_n(0), output_op() {}
     };
 
     union SharedStorage
@@ -683,29 +678,105 @@ template <typename Mma_, typename Epilogue_> struct MixedKernel
     void operator()(Params const &p, SharedStorage &shared_storage)
     {
         int const b = int(blockIdx.x);
-        int const tiles = p.tiles_m * p.tiles_n;
+        int const m_tile = b % p.tiles_m;
+        int const n_tile = b / p.tiles_m;
         int const K = (p.problem_size.k() + kK - 1) / kK; //!< panels in k
-        int tile = 0, kb = 0, ke = K, slice = 0;
-        bool direct = true;
-        if (p.partials == nullptr || p.split_full >= tiles)
+        int const thread_idx = int(threadIdx.x);
+
+        typename Mma::IteratorA iterator_A(p.params_A,
+            p.ref_A.data(),
+            {p.problem_size.m(), K * kK},
+            thread_idx,
+            {m_tile * kM, 0},
+            nullptr);
+        typename Mma::IteratorB iterator_B(p.params_B,
+            p.ref_B.data(),
+            {K * kK, p.problem_size.n()},
+            thread_idx,
+            {0, n_tile * kN},
+            nullptr);
+
+        // Broadcast the warp_id computed by lane 0 to ensure dependent code
+        // is compiled as warp-uniform.
+        int warp_idx = __shfl_sync(0xffffffffu, thread_idx / 32, 0);
+        int lane_idx = thread_idx % 32;
+
+        Mma mma(shared_storage.main_loop, thread_idx, warp_idx, lane_idx);
+        typename Mma::FragmentC accumulators;
+        accumulators.clear();
+        mma(K, accumulators, iterator_A, iterator_B, accumulators);
+
+        Epilogue epilogue(
+            shared_storage.epilogue, thread_idx, warp_idx, lane_idx);
+        cutlass::MatrixCoord const threadblock_offset(
+            m_tile * kM, n_tile * kN);
+        typename Epilogue::OutputTileIterator iterator_C(p.params_C,
+            p.ref_C.data(),
+            p.problem_size.mn(),
+            thread_idx,
+            threadblock_offset,
+            nullptr);
+        typename Epilogue::OutputTileIterator iterator_D(p.params_D,
+            p.ref_D.data(),
+            p.problem_size.mn(),
+            thread_idx,
+            threadblock_offset,
+            nullptr);
+        OutputOp output_op(p.output_op);
+        epilogue(output_op, iterator_D, accumulators, iterator_C);
+    }
+};
+
+template <typename Mma_, typename Epilogue_> struct MixedPieceKernel
+{
+    using Mma = Mma_;
+    using Epilogue = Epilogue_;
+    using OutputOp = typename Epilogue::OutputOp;
+    static int const kM = Mma::Shape::kM;
+    static int const kN = Mma::Shape::kN;
+    static int const kK = Mma::Shape::kK;
+    static int const kThreadCount = 32 * Mma::WarpCount::kCount;
+
+    struct Params
+    {
+        cutlass::gemm::GemmCoord problem_size;
+        int tiles_m;      //!< output tiles along m
+        int split_full;   //!< tiles [0, split_full) are not this kernel's
+        int split_slices; //!< pieces per remaining tile
+        typename Mma::IteratorA::Params params_A;
+        typename Mma::IteratorA::TensorRef ref_A;
+        typename Mma::IteratorB::Params params_B;
+        typename Mma::IteratorB::TensorRef ref_B;
+        //! A partial slot: one tile, row-major, ld kN, flat.
+        typename Epilogue::OutputTileIterator::Params params_ws;
+        float *partials; //!< piece b owns slot b
+        CUTLASS_HOST_DEVICE
+        Params() :
+            tiles_m(0), split_full(0), split_slices(1), partials(nullptr)
         {
-            tile = b;
         }
-        else if (b < p.split_full)
-        {
-            tile = b;
-        }
-        else
-        {
-            int const j = b - p.split_full;
-            int const s = p.split_slices;
-            tile = p.split_full + j / s;
-            slice = j % s;
-            int const q = K / s, r = K - q * s;
-            kb = slice * q + (slice < r ? slice : r);
-            ke = kb + q + (slice < r ? 1 : 0);
-            direct = false;
-        }
+    };
+
+    union SharedStorage
+    {
+        typename Mma::SharedStorage main_loop;
+        typename Epilogue::SharedStorage epilogue;
+    };
+
+    CUTLASS_HOST_DEVICE
+    MixedPieceKernel() = default;
+
+    CUTLASS_DEVICE
+    void operator()(Params const &p, SharedStorage &shared_storage)
+    {
+        int const b = int(blockIdx.x);
+        int const s = p.split_slices;
+        int const tile = p.split_full + b / s;
+        int const slice = b % s;
+        int const K = (p.problem_size.k() + kK - 1) / kK; //!< panels in k
+        int const q = K / s, r = K - q * s;
+        int const kb = slice * q + (slice < r ? slice : r);
+        int const ke = kb + q + (slice < r ? 1 : 0);
         int const m_tile = tile % p.tiles_m;
         int const n_tile = tile / p.tiles_m;
         int const thread_idx = int(threadIdx.x);
@@ -723,8 +794,6 @@ template <typename Mma_, typename Epilogue_> struct MixedKernel
             {kb * kK, n_tile * kN},
             nullptr);
 
-        // Broadcast the warp_id computed by lane 0 to ensure dependent code
-        // is compiled as warp-uniform.
         int warp_idx = __shfl_sync(0xffffffffu, thread_idx / 32, 0);
         int lane_idx = thread_idx % 32;
 
@@ -735,36 +804,11 @@ template <typename Mma_, typename Epilogue_> struct MixedKernel
 
         Epilogue epilogue(
             shared_storage.epilogue, thread_idx, warp_idx, lane_idx);
-        if (direct)
-        {
-            cutlass::MatrixCoord const threadblock_offset(
-                m_tile * kM, n_tile * kN);
-            typename Epilogue::OutputTileIterator iterator_C(p.params_C,
-                p.ref_C.data(),
-                p.problem_size.mn(),
-                thread_idx,
-                threadblock_offset,
-                nullptr);
-            typename Epilogue::OutputTileIterator iterator_D(p.params_D,
-                p.ref_D.data(),
-                p.problem_size.mn(),
-                thread_idx,
-                threadblock_offset,
-                nullptr);
-            OutputOp output_op(p.output_op);
-            epilogue(output_op, iterator_D, accumulators, iterator_C);
-        }
-        else
-        {
-            float *slot =
-                p.partials +
-                (int64_t(tile - p.split_full) * p.split_slices + slice) *
-                    (kM * kN);
-            typename Epilogue::OutputTileIterator iterator_D(
-                p.params_ws, slot, {kM, kN}, thread_idx, {0, 0}, nullptr);
-            OutputOp partial_op(typename OutputOp::Params(1.f, 0.f));
-            epilogue(partial_op, iterator_D, accumulators, iterator_D);
-        }
+        float *slot = p.partials + int64_t(b) * (kM * kN);
+        typename Epilogue::OutputTileIterator iterator_D(
+            p.params_ws, slot, {kM, kN}, thread_idx, {0, 0}, nullptr);
+        OutputOp partial_op(typename OutputOp::Params(1.f, 0.f));
+        epilogue(partial_op, iterator_D, accumulators, iterator_D);
     }
 };
 
@@ -797,6 +841,32 @@ __global__ __launch_bounds__(Kernel::kThreadCount,
 {
     extern __shared__ int SharedStorageBase[];
     mixed_device_body<Kernel>(params, SharedStorageBase);
+}
+
+//! Launch one of them for `num_ctas` CTAs on `stream`; false (nothing
+//! launched, or the launch failed) on a bad grid. Occup 1 asks for two
+//! CTAs resident per SM.
+template <typename Kernel, int Occup>
+bool launch_kernel(typename Kernel::Params const &params,
+    int num_ctas,
+    cudaStream_t stream) noexcept
+{
+    if (num_ctas <= 0)
+    {
+        return true;
+    }
+    void (*kernel)(typename Kernel::Params const);
+    if constexpr (Occup == 1)
+    {
+        kernel = &mixed_device_kernel_two<Kernel>;
+    }
+    else
+    {
+        kernel = &mixed_device_kernel<Kernel>;
+    }
+    int const smem = int(sizeof(typename Kernel::SharedStorage));
+    kernel<<<num_ctas, Kernel::kThreadCount, smem, stream>>>(params);
+    return cudaGetLastError() == cudaSuccess;
 }
 
 //! Deterministic finish of the split tiles: C = alpha * (sum of the
