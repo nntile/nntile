@@ -872,8 +872,9 @@ bool launch_kernel(typename Kernel::Params const &params,
 //! Deterministic finish of the split tiles: C = alpha * (sum of the
 //! tile's partials, ascending slice) + beta * C, beta == 0 never reading
 //! C. One thread per 4 consecutive outputs of a tile row (they share a
-//! chunk: classes are >= 2^18 floats and every tile row start is a
-//! multiple of 128). Vec4 needs ld % 4 == 0.
+//! chunk: classes are at least 2^18 floats and the run starts at a
+//! multiple of 4 elements, so it cannot straddle a chunk boundary).
+//! Vec4 needs ld % 4 == 0 (tile row starts are multiples of 64).
 template <int kM, int kN, bool Vec4>
 __global__ void mixed_reduce(const float *__restrict__ ws,
     void *c,
