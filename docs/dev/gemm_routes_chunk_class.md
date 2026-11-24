@@ -326,14 +326,27 @@ No chunked route at 4 MiB: `qkvO_dgrad`, `qkvO_fwd`, `qkvO_wgrad`, `mlp_fc_dgrad
   The 50257-wide vocabulary and H=1600 are outside the native family's
   shape law, so those rows are staged only (1.07–1.20×).
 
-**What this says.** For the MLP GEMMs of GPT-2 small, medium and large the
-native family now wins against the route it would replace, staging, and
-sits within 5 % of contiguous cuBLAS per model at 4096 tokens on all
-three classes. At 1024 tokens it is within 5 % for medium and large, but
-24 % behind for small on the 1 MiB and 2 MiB classes (2 % on 4 MiB, where
-the hidden state is a single chunk). On the attention, projection and
-lm-head rows nothing measured here favors it, GPT-2 medium's projection
-rows apart. Production routing is unchanged: the wrapper still sends
+**What this says.** Over a whole training step the chunked route is far
+behind contiguous cuBLAS: 1.28–1.45× at 1024 tokens and 1.69–1.91× at
+4096 tokens, and slower than staging at 4096 tokens. That total mixes
+rows where the native family runs with rows where it has no route and
+staging is counted instead. Where it does run, the picture depends on
+the family (rows counted once per chunk class, 360 in all):
+
+| family | rows with a chunked route | of those, faster than staged | chunked / cuBLAS, median (range) |
+|---|---:|---:|---|
+| MLP | 108 of 144 | 100 | 1.04× (0.94–1.42×) |
+| projection | 50 of 72 | 26 | 1.09× (0.96–1.69×) |
+| attention | 72 of 72 | 48 | 1.91× (1.43–4.54×) |
+| lm head | 0 of 72 | – | no chunked route |
+
+The MLP GEMMs of GPT-2 small, medium and large are the one family where
+the chunked route is competitive, and only in aggregate: summed per
+model they stand at 1.01–1.05× cuBLAS, except small at 1024 tokens
+(1.24× on the 1 MiB and 2 MiB classes, 1.02× on 4 MiB). Per row, 9 to 18
+of those 36 rows on a class are more than 5 % behind cuBLAS, the worst
+1.42×. GPT-2 XL's MLP and projection rows and every lm-head row have no
+chunked route. Production routing is unchanged: the wrapper still sends
 these calls to plain cuBLAS or to staging.
 
 ## Reproduce
