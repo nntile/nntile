@@ -218,8 +218,8 @@ void run_big_tile_chunked_graph()
 
     std::uint64_t const staged_before =
         chunking_off ? 0 : ::nntile::haul::stage::staged_submit_count();
-    std::uint64_t const native_before =
-        chunking_off ? 0 : ::nntile::haul::gemm_native_chunked_count();
+    std::uint64_t const gemm_before =
+        chunking_off ? 0 : ::nntile::haul::gemm_staging_stats().calls;
     Runtime runtime(graph);
     runtime.compile();
     runtime.bind_data(ta, a);
@@ -237,22 +237,21 @@ void run_big_tile_chunked_graph()
 
     if (!chunking_off)
     {
-        // Engagement proof 2: gemm runs the NATIVE chunked panel driver,
-        // and after the family-1 promotion so do maxsumexp,
-        // softmax_inplace and norm_slice_inplace (the chunked unit
-        // drivers), and after the family-2 promotion so does the
-        // transpose (the chunked panel driver) - NO staged submit is
+        // Engagement proof 2: gemm runs through its chunk-aware body
+        // (direct contiguous dispatch or workspace staging), as do the
+        // chunked maxsumexp, softmax_inplace and norm_slice_inplace unit
+        // drivers and the chunked transpose - NO generic staged submit is
         // left in the chain.
         std::uint64_t const staged_after =
             ::nntile::haul::stage::staged_submit_count();
-        std::uint64_t const native_after =
-            ::nntile::haul::gemm_native_chunked_count();
+        std::uint64_t const gemm_after =
+            ::nntile::haul::gemm_staging_stats().calls;
         INFO("staged submits before=" << staged_before << " after="
-                                      << staged_after << " native gemm before="
-                                      << native_before << " after="
-                                      << native_after);
+                                      << staged_after << " gemm calls before="
+                                      << gemm_before << " after="
+                                      << gemm_after);
         REQUIRE(staged_after - staged_before == 0);
-        REQUIRE(native_after - native_before >= 1);
+        REQUIRE(gemm_after - gemm_before >= 1);
     }
 
     auto const c_out = runtime.get_output<float>(tc);
@@ -392,11 +391,18 @@ void run_big_embedding_chunked_graph()
 
 #ifdef NNTILE_USE_NNHAUL
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "Chunked big-tile graph path (default ladder)",
+TEST_CASE("Chunked big-tile graph path (default ladder)",
     "[graph][tile][chunked]")
 {
-    run_big_tile_chunked_graph();
+    // Scope the parent memory context: nnhaul sizes the device arena to
+    // 90% of the FREE VRAM, so the re-exec'ed deep-ladder child below
+    // would find no room left and fail on an 11 GiB device if the parent
+    // arena were still alive. The parent run must finish and release its
+    // arena before the child starts.
+    {
+        nntile::test::ContextFixture fixture;
+        run_big_tile_chunked_graph();
+    }
     // Second mode: a pristine child process under the deep ladder
     // (NNHAUL_CHUNK_SIZES=4096 NNHAUL_CHUNK_MIN_COUNT=1 -> 512 chunks
     // per 2 MiB tile). The knobs are parsed once per process by nnhaul
