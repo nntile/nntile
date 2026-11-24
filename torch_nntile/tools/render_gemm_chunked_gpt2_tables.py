@@ -81,6 +81,15 @@ def ratio(value: float, base: float) -> str:
     return f"{value / base:.2f}×"
 
 
+def table_head(names: list[str], right: list[int] | None = None) -> list[str]:
+    """A table's header row and its delimiter row. The delimiter carries
+    exactly one cell per column (the columns in ``right`` end in a
+    colon), which is what makes Markdown see a table at all."""
+    right = right or []
+    rule = ["---:" if i in right else "---" for i in range(len(names))]
+    return ["| " + " | ".join(names) + " |", "|" + "|".join(rule) + "|"]
+
+
 def keys_of(rows: Rows, model: str, tokens: int) -> list[Key]:
     """The model's rows at one token count, in the benchmark's order."""
     keys = [k for k in rows if k[0] == model and k[1] == tokens]
@@ -130,10 +139,14 @@ def step_time(
 
 
 def per_step_table(engines: list[Engine]) -> list[str]:
-    head = "| model | tokens/step | cuBLAS ms | " + " | ".join(
-        f"{name}: staged · native · production" for name, _, _, _ in engines
+    out = table_head(
+        ["model", "tokens/step", "cuBLAS ms"]
+        + [
+            f"{name}: staged · native · production"
+            for name, _, _, _ in engines
+        ],
+        [1, 2],
     )
-    out = [head, "|---|---:|---:|" + "---|---" * len(engines)]
     for model in MODELS:
         for tokens in TOKENS:
             stats = [
@@ -167,11 +180,13 @@ def per_step_table(engines: list[Engine]) -> list[str]:
 
 def native_only_table(engines: list[Engine]) -> list[str]:
     """The native family alone at the classes without a staged route."""
-    head = "| model | tokens/step | cuBLAS ms | " + " | ".join(
-        f"{name} class: native, rows launched" for name, _, _, _ in engines
+    out = table_head(
+        ["model", "tokens/step", "cuBLAS ms"]
+        + [
+            f"{name} class: native, rows launched" for name, _, _, _ in engines
+        ],
+        [1, 2],
     )
-    rule = "|---|---:|---:|" + "---|---" * len(engines)
-    out = [head, rule]
     for model in MODELS:
         for tokens in TOKENS:
             stats = [
@@ -205,14 +220,11 @@ def row_tables(engines: list[Engine], tokens: int) -> list[str]:
             continue
         spec = MODEL_SPEC[model]
         out += ["", f"**GPT-2 {model} ({spec}), {tokens} tokens/step**", ""]
-        out.append(
-            "| GEMM row | m, n, k × batch | calls | cuBLAS µs | "
-            + " | ".join(
-                f"{stage} {name}" for name in names for stage in STAGES
-            )
-            + " |"
+        out += table_head(
+            ["GEMM row", "m, n, k × batch", "calls", "cuBLAS µs"]
+            + [f"{stage} {name}" for name in names for stage in STAGES],
+            [2, 3] + list(range(4, 4 + 2 * len(engines))),
         )
-        out.append("|---|---|---:|---:|" + "---|---" * (2 * len(engines)))
         tot: dict[str, float] = collections.defaultdict(float)
         owned: dict[str, list[str]] = {name: [] for name in names}
         for key in keys:

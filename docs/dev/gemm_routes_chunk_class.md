@@ -55,8 +55,8 @@ classes is inside the run-to-run variation.
 
 ## GEMM time per training step
 
-| model | tokens/step | cuBLAS ms | 1 MiB class: staged · chunked | 2 MiB class: staged · chunked | 4 MiB class: staged · chunked
-|---|---:|---:|---|------|------|---
+| model | tokens/step | cuBLAS ms | 1 MiB class: staged · chunked | 2 MiB class: staged · chunked | 4 MiB class: staged · chunked |
+|---|---:|---:|---|---|---|
 | small (H=768, 12 heads, 12 layers) | 1024 | 92.4 | 124.3 (1.34×) · 133.7 (1.44×) | 124.0 (1.34×) · 133.7 (1.45×) | 115.7 (1.25×) · 125.1 (1.36×) |
 | small (H=768, 12 heads, 12 layers) | 4096 | 491.4 | 769.1 (1.57×) · 934.9 (1.90×) | 768.5 (1.56×) · 935.5 (1.90×) | 767.5 (1.56×) · 939.8 (1.91×) |
 | medium (H=1024, 16 heads, 24 layers) | 1024 | 246.7 | 328.9 (1.33×) · 322.0 (1.30×) | 328.4 (1.33×) · 322.0 (1.30×) | 305.1 (1.24×) · 314.2 (1.28×) |
@@ -85,7 +85,7 @@ classes is inside the run-to-run variation.
 **GPT-2 small (H=768, 12 heads, 12 layers), 1024 tokens/step**
 
 | GEMM row | m, n, k × batch | calls | cuBLAS µs | staged 1 MiB | chunked 1 MiB | staged 2 MiB | chunked 2 MiB | staged 4 MiB | chunked 4 MiB |
-|---|---|---:|---:|---|------|------|---
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
 | `qkvO_dgrad` | 1024, 768, 768 × 1 | 48 | 158 | 194 (1.23×) | 172 (1.09×) | 192 (1.22×) | 172 (1.09×) | 156 (0.99×) | 171 (1.09×) |
 | `qkvO_fwd` | 1024, 768, 768 × 1 | 48 | 136 | 173 (1.26×) | 173 (1.27×) | 171 (1.25×) | 172 (1.26×) | 135 (0.99×) | 174 (1.28×) |
 | `qkvO_wgrad` | 768, 768, 1024 × 1 | 48 | 136 | 168 (1.24×) | 218 (1.61×) | 168 (1.24×) | 218 (1.60×) | 137 (1.01×) | 217 (1.60×) |
@@ -102,6 +102,7 @@ classes is inside the run-to-run variation.
 | `lm_head_fwd` | 1024, 50257, 768 × 1 | 1 | 7239 | 8622 (1.19×) | n/a | 8578 (1.18×) | n/a | 8576 (1.18×) | n/a |
 | `lm_head_wgrad` | 50257, 768, 1024 × 1 | 1 | 6864 | 8261 (1.20×) | n/a | 8260 (1.20×) | n/a | 8187 (1.19×) | n/a |
 | **per training step (ms)** | | | **92.4** | **124.3 (1.34×)** | **133.7 (1.45×)** | **124.0 (1.34×)** | **133.7 (1.45×)** | **115.7 (1.25×)** | **125.1 (1.35×)** |
+
 No chunked route at 1 MiB: `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
 No chunked route at 2 MiB: `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
 No chunked route at 4 MiB: `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
@@ -109,7 +110,7 @@ No chunked route at 4 MiB: `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
 **GPT-2 medium (H=1024, 16 heads, 24 layers), 1024 tokens/step**
 
 | GEMM row | m, n, k × batch | calls | cuBLAS µs | staged 1 MiB | chunked 1 MiB | staged 2 MiB | chunked 2 MiB | staged 4 MiB | chunked 4 MiB |
-|---|---|---:|---:|---|------|------|---
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
 | `qkvO_dgrad` | 1024, 1024, 1024 × 1 | 96 | 218 | 266 (1.22×) | 223 (1.02×) | 266 (1.22×) | 223 (1.02×) | 217 (1.00×) | 220 (1.01×) |
 | `qkvO_fwd` | 1024, 1024, 1024 × 1 | 96 | 235 | 284 (1.21×) | 228 (0.97×) | 283 (1.21×) | 228 (0.97×) | 233 (0.99×) | 225 (0.96×) |
 | `qkvO_wgrad` | 1024, 1024, 1024 × 1 | 96 | 215 | 264 (1.23×) | 220 (1.02×) | 263 (1.22×) | 220 (1.02×) | 214 (1.00×) | 217 (1.01×) |
@@ -126,6 +127,7 @@ No chunked route at 4 MiB: `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
 | `lm_head_fwd` | 1024, 50257, 1024 × 1 | 1 | 9520 | 11076 (1.16×) | n/a | 11076 (1.16×) | n/a | 11047 (1.16×) | n/a |
 | `lm_head_wgrad` | 50257, 1024, 1024 × 1 | 1 | 9115 | 10705 (1.17×) | n/a | 10703 (1.17×) | n/a | 10626 (1.17×) | n/a |
 | **per training step (ms)** | | | **246.7** | **328.9 (1.33×)** | **322.0 (1.31×)** | **328.4 (1.33×)** | **322.0 (1.31×)** | **305.1 (1.24×)** | **314.2 (1.27×)** |
+
 No chunked route at 1 MiB: `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
 No chunked route at 2 MiB: `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
 No chunked route at 4 MiB: `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
@@ -133,7 +135,7 @@ No chunked route at 4 MiB: `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
 **GPT-2 large (H=1280, 20 heads, 36 layers), 1024 tokens/step**
 
 | GEMM row | m, n, k × batch | calls | cuBLAS µs | staged 1 MiB | chunked 1 MiB | staged 2 MiB | chunked 2 MiB | staged 4 MiB | chunked 4 MiB |
-|---|---|---:|---:|---|------|------|---
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
 | `qkvO_dgrad` | 1024, 1280, 1280 × 1 | 144 | 328 | 393 (1.20×) | 526 (1.60×) | 395 (1.20×) | 524 (1.60×) | 394 (1.20×) | 520 (1.59×) |
 | `qkvO_fwd` | 1024, 1280, 1280 × 1 | 144 | 353 | 419 (1.19×) | 546 (1.55×) | 418 (1.19×) | 545 (1.55×) | 418 (1.18×) | 543 (1.54×) |
 | `qkvO_wgrad` | 1280, 1280, 1024 × 1 | 144 | 315 | 387 (1.23×) | 434 (1.38×) | 385 (1.22×) | 434 (1.38×) | 384 (1.22×) | 434 (1.38×) |
@@ -150,6 +152,7 @@ No chunked route at 4 MiB: `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
 | `lm_head_fwd` | 1024, 50257, 1280 × 1 | 1 | 11961 | 13732 (1.15×) | n/a | 13777 (1.15×) | n/a | 13767 (1.15×) | n/a |
 | `lm_head_wgrad` | 50257, 1280, 1024 × 1 | 1 | 11406 | 13243 (1.16×) | n/a | 13167 (1.15×) | n/a | 13146 (1.15×) | n/a |
 | **per training step (ms)** | | | **523.4** | **681.2 (1.30×)** | **729.2 (1.39×)** | **679.4 (1.30×)** | **727.9 (1.39×)** | **677.2 (1.29×)** | **727.1 (1.39×)** |
+
 No chunked route at 1 MiB: `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
 No chunked route at 2 MiB: `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
 No chunked route at 4 MiB: `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
@@ -157,7 +160,7 @@ No chunked route at 4 MiB: `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
 **GPT-2 xl (H=1600, 25 heads, 48 layers), 1024 tokens/step**
 
 | GEMM row | m, n, k × batch | calls | cuBLAS µs | staged 1 MiB | chunked 1 MiB | staged 2 MiB | chunked 2 MiB | staged 4 MiB | chunked 4 MiB |
-|---|---|---:|---:|---|------|------|---
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
 | `qkvO_dgrad` | 1024, 1600, 1600 × 1 | 192 | 519 | 613 (1.18×) | n/a | 607 (1.17×) | n/a | 606 (1.17×) | n/a |
 | `qkvO_fwd` | 1024, 1600, 1600 × 1 | 192 | 634 | 727 (1.15×) | n/a | 722 (1.14×) | n/a | 720 (1.14×) | n/a |
 | `qkvO_wgrad` | 1600, 1600, 1024 × 1 | 192 | 502 | 594 (1.18×) | n/a | 594 (1.18×) | n/a | 591 (1.18×) | n/a |
@@ -174,6 +177,7 @@ No chunked route at 4 MiB: `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
 | `lm_head_fwd` | 1024, 50257, 1600 × 1 | 1 | 14816 | 16844 (1.14×) | n/a | 16855 (1.14×) | n/a | 16894 (1.14×) | n/a |
 | `lm_head_wgrad` | 50257, 1600, 1024 × 1 | 1 | 14383 | 16423 (1.14×) | n/a | 16420 (1.14×) | n/a | 16357 (1.14×) | n/a |
 | **per training step (ms)** | | | **1052.9** | **1330.6 (1.26×)** | **1374.2 (1.31×)** | **1324.6 (1.26×)** | **1368.0 (1.30×)** | **1319.4 (1.25×)** | **1363.6 (1.30×)** |
+
 No chunked route at 1 MiB: `qkvO_dgrad`, `qkvO_fwd`, `qkvO_wgrad`, `mlp_fc_dgrad`, `mlp_fc_fwd`, `mlp_fc_wgrad`, `mlp_proj_dgrad`, `mlp_proj_fwd`, `mlp_proj_wgrad`, `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
 No chunked route at 2 MiB: `qkvO_dgrad`, `qkvO_fwd`, `qkvO_wgrad`, `mlp_fc_dgrad`, `mlp_fc_fwd`, `mlp_fc_wgrad`, `mlp_proj_dgrad`, `mlp_proj_fwd`, `mlp_proj_wgrad`, `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
 No chunked route at 4 MiB: `qkvO_dgrad`, `qkvO_fwd`, `qkvO_wgrad`, `mlp_fc_dgrad`, `mlp_fc_fwd`, `mlp_fc_wgrad`, `mlp_proj_dgrad`, `mlp_proj_fwd`, `mlp_proj_wgrad`, `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
@@ -184,7 +188,7 @@ No chunked route at 4 MiB: `qkvO_dgrad`, `qkvO_fwd`, `qkvO_wgrad`, `mlp_fc_dgrad
 **GPT-2 small (H=768, 12 heads, 12 layers), 4096 tokens/step**
 
 | GEMM row | m, n, k × batch | calls | cuBLAS µs | staged 1 MiB | chunked 1 MiB | staged 2 MiB | chunked 2 MiB | staged 4 MiB | chunked 4 MiB |
-|---|---|---:|---:|---|------|------|---
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
 | `qkvO_dgrad` | 4096, 768, 768 × 1 | 48 | 461 | 567 (1.23×) | 483 (1.05×) | 567 (1.23×) | 483 (1.05×) | 560 (1.22×) | n/a |
 | `qkvO_fwd` | 4096, 768, 768 × 1 | 48 | 471 | 582 (1.23×) | 516 (1.10×) | 580 (1.23×) | 516 (1.09×) | 565 (1.20×) | n/a |
 | `qkvO_wgrad` | 768, 768, 4096 × 1 | 48 | 486 | 588 (1.21×) | 821 (1.69×) | 588 (1.21×) | 817 (1.68×) | 580 (1.19×) | 806 (1.66×) |
@@ -201,6 +205,7 @@ No chunked route at 4 MiB: `qkvO_dgrad`, `qkvO_fwd`, `qkvO_wgrad`, `mlp_fc_dgrad
 | `lm_head_fwd` | 4096, 50257, 768 × 1 | 1 | 28508 | 32149 (1.13×) | n/a | 32203 (1.13×) | n/a | 32185 (1.13×) | n/a |
 | `lm_head_wgrad` | 50257, 768, 4096 × 1 | 1 | 27049 | 30928 (1.14×) | n/a | 30927 (1.14×) | n/a | 30927 (1.14×) | n/a |
 | **per training step (ms)** | | | **491.4** | **769.1 (1.57×)** | **934.9 (1.90×)** | **768.5 (1.56×)** | **935.5 (1.90×)** | **767.5 (1.56×)** | **939.8 (1.91×)** |
+
 No chunked route at 1 MiB: `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
 No chunked route at 2 MiB: `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
 No chunked route at 4 MiB: `qkvO_dgrad`, `qkvO_fwd`, `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
@@ -208,7 +213,7 @@ No chunked route at 4 MiB: `qkvO_dgrad`, `qkvO_fwd`, `lm_head_dgrad`, `lm_head_f
 **GPT-2 medium (H=1024, 16 heads, 24 layers), 4096 tokens/step**
 
 | GEMM row | m, n, k × batch | calls | cuBLAS µs | staged 1 MiB | chunked 1 MiB | staged 2 MiB | chunked 2 MiB | staged 4 MiB | chunked 4 MiB |
-|---|---|---:|---:|---|------|------|---
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
 | `qkvO_dgrad` | 4096, 1024, 1024 × 1 | 96 | 798 | 945 (1.18×) | 831 (1.04×) | 945 (1.18×) | 834 (1.04×) | 928 (1.16×) | n/a |
 | `qkvO_fwd` | 4096, 1024, 1024 × 1 | 96 | 823 | 969 (1.18×) | 894 (1.09×) | 971 (1.18×) | 894 (1.09×) | 952 (1.16×) | n/a |
 | `qkvO_wgrad` | 1024, 1024, 4096 × 1 | 96 | 808 | 946 (1.17×) | 811 (1.00×) | 948 (1.17×) | 815 (1.01×) | 934 (1.16×) | 812 (1.01×) |
@@ -225,6 +230,7 @@ No chunked route at 4 MiB: `qkvO_dgrad`, `qkvO_fwd`, `lm_head_dgrad`, `lm_head_f
 | `lm_head_fwd` | 4096, 50257, 1024 × 1 | 1 | 37623 | 41458 (1.10×) | n/a | 41449 (1.10×) | n/a | 41465 (1.10×) | n/a |
 | `lm_head_wgrad` | 50257, 1024, 4096 × 1 | 1 | 36319 | 40395 (1.11×) | n/a | 40395 (1.11×) | n/a | 40395 (1.11×) | n/a |
 | **per training step (ms)** | | | **1360.1** | **2081.7 (1.53×)** | **2477.5 (1.82×)** | **2083.2 (1.53×)** | **2479.9 (1.82×)** | **2077.5 (1.53×)** | **2491.7 (1.83×)** |
+
 No chunked route at 1 MiB: `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
 No chunked route at 2 MiB: `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
 No chunked route at 4 MiB: `qkvO_dgrad`, `qkvO_fwd`, `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
@@ -232,7 +238,7 @@ No chunked route at 4 MiB: `qkvO_dgrad`, `qkvO_fwd`, `lm_head_dgrad`, `lm_head_f
 **GPT-2 large (H=1280, 20 heads, 36 layers), 4096 tokens/step**
 
 | GEMM row | m, n, k × batch | calls | cuBLAS µs | staged 1 MiB | chunked 1 MiB | staged 2 MiB | chunked 2 MiB | staged 4 MiB | chunked 4 MiB |
-|---|---|---:|---:|---|------|------|---
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
 | `qkvO_dgrad` | 4096, 1280, 1280 × 1 | 144 | 1202 | 1390 (1.16×) | 1289 (1.07×) | 1389 (1.16×) | 1289 (1.07×) | 1390 (1.16×) | 1289 (1.07×) |
 | `qkvO_fwd` | 4096, 1280, 1280 × 1 | 144 | 1279 | 1467 (1.15×) | 1366 (1.07×) | 1467 (1.15×) | 1367 (1.07×) | 1468 (1.15×) | 1366 (1.07×) |
 | `qkvO_wgrad` | 1280, 1280, 4096 × 1 | 144 | 1205 | 1385 (1.15×) | 1614 (1.34×) | 1388 (1.15×) | 1613 (1.34×) | 1389 (1.15×) | 1613 (1.34×) |
@@ -249,6 +255,7 @@ No chunked route at 4 MiB: `qkvO_dgrad`, `qkvO_fwd`, `lm_head_dgrad`, `lm_head_f
 | `lm_head_fwd` | 4096, 50257, 1280 × 1 | 1 | 47225 | 51204 (1.08×) | n/a | 51245 (1.09×) | n/a | 51258 (1.09×) | n/a |
 | `lm_head_wgrad` | 50257, 1280, 4096 × 1 | 1 | 44818 | 49102 (1.10×) | n/a | 49102 (1.10×) | n/a | 49103 (1.10×) | n/a |
 | **per training step (ms)** | | | **2756.1** | **4107.9 (1.49×)** | **4864.2 (1.76×)** | **4110.8 (1.49×)** | **4869.4 (1.77×)** | **4110.6 (1.49×)** | **4863.8 (1.76×)** |
+
 No chunked route at 1 MiB: `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
 No chunked route at 2 MiB: `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
 No chunked route at 4 MiB: `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
@@ -256,7 +263,7 @@ No chunked route at 4 MiB: `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
 **GPT-2 xl (H=1600, 25 heads, 48 layers), 4096 tokens/step**
 
 | GEMM row | m, n, k × batch | calls | cuBLAS µs | staged 1 MiB | chunked 1 MiB | staged 2 MiB | chunked 2 MiB | staged 4 MiB | chunked 4 MiB |
-|---|---|---:|---:|---|------|------|---
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
 | `qkvO_dgrad` | 4096, 1600, 1600 × 1 | 192 | 1958 | 2196 (1.12×) | n/a | 2196 (1.12×) | n/a | 2195 (1.12×) | n/a |
 | `qkvO_fwd` | 4096, 1600, 1600 × 1 | 192 | 2094 | 2332 (1.11×) | n/a | 2332 (1.11×) | n/a | 2327 (1.11×) | n/a |
 | `qkvO_wgrad` | 1600, 1600, 4096 × 1 | 192 | 1882 | 2122 (1.13×) | n/a | 2119 (1.13×) | n/a | 2122 (1.13×) | n/a |
@@ -273,6 +280,7 @@ No chunked route at 4 MiB: `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
 | `lm_head_fwd` | 4096, 50257, 1600 × 1 | 1 | 58656 | 62966 (1.07×) | n/a | 62917 (1.07×) | n/a | 62932 (1.07×) | n/a |
 | `lm_head_wgrad` | 50257, 1600, 4096 × 1 | 1 | 57212 | 61739 (1.08×) | n/a | 61738 (1.08×) | n/a | 61736 (1.08×) | n/a |
 | **per training step (ms)** | | | **5263.9** | **7525.3 (1.43×)** | **8919.9 (1.69×)** | **7524.6 (1.43×)** | **8919.0 (1.69×)** | **7527.6 (1.43×)** | **8909.9 (1.69×)** |
+
 No chunked route at 1 MiB: `qkvO_dgrad`, `qkvO_fwd`, `qkvO_wgrad`, `mlp_fc_dgrad`, `mlp_fc_fwd`, `mlp_fc_wgrad`, `mlp_proj_dgrad`, `mlp_proj_fwd`, `mlp_proj_wgrad`, `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
 No chunked route at 2 MiB: `qkvO_dgrad`, `qkvO_fwd`, `qkvO_wgrad`, `mlp_fc_dgrad`, `mlp_fc_fwd`, `mlp_fc_wgrad`, `mlp_proj_dgrad`, `mlp_proj_fwd`, `mlp_proj_wgrad`, `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.
 No chunked route at 4 MiB: `qkvO_dgrad`, `qkvO_fwd`, `qkvO_wgrad`, `mlp_fc_dgrad`, `mlp_fc_fwd`, `mlp_fc_wgrad`, `mlp_proj_dgrad`, `mlp_proj_fwd`, `mlp_proj_wgrad`, `lm_head_dgrad`, `lm_head_fwd`, `lm_head_wgrad`.

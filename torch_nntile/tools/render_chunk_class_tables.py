@@ -24,10 +24,11 @@ def per_step_table(engines: list[routes.Engine]) -> list[str]:
     """GEMM time per training step by route and chunk class. The chunked
     total is the native route where the family runs the row and staged
     elsewhere."""
-    head = "| model | tokens/step | cuBLAS ms | " + " | ".join(
-        f"{name} class: staged · chunked" for name, _, _, _ in engines
+    out = routes.table_head(
+        ["model", "tokens/step", "cuBLAS ms"]
+        + [f"{name} class: staged · chunked" for name, _, _, _ in engines],
+        [1, 2],
     )
-    out = [head, "|---|---:|---:|" + "---|---" * len(engines)]
     for model in routes.MODELS:
         for tokens in routes.TOKENS:
             stats = [
@@ -65,14 +66,11 @@ def row_tables(engines: list[routes.Engine], tokens: int) -> list[str]:
             continue
         spec = routes.MODEL_SPEC[model]
         out += ["", f"**GPT-2 {model} ({spec}), {tokens} tokens/step**", ""]
-        out.append(
-            "| GEMM row | m, n, k × batch | calls | cuBLAS µs | "
-            + " | ".join(
-                f"{stage} {name}" for name in names for stage in STAGES
-            )
-            + " |"
+        out += routes.table_head(
+            ["GEMM row", "m, n, k × batch", "calls", "cuBLAS µs"]
+            + [f"{stage} {name}" for name in names for stage in STAGES],
+            [2, 3] + list(range(4, 4 + 2 * len(engines))),
         )
-        out.append("|---|---|---:|---:|" + "---|---" * len(engines))
         tot = {(name, stage): 0.0 for name in names for stage in STAGES}
         step_cublas = 0.0
         no_run: dict[str, list[str]] = {name: [] for name in names}
@@ -121,10 +119,14 @@ def row_tables(engines: list[routes.Engine], tokens: int) -> list[str]:
             + " | ".join(cells)
             + " |"
         )
-        for name in names:
+        # Prose after a table needs a blank line, or Markdown reads it as
+        # another row.
+        for i, name in enumerate(names):
             if no_run[name]:
                 listed = ", ".join(no_run[name])
-                out += [f"No chunked route at {name}: {listed}."]
+                out += ([""] if i == 0 else []) + [
+                    f"No chunked route at {name}: {listed}."
+                ]
     return out
 
 
@@ -132,11 +134,16 @@ def operand_table(engines: list[routes.Engine]) -> list[str]:
     """Chunks per MLP operand at each class, read off the ``mlp_fc_fwd``
     rows: A is the hidden state S x H, B the fc weight 4H x H and C the
     fc activation S x 4H. One cell reads 1 / 2 / 4 MiB class."""
-    out = [
-        "| model | tokens | hidden state S×H | fc weight 4H×H | "
-        "fc activation S×4H |",
-        "|---|---:|---|---|---|",
-    ]
+    out = routes.table_head(
+        [
+            "model",
+            "tokens",
+            "hidden state S×H",
+            "fc weight 4H×H",
+            "fc activation S×4H",
+        ],
+        [1],
+    )
     for model in routes.MODELS:
         for tokens in routes.TOKENS:
             key = (model, tokens, "mlp_fc_fwd")

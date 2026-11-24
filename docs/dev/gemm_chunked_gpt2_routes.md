@@ -59,8 +59,8 @@ numbers only. Step totals are sums of calls × median: GEMM time only.
 
 ## GEMM time per training step
 
-| model | tokens/step | cuBLAS ms | 4 MiB: staged · native · production | 16 MiB: staged · native · production
-|---|---:|---:|---|------|---
+| model | tokens/step | cuBLAS ms | 4 MiB: staged · native · production | 16 MiB: staged · native · production |
+|---|---:|---:|---|---|
 | small (H=768, 12 heads, 12 layers) | 1024 | 92.5 | 116.3 (1.25×) · 125.4 (1.35×) · 116.2 (1.25×) | 109.6 (1.19×) · 123.6 (1.34×) · 109.6 (1.19×) |
 | small (H=768, 12 heads, 12 layers) | 4096 | 490.7 | 768.1 (1.56×) · 940.3 (1.92×) · 720.1 (1.47×) | 726.8 (1.48×) · 927.2 (1.89×) · 699.0 (1.42×) |
 | medium (H=1024, 16 heads, 24 layers) | 1024 | 247.1 | 307.3 (1.24×) · 315.3 (1.27×) · 300.7 (1.21×) | 286.7 (1.17×) · 312.5 (1.27×) · 286.6 (1.17×) |
@@ -72,8 +72,8 @@ numbers only. Step totals are sums of calls × median: GEMM time only.
 
 ## Native family alone at the other classes
 
-| model | tokens/step | cuBLAS ms | 1 MiB class: native, rows launched | 2 MiB class: native, rows launched | 8 MiB class: native, rows launched
-|---|---:|---:|---|------|------|---
+| model | tokens/step | cuBLAS ms | 1 MiB class: native, rows launched | 2 MiB class: native, rows launched | 8 MiB class: native, rows launched |
+|---|---:|---:|---|---|---|
 | small | 1024 | 92.4 | 129.5 (1.40×), 12/15 | 129.4 (1.40×), 12/15 | 121.0 (1.32×), 12/15 |
 | small | 4096 | 491.0 | 921.5 (1.88×), 12/15 | 921.4 (1.88×), 12/15 | 918.1 (1.87×), 10/15 |
 | medium | 1024 | 247.1 | 316.8 (1.28×), 12/15 | 317.0 (1.28×), 12/15 | 309.6 (1.26×), 12/15 |
@@ -89,7 +89,7 @@ numbers only. Step totals are sums of calls × median: GEMM time only.
 **GPT-2 small (H=768, 12 heads, 12 layers), 1024 tokens/step**
 
 | GEMM row | m, n, k × batch | calls | cuBLAS µs | staged 4 MiB | native 4 MiB | staged 16 MiB | native 16 MiB |
-|---|---|---:|---:|---|------|------|------|---
+|---|---|---:|---:|---:|---:|---:|---:|
 | `qkvO_dgrad` | 1024, 768, 768 × 1 | 48 | 158 | 160 (1.01×) | 171 (1.08×) | 156 (0.99×) | 171 (1.08×) |
 | `qkvO_fwd` | 1024, 768, 768 × 1 | 48 | 136 | 137 (1.01×) | 174 (1.28×) | 135 (0.99×) | 174 (1.27×) |
 | `qkvO_wgrad` | 768, 768, 1024 × 1 | 48 | 136 | 136 (1.00×) | 217 (1.60×) | 137 (1.01×) | 217 (1.60×) |
@@ -114,7 +114,7 @@ Production routes natively at 16 MiB: none.
 **GPT-2 medium (H=1024, 16 heads, 24 layers), 1024 tokens/step**
 
 | GEMM row | m, n, k × batch | calls | cuBLAS µs | staged 4 MiB | native 4 MiB | staged 16 MiB | native 16 MiB |
-|---|---|---:|---:|---|------|------|------|---
+|---|---|---:|---:|---:|---:|---:|---:|
 | `qkvO_dgrad` | 1024, 1024, 1024 × 1 | 96 | 219 | 221 (1.01×) | 221 (1.01×) | 217 (0.99×) | 220 (1.01×) |
 | `qkvO_fwd` | 1024, 1024, 1024 × 1 | 96 | 236 | 238 (1.01×) | 225 (0.96×) | 233 (0.99×) | 225 (0.95×) |
 | `qkvO_wgrad` | 1024, 1024, 1024 × 1 | 96 | 216 | 218 (1.01×) | 218 (1.01×) | 214 (0.99×) | 218 (1.01×) |
@@ -139,7 +139,7 @@ Production routes natively at 16 MiB: none.
 **GPT-2 large (H=1280, 20 heads, 36 layers), 1024 tokens/step**
 
 | GEMM row | m, n, k × batch | calls | cuBLAS µs | staged 4 MiB | native 4 MiB | staged 16 MiB | native 16 MiB |
-|---|---|---:|---:|---|------|------|------|---
+|---|---|---:|---:|---:|---:|---:|---:|
 | `qkvO_dgrad` | 1024, 1280, 1280 × 1 | 144 | 328 | 394 (1.20×) | 526 (1.60×) | 328 (1.00×) | 514 (1.57×) |
 | `qkvO_fwd` | 1024, 1280, 1280 × 1 | 144 | 353 | 418 (1.18×) | 543 (1.54×) | 353 (1.00×) | 540 (1.53×) |
 | `qkvO_wgrad` | 1280, 1280, 1024 × 1 | 144 | 316 | 387 (1.23×) | 434 (1.37×) | 315 (1.00×) | 407 (1.29×) |
@@ -164,7 +164,7 @@ Production routes natively at 16 MiB: none.
 **GPT-2 xl (H=1600, 25 heads, 48 layers), 1024 tokens/step**
 
 | GEMM row | m, n, k × batch | calls | cuBLAS µs | staged 4 MiB | native 4 MiB | staged 16 MiB | native 16 MiB |
-|---|---|---:|---:|---|------|------|------|---
+|---|---|---:|---:|---:|---:|---:|---:|
 | `qkvO_dgrad` | 1024, 1600, 1600 × 1 | 192 | 517 | 606 (1.17×) | n/a | 517 (1.00×) | n/a |
 | `qkvO_fwd` | 1024, 1600, 1600 × 1 | 192 | 631 | 721 (1.14×) | n/a | 632 (1.00×) | n/a |
 | `qkvO_wgrad` | 1600, 1600, 1024 × 1 | 192 | 500 | 594 (1.19×) | n/a | 499 (1.00×) | n/a |
@@ -192,7 +192,7 @@ Production routes natively at 16 MiB: none.
 **GPT-2 small (H=768, 12 heads, 12 layers), 4096 tokens/step**
 
 | GEMM row | m, n, k × batch | calls | cuBLAS µs | staged 4 MiB | native 4 MiB | staged 16 MiB | native 16 MiB |
-|---|---|---:|---:|---|------|------|------|---
+|---|---|---:|---:|---:|---:|---:|---:|
 | `qkvO_dgrad` | 4096, 768, 768 × 1 | 48 | 462 | 562 (1.22×) | n/a | 461 (1.00×) | 468 (1.01×) |
 | `qkvO_fwd` | 4096, 768, 768 × 1 | 48 | 469 | 571 (1.22×) | n/a | 469 (1.00×) | 500 (1.07×) |
 | `qkvO_wgrad` | 768, 768, 4096 × 1 | 48 | 486 | 580 (1.19×) | 813 (1.67×) | 487 (1.00×) | 799 (1.64×) |
@@ -217,7 +217,7 @@ Production routes natively at 16 MiB: `attn_ctx`, `attn_dKV`, `mlp_fc_dgrad`, `m
 **GPT-2 medium (H=1024, 16 heads, 24 layers), 4096 tokens/step**
 
 | GEMM row | m, n, k × batch | calls | cuBLAS µs | staged 4 MiB | native 4 MiB | staged 16 MiB | native 16 MiB |
-|---|---|---:|---:|---|------|------|------|---
+|---|---|---:|---:|---:|---:|---:|---:|
 | `qkvO_dgrad` | 4096, 1024, 1024 × 1 | 96 | 799 | 928 (1.16×) | n/a | 801 (1.00×) | 816 (1.02×) |
 | `qkvO_fwd` | 4096, 1024, 1024 × 1 | 96 | 821 | 953 (1.16×) | n/a | 818 (1.00×) | 854 (1.04×) |
 | `qkvO_wgrad` | 1024, 1024, 4096 × 1 | 96 | 806 | 934 (1.16×) | 811 (1.01×) | 802 (1.00×) | 801 (0.99×) |
@@ -242,7 +242,7 @@ Production routes natively at 16 MiB: `attn_ctx`, `attn_dKV`, `mlp_fc_dgrad`, `m
 **GPT-2 large (H=1280, 20 heads, 36 layers), 4096 tokens/step**
 
 | GEMM row | m, n, k × batch | calls | cuBLAS µs | staged 4 MiB | native 4 MiB | staged 16 MiB | native 16 MiB |
-|---|---|---:|---:|---|------|------|------|---
+|---|---|---:|---:|---:|---:|---:|---:|
 | `qkvO_dgrad` | 4096, 1280, 1280 × 1 | 144 | 1202 | 1390 (1.16×) | 1289 (1.07×) | 1364 (1.13×) | n/a |
 | `qkvO_fwd` | 4096, 1280, 1280 × 1 | 144 | 1277 | 1469 (1.15×) | 1366 (1.07×) | 1433 (1.12×) | n/a |
 | `qkvO_wgrad` | 1280, 1280, 4096 × 1 | 144 | 1201 | 1389 (1.16×) | 1613 (1.34×) | 1352 (1.13×) | 1611 (1.34×) |
@@ -267,7 +267,7 @@ Production routes natively at 16 MiB: `attn_ctx`, `attn_dKV`, `mlp_fc_dgrad`, `m
 **GPT-2 xl (H=1600, 25 heads, 48 layers), 4096 tokens/step**
 
 | GEMM row | m, n, k × batch | calls | cuBLAS µs | staged 4 MiB | native 4 MiB | staged 16 MiB | native 16 MiB |
-|---|---|---:|---:|---|------|------|------|---
+|---|---|---:|---:|---:|---:|---:|---:|
 | `qkvO_dgrad` | 4096, 1600, 1600 × 1 | 192 | 1958 | 2196 (1.12×) | n/a | 2156 (1.10×) | n/a |
 | `qkvO_fwd` | 4096, 1600, 1600 × 1 | 192 | 2090 | 2331 (1.12×) | n/a | 2288 (1.09×) | n/a |
 | `qkvO_wgrad` | 1600, 1600, 4096 × 1 | 192 | 1887 | 2122 (1.12×) | n/a | 2083 (1.10×) | n/a |
