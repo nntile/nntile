@@ -25,6 +25,7 @@ Start with the product docs if you are new:
 | [torch_native_middle_cpu_vs_nntile.md](torch_native_middle_cpu_vs_nntile.md) | Middle (~1 min) torch-native CPU vs nntile |
 | [reproducibility.md](reproducibility.md) | Single-core CPU / GPU overhead measurement protocol |
 | [cuda_vs_nntile_2gb.md](cuda_vs_nntile_2gb.md) | ≥2 GiB CUDA vs nntile GPU table (separate processes) |
+| [gemm_chunked_status.md](gemm_chunked_status.md) | Native chunked GEMM family: where the work stopped (results, causes, verification, leads) |
 | [gemm_chunked_gpt2_routes.md](gemm_chunked_gpt2_routes.md) | GPT-2 GEMM routes on scattered chunk layouts: cuBLAS vs workspace-staged vs native chunked (RTX 2080 Ti baseline) |
 | [gemm_routes_chunk_class.md](gemm_routes_chunk_class.md) | GEMM routes by chunk class (1, 2, 4 MiB): cuBLAS vs workspace-staged vs native chunked on every GPT-2 S–XL GEMM (RTX 2080 Ti) |
 | [gpt2_hf_overhead_scale.md](gpt2_hf_overhead_scale.md) | GPT-2 HF 10-step overhead; `seq_len = n_embd/2` (XS/S/M/L/XL) |

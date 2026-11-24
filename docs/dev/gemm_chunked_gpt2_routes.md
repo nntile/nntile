@@ -3,6 +3,10 @@
 Baseline for the chunked-GEMM work: what each GEMM route of the nnhaul gemm
 wrapper (`nntile/src/nnhaul/gemm.cc`) costs on the shapes a GPT-2 training
 step issues, for the native family in `nntile/src/kernel/gemm_chunked/`.
+Where the work stopped, and the complete picture on the 1, 2 and 4 MiB
+classes: [gemm_chunked_status.md](gemm_chunked_status.md). This document
+predates the `tails` piece, so its lm-head rows and GPT-2 XL's MLP and
+projection rows show no native route.
 Measured with `bench_gemm_chunked_gpt2`
 (`nntile/tests/kernel/gemm_chunked_gpt2_bench.cc`) on 2026-11-24, after
 the first optimization round described below; the 2026-11-23 baseline is
