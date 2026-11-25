@@ -16,6 +16,7 @@
 
 #include <nntile/base_types.hh>
 #include <cuda_runtime.h>
+#include <nntile/kernel/cuda.hh>
 
 namespace nntile::kernel::embedding_backward
 {
@@ -70,7 +71,8 @@ void chunked(cudaStream_t stream, Index m, Index n, Index k, Index k_start,
         Scalar beta,
         const int64_t *const *index_chunks, Index nindex, Index elems_index,
         const T *const *embed_chunks, Index nembed, Index elems_embed,
-        T *const *vocab_chunks, Index nvocab, Index elems_vocab)
+        T *const *vocab_chunks, Index nvocab, Index elems_vocab,
+        ChunkClass cls = chunk_class())
     noexcept;
 
 } // namespace nntile::kernel::embedding_backward

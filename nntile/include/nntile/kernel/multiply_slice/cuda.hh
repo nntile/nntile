@@ -16,6 +16,7 @@
 
 #include <nntile/base_types.hh>
 #include <cuda_runtime.h>
+#include <nntile/kernel/cuda.hh>
 
 namespace nntile::kernel::multiply_slice
 {
@@ -39,7 +40,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
  * shared memory once. Each element resolves its src chunk from its flat slice
  * offset f = i0 + m*i1 via f / elems_src, f % elems_src and its dst chunk
  * from its flat offset f = i0 + m*(i2 + k*i1) via f / elems_dst,
- * f % elems_dst (shift/mask on the compile-time chunk class). The
+ * f % elems_dst (shift/mask on the runtime chunk class). The
  * per-element arithmetic is exactly cuda()'s, so the result is BITWISE the
  * whole-buffer cuda() call. There is no chunk-count cap.
  *
@@ -58,7 +59,8 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
 template<typename T>
 void chunked(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
     const T *const *src_chunks, Index nsrc, Index elems_src,
-    T *const *dst_chunks, Index ndst, Index elems_dst)
+    T *const *dst_chunks, Index ndst, Index elems_dst,
+        ChunkClass cls = chunk_class())
     noexcept;
 
 } // namespace nntile::kernel::multiply_slice

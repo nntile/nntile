@@ -134,7 +134,8 @@ void chunked_single_kernel(Index nelems, typename T::repr_t eps_,
 
 template<typename T>
 void chunked(cudaStream_t stream, Index nelems, Scalar eps, Scalar alpha,
-        T* const* dst_chunks, Index ndst, Index elems_dst)
+        T* const* dst_chunks, Index ndst, Index elems_dst,
+        ChunkClass cls)
     noexcept
 {
     if(nelems <= 0 || ndst <= 0)
@@ -155,7 +156,7 @@ void chunked(cudaStream_t stream, Index nelems, Scalar eps, Scalar alpha,
     t.dst = dst_chunks;
     t.ndst = ndst;
     t.elems_dst = elems_dst;
-    t.shift_dst = chunk_shift_of<T>(t.ndst, elems_dst, "nntile_hypot_scalar_inverse");
+    t.shift_dst = chunk_shift_of<T>(t.ndst, elems_dst, cls, "nntile_hypot_scalar_inverse");
     dim3 blocks((nelems+255)/256), threads(256);
     (chunked_cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(
         nelems, eps, alpha, t);
@@ -184,22 +185,22 @@ void cuda<fp16_t>(cudaStream_t stream, Index nelems, Scalar eps, Scalar alpha,
 
 template
 void chunked<fp32_t>(cudaStream_t stream, Index nelems, Scalar eps,
-        Scalar alpha, fp32_t* const* dst_chunks, Index ndst, Index elems_dst)
+        Scalar alpha, fp32_t* const* dst_chunks, Index ndst, Index elems_dst, ChunkClass cls)
     noexcept;
 
 template
 void chunked<fp64_t>(cudaStream_t stream, Index nelems, Scalar eps,
-        Scalar alpha, fp64_t* const* dst_chunks, Index ndst, Index elems_dst)
+        Scalar alpha, fp64_t* const* dst_chunks, Index ndst, Index elems_dst, ChunkClass cls)
     noexcept;
 
 template
 void chunked<bf16_t>(cudaStream_t stream, Index nelems, Scalar eps,
-        Scalar alpha, bf16_t* const* dst_chunks, Index ndst, Index elems_dst)
+        Scalar alpha, bf16_t* const* dst_chunks, Index ndst, Index elems_dst, ChunkClass cls)
     noexcept;
 
 template
 void chunked<fp16_t>(cudaStream_t stream, Index nelems, Scalar eps,
-        Scalar alpha, fp16_t* const* dst_chunks, Index ndst, Index elems_dst)
+        Scalar alpha, fp16_t* const* dst_chunks, Index ndst, Index elems_dst, ChunkClass cls)
     noexcept;
 
 } // namespace nntile::kernel::hypot_scalar_inverse

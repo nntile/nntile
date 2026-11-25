@@ -133,7 +133,8 @@ template<typename T>
 void chunked(cudaStream_t stream, Index nelems,
         const T* const* maxsumexp_chunks, Index nmse,
         T* const* logsumexp_chunks, Index nlse, Index elems_mse,
-        Index elems_lse)
+        Index elems_lse,
+        ChunkClass cls)
     noexcept
 {
     if(nelems <= 0 || nmse <= 0 || nlse <= 0)
@@ -156,8 +157,8 @@ void chunked(cudaStream_t stream, Index nelems,
     t.nlse = nlse;
     t.elems_mse = elems_mse;
     t.elems_lse = elems_lse;
-    t.shift_mse = chunk_shift_of<T>(t.nmse, elems_mse, "nntile_logsumexp");
-    t.shift_lse = chunk_shift_of<T>(t.nlse, elems_lse, "nntile_logsumexp");
+    t.shift_mse = chunk_shift_of<T>(t.nmse, elems_mse, cls, "nntile_logsumexp");
+    t.shift_lse = chunk_shift_of<T>(t.nlse, elems_lse, cls, "nntile_logsumexp");
     dim3 blocks((nelems+31)/32), threads(32);
     (chunked_cuda_kernel<T>)<<<blocks, threads,
         0, stream>>>(nelems, t);
@@ -188,24 +189,24 @@ template
 void chunked<fp32_t>(cudaStream_t stream, Index nelems,
         const fp32_t* const* maxsumexp_chunks, Index nmse,
         fp32_t* const* logsumexp_chunks, Index nlse, Index elems_mse,
-        Index elems_lse) noexcept;
+        Index elems_lse, ChunkClass cls) noexcept;
 
 template
 void chunked<fp64_t>(cudaStream_t stream, Index nelems,
         const fp64_t* const* maxsumexp_chunks, Index nmse,
         fp64_t* const* logsumexp_chunks, Index nlse, Index elems_mse,
-        Index elems_lse) noexcept;
+        Index elems_lse, ChunkClass cls) noexcept;
 
 template
 void chunked<bf16_t>(cudaStream_t stream, Index nelems,
         const bf16_t* const* maxsumexp_chunks, Index nmse,
         bf16_t* const* logsumexp_chunks, Index nlse, Index elems_mse,
-        Index elems_lse) noexcept;
+        Index elems_lse, ChunkClass cls) noexcept;
 
 template
 void chunked<fp16_t>(cudaStream_t stream, Index nelems,
         const fp16_t* const* maxsumexp_chunks, Index nmse,
         fp16_t* const* logsumexp_chunks, Index nlse, Index elems_mse,
-        Index elems_lse) noexcept;
+        Index elems_lse, ChunkClass cls) noexcept;
 
 } // namespace nntile::kernel::logsumexp

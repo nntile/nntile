@@ -75,7 +75,7 @@ class Tile: public TileTraits
         // nnhaul engine (every tile decomposes into whole class chunks).
         // Disabled for torch_dispatch graphs via the haul gate.
         std::size_t const chunk_bytes = ::nntile::haul::tile_chunking_enabled()
-            ? ::nnhaul::kChunkClassBytes
+            ? ::nnhaul::chunk_class_bytes()
             : 0;
         payload_->handle =
             std::make_unique<::nnhaul::Handle>(nbytes, chunk_bytes);

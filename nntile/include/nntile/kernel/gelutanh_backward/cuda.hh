@@ -16,6 +16,7 @@
 
 #include <nntile/base_types.hh>
 #include <cuda_runtime.h>
+#include <nntile/kernel/cuda.hh>
 
 namespace nntile::kernel::gelutanh_backward
 {
@@ -29,7 +30,8 @@ template<typename T>
 void chunked(cudaStream_t stream, Index nelems, Scalar alpha,
         const T* const* x_chunks, Index nx, const T* const* dy_chunks,
         Index ndy, Scalar beta, T* const* dx_chunks, Index ndx,
-        Index elems_x, Index elems_dy, Index elems_dx)
+        Index elems_x, Index elems_dy, Index elems_dx,
+        ChunkClass cls = chunk_class())
     noexcept;
 
 } // namespace nntile::kernel::gelutanh_backward

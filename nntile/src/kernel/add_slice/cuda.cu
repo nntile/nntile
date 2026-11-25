@@ -257,7 +257,8 @@ template<typename T>
 void chunked(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
         const T* const* src1_chunks, Index nsrc1, Scalar beta,
         const T* const* src2_chunks, Index nsrc2, T* const* dst_chunks,
-        Index ndst, Index elems_src1, Index elems_src2, Index elems_dst)
+        Index ndst, Index elems_src1, Index elems_src2, Index elems_dst,
+        ChunkClass cls)
     noexcept
 {
     if(m <= 0 || n <= 0 || k <= 0 || nsrc1 <= 0 || nsrc2 <= 0 || ndst <= 0)
@@ -304,9 +305,9 @@ void chunked(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
     t.elems_src1 = elems_src1;
     t.elems_src2 = elems_src2;
     t.elems_dst = elems_dst;
-    t.shift_src1 = chunk_shift_of<T>(t.nsrc1, elems_src1, "nntile_add_slice");
-    t.shift_src2 = chunk_shift_of<T>(t.nsrc2, elems_src2, "nntile_add_slice");
-    t.shift_dst = chunk_shift_of<T>(t.ndst, elems_dst, "nntile_add_slice");
+    t.shift_src1 = chunk_shift_of<T>(t.nsrc1, elems_src1, cls, "nntile_add_slice");
+    t.shift_src2 = chunk_shift_of<T>(t.nsrc2, elems_src2, cls, "nntile_add_slice");
+    t.shift_dst = chunk_shift_of<T>(t.ndst, elems_dst, cls, "nntile_add_slice");
     t.m = m;
     t.n = n;
     t.k = k;
@@ -345,28 +346,28 @@ void chunked<fp32_t>(cudaStream_t stream, Index m, Index n, Index k,
         Scalar alpha, const fp32_t* const* src1_chunks, Index nsrc1,
         Scalar beta, const fp32_t* const* src2_chunks, Index nsrc2,
         fp32_t* const* dst_chunks, Index ndst, Index elems_src1,
-        Index elems_src2, Index elems_dst) noexcept;
+        Index elems_src2, Index elems_dst, ChunkClass cls) noexcept;
 
 template
 void chunked<fp64_t>(cudaStream_t stream, Index m, Index n, Index k,
         Scalar alpha, const fp64_t* const* src1_chunks, Index nsrc1,
         Scalar beta, const fp64_t* const* src2_chunks, Index nsrc2,
         fp64_t* const* dst_chunks, Index ndst, Index elems_src1,
-        Index elems_src2, Index elems_dst) noexcept;
+        Index elems_src2, Index elems_dst, ChunkClass cls) noexcept;
 
 template
 void chunked<bf16_t>(cudaStream_t stream, Index m, Index n, Index k,
         Scalar alpha, const bf16_t* const* src1_chunks, Index nsrc1,
         Scalar beta, const bf16_t* const* src2_chunks, Index nsrc2,
         bf16_t* const* dst_chunks, Index ndst, Index elems_src1,
-        Index elems_src2, Index elems_dst) noexcept;
+        Index elems_src2, Index elems_dst, ChunkClass cls) noexcept;
 
 template
 void chunked<fp16_t>(cudaStream_t stream, Index m, Index n, Index k,
         Scalar alpha, const fp16_t* const* src1_chunks, Index nsrc1,
         Scalar beta, const fp16_t* const* src2_chunks, Index nsrc2,
         fp16_t* const* dst_chunks, Index ndst, Index elems_src1,
-        Index elems_src2, Index elems_dst) noexcept;
+        Index elems_src2, Index elems_dst, ChunkClass cls) noexcept;
 
 
 

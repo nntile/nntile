@@ -16,6 +16,7 @@
 
 #include <nntile/base_types.hh>
 #include <cuda_runtime.h>
+#include <nntile/kernel/cuda.hh>
 
 namespace nntile::kernel::sum_slice
 {
@@ -35,7 +36,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
  * ChunkPtrTable) whose device-table views travel as the `*_chunks` args, and
  * each block stages them into shared memory once. Every element derives its
  * chunk index from its own flat offset (chunk = offset / elems, in-chunk
- * offset = offset % elems; a shift/mask on the compile-time chunk class; a single-chunk operand uses the sentinel shift 62 so there is no runtime-divisor path). The
+ * offset = offset % elems; a shift/mask on the runtime chunk class; a single-chunk operand uses the sentinel shift 62 so there is no runtime-divisor path). The
  * kernel reproduces, for each of cuda()'s branches, that branch's thread
  * geometry and accumulation order (the m==1 kernel's strided per-thread sum
  * and shared tree reduction; the general kernel's per-thread fiber walk and
@@ -60,7 +61,8 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
 template<typename T>
 void chunked(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
         const T* const* src_chunks, Index nsrc, Scalar beta,
-        T* const* dst_chunks, Index ndst, Index elems_src, Index elems_dst)
+        T* const* dst_chunks, Index ndst, Index elems_src, Index elems_dst,
+        ChunkClass cls = chunk_class())
     noexcept;
 
 } // namespace nntile::kernel::sum_slice

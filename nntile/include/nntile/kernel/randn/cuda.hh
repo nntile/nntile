@@ -16,6 +16,7 @@
 
 #include <nntile/base_types.hh>
 #include <cuda_runtime.h>
+#include <nntile/kernel/cuda.hh>
 
 namespace nntile::kernel::randn
 {
@@ -72,6 +73,7 @@ void chunked(
     T *const *dst_chunks,
     Index ndst,
     Index elems_dst
-) noexcept;
+,
+        ChunkClass cls = chunk_class()) noexcept;
 
 } // namespace nntile::kernel::randn

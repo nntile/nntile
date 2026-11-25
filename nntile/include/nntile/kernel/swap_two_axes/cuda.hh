@@ -11,6 +11,7 @@
 
 #include <nntile/base_types.hh>
 #include <cuda_runtime.h>
+#include <nntile/kernel/cuda.hh>
 
 namespace nntile::kernel::swap_two_axes
 {
@@ -57,6 +58,7 @@ void chunked(
     T *const *dst_chunks,
     Index ndst,
     Index elems_src,
-    Index elems_dst) noexcept;
+    Index elems_dst,
+        ChunkClass cls = chunk_class()) noexcept;
 
 } // namespace nntile::kernel::swap_two_axes

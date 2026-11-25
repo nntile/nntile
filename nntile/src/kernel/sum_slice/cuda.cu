@@ -573,7 +573,8 @@ void chunked_general_kernel(SumSliceChunkTables<T> t)
 template<typename T>
 void chunked(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
         const T* const* src_chunks, Index nsrc, Scalar beta,
-        T* const* dst_chunks, Index ndst, Index elems_src, Index elems_dst)
+        T* const* dst_chunks, Index ndst, Index elems_src, Index elems_dst,
+        ChunkClass cls)
     noexcept
 {
     if(m <= 0 or n <= 0 or k <= 0 or nsrc <= 0 or ndst <= 0)
@@ -587,8 +588,8 @@ void chunked(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
     t.ndst = ndst;
     t.elems_src = elems_src;
     t.elems_dst = elems_dst;
-    t.shift_src = chunk_shift_of<T>(t.nsrc, elems_src, "nntile_sum_slice");
-    t.shift_dst = chunk_shift_of<T>(t.ndst, elems_dst, "nntile_sum_slice");
+    t.shift_src = chunk_shift_of<T>(t.nsrc, elems_src, cls, "nntile_sum_slice");
+    t.shift_dst = chunk_shift_of<T>(t.ndst, elems_dst, cls, "nntile_sum_slice");
     t.m = m;
     t.n = n;
     t.k = k;
@@ -638,25 +639,25 @@ template
 void chunked<fp32_t>(cudaStream_t stream, Index m, Index n, Index k,
         Scalar alpha, const fp32_t* const* src_chunks, Index nsrc, Scalar beta,
         fp32_t* const* dst_chunks, Index ndst, Index elems_src,
-        Index elems_dst) noexcept;
+        Index elems_dst, ChunkClass cls) noexcept;
 
 template
 void chunked<fp64_t>(cudaStream_t stream, Index m, Index n, Index k,
         Scalar alpha, const fp64_t* const* src_chunks, Index nsrc, Scalar beta,
         fp64_t* const* dst_chunks, Index ndst, Index elems_src,
-        Index elems_dst) noexcept;
+        Index elems_dst, ChunkClass cls) noexcept;
 
 template
 void chunked<bf16_t>(cudaStream_t stream, Index m, Index n, Index k,
         Scalar alpha, const bf16_t* const* src_chunks, Index nsrc, Scalar beta,
         bf16_t* const* dst_chunks, Index ndst, Index elems_src,
-        Index elems_dst) noexcept;
+        Index elems_dst, ChunkClass cls) noexcept;
 
 template
 void chunked<fp16_t>(cudaStream_t stream, Index m, Index n, Index k,
         Scalar alpha, const fp16_t* const* src_chunks, Index nsrc, Scalar beta,
         fp16_t* const* dst_chunks, Index ndst, Index elems_src,
-        Index elems_dst) noexcept;
+        Index elems_dst, ChunkClass cls) noexcept;
 
 
 

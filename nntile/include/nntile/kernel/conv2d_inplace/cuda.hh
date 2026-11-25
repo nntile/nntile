@@ -17,6 +17,7 @@
 
 #include <nntile/base_types.hh>
 #include <cuda_runtime.h>
+#include <nntile/kernel/cuda.hh>
 
 namespace nntile::kernel::conv2d_inplace
 {
@@ -57,7 +58,8 @@ void chunked(cudaStream_t stream, Index src1_m, Index src1_n,
         Index nsrc1, const T *const *src2_chunks, Index nsrc2,
         T *const *dst_chunks, Index ndst, Index dst_m, Index dst_n,
         Index stride_m, Index stride_n, Scalar beta, Index elems_src1,
-        Index elems_src2, Index elems_dst)
+        Index elems_src2, Index elems_dst,
+        ChunkClass cls = chunk_class())
     noexcept;
 
 } // namespace nntile::kernel::conv2d_inplace

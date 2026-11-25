@@ -16,6 +16,7 @@
 
 #include <nntile/base_types.hh>
 #include <cuda_runtime.h>
+#include <nntile/kernel/cuda.hh>
 
 namespace nntile::kernel::logsumexp
 {
@@ -32,7 +33,8 @@ template<typename T>
 void chunked(cudaStream_t stream, Index nelems,
         const T* const* maxsumexp_chunks, Index nmse,
         T* const* logsumexp_chunks, Index nlse, Index elems_mse,
-        Index elems_lse)
+        Index elems_lse,
+        ChunkClass cls = chunk_class())
     noexcept;
 
 } // namespace nntile::kernel::logsumexp

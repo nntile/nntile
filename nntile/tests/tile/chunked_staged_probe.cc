@@ -210,7 +210,7 @@ TEST_CASE("probe a: chunked gemm under tight cap", "[chunked][probe]")
     // CI default is 4 MiB and the old fixed 512 sized tiles below it).
     Index const m = 1024, n = 512;
     Index const k = static_cast<Index>(
-        (2 * ::nnhaul::kChunkClassBytes / sizeof(float)) / m);
+        (2 * ::nnhaul::chunk_class_bytes() / sizeof(float)) / m);
     bool const chunking_off =
         false; // one class: every tile is chunked
     std::uint64_t const gemm_before =
@@ -319,7 +319,7 @@ TEST_CASE("probe b: mixed chain bitwise vs contiguous mode",
     // knobs that forced the same gemm factorization are gone with the
     // configurable chunk class.
     std::size_t const panel_bytes =
-        ::nnhaul::kChunkClassBytes;
+        ::nnhaul::chunk_class_bytes();
     std::string const cmd =
         std::string("NNHAUL_CHUNK_TILES=0") +
         (panel_bytes > 0
@@ -520,7 +520,7 @@ TEST_CASE("probe e: gemm-only chain bitwise vs contiguous mode",
     REQUIRE(self_len > 0);
     self_buf[self_len] = '\0';
     std::size_t const panel_bytes =
-        ::nnhaul::kChunkClassBytes;
+        ::nnhaul::chunk_class_bytes();
     for (char const *policy : {"reactive", "belady", "proactive"})
     {
         ::setenv("PROBE_POLICY", policy, 1);

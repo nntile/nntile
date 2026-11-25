@@ -16,6 +16,7 @@
 
 #include <nntile/base_types.hh>
 #include <cuda_runtime.h>
+#include <nntile/kernel/cuda.hh>
 
 namespace nntile::kernel::multiply_fiber
 {
@@ -40,7 +41,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
  * src1 chunk from the fiber index l via l / elems_s1, l % elems_s1 and its
  * src2/dst chunks from the flat offset f = i0 + m*(i2 + k*i1) via
  * f / elems_s2, f % elems_s2 and f / elems_dst, f % elems_dst (shift/mask on the
- * compile-time chunk class). The per-element arithmetic is
+ * runtime chunk class). The per-element arithmetic is
  * exactly cuda()'s, so the result is BITWISE the whole-buffer cuda() call.
  * There is no chunk-count cap.
  *
@@ -63,7 +64,8 @@ template<typename T>
 void chunked(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
     const T *const *src1_chunks, Index ns1, Index elems_s1,
     const T *const *src2_chunks, Index ns2, Index elems_s2,
-    T *const *dst_chunks, Index ndst, Index elems_dst)
+    T *const *dst_chunks, Index ndst, Index elems_dst,
+        ChunkClass cls = chunk_class())
     noexcept;
 
 } // namespace nntile::kernel::multiply_fiber

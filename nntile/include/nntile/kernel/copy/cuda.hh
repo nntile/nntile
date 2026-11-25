@@ -16,6 +16,7 @@
 
 #include <nntile/base_types.hh>
 #include <cuda_runtime.h>
+#include <nntile/kernel/cuda.hh>
 
 namespace nntile::kernel::copy
 {
@@ -26,7 +27,8 @@ namespace nntile::kernel::copy
 void chunked(cudaStream_t stream, Index nbytes,
         const unsigned char* const* src_chunks, Index nsrc,
         unsigned char* const* dst_chunks, Index ndst, Index elems_src,
-        Index elems_dst)
+        Index elems_dst,
+        ChunkClass cls = chunk_class())
     noexcept;
 
 //! One of up to three discontiguous chunked byte ranges.

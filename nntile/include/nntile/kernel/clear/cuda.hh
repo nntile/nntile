@@ -16,6 +16,7 @@
 
 #include <nntile/base_types.hh>
 #include <cuda_runtime.h>
+#include <nntile/kernel/cuda.hh>
 
 namespace nntile::kernel::clear
 {
@@ -28,7 +29,8 @@ namespace nntile::kernel::clear
  * not scale with bandwidth (a 16 MiB chunk is ~4 us of fill at 3.6
  * TB/s, where launch overhead dominates). */
 void chunked(cudaStream_t stream, Index nbytes,
-        unsigned char* const* data_chunks, Index ndata, Index elems_data)
+        unsigned char* const* data_chunks, Index ndata, Index elems_data,
+        ChunkClass cls = chunk_class())
     noexcept;
 
 } // namespace nntile::kernel::clear

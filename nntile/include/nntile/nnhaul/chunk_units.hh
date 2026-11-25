@@ -52,15 +52,16 @@ inline constexpr bool force_chunked_kernels() noexcept
 #endif
 }
 
-//! The ONE chunk class (rule 7): equals nnhaul::kChunkClassBytes, a
-//! compile-time power of two. A multi-chunk buffer's full chunk is
-//! exactly the class -- the nnhaul policy (chunk_bytes_for) cannot
-//! create anything else -- and ChunkView aborts loudly on a violation.
-//! The retired virtual-rechunk test hook (NNHAUL_CHUNK_UNITS_FORCE_BYTES,
-//! gemm's NNHAUL_GEMM_FORCE_PANEL_BYTES) died with the configurable
-//! class: a hand-forced non-class factorization is now an invariant
-//! violation, and the checks run the REAL 16 MiB factorizations.
-inline constexpr std::size_t kChunkClassBytes = ::nnhaul::kChunkClassBytes;
+//! The ONE runtime chunk class (rule 7): the process-wide size nnhaul
+//! initialized from NNHAUL_CHUNK_SIZE_MB, a power of two. A multi-chunk
+//! buffer's full chunk is exactly this class -- the nnhaul policy
+//! cannot create anything else -- and ChunkView aborts loudly on a
+//! violation. A hand-forced non-class factorization is an invariant
+//! violation.
+inline std::size_t chunk_class_bytes() noexcept
+{
+    return ::nnhaul::chunk_class_bytes();
+}
 
 //! Classic-dispatch tripwire (NNTILE_FORCE_CHUNKED_KERNELS): under the
 //! flag, dispatching a classic contiguous kernel is a wiring bug -- every
@@ -92,7 +93,7 @@ inline void classic_dispatch_tripwire(char const *op, bool table_overflow)
 //! (same arithmetic as the anonymous ChunkView of src/nnhaul/gemm.cc,
 //! published here so the unit-structured families share one walker).
 //! Rule 7: a MULTI-CHUNK buffer's full chunk is exactly the compile-time
-//! class (kChunkClassBytes, a power of two) — anything else is an
+//! runtime class (a power of two) — anything else is an
 //! invariant violation and aborts loudly (the nnhaul policy cannot
 //! create it; only a hand-built Handle could). A 1-chunk buffer keeps
 //! chunk_elems = its total (the host-side walkers' boundary logic sees
@@ -107,6 +108,7 @@ struct ChunkView
     std::size_t total_elems = 0;
     bool real = false; //!< true: per-chunk pointers; false: one block
     int shift = 0; //!< log2(chunk_elems) for a multi-chunk (class) buffer
+    std::size_t mask = 0; //!< chunk_elems - 1 for a multi-chunk buffer
 
     ChunkView() = default;
     explicit ChunkView(::nnhaul::Buffer *b):
@@ -116,21 +118,22 @@ struct ChunkView
     {
         if(nchunks > 1)
         {
-            if(b->chunk_bytes(0) != kChunkClassBytes)
+            if(b->chunk_bytes(0) != chunk_class_bytes())
             {
                 std::fprintf(stderr,
                     "nntile ChunkView: multi-chunk buffer %zu-byte full "
-                    "chunk != the compile-time %zu-byte class (rule 7)\n",
+                    "chunk != the runtime %zu-byte class (rule 7)\n",
                     b->chunk_bytes(0),
-                    kChunkClassBytes);
+                    chunk_class_bytes());
                 std::abort();
             }
-            chunk_elems = kChunkClassBytes / sizeof(T);
+            chunk_elems = b->chunk_bytes(0) / sizeof(T);
             // The class is a power of two, so paging is shift/mask only.
             for(std::size_t v = chunk_elems; (v >>= 1) != 0;)
             {
                 ++shift;
             }
+            mask = chunk_elems - 1;
             real = true;
         }
         else

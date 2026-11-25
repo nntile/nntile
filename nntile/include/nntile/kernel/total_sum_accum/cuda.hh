@@ -16,6 +16,7 @@
 
 #include <nntile/base_types.hh>
 #include <cuda_runtime.h>
+#include <nntile/kernel/cuda.hh>
 
 namespace nntile::kernel::total_sum_accum
 {
@@ -64,7 +65,8 @@ void chunked(cudaStream_t stream, Scalar alpha, Index n_labels,
         float *const *val_chunks, Index nval,
         Index elems_lse, Index elems_src, Index elems_lab, Index elems_val,
         const T *lse0 = nullptr, const int64_t *labels0 = nullptr,
-        float *val0 = nullptr)
+        float *val0 = nullptr,
+        ChunkClass cls = chunk_class())
     noexcept;
 
 

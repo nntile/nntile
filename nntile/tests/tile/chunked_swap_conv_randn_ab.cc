@@ -10,7 +10,7 @@
  * A/B of the chunk-addressed swap_two_axes, conv2d family and non-dense
  * randn WRAPPER drivers: each op runs through the ordinary nntile wrapper
  * (submit/body) on an unchunked and on a multi-chunk (compile-time
- * ::nnhaul::kChunkClassBytes class, tail included) handle, and the two
+ * ::nnhaul::chunk_class_bytes() class, tail included) handle, and the two
  * outputs must be bitwise identical. Part of the outputs is also compared
  * against a host reference for the pure-copy swap.
  *
@@ -89,7 +89,7 @@ std::vector<fp32_t> ab(std::vector<std::size_t> const &nbytes,
         for (std::size_t b : nbytes)
         {
             handles.emplace_back(chunked
-                ? std::make_unique<nh::Handle>(b, nh::kChunkClassBytes)
+                ? std::make_unique<nh::Handle>(b, nh::chunk_class_bytes())
                 : std::make_unique<nh::Handle>(b));
         }
         for (std::size_t i = 0; i < inputs.size(); ++i)

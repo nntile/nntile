@@ -77,7 +77,8 @@ void chunked_cuda_kernel(Index nbytes, ChunkTables t)
 }
 
 void chunked(cudaStream_t stream, Index nbytes,
-        unsigned char* const* data_chunks, Index ndata, Index elems_data)
+        unsigned char* const* data_chunks, Index ndata, Index elems_data,
+        ChunkClass cls)
     noexcept
 {
     if(nbytes <= 0 || ndata <= 0)
@@ -88,7 +89,7 @@ void chunked(cudaStream_t stream, Index nbytes,
     t.data = data_chunks;
     t.ndata = ndata;
     t.elems_data = elems_data;
-    t.shift_data = chunk_shift_of<unsigned char>(t.ndata, elems_data,
+    t.shift_data = chunk_shift_of<unsigned char>(t.ndata, elems_data, cls,
         "nntile_clear");
     Index const units = (nbytes + 15) / 16;
     dim3 blocks((units+255)/256), threads(256);

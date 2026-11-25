@@ -171,7 +171,7 @@ bool chain_contiguous(::nnhaul::Buffer *buf) noexcept
     {
         char const *p =
             reinterpret_cast<char const *>(buf->get_chunk_ptr<T>(i));
-        if (p != base + i * chunkunits::kChunkClassBytes)
+        if (p != base + i * chunkunits::chunk_class_bytes())
         {
             return false;
         }
@@ -261,7 +261,7 @@ void gemm_workspace_staged(cublasHandle_t handle, TransOp transA,
     // the same class as the operand. Padding in an operand's last virtual
     // chunk stays inside the workspace and is never written past nbytes.
     kernel::gemm::Workspace &ws = kernel::gemm::workspace();
-    std::size_t const cls = chunkunits::kChunkClassBytes;
+    std::size_t const cls = chunkunits::chunk_class_bytes();
     std::size_t used_chunks = 0;
     std::size_t seg_chunk[3] = {0, 0, 0};
     std::size_t seg_nchunk[3] = {0, 0, 0};
@@ -382,8 +382,8 @@ void gemm_workspace_staged(cublasHandle_t handle, TransOp transA,
         g.dst = table.table_view<unsigned char *>(table_base, ws_off[i]);
         g.ndst = Index(seg_nchunk[i]);
         g.nbytes = Index(buf->nbytes());
-        g.elems_src = Index(chunkunits::kChunkClassBytes);
-        g.elems_dst = Index(chunkunits::kChunkClassBytes);
+        g.elems_src = Index(chunkunits::chunk_class_bytes());
+        g.elems_dst = Index(chunkunits::chunk_class_bytes());
     };
     if(stage_a)
     {
@@ -424,8 +424,8 @@ void gemm_workspace_staged(cublasHandle_t handle, TransOp transA,
             Index(seg_nchunk[2]),
             table.table_view<unsigned char *>(table_base, slot_off[2]),
             Index(bufC->chunk_count()),
-            Index(chunkunits::kChunkClassBytes),
-            Index(chunkunits::kChunkClassBytes));
+            Index(chunkunits::chunk_class_bytes()),
+            Index(chunkunits::chunk_class_bytes()));
     }
     table.end(stream);
     if(gemm_stats())

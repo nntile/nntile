@@ -116,7 +116,7 @@ void run_big_tile_chunked_graph()
     // 2 MiB sized below the 4 MiB default and the engagement proof
     // went vacuous).
     Index const m = 1024, n = 512;
-    std::size_t const nbytes_big = 2 * ::nnhaul::kChunkClassBytes;
+    std::size_t const nbytes_big = 2 * ::nnhaul::chunk_class_bytes();
     Index const k = static_cast<Index>(
         nbytes_big / (sizeof(float) * static_cast<std::size_t>(m)));
     REQUIRE(sizeof(float) * m * k == nbytes_big);
@@ -135,8 +135,8 @@ void run_big_tile_chunked_graph()
         // Engagement proof 1: a same-size tile's device buffer really is
         // chunked, with exactly the ladder's chunk count.
         std::size_t const expect_chunks =
-            (nbytes_big + ::nnhaul::kChunkClassBytes - 1)
-            / ::nnhaul::kChunkClassBytes;
+            (nbytes_big + ::nnhaul::chunk_class_bytes() - 1)
+            / ::nnhaul::chunk_class_bytes();
         std::size_t const got_chunks = probe_tile_chunks(nbytes_big);
         INFO("probe chunk_count=" << got_chunks << " expected "
                                   << expect_chunks);
@@ -438,9 +438,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     // exec'd with; the engagement assertions inside the routine verify
     // the deep chunk counts. Under NNHAUL_CHUNK_TILES=0 chunking is off
     // and the deep precondition is vacuous - the graph still runs.
-    if ((2u << 20) <= ::nnhaul::kChunkClassBytes)
+    if ((2u << 20) <= ::nnhaul::chunk_class_bytes())
     {
-        REQUIRE(::nnhaul::kChunkClassBytes >= 4096);
+        REQUIRE(::nnhaul::chunk_class_bytes() >= 4096);
     }
     run_big_tile_chunked_graph();
 }

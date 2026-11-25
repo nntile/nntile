@@ -765,7 +765,8 @@ template <typename T>
 void chunked(cudaStream_t stream, Index m, Index n, Index k,
         const T* const* src_chunks, Index nsrc, Scalar beta,
         T* const* dst_chunks, Index ndst, Index elems_src, Index elems_dst,
-        long total_src, long total_dst)
+        long total_src, long total_dst,
+        ChunkClass cls)
     noexcept
 {
     if(m <= 0 || n <= 0 || k <= 0 || nsrc <= 0 || ndst <= 0
@@ -777,12 +778,12 @@ void chunked(cudaStream_t stream, Index m, Index n, Index k,
     t.src = src_chunks;
     t.nsrc = nsrc;
     t.elems_src = elems_src;
-    t.shift_src = chunk_shift_of<T>(t.nsrc, elems_src, "nntile_maxsumexp");
+    t.shift_src = chunk_shift_of<T>(t.nsrc, elems_src, cls, "nntile_maxsumexp");
     t.total_src = total_src > 0 ? total_src : long(elems_src)*long(nsrc);
     t.dst = dst_chunks;
     t.ndst = ndst;
     t.elems_dst = elems_dst;
-    t.shift_dst = chunk_shift_of<T>(t.ndst, elems_dst, "nntile_maxsumexp");
+    t.shift_dst = chunk_shift_of<T>(t.ndst, elems_dst, cls, "nntile_maxsumexp");
     t.total_dst = total_dst > 0 ? total_dst
         : long(elems_dst)*long(ndst);
     if(m == 1)
@@ -859,24 +860,24 @@ template
 void chunked<fp32_t>(cudaStream_t stream, Index m, Index n, Index k,
         const fp32_t* const* src_chunks, Index nsrc, Scalar beta,
         fp32_t* const* dst_chunks, Index ndst, Index elems_src,
-        Index elems_dst, long total_src, long total_dst) noexcept;
+        Index elems_dst, long total_src, long total_dst, ChunkClass cls) noexcept;
 
 template
 void chunked<fp64_t>(cudaStream_t stream, Index m, Index n, Index k,
         const fp64_t* const* src_chunks, Index nsrc, Scalar beta,
         fp64_t* const* dst_chunks, Index ndst, Index elems_src,
-        Index elems_dst, long total_src, long total_dst) noexcept;
+        Index elems_dst, long total_src, long total_dst, ChunkClass cls) noexcept;
 
 template
 void chunked<bf16_t>(cudaStream_t stream, Index m, Index n, Index k,
         const bf16_t* const* src_chunks, Index nsrc, Scalar beta,
         bf16_t* const* dst_chunks, Index ndst, Index elems_src,
-        Index elems_dst, long total_src, long total_dst) noexcept;
+        Index elems_dst, long total_src, long total_dst, ChunkClass cls) noexcept;
 
 template
 void chunked<fp16_t>(cudaStream_t stream, Index m, Index n, Index k,
         const fp16_t* const* src_chunks, Index nsrc, Scalar beta,
         fp16_t* const* dst_chunks, Index ndst, Index elems_src,
-        Index elems_dst, long total_src, long total_dst) noexcept;
+        Index elems_dst, long total_src, long total_dst, ChunkClass cls) noexcept;
 
 } // namespace nntile::kernel::maxsumexp

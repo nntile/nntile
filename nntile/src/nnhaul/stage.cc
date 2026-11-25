@@ -65,7 +65,7 @@ bool handle_is_chunked(::nnhaul::Handle &handle)
     // buffers); Runtime::compile guarantees no chunked tile payload is
     // alive while the gate is off, so this cannot miss a live tile.
     // One chunk class (the new nnhaul engine): every tile decomposes
-    // into whole kChunkClassBytes chunks, so chunkedness is the gate.
+    // into whole chunk-class chunks, so chunkedness is the gate.
     return ::nntile::haul::tile_chunking_enabled();
 }
 
@@ -89,7 +89,7 @@ std::size_t handle_chunk_bytes(::nnhaul::Handle &handle)
         return 0;
     }
     // One chunk class (the new nnhaul engine): the class itself.
-    return ::nnhaul::kChunkClassBytes;
+    return ::nnhaul::chunk_class_bytes();
 }
 
 std::size_t chunked_handle_count()

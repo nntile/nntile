@@ -189,7 +189,8 @@ void chunked_cuda_kernel(Index nelems, Scalar alpha, ChunkTables<T> t)
 template<typename T>
 void chunked(cudaStream_t stream, Index nelems, Scalar alpha,
     const T *const *src_chunks, Index nsrc, Index elems_src,
-    T *const *dst_chunks, Index ndst, Index elems_dst)
+    T *const *dst_chunks, Index ndst, Index elems_dst,
+        ChunkClass cls)
     noexcept
 {
     if(nelems <= 0 || nsrc <= 0 || ndst <= 0)
@@ -203,8 +204,8 @@ void chunked(cudaStream_t stream, Index nelems, Scalar alpha,
     t.ndst = ndst;
     t.elems_src = elems_src;
     t.elems_dst = elems_dst;
-    t.shift_src = chunk_shift_of<T>(t.nsrc, elems_src, "nntile_multiply_inplace");
-    t.shift_dst = chunk_shift_of<T>(t.ndst, elems_dst, "nntile_multiply_inplace");
+    t.shift_src = chunk_shift_of<T>(t.nsrc, elems_src, cls, "nntile_multiply_inplace");
+    t.shift_dst = chunk_shift_of<T>(t.ndst, elems_dst, cls, "nntile_multiply_inplace");
     dim3 threads(256);
     dim3 blocks((nelems+1023)/1024);
     (chunked_cuda_kernel<T, 1024, 4>)<<<blocks, threads, 0,
@@ -234,25 +235,25 @@ void cuda<fp16_t>(cudaStream_t stream, Index nelems, Scalar alpha, const fp16_t 
 template
 void chunked<fp32_t>(cudaStream_t stream, Index nelems, Scalar alpha,
         const fp32_t *const *src_chunks, Index nsrc, Index elems_src,
-        fp32_t *const *dst_chunks, Index ndst, Index elems_dst)
+        fp32_t *const *dst_chunks, Index ndst, Index elems_dst, ChunkClass cls)
     noexcept;
 
 template
 void chunked<fp64_t>(cudaStream_t stream, Index nelems, Scalar alpha,
         const fp64_t *const *src_chunks, Index nsrc, Index elems_src,
-        fp64_t *const *dst_chunks, Index ndst, Index elems_dst)
+        fp64_t *const *dst_chunks, Index ndst, Index elems_dst, ChunkClass cls)
     noexcept;
 
 template
 void chunked<bf16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
         const bf16_t *const *src_chunks, Index nsrc, Index elems_src,
-        bf16_t *const *dst_chunks, Index ndst, Index elems_dst)
+        bf16_t *const *dst_chunks, Index ndst, Index elems_dst, ChunkClass cls)
     noexcept;
 
 template
 void chunked<fp16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
         const fp16_t *const *src_chunks, Index nsrc, Index elems_src,
-        fp16_t *const *dst_chunks, Index ndst, Index elems_dst)
+        fp16_t *const *dst_chunks, Index ndst, Index elems_dst, ChunkClass cls)
     noexcept;
 
 

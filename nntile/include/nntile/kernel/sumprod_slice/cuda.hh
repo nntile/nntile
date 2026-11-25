@@ -16,6 +16,7 @@
 
 #include <nntile/base_types.hh>
 #include <cuda_runtime.h>
+#include <nntile/kernel/cuda.hh>
 
 namespace nntile::kernel::sumprod_slice
 {
@@ -34,7 +35,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
  * device views travel as the `*_chunks` args, and each block stages them into
  * shared memory once. Every element derives its chunk index from its own flat
  * offset (chunk = offset / elems, in-chunk offset = offset % elems; a
- * shift/mask on the compile-time chunk class). The kernel reproduces, for each of
+ * shift/mask on the runtime chunk class). The kernel reproduces, for each of
  * cuda()'s branches, that branch's thread geometry and accumulation order (the
  * m==1 kernel's strided per-thread product sum and shared tree reduction; the
  * general kernel's per-thread fiber walk and shared atomicAdd reduction), so
@@ -63,7 +64,8 @@ void chunked(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
         const T* const* src1_chunks, Index nsrc1,
         const T* const* src2_chunks, Index nsrc2, Scalar beta,
         T* const* dst_chunks, Index ndst, Index elems_src1, Index elems_src2,
-        Index elems_dst)
+        Index elems_dst,
+        ChunkClass cls = chunk_class())
     noexcept;
 
 } // namespace nntile::kernel::sumprod_slice

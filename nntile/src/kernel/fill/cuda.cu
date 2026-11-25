@@ -141,7 +141,8 @@ void chunked_single_kernel(Index nelems, typename T::repr_t val_,
 
 template<typename T>
 void chunked(cudaStream_t stream, Index nelems, Scalar val,
-        T* const* data_chunks, Index ndata, Index elems_data)
+        T* const* data_chunks, Index ndata, Index elems_data,
+        ChunkClass cls)
     noexcept
 {
     if(nelems <= 0 || ndata <= 0)
@@ -161,7 +162,7 @@ void chunked(cudaStream_t stream, Index nelems, Scalar val,
     t.data = data_chunks;
     t.ndata = ndata;
     t.elems_data = elems_data;
-    t.shift_data = chunk_shift_of<T>(t.ndata, elems_data, "nntile_fill");
+    t.shift_data = chunk_shift_of<T>(t.ndata, elems_data, cls, "nntile_fill");
     dim3 blocks((nelems+255)/256), threads(256);
     (chunked_cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(
         nelems, val, t);
@@ -186,18 +187,18 @@ void cuda<fp16_t>(cudaStream_t stream, Index nelems, Scalar val, fp16_t *data)
 
 template
 void chunked<fp32_t>(cudaStream_t stream, Index nelems, Scalar val,
-        fp32_t* const* data_chunks, Index ndata, Index elems_data) noexcept;
+        fp32_t* const* data_chunks, Index ndata, Index elems_data, ChunkClass cls) noexcept;
 
 template
 void chunked<fp64_t>(cudaStream_t stream, Index nelems, Scalar val,
-        fp64_t* const* data_chunks, Index ndata, Index elems_data) noexcept;
+        fp64_t* const* data_chunks, Index ndata, Index elems_data, ChunkClass cls) noexcept;
 
 template
 void chunked<bf16_t>(cudaStream_t stream, Index nelems, Scalar val,
-        bf16_t* const* data_chunks, Index ndata, Index elems_data) noexcept;
+        bf16_t* const* data_chunks, Index ndata, Index elems_data, ChunkClass cls) noexcept;
 
 template
 void chunked<fp16_t>(cudaStream_t stream, Index nelems, Scalar val,
-        fp16_t* const* data_chunks, Index ndata, Index elems_data) noexcept;
+        fp16_t* const* data_chunks, Index ndata, Index elems_data, ChunkClass cls) noexcept;
 
 } // namespace nntile::kernel::fill

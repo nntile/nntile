@@ -16,6 +16,7 @@
 
 #include <nntile/base_types.hh>
 #include <cuda_runtime.h>
+#include <nntile/kernel/cuda.hh>
 
 namespace nntile::kernel::sgd_step
 {
@@ -62,7 +63,8 @@ void chunked(cudaStream_t stream, Index num_iter, Index num_elems,
         Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening,
         bool nesterov, const T *const *grad_chunks, Index ngrad,
         T *const *vel_chunks, Index nvel, T *const *p_chunks, Index np,
-        Index elems_grad, Index elems_vel, Index elems_p)
+        Index elems_grad, Index elems_vel, Index elems_p,
+        ChunkClass cls = chunk_class())
     noexcept;
 
 } // namespace nntile::kernel::sgd_step
