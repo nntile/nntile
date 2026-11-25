@@ -66,13 +66,13 @@ struct EmbChunkView
     {
         if(nchunks > 1)
         {
-            if(b->chunk_bytes(0) != chunkunits::kChunkClassBytes)
+            if(b->chunk_bytes(0) != chunkunits::chunk_class_bytes())
             {
                 std::fprintf(stderr,
                     "nntile embedding: multi-chunk buffer %zu-byte full chunk "
                     "!= the compile-time %zu-byte class (rule 7)\n",
                     b->chunk_bytes(0),
-                    chunkunits::kChunkClassBytes);
+                    chunkunits::chunk_class_bytes());
                 std::abort();
             }
             chunk_elems = b->chunk_bytes(0) / sizeof(T);
@@ -162,12 +162,12 @@ std::vector<int64_t> index_to_host(::nnhaul::Buffer *buf, Index m, Index n,
         host_copy(out.data(), buf->get_ptr<int64_t>(), nelems * sizeof(int64_t));
         return out;
     }
-    if(buf->chunk_bytes(0) != chunkunits::kChunkClassBytes)
+    if(buf->chunk_bytes(0) != chunkunits::chunk_class_bytes())
     {
         std::fprintf(stderr,
             "nntile embedding: multi-chunk buffer %zu-byte full chunk != the "
             "compile-time %zu-byte class (rule 7)\n",
-            buf->chunk_bytes(0), chunkunits::kChunkClassBytes);
+            buf->chunk_bytes(0), chunkunits::chunk_class_bytes());
         std::abort();
     }
     std::size_t const chunk_elems = buf->chunk_bytes(0) / sizeof(int64_t);

@@ -374,7 +374,8 @@ template<typename T>
 void chunked(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
     const T *const *src1_chunks, Index ns1, Index elems_s1,
     const T *const *src2_chunks, Index ns2, Index elems_s2,
-    T *const *dst_chunks, Index ndst, Index elems_dst)
+    T *const *dst_chunks, Index ndst, Index elems_dst,
+        ChunkClass cls)
     noexcept
 {
     if(m <= 0 || n <= 0 || k <= 0 || ns1 <= 0 || ns2 <= 0 || ndst <= 0)
@@ -396,9 +397,9 @@ void chunked(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
     t.k = k;
     t.mk = m * k;
     t.alpha = alpha;
-    t.shift_s1 = chunk_shift_of<T>(t.ns1, elems_s1, "nntile_multiply_fiber");
-    t.shift_s2 = chunk_shift_of<T>(t.ns2, elems_s2, "nntile_multiply_fiber");
-    t.shift_dst = chunk_shift_of<T>(t.ndst, elems_dst, "nntile_multiply_fiber");
+    t.shift_s1 = chunk_shift_of<T>(t.ns1, elems_s1, cls, "nntile_multiply_fiber");
+    t.shift_s2 = chunk_shift_of<T>(t.ns2, elems_s2, cls, "nntile_multiply_fiber");
+    t.shift_dst = chunk_shift_of<T>(t.ndst, elems_dst, cls, "nntile_multiply_fiber");
     if(m == 1)
     {
         dim3 threads(256);
@@ -443,28 +444,28 @@ template
 void chunked<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
         const fp32_t *const *src1_chunks, Index ns1, Index elems_s1,
         const fp32_t *const *src2_chunks, Index ns2, Index elems_s2,
-        fp32_t *const *dst_chunks, Index ndst, Index elems_dst)
+        fp32_t *const *dst_chunks, Index ndst, Index elems_dst, ChunkClass cls)
     noexcept;
 
 template
 void chunked<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
         const fp64_t *const *src1_chunks, Index ns1, Index elems_s1,
         const fp64_t *const *src2_chunks, Index ns2, Index elems_s2,
-        fp64_t *const *dst_chunks, Index ndst, Index elems_dst)
+        fp64_t *const *dst_chunks, Index ndst, Index elems_dst, ChunkClass cls)
     noexcept;
 
 template
 void chunked<bf16_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
         const bf16_t *const *src1_chunks, Index ns1, Index elems_s1,
         const bf16_t *const *src2_chunks, Index ns2, Index elems_s2,
-        bf16_t *const *dst_chunks, Index ndst, Index elems_dst)
+        bf16_t *const *dst_chunks, Index ndst, Index elems_dst, ChunkClass cls)
     noexcept;
 
 template
 void chunked<fp16_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
         const fp16_t *const *src1_chunks, Index ns1, Index elems_s1,
         const fp16_t *const *src2_chunks, Index ns2, Index elems_s2,
-        fp16_t *const *dst_chunks, Index ndst, Index elems_dst)
+        fp16_t *const *dst_chunks, Index ndst, Index elems_dst, ChunkClass cls)
     noexcept;
 
 

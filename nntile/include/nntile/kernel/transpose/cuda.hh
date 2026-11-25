@@ -16,6 +16,7 @@
 
 #include <nntile/base_types.hh>
 #include <cuda_runtime.h>
+#include <nntile/kernel/cuda.hh>
 
 namespace nntile::kernel::transpose
 {
@@ -57,7 +58,8 @@ template<typename T>
 void chunked(cudaStream_t stream, Index m, Index n, Scalar alpha,
     const T* const* src_chunks, Index nsrc,
     T* const* dst_chunks, Index ndst,
-    Index elems_src, Index elems_dst)
+    Index elems_src, Index elems_dst,
+        ChunkClass cls = chunk_class())
     noexcept;
 
 } // namespace nntile::kernel::transpose

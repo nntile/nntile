@@ -16,6 +16,7 @@
 
 #include <nntile/base_types.hh>
 #include <cuda_runtime.h>
+#include <nntile/kernel/cuda.hh>
 
 namespace nntile::kernel::subtract_indexed_outputs
 {
@@ -52,7 +53,8 @@ void chunked(cudaStream_t stream, Index n_labels, Index n_outputs,
         Index ignore_index, Scalar val,
         const int64_t *const *labels_chunks, Index nlab,
         T *const *dst_chunks, Index ndst, Index elems_lab, Index elems_dst,
-        const int64_t *labels0 = nullptr)
+        const int64_t *labels0 = nullptr,
+        ChunkClass cls = chunk_class())
     noexcept;
 
 

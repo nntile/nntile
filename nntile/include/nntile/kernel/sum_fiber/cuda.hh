@@ -16,6 +16,7 @@
 
 #include <nntile/base_types.hh>
 #include <cuda_runtime.h>
+#include <nntile/kernel/cuda.hh>
 
 namespace nntile::kernel::sum_fiber
 {
@@ -59,7 +60,8 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch, Scalar al
 template<typename T>
 void chunked(cudaStream_t stream, Index m, Index n, Index k, Index batch,
         Scalar alpha, const T* const* src_chunks, Index nsrc, Scalar beta,
-        T* const* dst_chunks, Index ndst, Index elems_src, Index elems_dst)
+        T* const* dst_chunks, Index ndst, Index elems_src, Index elems_dst,
+        ChunkClass cls = chunk_class())
     noexcept;
 
 } // namespace nntile::kernel::sum_fiber

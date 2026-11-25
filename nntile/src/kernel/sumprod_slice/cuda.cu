@@ -525,7 +525,8 @@ void chunked(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
         const T* const* src1_chunks, Index nsrc1,
         const T* const* src2_chunks, Index nsrc2, Scalar beta,
         T* const* dst_chunks, Index ndst, Index elems_src1, Index elems_src2,
-        Index elems_dst)
+        Index elems_dst,
+        ChunkClass cls)
     noexcept
 {
     if(m <= 0 or n <= 0 or k <= 0 or nsrc1 <= 0 or nsrc2 <= 0 or ndst <= 0)
@@ -542,9 +543,9 @@ void chunked(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
     t.elems_src1 = elems_src1;
     t.elems_src2 = elems_src2;
     t.elems_dst = elems_dst;
-    t.shift_src1 = chunk_shift_of<T>(t.nsrc1, elems_src1, "nntile_sumprod_slice");
-    t.shift_src2 = chunk_shift_of<T>(t.nsrc2, elems_src2, "nntile_sumprod_slice");
-    t.shift_dst = chunk_shift_of<T>(t.ndst, elems_dst, "nntile_sumprod_slice");
+    t.shift_src1 = chunk_shift_of<T>(t.nsrc1, elems_src1, cls, "nntile_sumprod_slice");
+    t.shift_src2 = chunk_shift_of<T>(t.nsrc2, elems_src2, cls, "nntile_sumprod_slice");
+    t.shift_dst = chunk_shift_of<T>(t.ndst, elems_dst, cls, "nntile_sumprod_slice");
     t.m = m;
     t.n = n;
     t.k = k;
@@ -613,7 +614,7 @@ void chunked<T>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha, \
         const T* const* src1_chunks, Index nsrc1,                             \
         const T* const* src2_chunks, Index nsrc2, Scalar beta,                \
         T* const* dst_chunks, Index ndst, Index elems_src1, Index elems_src2, \
-        Index elems_dst) noexcept;
+        Index elems_dst, ChunkClass cls) noexcept;
 
 NNTILE_SUMPROD_SLICE_CHUNKED_INST(fp32_t)
 NNTILE_SUMPROD_SLICE_CHUNKED_INST(fp32_fast_tf32_t)

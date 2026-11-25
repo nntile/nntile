@@ -110,7 +110,8 @@ void chunked_cuda_kernel(Index nelems, ChunkTables<T> t)
 template<typename T>
 void chunked(cudaStream_t stream, Index nelems,
         const T* const* src_chunks, Index nsrc, T* const* dst_chunks,
-        Index ndst, Index elems_src, Index elems_dst)
+        Index ndst, Index elems_src, Index elems_dst,
+        ChunkClass cls)
     noexcept
 {
     if(nelems <= 0 || nsrc <= 0 || ndst <= 0)
@@ -124,8 +125,8 @@ void chunked(cudaStream_t stream, Index nelems,
     t.ndst = ndst;
     t.elems_src = elems_src;
     t.elems_dst = elems_dst;
-    t.shift_src = chunk_shift_of<T>(t.nsrc, elems_src, "nntile_gelutanh");
-    t.shift_dst = chunk_shift_of<T>(t.ndst, elems_dst, "nntile_gelutanh");
+    t.shift_src = chunk_shift_of<T>(t.nsrc, elems_src, cls, "nntile_gelutanh");
+    t.shift_dst = chunk_shift_of<T>(t.ndst, elems_dst, cls, "nntile_gelutanh");
     dim3 blocks((nelems+255)/256), threads(256);
     (chunked_cuda_kernel<T>)<<<blocks, threads,
         0, stream>>>(nelems, t);
@@ -156,24 +157,24 @@ template
 void chunked<fp32_t>(cudaStream_t stream, Index nelems,
         const fp32_t* const* src_chunks, Index nsrc,
         fp32_t* const* dst_chunks, Index ndst, Index elems_src,
-        Index elems_dst) noexcept;
+        Index elems_dst, ChunkClass cls) noexcept;
 
 template
 void chunked<fp64_t>(cudaStream_t stream, Index nelems,
         const fp64_t* const* src_chunks, Index nsrc,
         fp64_t* const* dst_chunks, Index ndst, Index elems_src,
-        Index elems_dst) noexcept;
+        Index elems_dst, ChunkClass cls) noexcept;
 
 template
 void chunked<bf16_t>(cudaStream_t stream, Index nelems,
         const bf16_t* const* src_chunks, Index nsrc,
         bf16_t* const* dst_chunks, Index ndst, Index elems_src,
-        Index elems_dst) noexcept;
+        Index elems_dst, ChunkClass cls) noexcept;
 
 template
 void chunked<fp16_t>(cudaStream_t stream, Index nelems,
         const fp16_t* const* src_chunks, Index nsrc,
         fp16_t* const* dst_chunks, Index ndst, Index elems_src,
-        Index elems_dst) noexcept;
+        Index elems_dst, ChunkClass cls) noexcept;
 
 } // namespace nntile::kernel::gelutanh

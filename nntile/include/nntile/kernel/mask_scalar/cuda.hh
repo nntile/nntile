@@ -16,6 +16,7 @@
 
 #include <nntile/base_types.hh>
 #include <cuda_runtime.h>
+#include <nntile/kernel/cuda.hh>
 
 namespace nntile::kernel::mask_scalar
 {
@@ -54,7 +55,8 @@ void cuda(cudaStream_t stream, Index nrows, Index ncols, const bool_t *mask,
 template<typename T>
 void chunked(cudaStream_t stream, Index nrows, Index ncols, Scalar val,
     T *const *data_chunks, Index ndata, Index elems_data,
-    const bool_t *const *mask_chunks, Index nmask, Index elems_mask)
+    const bool_t *const *mask_chunks, Index nmask, Index elems_mask,
+        ChunkClass cls = chunk_class())
     noexcept;
 
 } // namespace nntile::kernel::mask_scalar

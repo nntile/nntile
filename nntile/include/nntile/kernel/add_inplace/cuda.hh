@@ -16,6 +16,7 @@
 
 #include <nntile/base_types.hh>
 #include <cuda_runtime.h>
+#include <nntile/kernel/cuda.hh>
 
 namespace nntile::kernel::add_inplace
 {
@@ -41,7 +42,8 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *src,
 template<typename T>
 void chunked(cudaStream_t stream, Index nelems, Scalar alpha,
         const T* const* src_chunks, Index nsrc, Scalar beta,
-        T* const* dst_chunks, Index ndst, Index elems_src, Index elems_dst)
+        T* const* dst_chunks, Index ndst, Index elems_src, Index elems_dst,
+        ChunkClass cls = chunk_class())
     noexcept;
 
 } // namespace nntile::kernel::add_inplace

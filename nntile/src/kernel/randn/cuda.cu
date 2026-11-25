@@ -203,7 +203,8 @@ void chunked(cudaStream_t stream, Index ndim, Index nelems,
         unsigned long long seed, Scalar mean, Scalar stddev,
         const Index *start, const Index *shape,
         const Index *underlying_shape, const Index *stride,
-        T *const *dst_chunks, Index ndst, Index elems_dst)
+        T *const *dst_chunks, Index ndst, Index elems_dst,
+        ChunkClass cls)
     noexcept
 {
     if(ndim <= 0 || ndim > MAX_NDIM || nelems <= 0 || ndst <= 0)
@@ -223,7 +224,7 @@ void chunked(cudaStream_t stream, Index ndim, Index nelems,
     t.dst = dst_chunks;
     t.elems_dst = elems_dst;
     t.shift_dst = chunk_shift_of<T>(std::size_t(ndst),
-        std::size_t(elems_dst), "nntile_randn");
+        std::size_t(elems_dst), cls, "nntile_randn");
     dim3 threads(256);
     dim3 blocks((nelems + 255) / 256);
     (chunked_cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(
@@ -281,7 +282,7 @@ void chunked<T>(cudaStream_t stream, Index ndim, Index nelems, \
         unsigned long long seed, Scalar mean, Scalar stddev, \
         const Index *start, const Index *shape, \
         const Index *underlying_shape, const Index *stride, \
-        T *const *dst_chunks, Index ndst, Index elems_dst) noexcept;
+        T *const *dst_chunks, Index ndst, Index elems_dst, ChunkClass cls) noexcept;
 
 NNTILE_INSTANTIATE_RANDN_CHUNKED(fp32_t)
 NNTILE_INSTANTIATE_RANDN_CHUNKED(fp64_t)

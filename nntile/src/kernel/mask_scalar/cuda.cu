@@ -112,7 +112,7 @@ void cuda(cudaStream_t stream, Index nrows, Index ncols, const bool_t *mask_,
 //! classic's own addressing once the base is in a register -- no
 //! per-store table traffic), and a run that would cross a chunk
 //! boundary rebases through the table (rule 7: shift/mask on the
-//! compile-time class shift, or the sentinel 62 for a 1-chunk operand,
+//! runtime class shift, or the sentinel 62 for a 1-chunk operand,
 //! which the compiler folds to an unconditional single-chunk fast
 //! path). The rebase load for the NEXT store is issued only when that
 //! store will actually happen, so the flat offset handed to the table
@@ -129,18 +129,12 @@ template<typename T, int BLOCK_ROW, int BLOCK_COL, int LOOP,
     bool DATA1, bool MASK1, bool U32>
 static __global__
 void chunked_cuda_kernel(Index nrows, Index ncols, Scalar val_,
-    T *const *data_tab, const bool_t *const *mask_tab)
+    T *const *data_tab, const bool_t *const *mask_tab,
+    int SHIFT_DATA, int SHIFT_MASK)
 {
-    // Rule-7 restatement: the multi-chunk full-chunk shift IS the class
-    // shift (chunk_shift_of validated it host-side and aborts otherwise);
-    // a 1-chunk operand uses the sentinel. Compile-time constants, so the
-    // chunk divmod lowers to shift/mask immediates.
-    constexpr int SHIFT_DATA = DATA1 ? nntile::kernel::kChunkSingleShift
-        : nntile::kernel::chunk_log2(
-            nntile::kernel::kChunkClassBytes / sizeof(T));
-    constexpr int SHIFT_MASK = MASK1 ? nntile::kernel::kChunkSingleShift
-        : nntile::kernel::chunk_log2(
-            nntile::kernel::kChunkClassBytes / sizeof(nntile::bool_t));
+    // Runtime rule-7 shifts (the class shift for a multi-chunk operand,
+    // the sentinel 62 for a 1-chunk operand); chunk paging is pure
+    // shift/mask on these values.
     using Y = typename T::repr_t;
     const T val = static_cast<T>(static_cast<Y>(val_));
     constexpr int BLOCK_COL_STEP = BLOCK_COL / LOOP;
@@ -312,12 +306,16 @@ template<typename T>
 static void launch_mask_chunked(cudaStream_t stream, Index nrows,
     Index ncols, Scalar val, T *const *data_chunks, Index ndata,
     Index elems_data, const bool_t *const *mask_chunks, Index nmask,
-    Index elems_mask)
+    Index elems_mask, ChunkClass cls)
 {
-    (void) chunk_shift_of<T>(std::size_t(ndata), std::size_t(elems_data),
+    (void) chunk_shift_of<T>(std::size_t(ndata), std::size_t(elems_data), cls,
         "nntile_mask_scalar");
     (void) chunk_shift_of<::nntile::bool_t>(std::size_t(nmask),
-        std::size_t(elems_mask), "nntile_mask_scalar");
+        std::size_t(elems_mask), cls, "nntile_mask_scalar");
+    int const shift_data = chunk_shift_of<T>(std::size_t(ndata),
+        std::size_t(elems_data), cls, "nntile_mask_scalar");
+    int const shift_mask = chunk_shift_of<::nntile::bool_t>(
+        std::size_t(nmask), std::size_t(elems_mask), cls, "nntile_mask_scalar");
     dim3 threads(256);
     dim3 blocks(((nrows+127)/128) * ((ncols+31)/32));
     bool const data1 = ndata <= 1;
@@ -327,7 +325,7 @@ static void launch_mask_chunked(cudaStream_t stream, Index nrows,
 #define NNHAUL_MASK_LAUNCH(D1, M1, U) \
     (chunked_cuda_kernel<T, 128, 32, 16, D1, M1, U>) \
         <<<blocks, threads, 0, stream>>>(nrows, ncols, val, data_chunks, \
-            mask_chunks)
+            mask_chunks, shift_data, shift_mask)
     if(u32)
     {
         if(data1)
@@ -362,7 +360,8 @@ static void launch_mask_chunked(cudaStream_t stream, Index nrows,
 template<typename T>
 void chunked(cudaStream_t stream, Index nrows, Index ncols, Scalar val,
     T *const *data_chunks, Index ndata, Index elems_data,
-    const bool_t *const *mask_chunks, Index nmask, Index elems_mask)
+    const bool_t *const *mask_chunks, Index nmask, Index elems_mask,
+        ChunkClass cls)
     noexcept
 {
     if(nrows <= 0 || ncols <= 0 || ndata <= 0 || nmask <= 0)
@@ -370,7 +369,7 @@ void chunked(cudaStream_t stream, Index nrows, Index ncols, Scalar val,
         return;
     }
     launch_mask_chunked<T>(stream, nrows, ncols, val, data_chunks, ndata,
-        elems_data, mask_chunks, nmask, elems_mask);
+        elems_data, mask_chunks, nmask, elems_mask, cls);
 }
 
 // Explicit instantiation
@@ -397,25 +396,25 @@ void cuda<fp16_t>(cudaStream_t stream, Index nrows, Index ncols,
 template
 void chunked<fp32_t>(cudaStream_t stream, Index nrows, Index ncols, Scalar val,
         fp32_t *const *data_chunks, Index ndata, Index elems_data,
-        const bool_t *const *mask_chunks, Index nmask, Index elems_mask)
+        const bool_t *const *mask_chunks, Index nmask, Index elems_mask, ChunkClass cls)
     noexcept;
 
 template
 void chunked<fp64_t>(cudaStream_t stream, Index nrows, Index ncols, Scalar val,
         fp64_t *const *data_chunks, Index ndata, Index elems_data,
-        const bool_t *const *mask_chunks, Index nmask, Index elems_mask)
+        const bool_t *const *mask_chunks, Index nmask, Index elems_mask, ChunkClass cls)
     noexcept;
 
 template
 void chunked<bf16_t>(cudaStream_t stream, Index nrows, Index ncols, Scalar val,
         bf16_t *const *data_chunks, Index ndata, Index elems_data,
-        const bool_t *const *mask_chunks, Index nmask, Index elems_mask)
+        const bool_t *const *mask_chunks, Index nmask, Index elems_mask, ChunkClass cls)
     noexcept;
 
 template
 void chunked<fp16_t>(cudaStream_t stream, Index nrows, Index ncols, Scalar val,
         fp16_t *const *data_chunks, Index ndata, Index elems_data,
-        const bool_t *const *mask_chunks, Index nmask, Index elems_mask)
+        const bool_t *const *mask_chunks, Index nmask, Index elems_mask, ChunkClass cls)
     noexcept;
 
 } // namespace nntile::kernel::mask_scalar

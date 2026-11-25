@@ -134,7 +134,8 @@ void chunked_single_kernel(long nbytes,
 void chunked(cudaStream_t stream, Index nbytes,
         const unsigned char* const* src_chunks, Index nsrc,
         unsigned char* const* dst_chunks, Index ndst, Index elems_src,
-        Index elems_dst)
+        Index elems_dst,
+        ChunkClass cls)
     noexcept
 {
     if(nbytes <= 0 || nsrc <= 0 || ndst <= 0)
@@ -160,8 +161,8 @@ void chunked(cudaStream_t stream, Index nbytes,
     t.ndst = ndst;
     t.elems_src = elems_src;
     t.elems_dst = elems_dst;
-    t.shift_src = chunk_shift_of<unsigned char>(t.nsrc, elems_src, "nntile_copy");
-    t.shift_dst = chunk_shift_of<unsigned char>(t.ndst, elems_dst, "nntile_copy");
+    t.shift_src = chunk_shift_of<unsigned char>(t.nsrc, elems_src, cls, "nntile_copy");
+    t.shift_dst = chunk_shift_of<unsigned char>(t.ndst, elems_dst, cls, "nntile_copy");
     Index const units = (nbytes + 15) / 16;
     dim3 blocks((units+255)/256), threads(256);
     (chunked_cuda_kernel)<<<blocks, threads,
@@ -260,9 +261,9 @@ void chunked_segments(cudaStream_t stream, Segment const *segments,
         o.nbytes = in.nbytes;
         o.elems_src = in.elems_src;
         o.elems_dst = in.elems_dst;
-        o.shift_src = chunk_shift_of<unsigned char>(in.nsrc, in.elems_src,
+        o.shift_src = chunk_shift_of<unsigned char>(in.nsrc, in.elems_src, chunk_class(),
             "nntile_copy_segments");
-        o.shift_dst = chunk_shift_of<unsigned char>(in.ndst, in.elems_dst,
+        o.shift_dst = chunk_shift_of<unsigned char>(in.ndst, in.elems_dst, chunk_class(),
             "nntile_copy_segments");
         long const units = (long(in.nbytes) + 15) / 16;
         if(units > max_units)

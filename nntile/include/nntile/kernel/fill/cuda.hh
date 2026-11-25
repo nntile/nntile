@@ -16,6 +16,7 @@
 
 #include <nntile/base_types.hh>
 #include <cuda_runtime.h>
+#include <nntile/kernel/cuda.hh>
 
 namespace nntile::kernel::fill
 {
@@ -27,7 +28,8 @@ void cuda(cudaStream_t stream, Index nelems, Scalar val, T *data)
 //! Fill chunked buffers on CUDA (ONE launch, chunk tables via UVA)
 template<typename T>
 void chunked(cudaStream_t stream, Index nelems, Scalar val,
-        T* const* data_chunks, Index ndata, Index elems_data)
+        T* const* data_chunks, Index ndata, Index elems_data,
+        ChunkClass cls = chunk_class())
     noexcept;
 
 } // namespace nntile::kernel::fill

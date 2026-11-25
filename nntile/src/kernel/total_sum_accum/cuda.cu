@@ -316,7 +316,8 @@ void chunked(cudaStream_t stream, Scalar alpha, Index n_labels,
         const int64_t* const* labels_chunks, Index nlab,
         float* const* val_chunks, Index nval,
         Index elems_lse, Index elems_src, Index elems_lab, Index elems_val,
-        const T *lse0, const int64_t *labels0, float *val0)
+        const T *lse0, const int64_t *labels0, float *val0,
+        ChunkClass cls)
     noexcept
 {
     if(n_labels <= 0 or n_outputs <= 0 or nlse <= 0 or nsrc <= 0 or nlab <= 0
@@ -332,7 +333,7 @@ void chunked(cudaStream_t stream, Scalar alpha, Index n_labels,
     // direct bases were not supplied.
     if(lse0 != nullptr && labels0 != nullptr && val0 != nullptr)
     {
-        int const shift_src = chunk_shift_of<T>(nsrc, elems_src,
+        int const shift_src = chunk_shift_of<T>(nsrc, elems_src, cls,
             "nntile_total_sum_accum");
         dim3 blocks((n_outputs + 255) / 256), threads(256);
         (chunked_smalls_cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(
@@ -346,7 +347,7 @@ void chunked(cudaStream_t stream, Scalar alpha, Index n_labels,
     // slim smalls-table kernel instead of the fat-struct tabular walk.
     if(nlse == 1 && nlab == 1 && nval == 1)
     {
-        int const shift_src = chunk_shift_of<T>(nsrc, elems_src,
+        int const shift_src = chunk_shift_of<T>(nsrc, elems_src, cls,
             "nntile_total_sum_accum");
         dim3 blocks((n_outputs + 255) / 256), threads(256);
         (chunked_smalls_table_cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(
@@ -368,10 +369,10 @@ void chunked(cudaStream_t stream, Scalar alpha, Index n_labels,
     t.elems_src = elems_src;
     t.elems_lab = elems_lab;
     t.elems_val = elems_val;
-    t.shift_lse = chunk_shift_of<T>(t.nlse, elems_lse, "nntile_total_sum_accum");
-    t.shift_src = chunk_shift_of<T>(t.nsrc, elems_src, "nntile_total_sum_accum");
-    t.shift_lab = chunk_shift_of<::int64_t>(t.nlab, elems_lab, "nntile_total_sum_accum");
-    t.shift_val = chunk_shift_of<T>(t.nval, elems_val, "nntile_total_sum_accum");
+    t.shift_lse = chunk_shift_of<T>(t.nlse, elems_lse, cls, "nntile_total_sum_accum");
+    t.shift_src = chunk_shift_of<T>(t.nsrc, elems_src, cls, "nntile_total_sum_accum");
+    t.shift_lab = chunk_shift_of<::int64_t>(t.nlab, elems_lab, cls, "nntile_total_sum_accum");
+    t.shift_val = chunk_shift_of<T>(t.nval, elems_val, cls, "nntile_total_sum_accum");
     t.n_labels = n_labels;
     t.n_outputs = n_outputs;
     t.ignore_index = ignore_index;
@@ -415,7 +416,7 @@ void chunked<fp32_t>(cudaStream_t stream, Scalar alpha, Index n_labels,
         const int64_t *const *labels_chunks, Index nlab,
         float *const *val_chunks, Index nval, Index elems_lse, Index elems_src,
         Index elems_lab, Index elems_val, const fp32_t *lse0,
-        const int64_t *labels0, float *val0) noexcept;
+        const int64_t *labels0, float *val0, ChunkClass cls) noexcept;
 
 template
 void chunked<fp64_t>(cudaStream_t stream, Scalar alpha, Index n_labels,
@@ -424,7 +425,7 @@ void chunked<fp64_t>(cudaStream_t stream, Scalar alpha, Index n_labels,
         const int64_t *const *labels_chunks, Index nlab,
         float *const *val_chunks, Index nval, Index elems_lse, Index elems_src,
         Index elems_lab, Index elems_val, const fp64_t *lse0,
-        const int64_t *labels0, float *val0) noexcept;
+        const int64_t *labels0, float *val0, ChunkClass cls) noexcept;
 
 template
 void chunked<bf16_t>(cudaStream_t stream, Scalar alpha, Index n_labels,
@@ -433,7 +434,7 @@ void chunked<bf16_t>(cudaStream_t stream, Scalar alpha, Index n_labels,
         const int64_t *const *labels_chunks, Index nlab,
         float *const *val_chunks, Index nval, Index elems_lse, Index elems_src,
         Index elems_lab, Index elems_val, const bf16_t *lse0,
-        const int64_t *labels0, float *val0) noexcept;
+        const int64_t *labels0, float *val0, ChunkClass cls) noexcept;
 
 template
 void chunked<fp16_t>(cudaStream_t stream, Scalar alpha, Index n_labels,
@@ -442,7 +443,7 @@ void chunked<fp16_t>(cudaStream_t stream, Scalar alpha, Index n_labels,
         const int64_t *const *labels_chunks, Index nlab,
         float *const *val_chunks, Index nval, Index elems_lse, Index elems_src,
         Index elems_lab, Index elems_val, const fp16_t *lse0,
-        const int64_t *labels0, float *val0) noexcept;
+        const int64_t *labels0, float *val0, ChunkClass cls) noexcept;
 
 
 

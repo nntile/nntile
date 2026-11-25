@@ -16,6 +16,7 @@
 
 #include <nntile/base_types.hh>
 #include <cuda_runtime.h>
+#include <nntile/kernel/cuda.hh>
 
 namespace nntile::kernel::hypot_scalar_inverse
 {
@@ -27,7 +28,8 @@ void cuda(cudaStream_t stream, Index nelems, Scalar eps, Scalar alpha, T* dst)
 //! Inverse hypot of a scalar and chunked buffers on CUDA (ONE launch)
 template<typename T>
 void chunked(cudaStream_t stream, Index nelems, Scalar eps, Scalar alpha,
-        T* const* dst_chunks, Index ndst, Index elems_dst)
+        T* const* dst_chunks, Index ndst, Index elems_dst,
+        ChunkClass cls = chunk_class())
     noexcept;
 
 } // namespace nntile::kernel::hypot_scalar_inverse

@@ -109,6 +109,9 @@ struct EmbChunkTables
     int shift_index; //!< class shift (multi-chunk) or the 62 single-chunk sentinel
     int shift_vocab; //!< class shift (multi-chunk) or the 62 single-chunk sentinel
     int shift_embed; //!< class shift (multi-chunk) or the 62 single-chunk sentinel
+    unsigned mask_index; //!< in-chunk AND mask (32-bit dispatch)
+    unsigned mask_vocab;
+    unsigned mask_embed;
     Index m;
     Index n;
     Index k;
@@ -146,13 +149,6 @@ static __global__
 void chunked_cuda_kernel(EmbChunkTables<T> t)
 {
     using I = typename CUDAComputeType<int64_t>::value;
-    constexpr std::size_t class_elems = kChunkClassBytes / sizeof(T);
-    constexpr int IDX_SHIFT = IDX1 ? kChunkSingleShift
-        : chunk_log2(kChunkClassBytes / sizeof(I));
-    constexpr int VOC_SHIFT = VOC1 ? kChunkSingleShift
-        : chunk_log2(class_elems);
-    constexpr int EMB_SHIFT = EMB1 ? kChunkSingleShift
-        : chunk_log2(class_elems);
     Index const i0 = threadIdx.x + blockIdx.x*blockDim.x;
     Index const i1 = threadIdx.y + blockIdx.y*blockDim.y;
     Index const i2 = threadIdx.z + blockIdx.z*blockDim.z;
@@ -170,8 +166,8 @@ void chunked_cuda_kernel(EmbChunkTables<T> t)
             unsigned const u_fi = u_i1*u_m + u_i0;
             I const *ip = IDX1
                 ? reinterpret_cast<I const *>(t.index[0]) + u_fi
-                : reinterpret_cast<I const *>(t.index[u_fi >> IDX_SHIFT])
-                    + (u_fi & ((1u << IDX_SHIFT) - 1u));
+                : reinterpret_cast<I const *>(t.index[u_fi >> t.shift_index])
+                    + (u_fi & t.mask_index);
             const long long token = static_cast<long long>(ip[0]);
             if(token < 0 or token >= static_cast<long long>(t.index_range))
             {
@@ -183,14 +179,14 @@ void chunked_cuda_kernel(EmbChunkTables<T> t)
             unsigned const fv = u_k_size*unsigned(token) + u_i2;
             T const *vp = VOC1
                 ? t.vocab[0] + fv
-                : t.vocab[fv >> VOC_SHIFT]
-                    + (fv & ((1u << VOC_SHIFT) - 1u));
+                : t.vocab[fv >> t.shift_vocab]
+                    + (fv & t.mask_vocab);
             unsigned const fe = unsigned(i1)*unsigned(t.k)
                 + unsigned(t.k_start) + u_i2;
             T *ep = EMB1
                 ? t.embed[0] + (fe*u_m + u_i0)
-                : t.embed[(fe*u_m + u_i0) >> EMB_SHIFT]
-                    + ((fe*u_m + u_i0) & ((1u << EMB_SHIFT) - 1u));
+                : t.embed[(fe*u_m + u_i0) >> t.shift_embed]
+                    + ((fe*u_m + u_i0) & t.mask_embed);
             ep[0] = vp[0];
         }
         else
@@ -276,18 +272,10 @@ static __global__
 void chunked_run_cuda_kernel(EmbChunkTables<T> t)
 {
     using I = typename CUDAComputeType<int64_t>::value;
-    constexpr std::size_t class_elems = kChunkClassBytes / sizeof(T);
     constexpr int VW = int(16 / sizeof(T)); //!< elements per 16-byte vector
     constexpr int NVEC = 4; //!< vectors per thread (the piece-B lab's V4)
-    constexpr int IDX_SHIFT = IDX1 ? kChunkSingleShift
-        : chunk_log2(kChunkClassBytes / sizeof(I));
-    constexpr int VOC_SHIFT = VOC1 ? kChunkSingleShift
-        : chunk_log2(class_elems);
-    constexpr int EMB_SHIFT = EMB1 ? kChunkSingleShift
-        : chunk_log2(class_elems);
-    constexpr unsigned VOC_MASK = VOC1 ? 0xffffffffu
-        : (1u << VOC_SHIFT) - 1u;
-    constexpr unsigned VOC_END = VOC1 ? 0xffffffffu : 1u << VOC_SHIFT;
+    unsigned const VOC_MASK = t.mask_vocab;
+    unsigned const VOC_END = t.mask_vocab + 1u;
     Index const i0 = threadIdx.x + blockIdx.x*blockDim.x;
     Index const i1 = threadIdx.y + blockIdx.y*blockDim.y;
     Index const i2 = (threadIdx.z + blockIdx.z*blockDim.z)
@@ -301,8 +289,8 @@ void chunked_run_cuda_kernel(EmbChunkTables<T> t)
     unsigned const u_fi = unsigned(i1)*u_m + unsigned(i0);
     I const *ip = IDX1
         ? reinterpret_cast<I const *>(t.index[0]) + u_fi
-        : reinterpret_cast<I const *>(t.index[u_fi >> IDX_SHIFT])
-            + (u_fi & ((1u << IDX_SHIFT) - 1u));
+        : reinterpret_cast<I const *>(t.index[u_fi >> t.shift_index])
+            + (u_fi & t.mask_index);
     const long long token = static_cast<long long>(ip[0]);
     if(token < 0 or token >= static_cast<long long>(t.index_range))
     {
@@ -334,7 +322,7 @@ void chunked_run_cuda_kernel(EmbChunkTables<T> t)
         else if((fvv[v] & VOC_MASK) + unsigned(VW) <= VOC_END)
         {
             raw[v] = *reinterpret_cast<uint4 const *>(
-                t.vocab[fvv[v] >> VOC_SHIFT] + (fvv[v] & VOC_MASK));
+                t.vocab[fvv[v] >> t.shift_vocab] + (fvv[v] & VOC_MASK));
         }
         else
         {
@@ -342,7 +330,7 @@ void chunked_run_cuda_kernel(EmbChunkTables<T> t)
             for(int e = 0; e < VW; ++e)
             {
                 unsigned const f = fvv[v] + unsigned(e);
-                tmp[e] = t.vocab[f >> VOC_SHIFT][f & VOC_MASK];
+                tmp[e] = t.vocab[f >> t.shift_vocab][f & VOC_MASK];
             }
             std::memcpy(&raw[v], tmp, sizeof(raw[v]));
         }
@@ -364,8 +352,8 @@ void chunked_run_cuda_kernel(EmbChunkTables<T> t)
                 + unsigned(i0);
             T *ep = EMB1
                 ? t.embed[0] + fflat
-                : t.embed[fflat >> EMB_SHIFT]
-                    + (fflat & ((1u << EMB_SHIFT) - 1u));
+                : t.embed[fflat >> t.shift_embed]
+                    + (fflat & t.mask_embed);
             T val;
             std::memcpy(&val, reinterpret_cast<unsigned char const *>(
                 &raw[v]) + e*sizeof(T), sizeof(T));
@@ -399,16 +387,8 @@ void chunked_row1_cuda_kernel(EmbChunkTables<T> t)
     using I = typename CUDAComputeType<int64_t>::value;
     constexpr int VW = int(16 / sizeof(T)); //!< elements per 16-byte vector
     constexpr int NVEC = 4; //!< vectors per thread (64 bytes for <=4B T)
-    constexpr int IDX_SHIFT = IDX1 ? kChunkSingleShift
-        : chunk_log2(kChunkClassBytes / sizeof(I));
-    constexpr int VOC_SHIFT = VOC1 ? kChunkSingleShift
-        : chunk_log2(kChunkClassBytes / sizeof(T));
-    constexpr int EMB_SHIFT = EMB1 ? kChunkSingleShift
-        : chunk_log2(kChunkClassBytes / sizeof(T));
-    constexpr unsigned VOC_MASK = VOC1 ? 0xffffffffu
-        : (1u << VOC_SHIFT) - 1u;
-    constexpr unsigned EMB_MASK = EMB1 ? 0xffffffffu
-        : (1u << EMB_SHIFT) - 1u;
+    unsigned const VOC_MASK = t.mask_vocab;
+    unsigned const EMB_MASK = t.mask_embed;
     unsigned const ksv = unsigned(t.k_size) / unsigned(VW); //!< vectors/row
     unsigned const gpr = (ksv + unsigned(NVEC) - 1u) / unsigned(NVEC);
     unsigned const total = unsigned(t.n) * gpr;
@@ -424,8 +404,8 @@ void chunked_row1_cuda_kernel(EmbChunkTables<T> t)
     unsigned const u_fi = i1;
     I const *ip = IDX1
         ? reinterpret_cast<I const *>(t.index[0]) + u_fi
-        : reinterpret_cast<I const *>(t.index[u_fi >> IDX_SHIFT])
-            + (u_fi & ((1u << IDX_SHIFT) - 1u));
+        : reinterpret_cast<I const *>(t.index[u_fi >> t.shift_index])
+            + (u_fi & t.mask_index);
     const long long token = static_cast<long long>(ip[0]);
     if(token < 0 or token >= static_cast<long long>(t.index_range))
     {
@@ -449,7 +429,7 @@ void chunked_row1_cuda_kernel(EmbChunkTables<T> t)
         unsigned const fv = fv0 + iv*unsigned(VW);
         raw[v] = *reinterpret_cast<uint4 const *>(VOC1
                 ? t.vocab[0] + fv
-                : t.vocab[fv >> VOC_SHIFT] + (fv & VOC_MASK));
+                : t.vocab[fv >> t.shift_vocab] + (fv & VOC_MASK));
     }
 #pragma unroll
     for(int v = 0; v < NVEC; ++v)
@@ -462,7 +442,7 @@ void chunked_row1_cuda_kernel(EmbChunkTables<T> t)
         unsigned const fe = fe0 + unsigned(v)*unsigned(VW);
         *reinterpret_cast<uint4 *>(EMB1
                 ? t.embed[0] + fe
-                : t.embed[fe >> EMB_SHIFT] + (fe & EMB_MASK)) = raw[v];
+                : t.embed[fe >> t.shift_embed] + (fe & EMB_MASK)) = raw[v];
     }
 }
 
@@ -471,7 +451,8 @@ void chunked(cudaStream_t stream, Index m, Index n, Index k, Index k_start,
         Index k_size, Index index_range,
         const int64_t *const *index_chunks, Index nindex, Index elems_index,
         const T *const *vocab_chunks, Index nvocab, Index elems_vocab,
-        T *const *embed_chunks, Index nembed, Index elems_embed)
+        T *const *embed_chunks, Index nembed, Index elems_embed,
+        ChunkClass cls)
     noexcept
 {
     if(m <= 0 or n <= 0 or index_range <= 0)
@@ -488,9 +469,15 @@ void chunked(cudaStream_t stream, Index m, Index n, Index k, Index k_start,
     t.elems_index = elems_index;
     t.elems_vocab = elems_vocab;
     t.elems_embed = elems_embed;
-    t.shift_index = chunk_shift_of<::int64_t>(t.nindex, elems_index, "nntile_embedding");
-    t.shift_vocab = chunk_shift_of<T>(t.nvocab, elems_vocab, "nntile_embedding");
-    t.shift_embed = chunk_shift_of<T>(t.nembed, elems_embed, "nntile_embedding");
+    t.shift_index = chunk_shift_of<::int64_t>(t.nindex, elems_index, cls, "nntile_embedding");
+    t.shift_vocab = chunk_shift_of<T>(t.nvocab, elems_vocab, cls, "nntile_embedding");
+    t.shift_embed = chunk_shift_of<T>(t.nembed, elems_embed, cls, "nntile_embedding");
+    t.mask_index = static_cast<unsigned>(
+        chunk_mask_of<::int64_t>(t.nindex, cls));
+    t.mask_vocab = static_cast<unsigned>(
+        chunk_mask_of<T>(t.nvocab, cls));
+    t.mask_embed = static_cast<unsigned>(
+        chunk_mask_of<T>(t.nembed, cls));
     t.m = m;
     t.n = n;
     t.k = k;
@@ -696,7 +683,7 @@ void chunked<fp32_t>(cudaStream_t stream, Index m, Index n, Index k,
         Index k_start, Index k_size, Index index_range,
         const int64_t *const *index_chunks, Index nindex, Index elems_index,
         const fp32_t *const *vocab_chunks, Index nvocab, Index elems_vocab,
-        fp32_t *const *embed_chunks, Index nembed, Index elems_embed)
+        fp32_t *const *embed_chunks, Index nembed, Index elems_embed, ChunkClass cls)
     noexcept;
 
 template
@@ -704,7 +691,7 @@ void chunked<fp64_t>(cudaStream_t stream, Index m, Index n, Index k,
         Index k_start, Index k_size, Index index_range,
         const int64_t *const *index_chunks, Index nindex, Index elems_index,
         const fp64_t *const *vocab_chunks, Index nvocab, Index elems_vocab,
-        fp64_t *const *embed_chunks, Index nembed, Index elems_embed)
+        fp64_t *const *embed_chunks, Index nembed, Index elems_embed, ChunkClass cls)
     noexcept;
 
 template
@@ -712,7 +699,7 @@ void chunked<bf16_t>(cudaStream_t stream, Index m, Index n, Index k,
         Index k_start, Index k_size, Index index_range,
         const int64_t *const *index_chunks, Index nindex, Index elems_index,
         const bf16_t *const *vocab_chunks, Index nvocab, Index elems_vocab,
-        bf16_t *const *embed_chunks, Index nembed, Index elems_embed)
+        bf16_t *const *embed_chunks, Index nembed, Index elems_embed, ChunkClass cls)
     noexcept;
 
 template
@@ -720,7 +707,7 @@ void chunked<fp16_t>(cudaStream_t stream, Index m, Index n, Index k,
         Index k_start, Index k_size, Index index_range,
         const int64_t *const *index_chunks, Index nindex, Index elems_index,
         const fp16_t *const *vocab_chunks, Index nvocab, Index elems_vocab,
-        fp16_t *const *embed_chunks, Index nembed, Index elems_embed)
+        fp16_t *const *embed_chunks, Index nembed, Index elems_embed, ChunkClass cls)
     noexcept;
 
 } // namespace nntile::kernel::embedding

@@ -16,6 +16,7 @@
 
 #include <nntile/base_types.hh>
 #include <cuda_runtime.h>
+#include <nntile/kernel/cuda.hh>
 
 namespace nntile::kernel::add
 {
@@ -35,7 +36,7 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *src1,
  * ChunkPtrTable) whose device-table view travels as `src1_chunks`, and each
  * block stages it into shared memory once. Every element derives its chunk
  * index from its own flat offset (chunk = offset / elems, in-chunk offset =
- * offset % elems; a shift/mask on the compile-time chunk class; a single-chunk operand uses the sentinel shift 62 so there is no runtime-divisor path). The chunked
+ * offset % elems; a shift/mask on the runtime chunk class; a single-chunk operand uses the sentinel shift 62 so there is no runtime-divisor path). The chunked
  * result is bitwise-equal to cuda()'s because every element computes the
  * same expression on the same values. There is no chunk-count cap.
  * */
@@ -43,7 +44,8 @@ template<typename T>
 void chunked(cudaStream_t stream, Index nelems, Scalar alpha,
         const T* const* src1_chunks, Index nsrc1, Scalar beta,
         const T* const* src2_chunks, Index nsrc2, T* const* dst_chunks,
-        Index ndst, Index elems_src1, Index elems_src2, Index elems_dst)
+        Index ndst, Index elems_src1, Index elems_src2, Index elems_dst,
+        ChunkClass cls = chunk_class())
     noexcept;
 
 } // namespace nntile::kernel::add

@@ -447,7 +447,8 @@ void chunked_cuda_kernel_naive(SoftmaxInplaceChunkTables<T> t, long total)
 template<typename T>
 void chunked(cudaStream_t stream, Index m, Index n, Index k,
         const T* const* mse_chunks, Index nmse, Scalar alpha,
-        T* const* dst_chunks, Index ndst, Index elems_mse, Index elems_dst)
+        T* const* dst_chunks, Index ndst, Index elems_mse, Index elems_dst,
+        ChunkClass cls)
     noexcept
 {
     if(m <= 0 or n <= 0 or k <= 0 or nmse <= 0 or ndst <= 0)
@@ -461,8 +462,8 @@ void chunked(cudaStream_t stream, Index m, Index n, Index k,
     t.ndst = ndst;
     t.elems_mse = elems_mse;
     t.elems_dst = elems_dst;
-    t.shift_mse = chunk_shift_of<T>(t.nmse, elems_mse, "nntile_softmax_inplace");
-    t.shift_dst = chunk_shift_of<T>(t.ndst, elems_dst, "nntile_softmax_inplace");
+    t.shift_mse = chunk_shift_of<T>(t.nmse, elems_mse, cls, "nntile_softmax_inplace");
+    t.shift_dst = chunk_shift_of<T>(t.ndst, elems_dst, cls, "nntile_softmax_inplace");
     t.m = m;
     t.n = n;
     t.k = k;
@@ -550,25 +551,25 @@ template
 void chunked<fp32_t>(cudaStream_t stream, Index m, Index n, Index k,
         const fp32_t *const *mse_chunks, Index nmse, Scalar alpha,
         fp32_t *const *dst_chunks, Index ndst, Index elems_mse,
-        Index elems_dst) noexcept;
+        Index elems_dst, ChunkClass cls) noexcept;
 
 template
 void chunked<fp64_t>(cudaStream_t stream, Index m, Index n, Index k,
         const fp64_t *const *mse_chunks, Index nmse, Scalar alpha,
         fp64_t *const *dst_chunks, Index ndst, Index elems_mse,
-        Index elems_dst) noexcept;
+        Index elems_dst, ChunkClass cls) noexcept;
 
 template
 void chunked<bf16_t>(cudaStream_t stream, Index m, Index n, Index k,
         const bf16_t *const *mse_chunks, Index nmse, Scalar alpha,
         bf16_t *const *dst_chunks, Index ndst, Index elems_mse,
-        Index elems_dst) noexcept;
+        Index elems_dst, ChunkClass cls) noexcept;
 
 template
 void chunked<fp16_t>(cudaStream_t stream, Index m, Index n, Index k,
         const fp16_t *const *mse_chunks, Index nmse, Scalar alpha,
         fp16_t *const *dst_chunks, Index ndst, Index elems_mse,
-        Index elems_dst) noexcept;
+        Index elems_dst, ChunkClass cls) noexcept;
 
 
 

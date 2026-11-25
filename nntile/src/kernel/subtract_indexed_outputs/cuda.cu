@@ -171,16 +171,17 @@ void chunked(cudaStream_t stream, Index n_labels, Index n_outputs,
         Index ignore_index, Scalar val,
         const int64_t* const* labels_chunks, Index nlab,
         T* const* dst_chunks, Index ndst, Index elems_lab, Index elems_dst,
-        const int64_t *labels0)
+        const int64_t *labels0,
+        ChunkClass cls)
     noexcept
 {
     if(n_labels <= 0 or n_outputs <= 0 or nlab <= 0 or ndst <= 0)
     {
         return;
     }
-    int const shift_lab = chunk_shift_of<::int64_t>(nlab, elems_lab,
+    int const shift_lab = chunk_shift_of<::int64_t>(nlab, elems_lab, cls,
         "nntile_subtract_indexed_outputs");
-    int const shift_dst = chunk_shift_of<T>(ndst, elems_dst,
+    int const shift_dst = chunk_shift_of<T>(ndst, elems_dst, cls,
         "nntile_subtract_indexed_outputs");
     // Same work assignment as the whole-buffer entry (one thread per output
     // column), but spread over more blocks: the chunked kernel's address
@@ -232,25 +233,25 @@ template
 void chunked<fp32_t>(cudaStream_t stream, Index n_labels, Index n_outputs,
         Index ignore_index, Scalar val, const int64_t *const *labels_chunks,
         Index nlab, fp32_t *const *dst_chunks, Index ndst, Index elems_lab,
-        Index elems_dst, const int64_t *labels0) noexcept;
+        Index elems_dst, const int64_t *labels0, ChunkClass cls) noexcept;
 
 template
 void chunked<fp64_t>(cudaStream_t stream, Index n_labels, Index n_outputs,
         Index ignore_index, Scalar val, const int64_t *const *labels_chunks,
         Index nlab, fp64_t *const *dst_chunks, Index ndst, Index elems_lab,
-        Index elems_dst, const int64_t *labels0) noexcept;
+        Index elems_dst, const int64_t *labels0, ChunkClass cls) noexcept;
 
 template
 void chunked<bf16_t>(cudaStream_t stream, Index n_labels, Index n_outputs,
         Index ignore_index, Scalar val, const int64_t *const *labels_chunks,
         Index nlab, bf16_t *const *dst_chunks, Index ndst, Index elems_lab,
-        Index elems_dst, const int64_t *labels0) noexcept;
+        Index elems_dst, const int64_t *labels0, ChunkClass cls) noexcept;
 
 template
 void chunked<fp16_t>(cudaStream_t stream, Index n_labels, Index n_outputs,
         Index ignore_index, Scalar val, const int64_t *const *labels_chunks,
         Index nlab, fp16_t *const *dst_chunks, Index ndst, Index elems_lab,
-        Index elems_dst, const int64_t *labels0) noexcept;
+        Index elems_dst, const int64_t *labels0, ChunkClass cls) noexcept;
 
 
 

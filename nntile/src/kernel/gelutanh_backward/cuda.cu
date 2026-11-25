@@ -318,7 +318,8 @@ template<typename T>
 void chunked(cudaStream_t stream, Index nelems, Scalar alpha,
         const T* const* x_chunks, Index nx, const T* const* dy_chunks,
         Index ndy, Scalar beta, T* const* dx_chunks, Index ndx,
-        Index elems_x, Index elems_dy, Index elems_dx)
+        Index elems_x, Index elems_dy, Index elems_dx,
+        ChunkClass cls)
     noexcept
 {
     if(nelems <= 0 || nx <= 0 || ndy <= 0 || ndx <= 0)
@@ -335,9 +336,9 @@ void chunked(cudaStream_t stream, Index nelems, Scalar alpha,
     t.elems_x = elems_x;
     t.elems_dy = elems_dy;
     t.elems_dx = elems_dx;
-    t.shift_x = chunk_shift_of<T>(t.nx, elems_x, "nntile_gelutanh_backward");
-    t.shift_dy = chunk_shift_of<T>(t.ndy, elems_dy, "nntile_gelutanh_backward");
-    t.shift_dx = chunk_shift_of<T>(t.ndx, elems_dx, "nntile_gelutanh_backward");
+    t.shift_x = chunk_shift_of<T>(t.nx, elems_x, cls, "nntile_gelutanh_backward");
+    t.shift_dy = chunk_shift_of<T>(t.ndy, elems_dy, cls, "nntile_gelutanh_backward");
+    t.shift_dx = chunk_shift_of<T>(t.ndx, elems_dx, cls, "nntile_gelutanh_backward");
     // Quad-view geometry per operand: the class shift counted in quads
     // (shift-2) for a multi-chunk operand; the single-chunk sentinel
     // clamps to shift 31 with a keep-everything mask, so chunk 0 and the
@@ -397,24 +398,24 @@ template
 void chunked<fp32_t>(cudaStream_t stream, Index nelems, Scalar alpha,
         const fp32_t* const* x_chunks, Index nx, const fp32_t* const* dy_chunks,
         Index ndy, Scalar beta, fp32_t* const* dx_chunks, Index ndx,
-        Index elems_x, Index elems_dy, Index elems_dx) noexcept;
+        Index elems_x, Index elems_dy, Index elems_dx, ChunkClass cls) noexcept;
 
 template
 void chunked<fp64_t>(cudaStream_t stream, Index nelems, Scalar alpha,
         const fp64_t* const* x_chunks, Index nx, const fp64_t* const* dy_chunks,
         Index ndy, Scalar beta, fp64_t* const* dx_chunks, Index ndx,
-        Index elems_x, Index elems_dy, Index elems_dx) noexcept;
+        Index elems_x, Index elems_dy, Index elems_dx, ChunkClass cls) noexcept;
 
 template
 void chunked<bf16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
         const bf16_t* const* x_chunks, Index nx, const bf16_t* const* dy_chunks,
         Index ndy, Scalar beta, bf16_t* const* dx_chunks, Index ndx,
-        Index elems_x, Index elems_dy, Index elems_dx) noexcept;
+        Index elems_x, Index elems_dy, Index elems_dx, ChunkClass cls) noexcept;
 
 template
 void chunked<fp16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
         const fp16_t* const* x_chunks, Index nx, const fp16_t* const* dy_chunks,
         Index ndy, Scalar beta, fp16_t* const* dx_chunks, Index ndx,
-        Index elems_x, Index elems_dy, Index elems_dx) noexcept;
+        Index elems_x, Index elems_dy, Index elems_dx, ChunkClass cls) noexcept;
 
 } // namespace nntile::kernel::gelutanh_backward

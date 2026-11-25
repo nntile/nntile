@@ -542,7 +542,8 @@ void chunked(cudaStream_t stream, Index num_iter, Index num_elems,
         Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening,
         bool nesterov, const T *const *grad_chunks, Index ngrad,
         T *const *vel_chunks, Index nvel, T *const *p_chunks, Index np,
-        Index elems_grad, Index elems_vel, Index elems_p)
+        Index elems_grad, Index elems_vel, Index elems_p,
+        ChunkClass cls)
     noexcept
 {
     if(num_elems <= 0 || ngrad <= 0 || nvel <= 0 || np <= 0)
@@ -635,9 +636,9 @@ void chunked(cudaStream_t stream, Index num_iter, Index num_elems,
     t.elems_grad = elems_grad > 0 ? elems_grad : 1;
     t.elems_vel = elems_vel > 0 ? elems_vel : 1;
     t.elems_p = elems_p > 0 ? elems_p : 1;
-    t.shift_grad = chunk_shift_of<T>(t.ngrad, t.elems_grad, "nntile_sgd_step");
-    t.shift_vel = chunk_shift_of<T>(t.nvel, t.elems_vel, "nntile_sgd_step");
-    t.shift_p = chunk_shift_of<T>(t.np, t.elems_p, "nntile_sgd_step");
+    t.shift_grad = chunk_shift_of<T>(t.ngrad, t.elems_grad, cls, "nntile_sgd_step");
+    t.shift_vel = chunk_shift_of<T>(t.nvel, t.elems_vel, cls, "nntile_sgd_step");
+    t.shift_p = chunk_shift_of<T>(t.np, t.elems_p, cls, "nntile_sgd_step");
     t.num_iter = num_iter;
     using Y = typename T::repr_t;
     t.momentum = Y{momentum};
@@ -681,7 +682,7 @@ void chunked<fp32_t>(cudaStream_t stream, Index num_iter, Index num_elems,
         Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening,
         bool nesterov, const fp32_t *const *grad_chunks, Index ngrad,
         fp32_t *const *vel_chunks, Index nvel, fp32_t *const *p_chunks,
-        Index np, Index elems_grad, Index elems_vel, Index elems_p)
+        Index np, Index elems_grad, Index elems_vel, Index elems_p, ChunkClass cls)
     noexcept;
 
 template
@@ -689,7 +690,7 @@ void chunked<fp64_t>(cudaStream_t stream, Index num_iter, Index num_elems,
         Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening,
         bool nesterov, const fp64_t *const *grad_chunks, Index ngrad,
         fp64_t *const *vel_chunks, Index nvel, fp64_t *const *p_chunks,
-        Index np, Index elems_grad, Index elems_vel, Index elems_p)
+        Index np, Index elems_grad, Index elems_vel, Index elems_p, ChunkClass cls)
     noexcept;
 
 template
@@ -697,7 +698,7 @@ void chunked<bf16_t>(cudaStream_t stream, Index num_iter, Index num_elems,
         Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening,
         bool nesterov, const bf16_t *const *grad_chunks, Index ngrad,
         bf16_t *const *vel_chunks, Index nvel, bf16_t *const *p_chunks,
-        Index np, Index elems_grad, Index elems_vel, Index elems_p)
+        Index np, Index elems_grad, Index elems_vel, Index elems_p, ChunkClass cls)
     noexcept;
 
 template
@@ -705,7 +706,7 @@ void chunked<fp16_t>(cudaStream_t stream, Index num_iter, Index num_elems,
         Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening,
         bool nesterov, const fp16_t *const *grad_chunks, Index ngrad,
         fp16_t *const *vel_chunks, Index nvel, fp16_t *const *p_chunks,
-        Index np, Index elems_grad, Index elems_vel, Index elems_p)
+        Index np, Index elems_grad, Index elems_vel, Index elems_p, ChunkClass cls)
     noexcept;
 
 } // namespace nntile::kernel::sgd_step

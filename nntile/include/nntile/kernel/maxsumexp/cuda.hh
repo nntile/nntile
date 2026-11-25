@@ -16,6 +16,7 @@
 
 #include <nntile/base_types.hh>
 #include <cuda_runtime.h>
+#include <nntile/kernel/cuda.hh>
 
 namespace nntile::kernel::maxsumexp
 {
@@ -64,6 +65,7 @@ template <typename T>
 void chunked(cudaStream_t stream, Index m, Index n, Index k,
         const T* const* src_chunks, Index nsrc, Scalar beta,
         T* const* dst_chunks, Index ndst, Index elems_src, Index elems_dst,
-        long total_src, long total_dst) noexcept;
+        long total_src, long total_dst,
+        ChunkClass cls = chunk_class()) noexcept;
 
 } // namespace nntile::kernel::maxsumexp

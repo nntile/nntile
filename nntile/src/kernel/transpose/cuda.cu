@@ -535,7 +535,8 @@ template<typename T>
 void chunked(cudaStream_t stream, Index m, Index n, Scalar alpha,
     const T* const* src_chunks, Index nsrc,
     T* const* dst_chunks, Index ndst,
-    Index elems_src, Index elems_dst)
+    Index elems_src, Index elems_dst,
+        ChunkClass cls)
     noexcept
 {
     if(m <= 0 || n <= 0 || nsrc <= 0 || ndst <= 0)
@@ -694,8 +695,8 @@ void chunked(cudaStream_t stream, Index m, Index n, Scalar alpha,
     t.m = m;
     t.n = n;
     t.alpha = alpha;
-    t.shift_src = chunk_shift_of<T>(t.nsrc, elems_src, "nntile_transpose");
-    t.shift_dst = chunk_shift_of<T>(t.ndst, elems_dst, "nntile_transpose");
+    t.shift_src = chunk_shift_of<T>(t.nsrc, elems_src, cls, "nntile_transpose");
+    t.shift_dst = chunk_shift_of<T>(t.ndst, elems_dst, cls, "nntile_transpose");
     // Same aspect-ratio geometry selection as the whole-buffer entry: the
     // narrow operand's extent picks the tile shape, so a 12-wide matrix
     // gets 128x8 tiles with 128-wide coalescing instead of degenerate
@@ -837,28 +838,28 @@ template
 void chunked<fp32_t>(cudaStream_t stream, Index m, Index n, Scalar alpha,
     const fp32_t* const* src_chunks, Index nsrc,
     fp32_t* const* dst_chunks, Index ndst,
-    Index elems_src, Index elems_dst)
+    Index elems_src, Index elems_dst, ChunkClass cls)
     noexcept;
 
 template
 void chunked<fp64_t>(cudaStream_t stream, Index m, Index n, Scalar alpha,
     const fp64_t* const* src_chunks, Index nsrc,
     fp64_t* const* dst_chunks, Index ndst,
-    Index elems_src, Index elems_dst)
+    Index elems_src, Index elems_dst, ChunkClass cls)
     noexcept;
 
 template
 void chunked<bf16_t>(cudaStream_t stream, Index m, Index n, Scalar alpha,
     const bf16_t* const* src_chunks, Index nsrc,
     bf16_t* const* dst_chunks, Index ndst,
-    Index elems_src, Index elems_dst)
+    Index elems_src, Index elems_dst, ChunkClass cls)
     noexcept;
 
 template
 void chunked<fp16_t>(cudaStream_t stream, Index m, Index n, Scalar alpha,
     const fp16_t* const* src_chunks, Index nsrc,
     fp16_t* const* dst_chunks, Index ndst,
-    Index elems_src, Index elems_dst)
+    Index elems_src, Index elems_dst, ChunkClass cls)
     noexcept;
 
 } // namespace nntile::kernel::tranpose

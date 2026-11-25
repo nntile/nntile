@@ -447,7 +447,8 @@ void chunked(cudaStream_t stream, Index src1_m, Index src1_n,
         Index nsrc1, const T *const *src2_chunks, Index nsrc2,
         T *const *dst_chunks, Index ndst, Index dst_m, Index dst_n,
         Index stride_m, Index stride_n, Scalar beta, Index elems_src1,
-        Index elems_src2, Index elems_dst)
+        Index elems_src2, Index elems_dst,
+        ChunkClass cls)
     noexcept
 {
     if(nsrc1 <= 0 || nsrc2 <= 0 || ndst <= 0)
@@ -465,11 +466,11 @@ void chunked(cudaStream_t stream, Index src1_m, Index src1_n,
     t.elems_src2 = elems_src2;
     t.elems_dst = elems_dst;
     t.shift_src1 = chunk_shift_of<T>(std::size_t(nsrc1),
-        std::size_t(elems_src1), "nntile_conv2d_inplace");
+        std::size_t(elems_src1), cls, "nntile_conv2d_inplace");
     t.shift_src2 = chunk_shift_of<T>(std::size_t(nsrc2),
-        std::size_t(elems_src2), "nntile_conv2d_inplace");
+        std::size_t(elems_src2), cls, "nntile_conv2d_inplace");
     t.shift_dst = chunk_shift_of<T>(std::size_t(ndst),
-        std::size_t(elems_dst), "nntile_conv2d_inplace");
+        std::size_t(elems_dst), cls, "nntile_conv2d_inplace");
     std::size_t const total_ptrs = std::size_t(nsrc1) + std::size_t(nsrc2)
         + std::size_t(ndst);
     if(total_ptrs > std::size_t(kConvMaxSharedPtrs))
@@ -570,7 +571,7 @@ void chunked<T>(cudaStream_t stream, Index src1_m, Index src1_n, \
         Index nsrc1, const T *const *src2_chunks, Index nsrc2, \
         T *const *dst_chunks, Index ndst, Index dst_m, Index dst_n, \
         Index stride_m, Index stride_n, Scalar beta, Index elems_src1, \
-        Index elems_src2, Index elems_dst) noexcept;
+        Index elems_src2, Index elems_dst, ChunkClass cls) noexcept;
 
 NNTILE_INSTANTIATE_CONV2D_CHUNKED(bf16_t)
 NNTILE_INSTANTIATE_CONV2D_CHUNKED(fp32_t)

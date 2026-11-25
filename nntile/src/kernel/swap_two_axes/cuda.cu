@@ -395,7 +395,8 @@ void chunked(
     T *const *dst_chunks,
     Index ndst,
     Index elems_src,
-    Index elems_dst) noexcept
+    Index elems_dst,
+        ChunkClass cls) noexcept
 {
     if (d0 <= 0 || d1 <= 0 || d2 <= 0 || d3 <= 0 || d4 <= 0
         || nsrc <= 0 || ndst <= 0)
@@ -407,9 +408,9 @@ void chunked(
     t.dst = dst_chunks;
     t.elems_src = elems_src;
     t.elems_dst = elems_dst;
-    t.shift_src = chunk_shift_of<T>(std::size_t(nsrc), std::size_t(elems_src),
+    t.shift_src = chunk_shift_of<T>(std::size_t(nsrc), std::size_t(elems_src), cls,
         "nntile_swap_two_axes");
-    t.shift_dst = chunk_shift_of<T>(std::size_t(ndst), std::size_t(elems_dst),
+    t.shift_dst = chunk_shift_of<T>(std::size_t(ndst), std::size_t(elems_dst), cls,
         "nntile_swap_two_axes");
     if (d4 == 1)
     {
@@ -491,7 +492,7 @@ void chunked<fp32_t>(
     fp32_t *const *dst_chunks,
     Index ndst,
     Index elems_src,
-    Index elems_dst) noexcept;
+    Index elems_dst, ChunkClass cls) noexcept;
 
 template
 void chunked<fp64_t>(
@@ -506,7 +507,7 @@ void chunked<fp64_t>(
     fp64_t *const *dst_chunks,
     Index ndst,
     Index elems_src,
-    Index elems_dst) noexcept;
+    Index elems_dst, ChunkClass cls) noexcept;
 
 template
 void chunked<bf16_t>(
@@ -521,7 +522,7 @@ void chunked<bf16_t>(
     bf16_t *const *dst_chunks,
     Index ndst,
     Index elems_src,
-    Index elems_dst) noexcept;
+    Index elems_dst, ChunkClass cls) noexcept;
 
 template
 void chunked<fp16_t>(
@@ -536,6 +537,6 @@ void chunked<fp16_t>(
     fp16_t *const *dst_chunks,
     Index ndst,
     Index elems_src,
-    Index elems_dst) noexcept;
+    Index elems_dst, ChunkClass cls) noexcept;
 
 } // namespace nntile::kernel::swap_two_axes

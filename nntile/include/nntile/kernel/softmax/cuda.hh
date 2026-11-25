@@ -16,6 +16,7 @@
 
 #include <nntile/base_types.hh>
 #include <cuda_runtime.h>
+#include <nntile/kernel/cuda.hh>
 
 namespace nntile::kernel::softmax
 {
@@ -56,7 +57,8 @@ void chunked(cudaStream_t stream, Index m, Index n, Index k,
         const T *const *mse_chunks, Index nmse,
         const T *const *src_chunks, Index nsrc, Scalar alpha,
         T *const *dst_chunks, Index ndst, Index elems_mse, Index elems_src,
-        Index elems_dst) noexcept;
+        Index elems_dst,
+        ChunkClass cls = chunk_class()) noexcept;
 
 
 
