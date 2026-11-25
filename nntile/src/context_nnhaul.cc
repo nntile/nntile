@@ -21,7 +21,6 @@
 #include <iostream>
 #include <stdexcept>
 #include <thread>
-#include <unistd.h>
 
 namespace nntile
 {
@@ -50,23 +49,6 @@ std::vector<BackendWorker> backend_worker_list()
     }
     return workers;
 }
-
-namespace
-{
-
-std::size_t default_cpu_cap()
-{
-    long const pages = sysconf(_SC_PHYS_PAGES);
-    long const page = sysconf(_SC_PAGESIZE);
-    if (pages <= 0 || page <= 0)
-    {
-        return std::size_t{1} << 30;
-    }
-    return static_cast<std::size_t>(pages) *
-        static_cast<std::size_t>(page) / 2;
-}
-
-} // namespace
 
 #ifdef NNTILE_USE_CUDA
 cudnnHandle_t cudnn_get_local_handle()
@@ -171,10 +153,14 @@ Context::Context(
         }
     }
 #endif
-    if (cpu_cap_bytes == 0)
-    {
-        cpu_cap_bytes = default_cpu_cap();
-    }
+    // Leave cpu_cap_bytes == 0 when the caller named none: nnhaul reads
+    // 0 as "unlimited", i.e. the host pool grows only on demand and has
+    // no soft wall to seek. Do NOT substitute a fraction of physical RAM
+    // here -- nnhaul's planning-time growth fills a finite limit to the
+    // wall and faults in every page, which on a large host turns the
+    // first host-pool acquire into an allocation of half the machine.
+    // A caller that wants a ceiling passes cpu_cap_bytes explicitly or
+    // sets NNHAUL_LIMIT_CPU_MEM.
     cpu_cap_bytes_chosen = cpu_cap_bytes;
     cuda_cap_bytes_each_chosen = cuda_cap_bytes_each;
     ::nnhaul::init(

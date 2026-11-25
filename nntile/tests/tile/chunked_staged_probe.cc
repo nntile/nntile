@@ -13,22 +13,13 @@
  * contiguous mode (b), scratch-pressure fan-out (c), and the
  * compile-time torch-op gate (d).
  *
- * (RULE 7 VACUITY NOTE, 2026-10-18) this probe was written for the
- * configurable-class era and its tiles are 2-3 MiB -- every tile is a
- * SINGLE chunk under the compile-time 16 MiB class, so the probes that
- * keyed on chunk_bytes_for(2/3 MiB) > 0 no longer engage their chunked
- * intent: probe a's native-chunked-gemm assert is skipped (the guard
- * `chunking_off` is true), and probes b/e spawn their contiguous-mode
- * children WITHOUT the retired FORCE_PANEL_BYTES / CHUNK_UNITS_FORCE_
- * BYTES knobs (the env knobs are gone and chunk_bytes_for returns 0),
- * so those comparisons degenerate to plain flag-on vs flag-off
- * contiguous runs. The staged-fallback pressure probes (c) and the
- * torch gate (d) remain meaningful. The chunked-side coverage this
- * file once bought lives in the .zcode/bench-kernel checks
- * (p4_check BIG blocks, bv_check, ring_check) on REAL 16 MiB
- * factorizations; making these probes chunked again requires
- * >16 MiB tiles and a rewrite for the constant-class era (recorded on
- * the campaign page's coverage-lost list).
+ * (COVERAGE NOTE) probes b and e compared against an engine-level
+ * contiguous mode that no longer exists (the engine always uses the
+ * compile-time chunk class); they are skipped. Probe a drives a real
+ * multi-chunk gemm through the graph and asserts the gemm body runs
+ * (gemm_staging_stats().calls) without the generic staging fallback; the
+ * staged-fallback pressure probes (c) and the torch gate (d) remain
+ * meaningful.
  *
  * Knobs (read per case, before the Context init): PROBE_CAP_MIB
  * (default unlimited), PROBE_POLICY (reactive|belady|proactive),
@@ -209,9 +200,9 @@ float run_staged_gemm_graph(Index m, Index n, Index k)
 
 #ifdef NNTILE_USE_NNHAUL
 
-// (a) Tight-cap native chunked gemm through the graph, several reps.
+// (a) Tight-cap chunked gemm through the graph, several reps.
 // Run once per offload policy: PROBE_POLICY=<reactive|belady|proactive>.
-TEST_CASE("probe a: native chunked gemm under tight cap", "[chunked][probe]")
+TEST_CASE("probe a: chunked gemm under tight cap", "[chunked][probe]")
 {
     auto context = make_context();
     // Class-relative geometry: k scaled so the m*k operand exceeds the
@@ -222,8 +213,8 @@ TEST_CASE("probe a: native chunked gemm under tight cap", "[chunked][probe]")
         (2 * ::nnhaul::kChunkClassBytes / sizeof(float)) / m);
     bool const chunking_off =
         false; // one class: every tile is chunked
-    std::uint64_t const native_before =
-        ::nntile::haul::gemm_native_chunked_count();
+    std::uint64_t const gemm_before =
+        ::nntile::haul::gemm_staging_stats().calls;
     std::uint64_t const staged_before =
         ::nntile::haul::stage::staged_submit_count();
     for (int rep = 0; rep < env_reps(); ++rep)
@@ -235,8 +226,9 @@ TEST_CASE("probe a: native chunked gemm under tight cap", "[chunked][probe]")
     }
     if (!chunking_off)
     {
-        // Chunked tiles: the gemm must be native (staging static).
-        REQUIRE(::nntile::haul::gemm_native_chunked_count() > native_before);
+        // Chunked tiles: gemm runs its own chunk-aware body, never the
+        // generic staging fallback.
+        REQUIRE(::nntile::haul::gemm_staging_stats().calls > gemm_before);
     }
     REQUIRE(::nntile::haul::stage::staged_submit_count() == staged_before);
     std::cout << "probe a OK policy=" << env_policy()
@@ -271,13 +263,13 @@ std::uint64_t run_mixed_chain(bool print)
     auto *tc = graph.data({m, n}, "c", DataType::FP32);
     auto *tmse = graph.data({n, 2}, "mse", DataType::FP32);
     auto *ty = graph.data({m, n}, "y", DataType::FP32);
-    tg::fill(Scalar{0.25}, ta); // native chunk-loop elementwise
-    tg::fill(Scalar{0.5}, tb);  // native
+    tg::fill(Scalar{0.25}, ta); // chunked elementwise
+    tg::fill(Scalar{0.5}, tb);  // chunked elementwise
     tg::gemm(ta, tb, tc, Scalar{1.0}, Scalar{0.0}, false, false, Index{1},
-        Index{0}); // native chunked panel driver
-    tg::maxsumexp(tc, tmse, Index{0}, Scalar{0.0}, 0); // native chunked
-    tg::softmax_inplace(tmse, Scalar{1.0}, tc, Index{0}); // native chunked
-    tg::add_inplace(Scalar{2.0}, tc, Scalar{-0.5}, ty); // native elementwise
+        Index{0}); // cuBLAS on contiguous/staged operands
+    tg::maxsumexp(tc, tmse, Index{0}, Scalar{0.0}, 0); // chunked
+    tg::softmax_inplace(tmse, Scalar{1.0}, tc, Index{0}); // chunked
+    tg::add_inplace(Scalar{2.0}, tc, Scalar{-0.5}, ty); // chunked elementwise
     Runtime runtime(graph);
     runtime.compile();
     std::vector<float> a_init(a.size(), 1.0f);
@@ -323,27 +315,15 @@ TEST_CASE("probe b: mixed chain bitwise vs contiguous mode",
         ::readlink("/proc/self/exe", self_buf, sizeof(self_buf) - 1);
     REQUIRE(self_len > 0);
     self_buf[self_len] = '\0';
-    // The child runs unchunked tiles, but its gemm must be factored the
-    // SAME way as this chunked run's native panel driver, or cuBLAS's
-    // different call shapes reorder the fp32 sums (last-ulp drift that
-    // the downstream softmax would amplify). NNHAUL_GEMM_FORCE_PANEL_BYTES
-    // makes an unchunked gemm body use virtual panels of exactly the
-    // chunk class this process's tiles got (all gemm operands here fall
-    // into the same 2 MiB-tile class). After the family-1 promotion the
-    // same holds for the chain's unit-structured ops: maxsumexp and
-    // softmax_inplace run native chunked unit drivers whose piecewise
-    // beta-chain reorders the reduction sums, so the child must force
-    // the identical virtual chunking with NNHAUL_CHUNK_UNITS_FORCE_BYTES
-    // to issue the same sub-call sequence (softmax_inplace is elementwise
-    // and would match bitwise either way; maxsumexp would not).
+    // (retired) The child ran unchunked tiles; the old virtual-panel
+    // knobs that forced the same gemm factorization are gone with the
+    // configurable chunk class.
     std::size_t const panel_bytes =
         ::nnhaul::kChunkClassBytes;
     std::string const cmd =
         std::string("NNHAUL_CHUNK_TILES=0") +
         (panel_bytes > 0
-                ? " NNHAUL_GEMM_FORCE_PANEL_BYTES=" +
-                      std::to_string(panel_bytes)
-                      + " NNHAUL_CHUNK_UNITS_FORCE_BYTES=" +
+                ? " NNHAUL_CHUNK_UNITS_FORCE_BYTES=" +
                       std::to_string(panel_bytes)
                 : std::string()) +
         " '" + std::string(self_buf) +
@@ -451,8 +431,9 @@ namespace
 // (e) A graph of ONLY gemms - the GPT-2-shaped workload: weights
 // {768,3072} (9 MiB fp32), activations {1024,768} (3 MiB), four chained
 // gemms alternating NoTrans/Trans use of the weights. On chunked tiles
-// every gemm takes the native panel driver; prints one RESULT line for
-// the bitwise comparison against the contiguous-mode child.
+// every gemm runs cuBLAS on its contiguous or workspace-staged operands;
+// prints one RESULT line for the bitwise comparison against the
+// contiguous-mode child.
 [[maybe_unused]] std::uint64_t run_gemm_chain(bool print)
 {
     Index const m = 1024, d = 768, h = 3072;
@@ -509,10 +490,8 @@ namespace
 
 // (e) The gemm-only chain on chunked tiles, one session per offload
 // policy (reactive, belady, proactive), each bitwise against a
-// contiguous-mode child whose gemm bodies are panel-forced to this
-// process's chunk class (NNHAUL_GEMM_FORCE_PANEL_BYTES) so the child
-// issues the identical cublas call factorization. The gemms must be
-// NATIVE (staging counter static, native counter +4 per chain). A cap
+// contiguous-mode child. The gemms must run their own body (gemm calls
+// +4 per chain) and never the generic staging fallback. A cap
 // may be applied with PROBE_CAP_MIB, but it must admit one gemm's full
 // operand set (the frontier fetches every chunk before launch): this
 // graph's largest working set is x/w/h1 = 24 MiB.
@@ -542,30 +521,27 @@ TEST_CASE("probe e: gemm-only chain bitwise vs contiguous mode",
     self_buf[self_len] = '\0';
     std::size_t const panel_bytes =
         ::nnhaul::kChunkClassBytes;
-    std::string const force = panel_bytes > 0
-        ? " NNHAUL_GEMM_FORCE_PANEL_BYTES=" + std::to_string(panel_bytes)
-        : std::string();
     for (char const *policy : {"reactive", "belady", "proactive"})
     {
         ::setenv("PROBE_POLICY", policy, 1);
         ::setenv("NNHAUL_OFFLOAD_POLICY", policy, 1);
         auto context = make_context();
-        std::uint64_t const native_before =
-            ::nntile::haul::gemm_native_chunked_count();
+        std::uint64_t const gemm_before =
+            ::nntile::haul::gemm_staging_stats().calls;
         std::uint64_t const staged_before =
             ::nntile::haul::stage::staged_submit_count();
         std::uint64_t const hash = run_gemm_chain(false);
         INFO("policy " << policy << " hash " << std::hex << hash << std::dec);
         if (panel_bytes > 0)
         {
-            REQUIRE(::nntile::haul::gemm_native_chunked_count()
-                - native_before >= 4);
+            REQUIRE(::nntile::haul::gemm_staging_stats().calls
+                - gemm_before >= 4);
             REQUIRE(::nntile::haul::stage::staged_submit_count()
                 == staged_before);
         }
         std::string const cmd = "PROBE_POLICY=" + std::string(policy) +
             " NNHAUL_OFFLOAD_POLICY=" + std::string(policy) +
-            " NNHAUL_CHUNK_TILES=0" + force + " '" + std::string(self_buf) +
+            " NNHAUL_CHUNK_TILES=0 '" + std::string(self_buf) +
             "' 'probe e: gemm-only chain bitwise vs contiguous mode'";
         std::FILE *pipe = ::popen(cmd.c_str(), "r");
         REQUIRE(pipe != nullptr);

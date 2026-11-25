@@ -21,27 +21,36 @@
 #include <nntile/nnhaul/codelet.hh>
 #include <nntile/constants.hh>
 
-#include <atomic>
 #include <cstdint>
 
 namespace nntile::haul
 {
 
-//! Number of gemm bodies that ran the native chunked driver so far
-//! (the engagement probe for the chunked-tile tests: gemm must NOT go
-//! through the staging fallback).
-inline std::atomic<std::uint64_t> g_gemm_native_chunked_count{0};
-
-inline void note_gemm_native_chunked() noexcept
+//! GEMM staging statistics for the current process.
+//!
+//! The gemm body is simple: an operand whose chunks are contiguous (or
+//! that has only one chunk) is handed to cuBLAS directly; any other
+//! operand is copied into the contiguous workspace first. c2w_chunks /
+//! w2c_chunks count the chunk-to-workspace and workspace-to-chunk copies
+//! the staged path performed (an output C always contributes a W2C copy;
+//! C contributes a C2W copy only when beta != 0, because only then is it
+//! read). Everything else is diagnostic and never affects control flow.
+struct GemmStagingStats
 {
-    g_gemm_native_chunked_count.fetch_add(1, std::memory_order_relaxed);
-}
+    std::uint64_t calls = 0;       //!< every gemm body
+    std::uint64_t contiguous = 0;  //!< direct cuBLAS, no copy
+    std::uint64_t staged = 0;      //!< workspace-staged path
+    std::uint64_t staged_a = 0;    //!< per-operand staging
+    std::uint64_t staged_b = 0;
+    std::uint64_t staged_c = 0;
+    std::uint64_t c2w_chunks = 0;  //!< chunks copied chunked->workspace
+    std::uint64_t w2c_chunks = 0;  //!< chunks copied workspace->chunked
+    std::uint64_t c2w_bytes = 0;
+    std::uint64_t w2c_bytes = 0;
+};
 
-//! How many gemm bodies took the native chunked path so far.
-inline std::uint64_t gemm_native_chunked_count() noexcept
-{
-    return g_gemm_native_chunked_count.load(std::memory_order_relaxed);
-}
+//! Snapshot of the process-wide gemm staging statistics.
+GemmStagingStats gemm_staging_stats() noexcept;
 
 //! Generic wrapper class for gemm operation is not defined
 template<typename T>
