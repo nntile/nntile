@@ -89,7 +89,6 @@ repair-wheel-command = "bash {package}/tools/repair_wheel_linux.sh {wheel} {dest
 [[tool.cibuildwheel.overrides]]
 select = "*-manylinux_*"
 inherit.environment = "append"
-environment.TORCH_NNTILE_USE_CUDA = "1"
 environment.NNTILE_CUDA_FROM_PIP = "1"
 environment.CUDA_HOME = "/usr/local/cuda"
 environment.PATH = "/usr/local/cuda/bin:$PATH"

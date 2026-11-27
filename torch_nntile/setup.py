@@ -69,8 +69,6 @@ def _nvidia_pkg_include_dir(env_var: str, modname: str, header: str) -> str | No
 
 
 def _cuda_include_dirs() -> list[str]:
-    if os.environ.get("TORCH_NNTILE_USE_CUDA") != "1":
-        return []
     dirs: list[str] = []
     if cuda_home := os.environ.get("CUDA_HOME"):
         cuda_include = Path(cuda_home) / "include"
@@ -111,7 +109,7 @@ def _nntile_built_with_cuda(nntile_inc: Path) -> bool:
             if line.strip().startswith("#define NNTILE_USE_CUDA"):
                 return True
         return False
-    return os.environ.get("TORCH_NNTILE_USE_CUDA") == "1"
+    return False
 
 
 def _write_build_info(built_with_cuda: bool) -> None:
@@ -231,7 +229,6 @@ def _nntile_extension_kwargs() -> dict:
             "reports no CUDA support"
         )
     _write_build_info(built_with_cuda)
-    os.environ.setdefault("TORCH_NNTILE_USE_CUDA", "1")
     print("libnntile CUDA: ON (BUILT_WITH_CUDA=True)")
 
     cxx_standard = os.environ.get("TORCH_NNTILE_CXX_STANDARD", "c++17")

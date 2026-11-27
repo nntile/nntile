@@ -24,7 +24,6 @@ wheelhouse_out="${TORCH_NNTILE_WHEELHOUSE:-${repo_root}/wheelhouse}"
 jobs="${CMAKE_BUILD_PARALLEL_LEVEL:-2}"
 os_name="$(uname -s)"
 cmake_wheel="${TORCH_NNTILE_CMAKE_WHEEL:-0}"
-use_cuda="${TORCH_NNTILE_USE_CUDA:-1}"
 
 install_linux_packages() {
     if command -v dnf >/dev/null 2>&1; then
@@ -87,76 +86,70 @@ configure_nntile_cmake() {
         cmake_args+=(-DBUILD_TORCH_NNTILE=OFF)
     fi
 
-    if [ "${use_cuda}" = "1" ]; then
-        export TORCH_NNTILE_USE_CUDA=1
+    cmake_args+=(
+        -DCUDAToolkit_ROOT="${CUDA_HOME}"
+    )
+    if [ -n "${CMAKE_CUDA_COMPILER:-}" ]; then
+        cmake_args+=(-DCMAKE_CUDA_COMPILER="${CMAKE_CUDA_COMPILER}")
+    elif [ -n "${CUDA_HOME:-}" ]; then
+        cmake_args+=(-DCMAKE_CUDA_COMPILER="${CUDA_HOME}/bin/nvcc")
+    fi
+    if [ -n "${CUDNN_PATH:-}" ]; then
         cmake_args+=(
-            -DCUDAToolkit_ROOT="${CUDA_HOME}"
+            -DCUDNN_PATH="${CUDNN_PATH}"
+            -DCUDNN_INCLUDE_PATH="${CUDNN_INCLUDE_PATH}"
+            -DCUDNN_LIBRARY_PATH="${CUDNN_LIBRARY_PATH}"
         )
-        if [ -n "${CMAKE_CUDA_COMPILER:-}" ]; then
-            cmake_args+=(-DCMAKE_CUDA_COMPILER="${CMAKE_CUDA_COMPILER}")
-        elif [ -n "${CUDA_HOME:-}" ]; then
-            cmake_args+=(-DCMAKE_CUDA_COMPILER="${CUDA_HOME}/bin/nvcc")
-        fi
-        if [ -n "${CUDNN_PATH:-}" ]; then
+    fi
+    if [ "${NNTILE_CUDA_FROM_PIP:-0}" = "1" ] \
+        || [ -n "${NVIDIA_CUBLAS_LIBRARY_PATH:-}" ]; then
+        cmake_args+=(-DNNTILE_CUDA_FROM_PIP=ON)
+        if [ -n "${NVIDIA_CUBLAS_LIBRARY_PATH:-}" ]; then
             cmake_args+=(
-                -DCUDNN_PATH="${CUDNN_PATH}"
-                -DCUDNN_INCLUDE_PATH="${CUDNN_INCLUDE_PATH}"
-                -DCUDNN_LIBRARY_PATH="${CUDNN_LIBRARY_PATH}"
+                -DNVIDIA_CUBLAS_INCLUDE_PATH="${NVIDIA_CUBLAS_INCLUDE_PATH}"
+                -DNVIDIA_CUBLAS_LIBRARY_PATH="${NVIDIA_CUBLAS_LIBRARY_PATH}"
             )
         fi
-        if [ "${NNTILE_CUDA_FROM_PIP:-0}" = "1" ] \
-            || [ -n "${NVIDIA_CUBLAS_LIBRARY_PATH:-}" ]; then
-            cmake_args+=(-DNNTILE_CUDA_FROM_PIP=ON)
-            if [ -n "${NVIDIA_CUBLAS_LIBRARY_PATH:-}" ]; then
-                cmake_args+=(
-                    -DNVIDIA_CUBLAS_INCLUDE_PATH="${NVIDIA_CUBLAS_INCLUDE_PATH}"
-                    -DNVIDIA_CUBLAS_LIBRARY_PATH="${NVIDIA_CUBLAS_LIBRARY_PATH}"
-                )
-            fi
-            if [ -n "${NVIDIA_CUDA_RUNTIME_LIBRARY_PATH:-}" ]; then
-                cmake_args+=(
-                    -DNVIDIA_CUDA_RUNTIME_INCLUDE_PATH="${NVIDIA_CUDA_RUNTIME_INCLUDE_PATH}"
-                    -DNVIDIA_CUDA_RUNTIME_LIBRARY_PATH="${NVIDIA_CUDA_RUNTIME_LIBRARY_PATH}"
-                )
-            fi
-            # Thin toolkit has no libnvrtc; Torch links CUDA_nvrtc_LIBRARY.
-            if [ -n "${CUDA_nvrtc_LIBRARY:-}" ]; then
-                cmake_args+=(-DCUDA_nvrtc_LIBRARY="${CUDA_nvrtc_LIBRARY}")
-            elif [ -n "${NVIDIA_CUDA_NVRTC_LIBRARY_PATH:-}" ]; then
-                nvrtc_so="$(
-                    ls -1 "${NVIDIA_CUDA_NVRTC_LIBRARY_PATH}"/libnvrtc.so* \
-                        2>/dev/null | head -1 || true
-                )"
-                if [ -n "${nvrtc_so}" ]; then
-                    cmake_args+=(-DCUDA_nvrtc_LIBRARY="${nvrtc_so}")
-                fi
-            fi
-            if [ -n "${CMAKE_LIBRARY_PATH:-}" ]; then
-                cmake_args+=(-DCMAKE_LIBRARY_PATH="${CMAKE_LIBRARY_PATH}")
-            fi
-            # Torch cuda.cmake looks for cublas_v2.h under CUDA_HOME only.
-            if [ -n "${NVIDIA_CUBLAS_INCLUDE_PATH:-}" ] \
-                && [ -n "${CUDA_HOME:-}" ] \
-                && [ -f "${NVIDIA_CUBLAS_INCLUDE_PATH}/cublas_v2.h" ] \
-                && [ ! -e "${CUDA_HOME}/include/cublas_v2.h" ]; then
-                ln -sfn "${NVIDIA_CUBLAS_INCLUDE_PATH}/cublas_v2.h" \
-                    "${CUDA_HOME}/include/cublas_v2.h"
-                if [ -f "${NVIDIA_CUBLAS_INCLUDE_PATH}/cublas_api.h" ]; then
-                    ln -sfn "${NVIDIA_CUBLAS_INCLUDE_PATH}/cublas_api.h" \
-                        "${CUDA_HOME}/include/cublas_api.h"
-                fi
-                if [ -f "${NVIDIA_CUBLAS_INCLUDE_PATH}/cublas.h" ]; then
-                    ln -sfn "${NVIDIA_CUBLAS_INCLUDE_PATH}/cublas.h" \
-                        "${CUDA_HOME}/include/cublas.h"
-                fi
+        if [ -n "${NVIDIA_CUDA_RUNTIME_LIBRARY_PATH:-}" ]; then
+            cmake_args+=(
+                -DNVIDIA_CUDA_RUNTIME_INCLUDE_PATH="${NVIDIA_CUDA_RUNTIME_INCLUDE_PATH}"
+                -DNVIDIA_CUDA_RUNTIME_LIBRARY_PATH="${NVIDIA_CUDA_RUNTIME_LIBRARY_PATH}"
+            )
+        fi
+        # Thin toolkit has no libnvrtc; Torch links CUDA_nvrtc_LIBRARY.
+        if [ -n "${CUDA_nvrtc_LIBRARY:-}" ]; then
+            cmake_args+=(-DCUDA_nvrtc_LIBRARY="${CUDA_nvrtc_LIBRARY}")
+        elif [ -n "${NVIDIA_CUDA_NVRTC_LIBRARY_PATH:-}" ]; then
+            nvrtc_so="$(
+                ls -1 "${NVIDIA_CUDA_NVRTC_LIBRARY_PATH}"/libnvrtc.so* \
+                    2>/dev/null | head -1 || true
+            )"
+            if [ -n "${nvrtc_so}" ]; then
+                cmake_args+=(-DCUDA_nvrtc_LIBRARY="${nvrtc_so}")
             fi
         fi
-        if [ -n "${CMAKE_CUDA_ARCHITECTURES:-}" ]; then
-            cmake_args+=(-DCMAKE_CUDA_ARCHITECTURES="${CMAKE_CUDA_ARCHITECTURES}")
+        if [ -n "${CMAKE_LIBRARY_PATH:-}" ]; then
+            cmake_args+=(-DCMAKE_LIBRARY_PATH="${CMAKE_LIBRARY_PATH}")
         fi
-    else
-        echo "NNTile 2.0 is CUDA-only; set TORCH_NNTILE_USE_CUDA=1" >&2
-        exit 1
+        # Torch cuda.cmake looks for cublas_v2.h under CUDA_HOME only.
+        if [ -n "${NVIDIA_CUBLAS_INCLUDE_PATH:-}" ] \
+            && [ -n "${CUDA_HOME:-}" ] \
+            && [ -f "${NVIDIA_CUBLAS_INCLUDE_PATH}/cublas_v2.h" ] \
+            && [ ! -e "${CUDA_HOME}/include/cublas_v2.h" ]; then
+            ln -sfn "${NVIDIA_CUBLAS_INCLUDE_PATH}/cublas_v2.h" \
+                "${CUDA_HOME}/include/cublas_v2.h"
+            if [ -f "${NVIDIA_CUBLAS_INCLUDE_PATH}/cublas_api.h" ]; then
+                ln -sfn "${NVIDIA_CUBLAS_INCLUDE_PATH}/cublas_api.h" \
+                    "${CUDA_HOME}/include/cublas_api.h"
+            fi
+            if [ -f "${NVIDIA_CUBLAS_INCLUDE_PATH}/cublas.h" ]; then
+                ln -sfn "${NVIDIA_CUBLAS_INCLUDE_PATH}/cublas.h" \
+                    "${CUDA_HOME}/include/cublas.h"
+            fi
+        fi
+    fi
+    if [ -n "${CMAKE_CUDA_ARCHITECTURES:-}" ]; then
+        cmake_args+=(-DCMAKE_CUDA_ARCHITECTURES="${CMAKE_CUDA_ARCHITECTURES}")
     fi
 
     if [ "${os_name}" = "Darwin" ]; then
@@ -172,9 +165,6 @@ configure_nntile_cmake() {
 }
 
 assert_pip_cuda_link() {
-    if [ "${use_cuda}" != "1" ]; then
-        return 0
-    fi
     if [ "${NNTILE_ASSERT_PIP_CUDA:-1}" != "1" ]; then
         return 0
     fi
@@ -231,10 +221,6 @@ build_wheel_with_cmake() {
 case "${os_name}" in
     Linux)
         install_linux_packages
-        if [ "${use_cuda}" != "1" ]; then
-            echo "NNTile 2.0 is CUDA-only; set TORCH_NNTILE_USE_CUDA=1" >&2
-            exit 1
-        fi
         # shellcheck disable=SC1091
         source "${script_dir}/install_linux_cuda_toolkit.sh"
         # shellcheck disable=SC1091
