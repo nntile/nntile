@@ -54,17 +54,13 @@ if(NNHAUL_ROOT STREQUAL "")
     endif()
     set(NNHAUL_INSTALL ON CACHE BOOL
         "Install and export the nnhaul package" FORCE)
-    if(BUILD_TESTING AND NOT DEFINED NNHAUL_BUILD_TESTS)
-        set(NNHAUL_BUILD_TESTS ON CACHE BOOL
-            "Build the nnhaul test suites" FORCE)
-    endif()
     # Embedded builds share ONE engine: libnntile links a shared
     # libnnhaul, so a consumer that also links nnhaul::nnhaul gets the
     # same DSO. Standalone nnhaul stays static.
     if(NOT TARGET nnhaul::nnhaul)
         if(DEFINED NNHAUL_LIBRARY_TYPE
                 AND NOT NNHAUL_LIBRARY_TYPE STREQUAL "SHARED")
-            message(STATUS
+            message(WARNING
                 "nnhaul: embedded build forces SHARED (was "
                 "${NNHAUL_LIBRARY_TYPE}); a static copy would give "
                 "consumers a second engine")

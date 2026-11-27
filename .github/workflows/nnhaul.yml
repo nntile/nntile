@@ -37,7 +37,7 @@ env:
   PATH: /usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 concurrency:
-  group: nntile-2.0-gpu-${{ github.ref }}
+  group: nntile-2.0-gpu-${{ inputs.ref || github.ref }}
   cancel-in-progress: true
 
 jobs:

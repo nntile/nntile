@@ -4,9 +4,6 @@
 # @file torch_nntile/CMakeLists.txt
 # libtorch_nntile (LibTorch PrivateUse1 + models).
 
-option(BUILD_LIBTORCH_NNTILE
-    "Build libtorch_nntile (requires LibTorch)" OFF)
-
 if(NOT BUILD_LIBTORCH_NNTILE)
     return()
 endif()
@@ -91,13 +88,11 @@ endif()
 target_link_libraries(torch_nntile PUBLIC ${TORCH_LIBRARIES})
 set_property(TARGET torch_nntile PROPERTY CXX_STANDARD 17)
 
-if(DEFINED NNTILE_BUILT_WITH_CUDA)
-    set(TORCH_NNTILE_BUILT_WITH_CUDA "${NNTILE_BUILT_WITH_CUDA}")
-elseif(NNTILE_USE_CUDA OR NNTILE_LINK_CUDA)
-    set(TORCH_NNTILE_BUILT_WITH_CUDA ON)
-else()
-    set(TORCH_NNTILE_BUILT_WITH_CUDA OFF)
+if(DEFINED NNTILE_BUILT_WITH_CUDA AND NOT NNTILE_BUILT_WITH_CUDA)
+    message(FATAL_ERROR
+        "libtorch_nntile links a non-CUDA libnntile; NNTile 2.0 is CUDA-only")
 endif()
+set(TORCH_NNTILE_BUILT_WITH_CUDA ON)
 message(STATUS "libtorch_nntile CUDA: ${TORCH_NNTILE_BUILT_WITH_CUDA}")
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/TorchNntileWheel.cmake")

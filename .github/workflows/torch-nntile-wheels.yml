@@ -13,6 +13,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: wheels-${{ github.ref }}
+  cancel-in-progress: true
+
 defaults:
   run:
     shell: bash

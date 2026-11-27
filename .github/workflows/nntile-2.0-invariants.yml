@@ -23,6 +23,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: invariants-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   invariants:
     name: CUDA-only and single-backend invariants
@@ -38,29 +42,37 @@ jobs:
         run: |
           set -eu
 
-          expect_failure() {
-            desc=$1
+          # A bare non-zero exit is not enough on a GPU-less runner: the
+          # unconditional "no CUDA compiler" fatal would mask a missing
+          # removed-option guard. Require the guard's own diagnostic.
+          expect_removed() {
+            opt=$1
             shift
             dir=$(mktemp -d)
             if cmake -S . -B "${dir}" "$@" > "${dir}/out" 2>&1; then
-              echo "::error::${desc}: configure unexpectedly succeeded"
+              echo "::error::${opt}: configure unexpectedly succeeded"
               cat "${dir}/out"
               exit 1
             fi
-            echo "ok: ${desc}"
+            if ! grep -q "${opt} was removed in NNTile 2.0" "${dir}/out"; then
+              echo "::error::${opt}: failed for the wrong reason"
+              cat "${dir}/out"
+              exit 1
+            fi
+            echo "ok: ${opt} rejected by the removed-option guard"
           }
 
           # CUDA-only product: USE_CUDA is a removed 1.x switch, both values.
-          expect_failure "USE_CUDA=OFF is rejected" -DUSE_CUDA=OFF
-          expect_failure "USE_CUDA=ON is rejected" -DUSE_CUDA=ON
+          expect_removed USE_CUDA -DUSE_CUDA=OFF
+          expect_removed USE_CUDA -DUSE_CUDA=ON
           # Removed 1.x backend and kernel switches must not be silently ignored.
-          expect_failure "NNTILE_USE_NNHAUL=OFF is rejected" -DNNTILE_USE_NNHAUL=OFF
-          expect_failure "USE_CBLAS=ON is rejected" -DUSE_CBLAS=ON
-          expect_failure "NNTILE_FORCE_CHUNKED_KERNELS is rejected" \
+          expect_removed NNTILE_USE_NNHAUL -DNNTILE_USE_NNHAUL=OFF
+          expect_removed USE_CBLAS -DUSE_CBLAS=ON
+          expect_removed NNTILE_FORCE_CHUNKED_KERNELS \
             -DNNTILE_FORCE_CHUNKED_KERNELS=ON
-          expect_failure "NNTILE_TORCH_NATIVE_OPS is rejected" \
+          expect_removed NNTILE_TORCH_NATIVE_OPS \
             -DNNTILE_TORCH_NATIVE_OPS=ON
-          expect_failure "NNTILE_NNTILE_NATIVE_OPS is rejected" \
+          expect_removed NNTILE_NNTILE_NATIVE_OPS \
             -DNNTILE_NNTILE_NATIVE_OPS=ON
 
       - name: Removed runtime and API remnants

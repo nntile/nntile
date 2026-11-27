@@ -163,10 +163,6 @@ endmacro()
 macro(nntile_apply_cuda target)
     nntile_propagation_scope(${target} _scope)
     if(NNTILE_LINK_CUDA)
-        if(NNTILE_CUDA_ARCHITECTURES)
-            set_target_properties(${target} PROPERTIES
-                CUDA_ARCHITECTURES "${NNTILE_CUDA_ARCHITECTURES}")
-        endif()
         target_link_libraries(${target} ${_scope} CUDA::cublas CUDNN::cudnn_all)
         target_include_directories(${target} ${_scope}
             "$<BUILD_INTERFACE:${cudnn_frontend_SOURCE_DIR}/include>")
@@ -174,6 +170,11 @@ macro(nntile_apply_cuda target)
 endmacro()
 
 # Install nlohmann_json with NNTile so find_dependency(nlohmann_json) works.
+if(DEFINED JSON_Install AND NOT JSON_Install)
+    message(WARNING
+        "JSON_Install=OFF is not supported: the installed nntile package "
+        "exports a find_dependency(nlohmann_json); forcing it ON.")
+endif()
 set(JSON_Install ON CACHE BOOL "Install nlohmann_json with NNTile" FORCE)
 add_subdirectory("external")
 
@@ -203,7 +204,6 @@ endif()
 
 set(NNTILE_USE_CUDA ON)
 set(NNTILE_LINK_CUDA ON)
-set(NNTILE_CUDA_ARCHITECTURES "")
 include(CheckLanguage)
 check_language(CUDA)
 if(CMAKE_CUDA_COMPILER)
@@ -227,13 +227,18 @@ if(CMAKE_CUDA_COMPILER)
     if(NOT TARGET CUDNN::cudnn_all)
         include(${cudnn_frontend_SOURCE_DIR}/cmake/cuDNN.cmake)
     endif()
-    set(NNTILE_CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}")
 else()
     message(FATAL_ERROR
         "no CUDA compiler was found; NNTile 2.0 is CUDA-only.")
 endif()
 
-message(STATUS "NNTILE_USE_CUDA: ${NNTILE_USE_CUDA}")
+# A layered build (BUILD_LIBNNTILE=OFF) must discover the installed
+# nntile/nnhaul targets before NNTileBackends.cmake decides to vendor the
+# in-tree engine; otherwise the imported nnhaul::nnhaul target collides with
+# the in-tree alias from add_subdirectory(nnhaul).
+if(NOT BUILD_LIBNNTILE)
+    find_package(nntile QUIET CONFIG)
+endif()
 
 # Shared cudart for every consumer of libnntile: the nnhaul branch already
 # pulls CUDA::cudart (shared) via the imported nnhaul target, while the
@@ -321,6 +326,16 @@ if(BUILD_TESTING)
     endif()
 
     if(BUILD_LIBTORCH_NNTILE)
+        add_subdirectory(
+            "${PROJECT_SOURCE_DIR}/torch_nntile/tests"
+            "${PROJECT_BINARY_DIR}/torch_nntile/tests")
+    elseif(BUILD_TORCH_NNTILE AND NOT BUILD_LIBNNTILE)
+        if(NOT TARGET torch_nntile AND NOT TARGET torch_nntile::torch_nntile)
+            find_package(torch_nntile REQUIRED CONFIG)
+        endif()
+        if(NOT Torch_FOUND)
+            find_package(Torch REQUIRED)
+        endif()
         add_subdirectory(
             "${PROJECT_SOURCE_DIR}/torch_nntile/tests"
             "${PROJECT_BINARY_DIR}/torch_nntile/tests")
