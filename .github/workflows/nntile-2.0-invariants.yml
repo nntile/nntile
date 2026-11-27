@@ -1,0 +1,148 @@
+# @copyright (c) 2026-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#
+# @file .github/workflows/nntile-2.0-invariants.yml
+# Hosted, GPU-free gate for NNTile 2.0.
+#
+# GitHub-hosted runners have no CUDA device, so nothing here builds or runs
+# the product. It still checks the properties that make this tree "2.0":
+# CUDA-only configure guards, removed 1.x backend options, the disabled-family
+# scope, chunked coverage, and the absence of the removed runtime.
+#
+# @version 2.0.0
+
+name: NNTile 2.0 invariants
+
+on:
+  pull_request:
+    branches: [main, nntile-2.0]
+  push:
+    branches: [main, nntile-2.0]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  invariants:
+    name: CUDA-only and single-backend invariants
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Configure guards
+        shell: bash
+        run: |
+          set -eu
+
+          expect_failure() {
+            desc=$1
+            shift
+            dir=$(mktemp -d)
+            if cmake -S . -B "${dir}" "$@" > "${dir}/out" 2>&1; then
+              echo "::error::${desc}: configure unexpectedly succeeded"
+              cat "${dir}/out"
+              exit 1
+            fi
+            echo "ok: ${desc}"
+          }
+
+          # CUDA-only product: OFF must fail before any dependency fetch.
+          expect_failure "USE_CUDA=OFF is rejected" -DUSE_CUDA=OFF
+          # Removed 1.x backend and kernel switches must not be silently ignored.
+          expect_failure "NNTILE_USE_NNHAUL=OFF is rejected" -DNNTILE_USE_NNHAUL=OFF
+          expect_failure "USE_CBLAS=ON is rejected" -DUSE_CBLAS=ON
+          expect_failure "NNTILE_FORCE_CHUNKED_KERNELS is rejected" \
+            -DNNTILE_FORCE_CHUNKED_KERNELS=ON
+          expect_failure "NNTILE_TORCH_NATIVE_OPS is rejected" \
+            -DNNTILE_TORCH_NATIVE_OPS=ON
+          expect_failure "NNTILE_NNTILE_NATIVE_OPS is rejected" \
+            -DNNTILE_NNTILE_NATIVE_OPS=ON
+
+      - name: Removed runtime and API remnants
+        shell: bash
+        run: |
+          set -eu
+          # This file names the removed identifiers, so exclude it from its
+          # own scans.
+          excl=':(exclude).github/workflows/nntile-2.0-invariants.yml'
+          check_absent() {
+            desc=$1
+            shift
+            if git grep "$@" -- . "${excl}"; then
+              echo "::error::${desc}"
+              exit 1
+            fi
+            echo "ok: ${desc}"
+          }
+          check_absent "removed distributed runtime identifier" -inE "starpu|star_pu"
+          check_absent "ACCESS_REDUX remnant" -n "ACCESS_REDUX"
+          check_absent "removed accumulate family" -nE \
+            "accumulate_attn_output|accumulate_maxsumexp|accumulate_hypot|accumulate\.cc"
+          check_absent "deleted torch_nntile branch trigger" -nE \
+            "branches:.*torch_nntile([, ]|$)"
+
+      - name: Kernel scope and chunked coverage
+        shell: bash
+        run: |
+          set -eu
+          python3 - <<'PY'
+          import pathlib
+          import re
+          import subprocess
+          import sys
+
+          families = [
+              "conv2d_inplace",
+              "conv2d_bwd_input_inplace",
+              "conv2d_bwd_weight_inplace",
+              "isfinite",
+              "pow",
+              "sqrt",
+              "sqrt_inplace",
+          ]
+
+          scope = pathlib.Path("cmake/NNTileKernelScope.cmake").read_text()
+          m = re.search(r'NNTILE_DISABLED_KERNELS\s*\n?\s*"([^"]*)"', scope)
+          if not m:
+              sys.exit("cannot read NNTILE_DISABLED_KERNELS")
+          configured = [x for x in m.group(1).split(";") if x]
+          if configured != families:
+              sys.exit(f"disabled families changed: {configured}")
+
+          missing = []
+          for family in families:
+              candidates = [
+                  pathlib.Path(f"nntile/include/nntile/kernel/{family}.hh"),
+                  pathlib.Path(f"nntile/src/nnhaul/{family}.cc"),
+                  *pathlib.Path(f"nntile/src/kernel/{family}").glob("*"),
+                  *pathlib.Path(f"nntile/include/nntile/kernel/{family}").glob("*"),
+              ]
+              for path in candidates:
+                  if not path.is_file():
+                      missing.append(f"missing {path}")
+                      continue
+                  if "INTENTIONALLY DISABLED" not in path.read_text():
+                      missing.append(f"banner missing in {path}")
+
+          if missing:
+              sys.exit("\n".join(missing))
+
+          for family in families:
+              entry = pathlib.Path(f"nntile/src/nnhaul/{family}.cc").read_text()
+              if "require_kernel_family" not in entry:
+                  sys.exit(f"public submit() is not gated for {family}")
+
+          print("ok: 7 disabled families gated and bannered")
+          PY
+
+          coverage=$(python3 tools/chunked_coverage.py | tail -1)
+          expected="total 69: chunked 62, driver 0, classic 0, unused 0, disabled 7"
+          if [ "${coverage}" != "${expected}" ]; then
+            echo "::error::chunked coverage changed: ${coverage}"
+            exit 1
+          fi
+          echo "ok: ${coverage}"

@@ -2,34 +2,49 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file .github/workflows/nnhaul.yml
-# The default-product CI: the vendored NNHaul backend on a CUDA GPU.
+# NNTile 2.0 GPU gate: the vendored NNHaul backend on the Cheems runner
+# group (CUDA GPU + driver on the host).
 #
-# The GPU job needs a self-hosted runner with: CUDA toolkit (nvcc, cuBLAS,
-# cuDNN), CMake >= 3.24, Ninja, a C++17 compiler, and PyTorch when the
-# torch_nntile product is built. Label the runner group below accordingly.
+# Deliberately NOT triggered by pull_request. nntile/nntile is a public
+# repository and the runner group is shared with private projects: a fork
+# PR can add or edit a workflow that requests `group: cheems`, and approving
+# that run would execute untrusted code on the GPU host. GPU work therefore
+# runs only for pushes to protected branches and for workflow_dispatch,
+# which requires write access. Fork PRs get the hosted invariants workflow;
+# a maintainer brings a fork branch into the repository to get a GPU run.
 #
-# @version 1.1.0
+# @version 2.0.0
 
-name: NNHaul backend
+name: NNTile 2.0 GPU
 
 on:
-  pull_request:
   push:
-    branches: [torch_nntile, main, nntile-2.0]
+    branches: [main, nntile-2.0]
   workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or SHA in this repository to test
+        required: false
+        default: ""
+
+permissions:
+  contents: read
 
 concurrency:
-  group: nnhaul-${{ github.ref }}
+  group: nntile-2.0-gpu-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  nnhaul-gpu:
-    name: default product (NNHaul) build and suites
-    # Self-hosted GPU runner: hosted runners have no CUDA device.
-    runs-on: [self-hosted, linux, gpu, cuda]
+  nnhaul-suite:
+    name: NNHaul engine + nntile suites
+    runs-on:
+      group: cheems
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
 
       - name: configure
         run: |
@@ -43,33 +58,29 @@ jobs:
       - name: build
         run: cmake --build build-nnhaul -j"$(nproc)"
 
-      - name: nnhaul runtime suite
-        run: |
-          export LD_LIBRARY_PATH="$PWD/build-nnhaul/nntile:$PWD/build-nnhaul/nnhaul:${LD_LIBRARY_PATH:-}"
-          ctest --test-dir build-nnhaul \
-            -R '^(nnhaul_|trace_analyzer$|trace_pipeline$)' \
-            --output-on-failure --no-tests=error
-
-      - name: nntile suite on NNHaul (4 MiB chunk class)
-        run: NNHAUL_CHUNK_SIZE_MB=4 sh tools/run_chunked_suite.sh build-nnhaul
-
-      - name: nntile suite on NNHaul (1 MiB chunk class)
+      - name: engine + nntile suites (1 MiB chunk class)
         run: NNHAUL_CHUNK_SIZE_MB=1 sh tools/run_chunked_suite.sh build-nnhaul
 
-      - name: nntile suite on NNHaul (2 MiB chunk class)
+      - name: engine + nntile suites (2 MiB chunk class)
         run: NNHAUL_CHUNK_SIZE_MB=2 sh tools/run_chunked_suite.sh build-nnhaul
 
-  torch-classic:
-    name: torch_nntile classic product
-    runs-on: [self-hosted, linux, gpu, cuda]
+  torch-product:
+    name: torch_nntile product
+    runs-on:
+      group: cheems
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
 
       - name: configure product
         run: |
           TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
-          cmake -S . -B build-torch -GNinja             -DCMAKE_BUILD_TYPE=RelWithDebInfo             -DCMAKE_PREFIX_PATH="$TORCH_PREFIX"
+          cmake -S . -B build-torch -GNinja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_PREFIX_PATH="$TORCH_PREFIX"
 
       - name: build product
         run: cmake --build build-torch -j"$(nproc)"
@@ -89,3 +100,18 @@ jobs:
           python3 -m pip install pytest
           cd torch_nntile
           python3 -m pytest -q tests
+
+      - name: GPT-2 training smoke
+        run: |
+          python3 torch_nntile/examples/train_gpt2.py train \
+            --config torch_nntile/examples/gpt2_hf_tiny_config.json \
+            --seed 0 --seq-len 32 --batch-size 2 --max-sequences 4 \
+            --epochs 1 --no-save-checkpoint \
+            --output-dir "${RUNNER_TEMP}/gpt2-smoke" --ncuda 1 \
+            --pipelined-issue > "${RUNNER_TEMP}/gpt2-smoke.log" 2>&1
+          cat "${RUNNER_TEMP}/gpt2-smoke.log"
+          grep -q "final loss=" "${RUNNER_TEMP}/gpt2-smoke.log"
+          if grep -qiE "final loss=(nan|inf)" "${RUNNER_TEMP}/gpt2-smoke.log"; then
+            echo "GPT-2 smoke produced a non-finite loss" >&2
+            exit 1
+          fi
