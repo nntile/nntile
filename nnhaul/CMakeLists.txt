@@ -90,6 +90,8 @@ include(GNUInstallDirs)
 
 set(_nnhaul_cudnn_hints
     "$ENV{CUDNN_ROOT}/include"
+    "$ENV{CUDNN_INCLUDE_PATH}"
+    "$ENV{CUDNN_PATH}/include"
     "${CUDAToolkit_ROOT}/include"
     "${CUDAToolkit_LIBRARY_ROOT}/include"
 )
@@ -100,6 +102,8 @@ find_path(
 )
 set(_nnhaul_cudnn_libs
     "$ENV{CUDNN_ROOT}/lib"
+    "$ENV{CUDNN_LIBRARY_PATH}"
+    "$ENV{CUDNN_PATH}/lib"
     "${CUDAToolkit_ROOT}/lib"
 )
 find_library(
