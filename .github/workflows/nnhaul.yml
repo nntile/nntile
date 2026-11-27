@@ -30,6 +30,12 @@ on:
 permissions:
   contents: read
 
+env:
+  # The runners have the toolkit in /usr/local/cuda but not on PATH for
+  # non-login shells; nvcc must be discoverable by CMake and torch.
+  CUDA_HOME: /usr/local/cuda
+  PATH: /usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
 concurrency:
   group: nntile-2.0-gpu-${{ github.ref }}
   cancel-in-progress: true
@@ -88,6 +94,8 @@ jobs:
           TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
           cmake -S . -B build-torch -GNinja \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DBUILD_TESTING=OFF \
+            -DNNHAUL_BUILD_TESTS=OFF \
             -DCMAKE_PREFIX_PATH="$TORCH_PREFIX"
 
       - name: build product
