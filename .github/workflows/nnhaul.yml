@@ -72,6 +72,10 @@ jobs:
 
   torch-product:
     name: torch_nntile product
+    # One GPU per host: the suites and the product tests would otherwise
+    # contend for VRAM (the suite job holds an arena while pytest spawns
+    # subprocess contexts). Keep the GPU jobs serial.
+    needs: nnhaul-suite
     runs-on:
       group: cheems
     timeout-minutes: 120
