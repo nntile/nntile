@@ -95,6 +95,15 @@ foreach(_removed_opt IN ITEMS
     endif()
 endforeach()
 
+# NNTILE_PREFIX / TORCH_NNTILE_PREFIX are the documented layered-install
+# knobs; fold them into CMAKE_PREFIX_PATH so config-mode find_package sees
+# <prefix>/lib/cmake/<package> without the caller repeating them.
+foreach(_nntile_prefix IN ITEMS "${NNTILE_PREFIX}" "${TORCH_NNTILE_PREFIX}")
+    if(NOT "${_nntile_prefix}" STREQUAL "")
+        list(APPEND CMAKE_PREFIX_PATH "${_nntile_prefix}")
+    endif()
+endforeach()
+
 # The disabled-family list and its test filter must exist before either
 # the product subdirectory or a tests-only test tree is added.
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/NNTileKernelScope.cmake")
@@ -108,8 +117,9 @@ if(BUILD_COVERAGE)
 endif()
 
 # In-tree wheel needs libtorch_nntile. Against an install prefix, keep
-# BUILD_LIBTORCH_NNTILE=OFF and pass -DNNTILE_PREFIX=... (and optionally
-# -DTORCH_NNTILE_PREFIX=...).
+# BUILD_LIBTORCH_NNTILE=OFF and either put the prefix on CMAKE_PREFIX_PATH
+# or pass -DNNTILE_PREFIX=... (and -DTORCH_NNTILE_PREFIX=... for the bridge
+# package); the prefixes below are used as find_package hints.
 if(BUILD_TORCH_NNTILE AND NOT BUILD_LIBTORCH_NNTILE)
     set(_wheel_has_prefix FALSE)
     if(DEFINED NNTILE_PREFIX AND NOT NNTILE_PREFIX STREQUAL "")
@@ -184,7 +194,7 @@ add_subdirectory("external")
 # for an NNHaul install (or the reverse).
 if(BUILD_TESTING AND NOT BUILD_LIBNNTILE AND NOT BUILD_LIBTORCH_NNTILE
         AND NOT BUILD_TORCH_NNTILE)
-    find_package(nntile QUIET CONFIG)
+    find_package(nntile QUIET CONFIG HINTS "${NNTILE_PREFIX}")
     if(DEFINED NNTILE_BUILT_WITH_CUDA AND NOT NNTILE_BUILT_WITH_CUDA)
         message(FATAL_ERROR
             "the installed nntile was built without CUDA; NNTile 2.0 is "
@@ -237,7 +247,7 @@ endif()
 # in-tree engine; otherwise the imported nnhaul::nnhaul target collides with
 # the in-tree alias from add_subdirectory(nnhaul).
 if(NOT BUILD_LIBNNTILE)
-    find_package(nntile QUIET CONFIG)
+    find_package(nntile QUIET CONFIG HINTS "${NNTILE_PREFIX}")
 endif()
 
 # Shared cudart for every consumer of libnntile: the nnhaul branch already
@@ -283,7 +293,7 @@ endif()
 
 if(BUILD_LIBTORCH_NNTILE)
     if(NOT TARGET nntile AND NOT TARGET nntile::nntile)
-        find_package(nntile REQUIRED CONFIG)
+        find_package(nntile REQUIRED CONFIG HINTS "${NNTILE_PREFIX}")
     endif()
     add_subdirectory(torch_nntile)
 endif()
@@ -291,7 +301,7 @@ endif()
 # Wheel against installed libs only (no libtorch_nntile rebuild).
 if(BUILD_TORCH_NNTILE AND NOT BUILD_LIBTORCH_NNTILE)
     if(NOT TARGET torch_nntile AND NOT TARGET torch_nntile::torch_nntile)
-        find_package(torch_nntile REQUIRED CONFIG)
+        find_package(torch_nntile REQUIRED CONFIG HINTS "${TORCH_NNTILE_PREFIX}" "${NNTILE_PREFIX}")
     endif()
     include("${PROJECT_SOURCE_DIR}/torch_nntile/cmake/TorchNntileWheel.cmake")
 endif()
@@ -305,7 +315,7 @@ if(BUILD_TESTING)
     if(NOT BUILD_LIBNNTILE AND NOT BUILD_LIBTORCH_NNTILE
             AND NOT BUILD_TORCH_NNTILE)
         if(NOT TARGET torch_nntile AND NOT TARGET torch_nntile::torch_nntile)
-            find_package(torch_nntile QUIET CONFIG)
+            find_package(torch_nntile QUIET CONFIG HINTS "${TORCH_NNTILE_PREFIX}" "${NNTILE_PREFIX}")
         endif()
         if(TARGET torch_nntile OR TARGET torch_nntile::torch_nntile
                 OR torch_nntile_FOUND)
@@ -317,7 +327,7 @@ if(BUILD_TESTING)
                 "${PROJECT_BINARY_DIR}/torch_nntile/tests")
         else()
             if(NOT TARGET nntile AND NOT TARGET nntile::nntile)
-                find_package(nntile REQUIRED CONFIG)
+                find_package(nntile REQUIRED CONFIG HINTS "${NNTILE_PREFIX}")
             endif()
             add_subdirectory(
                 "${PROJECT_SOURCE_DIR}/nntile/tests"
@@ -331,7 +341,7 @@ if(BUILD_TESTING)
             "${PROJECT_BINARY_DIR}/torch_nntile/tests")
     elseif(BUILD_TORCH_NNTILE AND NOT BUILD_LIBNNTILE)
         if(NOT TARGET torch_nntile AND NOT TARGET torch_nntile::torch_nntile)
-            find_package(torch_nntile REQUIRED CONFIG)
+            find_package(torch_nntile REQUIRED CONFIG HINTS "${TORCH_NNTILE_PREFIX}" "${NNTILE_PREFIX}")
         endif()
         if(NOT Torch_FOUND)
             find_package(Torch REQUIRED)
