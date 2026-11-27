@@ -1,0 +1,190 @@
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file src/core/total_sum_accum.cc
+ * Total sum accumulating for Tile<T>
+ *
+ * @version 1.1.0
+ * */
+
+#include "nntile/core/total_sum_accum.hh"
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/ops/total_sum_accum.hh"
+#else
+#include "nntile/starpu/total_sum_accum.hh"
+#endif
+#ifdef NNTILE_USE_NNHAUL
+#include "nntile/nnhaul/sync_defer.hh"
+#else
+#include "nntile/starpu/config.hh"
+#endif
+
+namespace nntile::core
+{
+
+template<typename T>
+void total_sum_accum_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &logsumexp,
+        const Tile<T> &src, const Tile<int64_t> &labels,
+        const Tile<fp32_t> &val, Index ignore_index)
+// TODO - add description
+{
+    // Check dimensions
+    if(logsumexp.ndim != labels.ndim)
+    {
+        throw std::runtime_error("logsumexp.ndim != labels.ndim");
+    }
+    if(logsumexp.ndim != src.ndim-1)
+    {
+        throw std::runtime_error("logsumexp.ndim != src.ndim-1");
+    }
+    if(val.ndim != 0)
+    {
+        throw std::runtime_error("val.ndim != 0");
+    }
+    // Check shapes (C-order: class is the trailing dimension of src)
+    for(Index i = 0; i < labels.ndim; ++i)
+    {
+        if(logsumexp.shape[i] != labels.shape[i])
+        {
+            throw std::runtime_error("logsumexp.shape[i] != labels.shape[i]");
+        }
+        if(labels.shape[i] != src.shape[i])
+        {
+            throw std::runtime_error("labels.shape[i] != src.shape[i]");
+        }
+    }
+    #ifdef NNTILE_USE_NNHAUL
+    int mpi_rank = 0;
+    #else
+    int mpi_rank = starpu_mpi_world_rank();
+    #endif
+    #ifdef NNTILE_USE_NNHAUL
+    int val_rank = 0;
+    #else
+    int val_rank = val.mpi_get_rank();
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
+    logsumexp.mpi_transfer(val_rank, mpi_rank);
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
+    src.mpi_transfer(val_rank, mpi_rank);
+    #endif
+    #ifndef NNTILE_USE_NNHAUL
+    labels.mpi_transfer(val_rank, mpi_rank);
+    #endif
+    if(mpi_rank == val_rank)
+    {
+        // Insert task
+        const Index n_labels = src.shape[src.ndim - 1];
+        #ifdef NNTILE_USE_NNHAUL
+        haul::total_sum_accum.submit<std::tuple<T>>(starpu_worker_hint, alpha,
+                n_labels, logsumexp.nelems, ignore_index,
+                logsumexp, src, labels, val);
+        #else
+        starpu::total_sum_accum.submit<std::tuple<T>>(starpu_worker_hint, alpha,
+                n_labels, logsumexp.nelems, ignore_index,
+                logsumexp, src, labels, val);
+        #endif
+
+    }
+}
+
+//! Tile-wise max and sum of exponents along single given axis
+template<typename T>
+void total_sum_accum(int starpu_worker_hint, Scalar alpha, const Tile<T> &logsumexp,
+        const Tile<T> &src, const Tile<int64_t> &class_labels,
+        const Tile<fp32_t> &val, Index ignore_index)
+{
+    total_sum_accum_async<T>(starpu_worker_hint, alpha, logsumexp, src, class_labels, val,
+                             ignore_index);
+    #ifdef NNTILE_USE_NNHAUL
+    nntile::nnhaul_task_wait_for_all_unless_deferred();
+#else
+    nntile::starpu_task_wait_for_all_unless_deferred();
+#endif
+}
+
+// Explicit instantiation
+template
+void total_sum_accum_async<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &logsumexp,
+        const Tile<fp32_t> &src, const Tile<int64_t> &class_labels,
+        const Tile<fp32_t> &val, Index ignore_index);
+
+template
+void total_sum_accum_async<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha,
+        const Tile<fp32_fast_tf32_t> &logsumexp,
+        const Tile<fp32_fast_tf32_t> &src, const Tile<int64_t> &class_labels,
+        const Tile<fp32_t> &val, Index ignore_index);
+
+template
+void total_sum_accum_async<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha,
+        const Tile<fp32_fast_fp16_t> &logsumexp,
+        const Tile<fp32_fast_fp16_t> &src, const Tile<int64_t> &class_labels,
+        const Tile<fp32_t> &val, Index ignore_index);
+
+template
+void total_sum_accum_async<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha,
+        const Tile<fp32_fast_bf16_t> &logsumexp,
+        const Tile<fp32_fast_bf16_t> &src, const Tile<int64_t> &class_labels,
+        const Tile<fp32_t> &val, Index ignore_index);
+
+template
+void total_sum_accum_async<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &logsumexp,
+        const Tile<fp64_t> &src, const Tile<int64_t> &class_labels,
+        const Tile<fp32_t> &val, Index ignore_index);
+
+template
+void total_sum_accum_async<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &logsumexp,
+        const Tile<bf16_t> &src, const Tile<int64_t> &class_labels,
+        const Tile<fp32_t> &val, Index ignore_index);
+
+template
+void total_sum_accum_async<fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp16_t> &logsumexp,
+        const Tile<fp16_t> &src, const Tile<int64_t> &class_labels,
+        const Tile<fp32_t> &val, Index ignore_index);
+
+// Explicit instantiation
+template
+void total_sum_accum<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &logsumexp,
+        const Tile<fp32_t> &src, const Tile<int64_t> &class_labels,
+        const Tile<fp32_t> &val, Index ignore_index);
+
+template
+void total_sum_accum<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha,
+        const Tile<fp32_fast_tf32_t> &logsumexp,
+        const Tile<fp32_fast_tf32_t> &src, const Tile<int64_t> &class_labels,
+        const Tile<fp32_t> &val, Index ignore_index);
+
+template
+void total_sum_accum<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha,
+        const Tile<fp32_fast_fp16_t> &logsumexp,
+        const Tile<fp32_fast_fp16_t> &src, const Tile<int64_t> &class_labels,
+        const Tile<fp32_t> &val, Index ignore_index);
+
+template
+void total_sum_accum<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha,
+        const Tile<fp32_fast_bf16_t> &logsumexp,
+        const Tile<fp32_fast_bf16_t> &src, const Tile<int64_t> &class_labels,
+        const Tile<fp32_t> &val, Index ignore_index);
+
+template
+void total_sum_accum<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &logsumexp,
+        const Tile<fp64_t> &src, const Tile<int64_t> &class_labels,
+        const Tile<fp32_t> &val, Index ignore_index);
+
+template
+void total_sum_accum<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &logsumexp,
+        const Tile<bf16_t> &src, const Tile<int64_t> &class_labels,
+        const Tile<fp32_t> &val, Index ignore_index);
+
+template
+void total_sum_accum<fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp16_t> &logsumexp,
+        const Tile<fp16_t> &src, const Tile<int64_t> &class_labels,
+        const Tile<fp32_t> &val, Index ignore_index);
+
+} // namespace nntile::core

@@ -1,0 +1,287 @@
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file src/starpu/conv2d_bwd_weight_inplace.cc
+ * Backward 2D-Convolution of two tensors in WHCN format to get grad of weight
+ * Due to Fortran ordering, WHCN of NNTile is equal to NCHF format of PyTorch
+ *
+ * @version 1.1.0
+ * */
+
+// Corresponding header
+#include "nntile/nnhaul/ops/conv2d_bwd_weight_inplace.hh"
+
+// Standard libraries
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <stdexcept>
+
+// Other NNTile headers
+#include "nntile/kernel/conv2d_bwd_weight_inplace.hh"
+#include "nntile/nnhaul/chunk_units.hh"
+
+namespace nntile::haul
+{
+// ---------------------------------------------------------------------------
+// Native chunked driver (no staging): the kernel layer's chunked entry
+// addresses every src1/src2/dst offset through the device chunk-pointer
+// tables, so the full-tensor reduction per weight element is one launch
+// with the classic arithmetic. Bitwise the whole-buffer call; all-
+// unchunked buffers keep the classic call.
+//
+// (Historical staged derivation, retained for context:
+// conv2d_bwd_weight_inplace was not decomposable with the existing kernel
+// signature.
+//
+// Index map (kernel::conv2d_bwd_weight_inplace::cpu/cuda): dst(i,j,k,l)
+// (the WEIGHT grad, contiguous axis i) is the reduction
+// sum_{b,m,n} src1(m,n,k,b) * src2((m+offset_m-dilation_m*i)/stride_m,
+// (n+offset_n-dilation_n*j)/stride_n, l, b) - EVERY dst element reduces
+// over the ENTIRE src1 and src2 tensors (all of m, n and batch feed
+// every weight). A dst m-run sub-piece is kernel-expressible and would
+// beta-chain, but it still reads every chunked src1/src2 byte, so the
+// piece count buys nothing: native decomposition here would be a
+// full-tile gather per piece with extra launches, strictly worse than
+// the staging fallback's ONE gather + ONE classic kernel + ONE scatter.
+// GPT-2 does not use conv2d; staged is exact.
+// ---------------------------------------------------------------------------
+
+//! Constructor
+template<typename T>
+Conv2dBwdWeightInplace<std::tuple<T>>::Conv2dBwdWeightInplace():
+    codelet(
+        "nntile_conv2d_bwd_weight_inplace",
+        &Conv2dBwdWeightInplace<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &Conv2dBwdWeightInplace<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &Conv2dBwdWeightInplace<std::tuple<T>>::footprint)
+{
+    // Modes are not fixed, they are decided during runtime by default
+}
+
+//! Apply conv2d_bwd_weight_inplace on StarPU buffer on CPU
+template <typename T>
+void Conv2dBwdWeightInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    args_t const *args = reinterpret_cast<args_t const *>(cl_args);
+    // Get interfaces
+    const T *src1 = ::nntile::haul::buf_as<T>(buffers, 0);
+    const T *src2 = ::nntile::haul::buf_as<T>(buffers, 1);
+    T *dst = ::nntile::haul::buf_as<T>(buffers, 2);
+    // Launch kernel
+    kernel::conv2d_bwd_weight_inplace::cpu<T>(
+        args->src1_m,
+        args->src1_n,
+        args->src1_channels,
+        args->batch,
+        args->src2_m,
+        args->src2_n,
+        args->stride_m,
+        args->stride_n,
+        args->src2_channels,
+        args->offset_m,
+        args->offset_n,
+        args->alpha,
+        src1,
+        src2,
+        args->dst_m,
+        args->dst_n,
+        args->dilation_m,
+        args->dilation_n,
+        args->beta,
+        dst
+    );
+}
+
+#ifdef NNTILE_USE_CUDA
+//! Apply conv2d_bwd_weight_inplace on StarPU buffer on CUDA
+template<typename T>
+void Conv2dBwdWeightInplace<std::tuple<T>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Get arguments
+    args_t const *args = reinterpret_cast<args_t const *>(cl_args);
+    // Get interfaces
+    auto buf_src1 = static_cast<::nnhaul::Buffer *>(buffers[0]);
+    auto buf_src2 = static_cast<::nnhaul::Buffer *>(buffers[1]);
+    auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[2]);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    if(buf_src1->chunk_count() == 1 && buf_src2->chunk_count() == 1
+        && buf_dst->chunk_count() == 1)
+    {
+        // Unchunked fast path: the historical single kernel call, bitwise.
+        kernel::conv2d_bwd_weight_inplace::cuda<T>(
+            stream,
+            args->src1_m,
+            args->src1_n,
+            args->src1_channels,
+            args->batch,
+            args->src2_m,
+            args->src2_n,
+            args->stride_m,
+            args->stride_n,
+            args->src2_channels,
+            args->offset_m,
+            args->offset_n,
+            args->alpha,
+            buf_src1->get_ptr<T>(),
+            buf_src2->get_ptr<T>(),
+            args->dst_m,
+            args->dst_n,
+            args->dilation_m,
+            args->dilation_n,
+            args->beta,
+            buf_dst->get_ptr<T>());
+        return;
+    }
+    // Chunked single-launch path.
+    chunkunits::ChunkView<T> const cv_src1(buf_src1);
+    chunkunits::ChunkView<T> const cv_src2(buf_src2);
+    chunkunits::ChunkView<T> const cv_dst(buf_dst);
+    chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
+    tabs.clear();
+    std::size_t const o_src1 = tabs.add(cv_src1);
+    std::size_t const o_src2 = tabs.add(cv_src2);
+    std::size_t const o_dst = tabs.add(cv_dst);
+    chunkunits::ChunkPtrTable &table = chunkunits::chunk_ptr_table();
+    if(table.begin(stream))
+    {
+        void const *table_base = table.upload_tables(tabs);
+        if(table_base != nullptr)
+        {
+            kernel::conv2d_bwd_weight_inplace::chunked<T>(
+                stream,
+                args->src1_m,
+                args->src1_n,
+                args->src1_channels,
+                args->batch,
+                args->src2_m,
+                args->src2_n,
+                args->stride_m,
+                args->stride_n,
+                args->src2_channels,
+                args->offset_m,
+                args->offset_n,
+                args->alpha,
+                table.table_view<T const *>(table_base, o_src1),
+                Index(cv_src1.nchunks),
+                table.table_view<T const *>(table_base, o_src2),
+                Index(cv_src2.nchunks),
+                table.table_view<T *>(table_base, o_dst),
+                Index(cv_dst.nchunks),
+                args->dst_m,
+                args->dst_n,
+                args->dilation_m,
+                args->dilation_n,
+                args->beta,
+                Index(cv_src1.chunk_elems),
+                Index(cv_src2.chunk_elems),
+                Index(cv_dst.chunk_elems));
+            table.end(stream);
+            return;
+        }
+    }
+    std::fprintf(stderr,
+        "nntile_conv2d_bwd_weight_inplace: chunk-ptr table cannot serve this "
+        "launch (invariant violation; no staging fallback exists)\n");
+    std::abort();
+}
+#endif // NNTILE_USE_CUDA
+
+//! Footprint for conv2d_bwd_weight_inplace tasks
+template<typename T>
+std::uint64_t Conv2dBwdWeightInplace<std::tuple<T>>::footprint(void const *cl_args, std::size_t) noexcept
+{
+    // Get arguments
+    args_t const *args = reinterpret_cast<args_t const *>(cl_args);
+    // Apply hash over entire args
+    uint32_t hash = 0;
+    hash = ::nntile::haul::fnv1a(args, sizeof(*args), hash);
+    return hash;
+}
+
+//! Submit conv2d_bwd_weight_inplace task
+template<typename T>
+void Conv2dBwdWeightInplace<std::tuple<T>>::submit(int starpu_worker_hint,
+    Index src1_m,
+    Index src1_n,
+    Index src1_channels,
+    Index batch,
+    Index src2_m,
+    Index src2_n,
+    Index stride_m,
+    Index stride_n,
+    Index src2_channels,
+    Index offset_m,
+    Index offset_n,
+    Scalar alpha,
+    ::nnhaul::Handle & src1,
+    ::nnhaul::Handle & src2,
+    Index dst_m,
+    Index dst_n,
+    Index dilation_m,
+    Index dilation_n,
+    Scalar beta,
+    ::nnhaul::Handle & dst
+)
+{
+    // Codelet arguments
+    args_t *args = (args_t *)std::malloc(sizeof(*args));
+    args->src1_m = src1_m;
+    args->src1_n = src1_n;
+    args->src1_channels = src1_channels;
+    args->batch = batch;
+    args->src2_m = src2_m;
+    args->src2_n = src2_n;
+    args->stride_m = stride_m;
+    args->stride_n = stride_n;
+    args->src2_channels = src2_channels;
+    args->offset_m = offset_m;
+    args->offset_n = offset_n;
+    args->alpha = alpha;
+    args->dst_m = dst_m;
+    args->dst_n = dst_n;
+    args->dilation_m = dilation_m;
+    args->dilation_n = dilation_n;
+    args->beta = beta;
+    enum starpu_data_access_mode dst_mode = STARPU_RW;
+    if(beta == 0.0)
+    {
+        dst_mode = STARPU_W;
+    }
+    // Submit task: the CUDA body serves chunked and unchunked operands
+    // natively (no staging).
+    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
+        { { STARPU_R, &src1 }, { STARPU_R, &src2 }, { dst_mode, &dst } }, args, sizeof(*args));
+    std::free(args);
+
+}
+
+// Explicit instantiation
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class Conv2dBwdWeightInplace<std::tuple<nntile::fp64_t>>;
+template class Conv2dBwdWeightInplace<std::tuple<nntile::fp32_t>>;
+template class Conv2dBwdWeightInplace<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class Conv2dBwdWeightInplace<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class Conv2dBwdWeightInplace<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class Conv2dBwdWeightInplace<std::tuple<nntile::bf16_t>>;
+
+//! Pack of conv2d_bwd_weight_inplace operations for different types
+conv2d_bwd_weight_inplace_pack_t conv2d_bwd_weight_inplace;
+
+} // namespace nntile::haul

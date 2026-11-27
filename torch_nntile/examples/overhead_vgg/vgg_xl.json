@@ -1,0 +1,13 @@
+{
+  "_comment": "Overhead XL: 3 stages (depth analog), 144^2",
+  "in_channels": 3,
+  "num_classes": 10,
+  "height": 144,
+  "width": 144,
+  "channels": [
+    3072,
+    6144,
+    9216
+  ],
+  "fc_hidden": 1024
+}

@@ -1,0 +1,102 @@
+#include <nntile/common.hh>
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file nntile/src/tensor_graph/subtract_indexed_outputs.cc
+ * TensorGraph subtract_indexed_outputs operation implementation.
+ *
+ * @version 1.1.0
+ * */
+
+#include "nntile/tensor/ops/subtract_indexed_outputs.hh"
+
+#include <stdexcept>
+#include <vector>
+
+#include "nntile/base_types.hh"
+#include "nntile/tensor.hh"
+#include "nntile/tensor/tensor_graph_tiling.hh"
+#include "nntile/tensor/tile_lowering_helpers.hh"
+#include "nntile/tile/lowering_context.hh"
+#include "nntile/tile/ops/subtract_indexed_outputs.hh"
+
+namespace nntile::tensor
+{
+
+void TensorSubtractIndexedOutputsOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    // C-order layout: dst shape is [spatial..., class]. Pair each dst tile with
+    // the labels tile at the same spatial grid coordinates.
+    const TensorAxisLayout* lay_d = ctx.tiling.find(dst);
+    const TensorAxisLayout* lay_lab = ctx.tiling.find(labels);
+    if(lay_d == nullptr || lay_lab == nullptr)
+    {
+        throw std::runtime_error(
+            "lower_to_tile SUBTRACT_INDEXED_OUTPUTS: missing tiling for dst "
+            "and/or labels");
+    }
+    const auto& t_lab = tile_lower::tiles_of(ctx.tile_map, labels);
+    const auto& t_dst = tile_lower::tiles_of(ctx.tile_map, dst);
+
+    std::vector<Index> dst_coord;
+    std::vector<Index> lab_coord(static_cast<size_t>(labels->ndim()));
+
+    for(Index lin_d = 0; lin_d < lay_d->grid_volume(); ++lin_d)
+    {
+        lay_d->grid_coord_from_linear(lin_d, dst_coord);
+        for(Index j = 0; j < labels->ndim(); ++j)
+        {
+            lab_coord[static_cast<size_t>(j)] =
+                dst_coord[static_cast<size_t>(j)];
+        }
+        const Index lin_l = lay_lab->grid_linear(lab_coord);
+        tile::subtract_indexed_outputs(val,
+            t_lab[static_cast<size_t>(lin_l)],
+            t_dst[static_cast<size_t>(lin_d)], ignore_index);
+    }
+}
+
+void subtract_indexed_outputs(Scalar val,
+                             TensorGraph::TensorNode* labels,
+                             TensorGraph::TensorNode* dst,
+                             Index ignore_index)
+{
+    if(labels == nullptr || dst == nullptr)
+        throw std::invalid_argument(
+            "subtract_indexed_outputs: tensors must be non-null");
+    if(labels->graph() != dst->graph())
+        throw std::invalid_argument(
+            "subtract_indexed_outputs: tensors must belong to same graph");
+    if(labels->dtype() != DataType::INT64)
+        throw std::invalid_argument(
+            "subtract_indexed_outputs: labels must have INT64 dtype");
+    if(labels->ndim() + 1 != dst->ndim())
+    {
+        throw std::invalid_argument(
+            "subtract_indexed_outputs: dst must have ndim = labels.ndim + 1");
+    }
+    for(Index i = 0; i < labels->ndim(); ++i)
+    {
+        if(labels->shape()[i] != dst->shape()[i])
+        {
+            throw std::invalid_argument(
+                "subtract_indexed_outputs: labels.dim[" +
+                std::to_string(i) + "] must match dst.dim[" +
+                std::to_string(i) + "] (" +
+                std::to_string(labels->shape()[i]) + " vs " +
+                std::to_string(dst->shape()[i]) + ")");
+        }
+        merge_axis(labels->mutable_axes()[i], dst->mutable_axes()[i]);
+    }
+
+    auto op = std::make_shared<TensorSubtractIndexedOutputsOp>(
+        val, labels, dst, ignore_index);
+    dst->graph()->add_op(op);
+}
+
+} // namespace nntile::tensor

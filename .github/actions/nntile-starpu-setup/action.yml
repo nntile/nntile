@@ -1,0 +1,122 @@
+name: NNTile StarPU and apt setup
+description: Install Ubuntu build dependencies and StarPU 1.4.8 under /opt/starpu
+runs:
+  using: composite
+  steps:
+    - name: Cache system packages
+      uses: actions/cache@v5
+      with:
+        path: /var/cache/apt
+        key: ${{ runner.os }}-build-cache-apt-packages
+        restore-keys: |
+          ${{ runner.os }}-build-cache-apt-packages
+          ${{ runner.os }}-build-
+          ${{ runner.os }}
+    - name: Install system dependencies
+      shell: bash
+      run: |
+        set -euo pipefail
+        rm -rfv /etc/apt/apt.conf.d/docker*
+
+        # archive.ubuntu.com can exit 100 mid-sync when a translation
+        # index changes size. Those files are optional: apt ignores
+        # them and keeps the package lists. Retry a few times. Once a
+        # retry only reports that leftover, do not fail the job.
+        leftover_index_only() {
+            local log="$1"
+            local line
+            grep -q \
+                "Some index files failed to download. They have been ignored, or old ones used instead." \
+                "${log}" || return 1
+            while IFS= read -r line; do
+                case "${line}" in
+                    "E: Failed to fetch "*"i18n/Translation-"*)
+                        ;;
+                    "E: Some index files failed to download. They have been ignored, or old ones used instead.")
+                        ;;
+                    "E: "*)
+                        return 1
+                        ;;
+                esac
+            done < "${log}"
+            return 0
+        }
+        apt_get_update() {
+            local attempt=1
+            local max_attempts=5
+            local status=0
+            local log
+            while [[ "${attempt}" -le "${max_attempts}" ]]; do
+                log="$(mktemp)"
+                set +e
+                apt-get update >"${log}" 2>&1
+                status=$?
+                set -e
+                cat "${log}"
+                if [[ "${status}" -eq 0 ]]; then
+                    rm -f "${log}"
+                    return 0
+                fi
+                if [[ "${attempt}" -gt 1 ]] && leftover_index_only "${log}"; then
+                    echo "apt-get update exited ${status}; ignored index files only, continuing"
+                    rm -f "${log}"
+                    return 0
+                fi
+                if [[ "${attempt}" -eq "${max_attempts}" ]]; then
+                    rm -f "${log}"
+                    return "${status}"
+                fi
+                echo "apt-get update exited ${status} (attempt ${attempt}/${max_attempts}); retrying in 5s"
+                rm -f "${log}"
+                rm -rf /var/lib/apt/lists/partial
+                sleep 5
+                attempt=$((attempt + 1))
+            done
+        }
+        apt_get_update
+        apt install -y --no-install-recommends \
+            autoconf automake binutils build-essential ca-certificates \
+            ccache clang cmake curl fxt-tools gdb git lcov libfxt-dev \
+            libhwloc-dev libopenblas-dev libopenmpi-dev libopenmpi3 \
+            libtool-bin lsb-release ninja-build openmpi-bin pkg-config \
+            sqlite3
+    - name: Cache StarPU
+      id: cache-starpu
+      uses: actions/cache@v5
+      with:
+        path: /opt/starpu
+        key: starpu-1.4.8-${{ runner.os }}-v2
+    - name: Build StarPU from source
+      if: steps.cache-starpu.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        export STARPU_VERSION=starpu-1.4.8
+        export STARPU_LABEL=$STARPU_VERSION
+        mkdir -p /usr/src
+        curl -SL https://gitlab.inria.fr/starpu/starpu/-/archive/$STARPU_LABEL/starpu-$STARPU_LABEL.tar.gz | tar -xzC /usr/src
+        ln -s /usr/src/starpu-$STARPU_LABEL /usr/src/starpu
+        cd /usr/src/starpu
+        ./autogen.sh
+        ./configure \
+            --disable-build-doc \
+            --disable-build-examples \
+            --disable-build-tests \
+            --disable-fortran \
+            --disable-opencl \
+            --disable-socl \
+            --disable-starpufft \
+            --disable-starpupy \
+            --enable-blas-lib=none \
+            --enable-maxcudadev=8 \
+            --enable-maxbuffers=16 \
+            --with-fxt \
+            --prefix=/opt/starpu \
+            --libdir=/opt/starpu/lib
+        make -j 4 install
+        rm -rf /usr/src/starpu /usr/src/starpu-$STARPU_LABEL
+    - name: Verify StarPU installation
+      shell: bash
+      run: |
+        set -euo pipefail
+        PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig pkg-config --modversion starpu-1.4

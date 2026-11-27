@@ -7,6 +7,13 @@
 NNTile is a C++17/Python framework for distributed neural network training built on the StarPU runtime.
 The Cloud Agent VM builds **CPU-only** (`-DUSE_CUDA=OFF`) since no GPU is available.
 
+Libraries:
+
+- **libnntile** — TensorGraph stack (kernel → StarPU → core → tile → tensor → Runtime)
+- **libtorch_nntile** — LibTorch PrivateUse1 (`device=nntile`) + models
+  (default ON with the torch_nntile wheel; pass
+  `-DBUILD_LIBTORCH_NNTILE=OFF -DBUILD_TORCH_NNTILE=OFF` for libnntile-only)
+
 ### Pre-installed dependencies
 
 - **StarPU 1.4.8** is installed at `/opt/starpu` (built from source).
@@ -14,8 +21,9 @@ The Cloud Agent VM builds **CPU-only** (`-DUSE_CUDA=OFF`) since no GPU is availa
   `LD_LIBRARY_PATH=/opt/starpu/lib` is needed at runtime.
 - **System packages**: autoconf, automake, libtool, ninja-build, cmake, ccache,
   libhwloc-dev, libopenblas-dev, libfxt-dev, pkg-config, python3.12-dev, g++.
-- **Python packages**: torch (CPU-only via `https://download.pytorch.org/whl/cpu`),
-  torchvision (CPU), numpy, scipy, transformers, pytest, ruff, isort, mypy, pre-commit, etc.
+- **Python packages**: `torch==2.9.1` and `torchvision==0.24.1` (matching
+  torch_nntile ABI; do **not** use torch 2.12 — incompatible ABI),
+  numpy, scipy, transformers, pytest, ruff, isort, mypy, pre-commit, etc.
 - The default `c++` is clang which lacks C++ stdlib headers in this image.
   Always pass `-DCMAKE_CXX_COMPILER=g++` to CMake.
 - A symlink `/usr/lib/x86_64-linux-gnu/libstdc++.so` must point to
@@ -27,10 +35,11 @@ The Cloud Agent VM builds **CPU-only** (`-DUSE_CUDA=OFF`) since no GPU is availa
 export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
 TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
 cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
+  -DBUILD_TESTING=OFF \
   -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ \
   -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
   -DCMAKE_PREFIX_PATH="$TORCH_PREFIX" -GNinja
-cmake --build build -j$(nproc)
+cmake --build build --target nntile torch_nntile -j$(nproc)
 ```
 
 Build takes ~12 minutes on 4 cores. ccache speeds up subsequent rebuilds significantly.
@@ -43,22 +52,21 @@ Standard commands from `docs/build/README.md`:
 export LD_LIBRARY_PATH=/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
 export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
 
-# C++ tests (excluding MPI and NotImplemented)
-ctest --test-dir build -E wrappers -LE "(MPI|NotImplemented)" --output-on-failure
+# C++ tests (excluding MPI and NotImplemented); no Torch required
+ctest --test-dir build -LE "(MPI|NotImplemented)" --output-on-failure
 
-# Python tests
-export PYTHONPATH=$PWD/build/wrappers/python:$PWD/wrappers/python:$PYTHONPATH
-pytest -vv
+# torch_nntile Python tests (needs libnntile + libtorch_nntile + extension)
+export TORCH_LIB_DIR="$(python3 -c 'import os, torch; print(os.path.join(os.path.dirname(torch.__file__), "lib"))')"
+export NNTILE_BUILD_DIR=$PWD/build TORCH_NNTILE_BUILD_DIR=$PWD/build
+export NNTILE_SOURCE_DIR=$PWD
+export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${TORCH_LIB_DIR}:$PWD/build/nntile:$PWD/build/torch_nntile:/opt/starpu/lib:$LD_LIBRARY_PATH
+export NNTILE_ENABLE_LOCAL_COMPILER=1
+pytest -vv torch_nntile/tests/
 ```
 
 ### Known issues in CPU-only builds
 
-- `tests_graph_model_llama_*_data_setup` tests fail due to a torch/torchvision
-  CPU registration incompatibility. These are not caused by NNTile code and are
-  skipped in practice.
-- Many Python tests are skipped (`no cuda` marker) because CUDA is not available.
-- The `nntile_init()` function referenced in older examples has been replaced by
-  `nntile.Context(ncpu=..., ncuda=..., ooc=..., logger=..., verbose=...)`.
+- Many torch_nntile tests are skipped (`no cuda` marker) because CUDA is not available.
 
 ### Lint
 
@@ -68,3 +76,29 @@ pre-commit run --all-files
 
 Uses ruff, isort, and standard pre-commit hooks. Configuration is in
 `.pre-commit-config.yaml` and `pyproject.toml`.
+
+### torch_nntile work (`torch_nntile` branch)
+
+**torch_nntile** is the product path: PyTorch `device=nntile` backed by
+**PyTorch autograd**. Ops record into TensorGraph → TileGraph → Runtime
+(StarPU). NNGraph / a separate NNTile autograd are gone.
+
+- Stock `torch.nn` / `F.*` on `device=nntile` — torch-native kernels (untiled)
+- `torch_nntile.nn.functional` — classic nntile autograd functions
+- `torch_nntile.nn.module` — classic nntile `nn.Module` subclasses
+- `torch_nntile.nn.model` — models built from those modules
+
+- **User docs:** [docs/torch_nntile.md](docs/torch_nntile.md)
+- **Execution backend:** [docs/graph.md](docs/graph.md)
+- **Design notes index:** [docs/dev/README.md](docs/dev/README.md)
+- **O(N) compiler design:** [docs/dev/graph_compiler_on_design.md](docs/dev/graph_compiler_on_design.md)
+- **Tensor / session semantics:** [docs/dev/torch_nntile_tensor_architecture.md](docs/dev/torch_nntile_tensor_architecture.md)
+- **Optional schedules:** [docs/dev/execution_json_schema.md](docs/dev/execution_json_schema.md)
+- **Migration (complete):** [docs/dev/libtorch_nntile_migration.md](docs/dev/libtorch_nntile_migration.md)
+- **Build-and-test CI:** layered jobs in `.github/workflows/build-test.yml`
+  (build+install libnntile → ctest against prefix → build+install
+  libtorch_nntile → CI wheel → Python tests). No separate cmake-install
+  jobs; tests do not rebuild the libraries.
+- **`torch_nntile` wheels:** cibuildwheel on PRs to `torch_nntile` /
+  `workflow_dispatch`, with `tools/smoke_test_wheel.py`; see
+  [torch_nntile/README.md](torch_nntile/README.md#prebuilt-wheels-001)

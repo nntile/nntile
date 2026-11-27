@@ -1,0 +1,10 @@
+{
+  "_comment": "Overhead XL: 112^2, smaller FC (depth analog)",
+  "in_channels": 1,
+  "num_classes": 10,
+  "height": 112,
+  "width": 112,
+  "conv1_channels": 1024,
+  "conv2_channels": 4096,
+  "fc_hidden": 1024
+}

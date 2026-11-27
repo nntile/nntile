@@ -1,0 +1,10 @@
+{
+  "_comment": ">=2GiB FP32 params (fat FC)",
+  "in_channels": 1,
+  "num_classes": 10,
+  "height": 32,
+  "width": 32,
+  "conv1_channels": 256,
+  "conv2_channels": 1024,
+  "fc_hidden": 8192
+}

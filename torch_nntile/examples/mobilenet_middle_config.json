@@ -1,0 +1,9 @@
+{
+  "_comment": "Middle MobileNet (~1 min train loop on 1 CPU core)",
+  "in_channels": 3,
+  "num_classes": 10,
+  "height": 128,
+  "width": 128,
+  "base_channels": 64,
+  "blocks": 8
+}

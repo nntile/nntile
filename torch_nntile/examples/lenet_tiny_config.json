@@ -1,0 +1,10 @@
+{
+  "_comment": "Tiny LeNet-style CNN for torch_nntile CNN op showcase",
+  "in_channels": 1,
+  "num_classes": 10,
+  "height": 28,
+  "width": 28,
+  "conv1_channels": 8,
+  "conv2_channels": 16,
+  "fc_hidden": 64
+}

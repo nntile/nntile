@@ -1,0 +1,392 @@
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file src/kernel/add/cuda.cu
+ * Add operation on buffers on CUDA
+ *
+ * @version 1.1.0
+ * */
+
+#include <cstdio>
+#include "nntile/kernel/add/cuda.hh"
+#include "nntile/kernel/cuda.hh"
+
+namespace nntile::kernel::add
+{
+
+template<typename T, int BLOCK, int LOOP>
+static __global__
+void cuda_kernel(
+    Index nelems,
+    Scalar alpha,
+    const T *src1,
+    Scalar beta,
+    const T *src2,
+    T *dst
+)
+//! Generic implementation of the add operation on CUDA
+/* @copydoc nntile::kernel::add::cuda
+ * */
+{
+    int i = threadIdx.x + blockIdx.x*BLOCK;
+    using Y = typename T::repr_t;
+    Y dst_block[LOOP];
+    Y src_block[LOOP];
+    const Y alpha_ = alpha;
+    const Y beta_ = beta;
+    constexpr int BLOCK_STEP = BLOCK / LOOP;
+    if((blockIdx.x+1)*BLOCK <= nelems)
+    {
+        for(int j = 0; j < LOOP; ++j)
+        {
+            src_block[j] = static_cast<Y>(src1[i+j*BLOCK_STEP]);
+            dst_block[j] = static_cast<Y>(src2[i+j*BLOCK_STEP]);
+            dst_block[j] = alpha_ * src_block[j] + beta_ * dst_block[j];
+            dst[i+j*BLOCK_STEP] = static_cast<T>(dst_block[j]);
+        }
+    }
+    else
+    {
+        int j_max = (nelems-i+BLOCK_STEP-1) / BLOCK_STEP;
+        for(int j = 0; j < j_max; ++j)
+        {
+            src_block[j] = static_cast<Y>(src1[i+j*BLOCK_STEP]);
+            dst_block[j] = static_cast<Y>(src2[i+j*BLOCK_STEP]);
+            dst_block[j] = alpha_ * src_block[j] + beta_ * dst_block[j];
+            dst[i+j*BLOCK_STEP] = static_cast<T>(dst_block[j]);
+        }
+    }
+}
+
+template<typename T>
+void cuda(
+    cudaStream_t stream,
+    Index nelems,
+    Scalar alpha,
+    const T *src1,
+    Scalar beta,
+    const T *src2,
+    T *dst
+) noexcept
+//! Add two buffers with optional scaling on CUDA
+/*! Performs the following operation:
+ * dst[i] = alpha*src1[i] + beta*src2[i]
+ *
+ * This function reads both src1 and src2 even if alpha or beta is zero.
+ * If alpha is zero and src1[i] is NaN, then dst[i] will be NaN.
+ * If beta is zero and src2[i] is NaN, then dst[i] will be NaN.
+ * If such behaviour is not desired, then in a case of alpha or beta being
+ * zero, use nntile::kernel::scale instead.
+ * If both alpha and beta are zero, then use nntile::kernel::clear instead.
+ *
+ * @see nntile::kernel::scale
+ * @see nntile::kernel::clear
+ *
+ * @param[in] stream: CUDA stream
+ * @param[in] nelems: Size of the src and dst tensors
+ * @param[in] alpha: Scalar multiplier for the src1 tensor
+ * @param[in] src1: First source tensor
+ * @param[in] beta: Scalar multiplier for the src2 tensor
+ * @param[in] src2: Second source tensor
+ * @param[out] dst: Destination tensor
+ * */
+{
+    dim3 threads(256);
+    dim3 blocks((nelems+1023)/1024);
+    (cuda_kernel<T, 1024, 4>)<<<blocks, threads, 0, stream>>>(
+        nelems, alpha, src1, beta, src2, dst);
+}
+
+//! Chunk descriptors for the one-launch chunked add (see cuda.hh).
+template<typename T>
+struct AddChunkTables
+{
+    const T* const* src1; //!< device-table view of the src1 pointer array
+    Index nsrc1;
+    const T* const* src2; //!< device-table view of the src2 pointer array
+    Index nsrc2;
+    T* const* dst; //!< device-table view of the dst pointer array
+    Index ndst;
+    Index elems_src1; //!< elements in a full src1 chunk
+    Index elems_src2; //!< elements in a full src2 chunk
+    Index elems_dst; //!< elements in a full dst chunk
+    int shift_src1; //!< log2(elems_src1) on a power of two, else -1
+    int shift_src2; //!< log2(elems_src2) on a power of two, else -1
+    int shift_dst; //!< log2(elems_dst) on a power of two, else -1
+    long mask_src1; //!< in-chunk AND mask (elems_src1 - 1, or all ones)
+    long mask_src2;
+    long mask_dst;
+    long nelems;
+    Scalar alpha;
+    Scalar beta;
+};
+
+//! Chunk index of a flat element offset (shift on a power-of-two elems).
+static __device__ __forceinline__ Index add_chunk_of(long f, Index elems,
+    int shift)
+{
+    return Index(f >> shift);
+}
+
+//! Correctly-rounded FMA, to pin the association nvcc chose for cuda().
+static __device__ __forceinline__ float add_fma(float a, float b, float c)
+{
+    return __fmaf_rn(a, b, c);
+}
+static __device__ __forceinline__ double add_fma(double a, double b, double c)
+{
+    return __fma_rn(a, b, c);
+}
+
+//! In-chunk element offset of flat offset f (the runtime AND mask).
+static __device__ __forceinline__ long add_off(long f, long mask)
+{
+    return f & mask;
+}
+
+//! Chunk-aware add: the SAME flat thread mapping (i = tid + bid*1024,
+//! f = i + j*256) and the SAME per-element expression as cuda_kernel, with
+//! every operand address resolved through its chunk table.
+template<typename T, int BLOCK, int LOOP>
+static __global__
+void chunked_cuda_kernel(AddChunkTables<T> t)
+{
+    int i = threadIdx.x + blockIdx.x*BLOCK;
+    using Y = typename T::repr_t;
+    const Y alpha = t.alpha;
+    const Y beta = t.beta;
+    constexpr int BLOCK_STEP = BLOCK / LOOP;
+    for(int j = 0; j < LOOP; ++j)
+    {
+        long f = long(i) + long(j)*BLOCK_STEP;
+        if(f < t.nelems)
+        {
+            Index c1 = add_chunk_of(f, t.elems_src1, t.shift_src1);
+            Y v1 = Y{t.src1[c1][add_off(f, t.mask_src1)]};
+            Index c2 = add_chunk_of(f, t.elems_src2, t.shift_src2);
+            Y v2 = Y{t.src2[c2][add_off(f, t.mask_src2)]};
+            Index cd = add_chunk_of(f, t.elems_dst, t.shift_dst);
+            // Same association as cuda_kernel: fl(beta*src2), then
+            // fma(alpha, src1, .).
+            Y pr = beta * v2;
+            t.dst[cd][add_off(f, t.mask_dst)] =
+                T{add_fma(alpha, v1, pr)};
+        }
+    }
+}
+
+//! Chunked add with every operand inside its chunk 0 (each table holds
+//! one chunk, so every flat offset is a plain element offset of
+//! table[0]).  The three chunk-0 bases are resolved once per thread
+//! (warp-uniform loads hoisted out of the loop) and the body is
+//! cuda_kernel's verbatim -- same flat thread mapping, same unrolled
+//! loop, same per-element expression and therefore the same float
+//! association nvcc chose for cuda() -- so the per-element instruction
+//! stream matches the classic kernel's and the per-element table loads
+//! and shift/mask of the multi-chunk walk are gone.
+template<typename T, int BLOCK, int LOOP>
+static __global__
+void chunked_cuda_kernel_one(Index nelems, Scalar alpha,
+        const T* const* src1, Scalar beta, const T* const* src2, T* const* dst)
+{
+    int i = threadIdx.x + blockIdx.x*BLOCK;
+    using Y = typename T::repr_t;
+    const T * const src1_ = src1[0];
+    const T * const src2_ = src2[0];
+    T * const dst_ = dst[0];
+    Y dst_block[LOOP];
+    Y src_block[LOOP];
+    const Y alpha_ = alpha;
+    const Y beta_ = beta;
+    constexpr int BLOCK_STEP = BLOCK / LOOP;
+    if((blockIdx.x+1)*BLOCK <= nelems)
+    {
+        for(int j = 0; j < LOOP; ++j)
+        {
+            src_block[j] = static_cast<Y>(src1_[i+j*BLOCK_STEP]);
+            dst_block[j] = static_cast<Y>(src2_[i+j*BLOCK_STEP]);
+            dst_block[j] = alpha_ * src_block[j] + beta_ * dst_block[j];
+            dst_[i+j*BLOCK_STEP] = static_cast<T>(dst_block[j]);
+        }
+    }
+    else
+    {
+        int j_max = (nelems-i+BLOCK_STEP-1) / BLOCK_STEP;
+        for(int j = 0; j < j_max; ++j)
+        {
+            src_block[j] = static_cast<Y>(src1_[i+j*BLOCK_STEP]);
+            dst_block[j] = static_cast<Y>(src2_[i+j*BLOCK_STEP]);
+            dst_block[j] = alpha_ * src_block[j] + beta_ * dst_block[j];
+            dst_[i+j*BLOCK_STEP] = static_cast<T>(dst_block[j]);
+        }
+    }
+}
+
+//! Chunked add with every operand inside its chunk 0 and a 4-multiple
+//! element count (4-byte element types only, dispatch guard in
+//! chunked()): the flat space is walked in aligned float4 quads, one
+//! quad per thread -- 16 bytes per load/store, a quarter of the memory
+//! instructions of the scalar walk for exactly the same bytes.  Chunk
+//! bases come from the engine's chunk allocator (cudaMalloc, at least
+//! 256-byte aligned) and a single-chunk operand spans its whole chunk
+//! from the base, so every quad access is 16-byte aligned.  The
+//! per-element expression and its association are exactly cuda()'s:
+//! fl(beta*src2) first, then a correctly-rounded fma(alpha, src1, .).
+template<typename T>
+static __global__
+void chunked_cuda_kernel_one_v4(Index nelems, Scalar alpha_,
+        const T* const* src1, Scalar beta_, const T* const* src2,
+        T* const* dst)
+{
+    using Y = typename T::repr_t;
+    using V = float4;
+    long const q = long(threadIdx.x) + long(blockIdx.x)*long(blockDim.x);
+    long const nquads = long(nelems) >> 2;
+    if(q >= nquads)
+    {
+        return;
+    }
+    const Y alpha = Y{alpha_};
+    const Y beta = Y{beta_};
+    const V * const ps1 = reinterpret_cast<const V *>(src1[0]) + q;
+    const V * const ps2 = reinterpret_cast<const V *>(src2[0]) + q;
+    V * const pd = reinterpret_cast<V *>(dst[0]) + q;
+    V const s1 = ps1[0];
+    V const s2 = ps2[0];
+    V o;
+    Y pr;
+    pr = beta * s2.x;
+    o.x = add_fma(alpha, s1.x, pr);
+    pr = beta * s2.y;
+    o.y = add_fma(alpha, s1.y, pr);
+    pr = beta * s2.z;
+    o.z = add_fma(alpha, s1.z, pr);
+    pr = beta * s2.w;
+    o.w = add_fma(alpha, s1.w, pr);
+    pd[0] = o;
+}
+
+template<typename T>
+void chunked(cudaStream_t stream, Index nelems, Scalar alpha,
+        const T* const* src1_chunks, Index nsrc1, Scalar beta,
+        const T* const* src2_chunks, Index nsrc2, T* const* dst_chunks,
+        Index ndst, Index elems_src1, Index elems_src2, Index elems_dst,
+        ChunkClass cls)
+    noexcept
+{
+    if(nelems <= 0 || nsrc1 <= 0 || nsrc2 <= 0 || ndst <= 0)
+    {
+        return;
+    }
+    if(nsrc1 == 1 and nsrc2 == 1 and ndst == 1)
+    {
+        // Every operand inside its chunk 0 (each table holds one chunk,
+        // i.e. any contiguous buffer below the chunk class, e.g. every
+        // GPT-2 add_residual call).  A 4-multiple element count on a
+        // 4-byte type takes the quad kernel; anything else takes the
+        // classic body over the table[0] bases, resolved once per thread.
+        if constexpr(sizeof(T) == 4)
+        {
+            if((nelems & 3) == 0)
+            {
+                Index const nquads = nelems >> 2;
+                dim3 threads(256);
+                dim3 blocks(unsigned((nquads+255)/256));
+                (chunked_cuda_kernel_one_v4<T>)<<<blocks, threads, 0,
+                    stream>>>(nelems, alpha, src1_chunks, beta, src2_chunks,
+                    dst_chunks);
+                return;
+            }
+        }
+        dim3 threads(256);
+        dim3 blocks((nelems+1023)/1024);
+        (chunked_cuda_kernel_one<T, 1024, 4>)<<<blocks, threads, 0,
+            stream>>>(nelems, alpha, src1_chunks, beta, src2_chunks,
+            dst_chunks);
+        return;
+    }
+    AddChunkTables<T> t;
+    t.src1 = src1_chunks;
+    t.nsrc1 = nsrc1;
+    t.src2 = src2_chunks;
+    t.nsrc2 = nsrc2;
+    t.dst = dst_chunks;
+    t.ndst = ndst;
+    t.elems_src1 = elems_src1;
+    t.elems_src2 = elems_src2;
+    t.elems_dst = elems_dst;
+    t.shift_src1 = chunk_shift_of<T>(t.nsrc1, elems_src1, cls, "nntile_add");
+    t.shift_src2 = chunk_shift_of<T>(t.nsrc2, elems_src2, cls, "nntile_add");
+    t.shift_dst = chunk_shift_of<T>(t.ndst, elems_dst, cls, "nntile_add");
+    t.mask_src1 = static_cast<long>(chunk_mask_of<T>(t.nsrc1, cls));
+    t.mask_src2 = static_cast<long>(chunk_mask_of<T>(t.nsrc2, cls));
+    t.mask_dst = static_cast<long>(chunk_mask_of<T>(t.ndst, cls));
+    t.nelems = long(nelems);
+    t.alpha = alpha;
+    t.beta = beta;
+    dim3 threads(256);
+    dim3 blocks((nelems+1023)/1024);
+    (chunked_cuda_kernel<T, 1024, 4>)<<<blocks, threads, 0,
+        stream>>>(t);
+}
+
+// Explicit instantiation
+template
+void cuda<fp32_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        const fp32_t *src1, Scalar beta, const fp32_t *src2, fp32_t *dst)
+    noexcept;
+
+template
+void cuda<fp64_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        const fp64_t *src1, Scalar beta, const fp64_t *src2, fp64_t *dst)
+    noexcept;
+
+template
+void cuda<bf16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        const bf16_t *src1, Scalar beta, const bf16_t *src2, bf16_t *dst)
+    noexcept;
+
+template
+void cuda<fp16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        const fp16_t *src1, Scalar beta, const fp16_t *src2, fp16_t *dst)
+    noexcept;
+
+template
+void chunked<fp32_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        const fp32_t* const* src1_chunks, Index nsrc1, Scalar beta,
+        const fp32_t* const* src2_chunks, Index nsrc2,
+        fp32_t* const* dst_chunks, Index ndst, Index elems_src1,
+        Index elems_src2, Index elems_dst, ChunkClass cls) noexcept;
+
+template
+void chunked<fp64_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        const fp64_t* const* src1_chunks, Index nsrc1, Scalar beta,
+        const fp64_t* const* src2_chunks, Index nsrc2,
+        fp64_t* const* dst_chunks, Index ndst, Index elems_src1,
+        Index elems_src2, Index elems_dst, ChunkClass cls) noexcept;
+
+template
+void chunked<bf16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        const bf16_t* const* src1_chunks, Index nsrc1, Scalar beta,
+        const bf16_t* const* src2_chunks, Index nsrc2,
+        bf16_t* const* dst_chunks, Index ndst, Index elems_src1,
+        Index elems_src2, Index elems_dst, ChunkClass cls) noexcept;
+
+template
+void chunked<fp16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        const fp16_t* const* src1_chunks, Index nsrc1, Scalar beta,
+        const fp16_t* const* src2_chunks, Index nsrc2,
+        fp16_t* const* dst_chunks, Index ndst, Index elems_src1,
+        Index elems_src2, Index elems_dst, ChunkClass cls) noexcept;
+
+
+
+
+
+
+} // namespace nntile::kernel::add

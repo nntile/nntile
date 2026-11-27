@@ -1,0 +1,9 @@
+{
+  "vocab_size": 128,
+  "hidden_size": 64,
+  "intermediate_size": 128,
+  "num_hidden_layers": 1,
+  "num_attention_heads": 4,
+  "max_position_embeddings": 32,
+  "type_vocab_size": 2
+}

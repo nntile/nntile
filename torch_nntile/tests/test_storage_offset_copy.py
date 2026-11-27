@@ -1,0 +1,69 @@
+# @copyright (c) 2026-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#
+# @file torch_nntile/tests/test_storage_offset_copy.py
+# CPU->nntile copy must honor storage_offset (B=1 causal label views).
+
+from __future__ import annotations
+
+import torch
+import torch.nn.functional as F
+from conftest import nntile_cpu
+
+import torch_nntile
+
+
+def test_to_nntile_preserves_storage_offset_view():
+    """batch[:, 1:] at B=1 is is_contiguous() with storage_offset != 0."""
+    batch = torch.arange(32, dtype=torch.long).view(1, 32)
+    labels_view = batch[:, 1:]
+    assert labels_view.shape == (1, 31)
+    assert labels_view.is_contiguous()
+    assert labels_view.storage_offset() == 1
+
+    roundtrip = nntile_cpu(labels_view.to("nntile"))
+    assert torch.equal(roundtrip, labels_view)
+    assert not torch.equal(roundtrip, batch[:, :31])
+
+
+def test_cpu_readout_into_storage_offset_dst():
+    """``.cpu()`` / copy into a contiguous dst view must honor offset."""
+    torch.manual_seed(0)
+    src = torch.randn(8, dtype=torch.float32)
+    nnt = src.to("nntile")
+    torch_nntile.compile_graph()
+    torch_nntile.run()
+
+    storage = torch.full((10,), -1.0, dtype=torch.float32)
+    dst = storage[1:9]
+    assert dst.is_contiguous()
+    assert dst.storage_offset() == 1
+    assert dst.shape == (8,)
+    dst.copy_(nnt)
+    assert torch.equal(dst, src)
+    assert storage[0].item() == -1.0
+    assert storage[9].item() == -1.0
+
+
+def test_cross_entropy_batch1_causal_label_view_matches_cpu():
+    import pytest
+
+    # Classic training.cross_entropy is not in the torch-native slim module;
+    # F.cross_entropy on offset label views is covered by HF train scripts.
+    if getattr(torch_nntile, "TORCH_NATIVE_OPS", False):
+        pytest.skip("classic cross_entropy helper not in TORCH_NATIVE_OPS")
+    from torch_nntile.training import cross_entropy
+
+    torch.manual_seed(0)
+    batch = torch.randint(0, 256, (1, 32), dtype=torch.long)
+    labels_view = batch[:, 1:]
+    assert labels_view.storage_offset() == 1
+    logits = torch.randn(1, 31, 256)
+
+    ref = F.cross_entropy(logits.reshape(-1, 256), labels_view.reshape(-1))
+    loss = cross_entropy(
+        logits.to("nntile"),
+        labels_view.to("nntile"),
+        reduction="mean",
+    )
+    assert torch.allclose(nntile_cpu(loss), ref, rtol=1e-5, atol=1e-5)

@@ -1,0 +1,11 @@
+{
+  "_comment": "Overhead XS: C=2560, 8 blocks, 32^2",
+  "in_channels": 3,
+  "num_classes": 10,
+  "height": 32,
+  "width": 32,
+  "base_channels": 2560,
+  "blocks": 8,
+  "layer_norm_eps": 1e-3,
+  "lr": 1e-4
+}

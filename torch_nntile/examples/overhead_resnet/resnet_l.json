@@ -1,0 +1,11 @@
+{
+  "_comment": "Overhead L: C=5632, 8 blocks, 80^2",
+  "in_channels": 3,
+  "num_classes": 10,
+  "height": 80,
+  "width": 80,
+  "base_channels": 5632,
+  "blocks": 8,
+  "layer_norm_eps": 1e-3,
+  "lr": 1e-4
+}

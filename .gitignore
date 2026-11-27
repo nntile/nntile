@@ -1,5 +1,8 @@
 build/
+build-cuda/
+build-cuda-classic/
 !docs/build
+benchmark_logs/
 .vscode
 __pycache__
 .venv/
@@ -11,3 +14,5 @@ __pycache__
 
 # Binary test data (generated at test time via CTest fixture)
 *.safetensors
+wheelhouse/
+_build_info.py

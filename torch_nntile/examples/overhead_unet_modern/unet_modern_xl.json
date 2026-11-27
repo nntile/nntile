@@ -1,0 +1,10 @@
+{
+  "_comment": "Overhead XL: C=1280, depth=3 (depth analog), 192^2",
+  "in_channels": 1,
+  "num_classes": 3,
+  "height": 192,
+  "width": 192,
+  "base_channels": 1280,
+  "depth": 3,
+  "upsample_mode": "bilinear"
+}

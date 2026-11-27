@@ -1,0 +1,14 @@
+{
+  "_comment": "Overhead M: 64^2, wider stages",
+  "in_channels": 3,
+  "num_classes": 10,
+  "height": 64,
+  "width": 64,
+  "channels": [
+    1792,
+    3584,
+    7168,
+    7168
+  ],
+  "fc_hidden": 2048
+}

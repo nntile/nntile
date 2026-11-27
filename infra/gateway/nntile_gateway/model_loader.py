@@ -1,7 +1,7 @@
 """
 Adapter that wraps nntile inference engines as gateway engines.
 
-Importing this module does NOT import nntile/transformers — those imports
+Importing this module does NOT import nntile/transformers - those imports
 are deferred to NNTileModelLoader.load() so the rest of the gateway (config,
 schemas, storage, auth, server with a fake registry) can be exercised
 without StarPU or model weights.

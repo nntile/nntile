@@ -1,0 +1,10 @@
+{
+  "_comment": "Middle LeNet (~1 min train loop on 1 CPU core)",
+  "in_channels": 1,
+  "num_classes": 10,
+  "height": 128,
+  "width": 128,
+  "conv1_channels": 64,
+  "conv2_channels": 128,
+  "fc_hidden": 512
+}

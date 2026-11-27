@@ -1,0 +1,19 @@
+{
+  "_comment": "Middle T5 HF (~1 min train loop on 1 CPU core)",
+  "vocab_size": 2048,
+  "d_model": 512,
+  "d_kv": 64,
+  "d_ff": 2048,
+  "num_layers": 6,
+  "num_decoder_layers": 6,
+  "num_heads": 8,
+  "relative_attention_num_buckets": 32,
+  "relative_attention_max_distance": 128,
+  "dropout_rate": 0.0,
+  "layer_norm_epsilon": 1e-06,
+  "feed_forward_proj": "relu",
+  "is_encoder_decoder": true,
+  "pad_token_id": 0,
+  "eos_token_id": 1,
+  "decoder_start_token_id": 0
+}

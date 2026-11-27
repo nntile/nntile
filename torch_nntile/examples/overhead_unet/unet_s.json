@@ -1,0 +1,9 @@
+{
+  "_comment": "Overhead S: C=384, 48^2",
+  "in_channels": 1,
+  "num_classes": 3,
+  "height": 48,
+  "width": 48,
+  "base_channels": 384,
+  "depth": 4
+}

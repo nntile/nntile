@@ -18,12 +18,12 @@ from nntile_tgbot.state import ChatStore
 WELCOME = (
     "Hi! I'm a thin Telegram front-end for an nntile-gateway server.\n\n"
     "Commands:\n"
-    "  /models  — list available models with selection buttons\n"
-    "  /select <id>  — pick a model by id\n"
-    "  /current — show the currently selected model\n"
-    "  /reset   — forget conversation history\n"
-    "  /fill <text with [MASK]> — fill-mask via the selected BERT/RoBERTa\n"
-    "  /help    — show this message\n\n"
+    "  /models  - list available models with selection buttons\n"
+    "  /select <id>  - pick a model by id\n"
+    "  /current - show the currently selected model\n"
+    "  /reset   - forget conversation history\n"
+    "  /fill <text with [MASK]> - fill-mask via the selected BERT/RoBERTa\n"
+    "  /help    - show this message\n\n"
     "After selecting a model, just send a message and you'll get a reply."
 )
 
@@ -81,7 +81,7 @@ async def handle_models(client: GatewayClient) -> ModelListReply:
         suffix = f" ({m.family})" if m.family else ""
         if m.status and m.status != "ready":
             suffix += f" [{m.status}]"
-        lines.append(f"  • {m.id}{suffix}")
+        lines.append(f"  * {m.id}{suffix}")
         if not m.status or m.status == "ready":
             buttons.append(ModelButton(
                 label=m.id, callback_data=f"select:{m.id}"))
@@ -260,7 +260,7 @@ async def handle_fill_mask(
         for ri, c in enumerate(cands, start=1):
             out_lines.append(
                 f"  {ri}. {c.token_str!r}  "
-                f"(p={c.score:.4f})  →  {c.sequence}"
+                f"(p={c.score:.4f})  ->  {c.sequence}"
             )
     return "\n".join(out_lines)
 

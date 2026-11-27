@@ -1,0 +1,124 @@
+name: torch_nntile wheels
+
+# cibuildwheel packaging: before-all builds StarPU + libs, then builds the
+# Python wheel and runs tools/smoke_test_wheel.py.
+
+on:
+  pull_request:
+    branches:
+      - torch_nntile
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CIBUILDWHEEL_VERSION: "4.1.0"
+  TORCH_VERSION: "2.9.1"
+  TORCH_CUDA_INDEX: "https://download.pytorch.org/whl/cu128"
+  TORCH_NNTILE_WHEEL_VERSION: "0.1.0"
+  STARPU_GITHUB_REPO: "nntile/starpu"
+  STARPU_GIT_BRANCH: "master"
+  CMAKE_CUDA_ARCHITECTURES: "70;75;80;86;89;90"
+  TORCH_CUDA_ARCH_LIST: "7.0;7.5;8.0;8.6;8.9;9.0"
+  CMAKE_BUILD_PARALLEL_LEVEL: "4"
+
+jobs:
+  build-wheels:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.action != 'closed' ||
+      github.event.pull_request.merged == true
+    name: ${{ matrix.identifier }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            identifier: cp312-manylinux_x86_64
+            use_cuda: "1"
+          - os: macos-15
+            identifier: cp312-macosx_arm64
+            use_cuda: "0"
+    steps:
+      - uses: actions/checkout@v6
+        if: ${{ env.ACT != 'true' }}
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
+
+      - name: Configure host paths
+        run: |
+          host_workspace="${GITHUB_WORKSPACE}"
+          if [ "${ACT:-}" = "true" ]; then
+            if [ -z "${ACT_HOST_WORKSPACE:-}" ]; then
+              echo "ACT_HOST_WORKSPACE must point to the host-visible repository path for local act runs" >&2
+              exit 1
+            fi
+            host_workspace="${ACT_HOST_WORKSPACE}"
+          fi
+
+          echo "TORCH_NNTILE_HOST_WORKSPACE=${host_workspace}" >> "${GITHUB_ENV}"
+          echo "TORCH_NNTILE_PACKAGE_DIR=${host_workspace}/torch_nntile" >> "${GITHUB_ENV}"
+          echo "TORCH_NNTILE_OUTPUT_DIR=${host_workspace}/wheelhouse" >> "${GITHUB_ENV}"
+          echo "NNTILE_SOURCE_DIR=${host_workspace}" >> "${GITHUB_ENV}"
+          echo "TORCH_NNTILE_USE_CUDA=${{ matrix.use_cuda }}" >> "${GITHUB_ENV}"
+
+      - name: Configure Linux source mount
+        if: runner.os == 'Linux'
+        run: |
+          echo "CIBW_CONTAINER_ENGINE=docker; create_args: --volume ${TORCH_NNTILE_HOST_WORKSPACE}:/nntile-repo:ro" >> "${GITHUB_ENV}"
+          echo "CIBW_ENVIRONMENT_PASS_LINUX=NNTILE_SOURCE_DIR NNTILE_BUILD_DIR STARPU_PREFIX TORCH_NNTILE_USE_CUDA TORCH_VERSION TORCH_CUDA_INDEX CMAKE_CUDA_ARCHITECTURES TORCH_CUDA_ARCH_LIST STARPU_GITHUB_REPO STARPU_GIT_BRANCH TORCH_NNTILE_WHEEL_VERSION CUDA_HOME CUDNN_PATH CUDNN_INCLUDE_PATH CUDNN_LIBRARY_PATH NVIDIA_CUBLAS_INCLUDE_PATH NVIDIA_CUBLAS_LIBRARY_PATH NVIDIA_CUDA_RUNTIME_INCLUDE_PATH NVIDIA_CUDA_RUNTIME_LIBRARY_PATH NVIDIA_CUDA_NVRTC_INCLUDE_PATH NVIDIA_CUDA_NVRTC_LIBRARY_PATH CUDA_nvrtc_LIBRARY NVIDIA_CUSOLVER_INCLUDE_PATH NVIDIA_CUSPARSE_INCLUDE_PATH NNTILE_CUDA_FROM_PIP NNTILE_ASSERT_PIP_CUDA CMAKE_LIBRARY_PATH CMAKE_INCLUDE_PATH CPATH C_INCLUDE_PATH CPLUS_INCLUDE_PATH CMAKE_CUDA_COMPILER CMAKE_BUILD_PARALLEL_LEVEL TORCH_NNTILE_DISK_LOG" >> "${GITHUB_ENV}"
+          echo "NNTILE_SOURCE_DIR=/nntile-repo" >> "${GITHUB_ENV}"
+          echo "NNTILE_BUILD_DIR=/tmp/nntile-build/torch_nntile_wheel" >> "${GITHUB_ENV}"
+          echo "STARPU_PREFIX=/opt/starpu" >> "${GITHUB_ENV}"
+
+      - name: Configure macOS build paths
+        if: runner.os == 'macOS'
+        run: |
+          echo "NNTILE_BUILD_DIR=${RUNNER_TEMP}/nntile-build/torch_nntile_wheel" >> "${GITHUB_ENV}"
+          echo "STARPU_PREFIX=${RUNNER_TEMP}/starpu" >> "${GITHUB_ENV}"
+          echo "PKG_CONFIG_PATH=${RUNNER_TEMP}/starpu/lib/pkgconfig" >> "${GITHUB_ENV}"
+
+      - name: Use Python 3.12
+        # macos-15's default python3 is newer than the wheel's cp312
+        # toolchain and resolves torch pins against cp313+ indexes
+        # where 2.9.1 does not exist; pin the venv's interpreter to
+        # the version the wheel builds.
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install cibuildwheel
+        run: |
+          python3 -m venv "${RUNNER_TEMP}/cibw-venv"
+          "${RUNNER_TEMP}/cibw-venv/bin/python" -m pip install --upgrade pip
+          "${RUNNER_TEMP}/cibw-venv/bin/python" -m pip install "cibuildwheel==${CIBUILDWHEEL_VERSION}"
+          # macOS delocate resolves _C.so @rpath torch deps from this env.
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            "${RUNNER_TEMP}/cibw-venv/bin/python" -m pip install \
+              "torch==${TORCH_VERSION}" "torchvision==0.24.1"
+          fi
+          echo "${RUNNER_TEMP}/cibw-venv/bin" >> "${GITHUB_PATH}"
+
+      - name: Build wheel
+        env:
+          CIBW_BUILD: ${{ matrix.identifier }}
+          CIBW_CACHE_PATH: ${{ runner.temp }}/cibw-cache
+          CIBW_BUILD_VERBOSITY: "1"
+        run: |
+          mkdir -p "${TORCH_NNTILE_OUTPUT_DIR}"
+          cibuildwheel "${TORCH_NNTILE_PACKAGE_DIR}" --output-dir "${TORCH_NNTILE_OUTPUT_DIR}"
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ env.ACT != 'true' }}
+        with:
+          name: torch-nntile-wheel-${{ matrix.identifier }}
+          path: wheelhouse/*.whl
+          if-no-files-found: error

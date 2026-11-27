@@ -1,0 +1,478 @@
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file include/nntile/tensor/graph_data_node.hh
+ * TensorGraph::TensorNode - data node for TensorGraph (shape, dtype, name).
+ *
+ * @version 1.1.0
+ * */
+
+#pragma once
+
+// Standard library headers
+#include <cstdint>
+#include <functional>
+#include <memory>
+#include <numeric>
+#include <optional>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+// NNTile headers
+#include <nntile/base_types.hh>
+#include <nntile/dtype.hh>
+#include <nntile/tensor/axis_descriptor.hh>
+
+namespace nntile
+{
+
+// Forward declaration
+class TensorGraph;
+
+//! Data node for TensorGraph - represents a tensor in the graph.
+class TensorGraph::TensorNode
+{
+  public:
+    using NodeId = uint64_t;
+
+    TensorNode(NodeId id,
+        TensorGraph *graph,
+        std::vector<Index> shape,
+        DataType dtype,
+        const std::string &name = "");
+
+    // Accessors
+    NodeId id() const { return id_; }
+    const std::string &name() const { return name_; }
+    DataType dtype() const { return dtype_; }
+    const std::vector<Index> &shape() const { return shape_; }
+    Index ndim() const { return static_cast<Index>(shape_.size()); }
+    Index dim(int idx) const;
+    Index nelems() const;
+    size_t size_bytes() const;
+    bool is_compatible(const TensorNode *other) const;
+
+    // Graph access
+    TensorGraph *graph();
+    const TensorGraph *graph() const;
+
+    // Axis descriptors (parallel to shape_, one per dimension)
+    AxisDescriptor *axis(int i) const;
+    const std::vector<std::shared_ptr<AxisDescriptor>> &axes() const
+    {
+        return axes_;
+    }
+    std::vector<std::shared_ptr<AxisDescriptor>> &mutable_axes()
+    {
+        return axes_;
+    }
+
+    //! Replace this node's axes with the provided shared axes,
+    //! joining their groups. Sizes must match shape.
+    void set_axes(const std::vector<std::shared_ptr<AxisDescriptor>> &axes);
+
+    //! Swap-remove this node from each axis ``members`` list (O(ndim)).
+    void unlink_from_axis_groups();
+
+    //! Index of ``(this, dim)`` in ``axes_[dim]->members`` for O(1) unlink.
+    void note_member_index(int dim, std::size_t idx);
+
+    //! True after any op lists this node as an output (O(1) producer check).
+    bool has_producer() const { return has_producer_; }
+    void note_produced() { has_producer_ = true; }
+
+    //! External ``TensorRef`` hold count (accessibility, not IR ownership).
+    int external_hold_count() const { return external_hold_count_; }
+    void note_external_hold_() { ++external_hold_count_; }
+    void note_external_release_()
+    {
+        if (external_hold_count_ > 0)
+        {
+            --external_hold_count_;
+        }
+    }
+
+    //! Constant value when the only producer is FILL (common for ones_like).
+    bool has_constant_value() const { return has_constant_value_; }
+    Scalar constant_value() const { return constant_value_; }
+    void set_constant_value(Scalar v)
+    {
+        has_constant_value_ = true;
+        constant_value_ = v;
+    }
+    void clear_constant_value() { has_constant_value_ = false; }
+
+    // Host-side parameter bytes (checkpoint I/O); not applied until bind_data.
+    void set_bind_hint(std::vector<std::uint8_t> data);
+    const std::vector<std::uint8_t> *get_bind_hint() const;
+
+    // String representation
+    std::string to_string() const;
+
+    //! Label for debugging/export only (tensor identity is this pointer).
+    TensorNode *set_name(std::string new_name);
+
+    //! Process-wide stamp for O(1) phase-touch walks.
+    //!
+    //! ``ensure_phase_layouts`` and ``append_tensor_graph_phase`` both
+    //! walk the same nodes. Separate static counters reused gen=1 and
+    //! skipped every tensor on the first factory-only compile
+    //! (ones / arange).
+    static std::uint32_t next_touch_gen();
+
+    //! Generation stamp for O(1) phase touch dedup (mutable / non-identity).
+    std::uint32_t touch_gen() const
+    {
+        return touch_gen_;
+    }
+    void set_touch_gen(std::uint32_t gen) const
+    {
+        touch_gen_ = gen;
+    }
+
+    //! True while StarPU still holds a handle for this tensor's tiles.
+    bool is_starpu_registered() const
+    {
+        return starpu_registered_;
+    }
+    void note_starpu_registered()
+    {
+        starpu_registered_ = true;
+    }
+    void note_starpu_unregistered()
+    {
+        starpu_registered_ = false;
+    }
+
+  private:
+    NodeId id_;
+    TensorGraph *graph_;
+    std::vector<Index> shape_;
+    std::vector<std::shared_ptr<AxisDescriptor>> axes_;
+    //! Parallel to ``axes_``: index into that descriptor's ``members``.
+    std::vector<std::size_t> member_index_;
+    DataType dtype_;
+    std::string name_;
+    bool has_producer_ = false;
+    bool has_constant_value_ = false;
+    bool starpu_registered_ = false;
+    Scalar constant_value_ = 0;
+    std::optional<std::vector<std::uint8_t>> bind_hint_;
+    mutable std::uint32_t touch_gen_ = 0;
+    mutable int external_hold_count_ = 0;
+    //! Shared with ``TensorRef`` so all refs to this node share one hold.
+    mutable std::weak_ptr<void> external_hold_;
+
+    friend class TensorGraph;
+    friend class TensorRef;
+    friend void merge_axis(std::shared_ptr<AxisDescriptor> &,
+        std::shared_ptr<AxisDescriptor> &);
+};
+
+//! Validate same shape and merge axes for two tensors (single loop).
+inline void validate_same_shape_and_merge(TensorGraph::TensorNode *a,
+    TensorGraph::TensorNode *b,
+    const std::string &op_name)
+{
+    if (a->ndim() != b->ndim())
+    {
+        throw std::invalid_argument(op_name +
+                                    ": tensors must have same ndim (" +
+                                    std::to_string(a->ndim()) + " vs " +
+                                    std::to_string(b->ndim()) + ")");
+    }
+    for (Index i = 0; i < a->ndim(); ++i)
+    {
+        if (a->shape()[i] != b->shape()[i])
+        {
+            throw std::invalid_argument(
+                op_name +
+                ": tensors must have same shape; mismatch at dimension " +
+                std::to_string(i) + " (" + std::to_string(a->shape()[i]) +
+                " vs " + std::to_string(b->shape()[i]) + ")");
+        }
+        merge_axis(a->mutable_axes()[i], b->mutable_axes()[i]);
+    }
+}
+
+//! Validate slice shape and merge axes. slice must have ndim-1, tensor ndim;
+//! axis indexes the tensor. slice's shape must match tensor's shape with the
+//! axis dimension removed.
+inline void validate_slice_shape_and_merge(TensorGraph::TensorNode *slice,
+    TensorGraph::TensorNode *tensor,
+    Index axis,
+    const std::string &op_name)
+{
+    if (slice->ndim() + 1 != tensor->ndim())
+    {
+        throw std::invalid_argument(
+            op_name + ": slice must have ndim = tensor.ndim - 1 (" +
+            std::to_string(slice->ndim()) + " vs " +
+            std::to_string(tensor->ndim()) + ")");
+    }
+    if (axis < 0 || axis >= tensor->ndim())
+    {
+        throw std::invalid_argument(op_name + ": axis out of range");
+    }
+    int d = 0;
+    for (Index i = 0; i < tensor->ndim(); ++i)
+    {
+        if (i == axis)
+            continue;
+        if (slice->shape()[d] != tensor->shape()[i])
+        {
+            throw std::invalid_argument(
+                op_name + ": shape mismatch at dimension " +
+                std::to_string(i) +
+                " (slice: " + std::to_string(slice->shape()[d]) +
+                " vs tensor: " + std::to_string(tensor->shape()[i]) + ")");
+        }
+        merge_axis(slice->mutable_axes()[d], tensor->mutable_axes()[i]);
+        ++d;
+    }
+}
+
+//! Validate fiber shape and merge axes (fiber batch_ndim + 1 into tensor).
+inline void validate_fiber_shape_and_merge(TensorGraph::TensorNode *fiber,
+    TensorGraph::TensorNode *tensor,
+    Index axis,
+    Index batch_ndim,
+    const std::string &op_name)
+{
+    if (fiber->ndim() != 1 + batch_ndim)
+    {
+        throw std::invalid_argument(
+            op_name + ": fiber must have ndim = 1 + batch_ndim (" +
+            std::to_string(fiber->ndim()) + " vs " +
+            std::to_string(1 + batch_ndim) + ")");
+    }
+    if (axis < 0 || axis >= tensor->ndim())
+    {
+        throw std::invalid_argument(op_name + ": axis out of range");
+    }
+    if (tensor->ndim() < batch_ndim)
+    {
+        throw std::invalid_argument(op_name +
+                                    ": tensor must have ndim >= batch_ndim (" +
+                                    std::to_string(tensor->ndim()) + " vs " +
+                                    std::to_string(batch_ndim) + ")");
+    }
+    if (fiber->shape()[batch_ndim] != tensor->shape()[axis])
+    {
+        throw std::invalid_argument(
+            op_name + ": fiber dim " + std::to_string(batch_ndim) +
+            " must match tensor dim " + std::to_string(axis) + " (" +
+            std::to_string(fiber->shape()[batch_ndim]) + " vs " +
+            std::to_string(tensor->shape()[axis]) + ")");
+    }
+    merge_axis(fiber->mutable_axes()[batch_ndim], tensor->mutable_axes()[axis]);
+    for (Index i = 0; i < batch_ndim; ++i)
+    {
+        if (fiber->shape()[i] != tensor->shape()[i])
+        {
+            throw std::invalid_argument(
+                op_name + ": fiber dim " + std::to_string(i) +
+                " must match tensor dim " + std::to_string(i) + " (" +
+                std::to_string(fiber->shape()[i]) + " vs " +
+                std::to_string(tensor->shape()[i]) + ")");
+        }
+        merge_axis(fiber->mutable_axes()[i], tensor->mutable_axes()[i]);
+    }
+}
+
+//! Validate maxsumexp output shape and merge axes.
+inline void validate_maxsumexp_shape_and_merge(TensorGraph::TensorNode *src,
+    TensorGraph::TensorNode *dst,
+    Index axis,
+    const std::string &op_name)
+{
+    if (dst->ndim() != src->ndim())
+    {
+        throw std::invalid_argument(op_name +
+                                    ": dst ndim must equal src ndim (" +
+                                    std::to_string(dst->ndim()) + " vs " +
+                                    std::to_string(src->ndim()) + ")");
+    }
+    if (axis < 0 || axis >= src->ndim())
+    {
+        throw std::invalid_argument(op_name + ": axis out of range");
+    }
+    if (dst->shape()[dst->ndim() - 1] != 2)
+    {
+        throw std::invalid_argument(
+            op_name + ": dst last dim must be 2 (got " +
+            std::to_string(dst->shape()[dst->ndim() - 1]) + ")");
+    }
+    int d = 0;
+    for (Index i = 0; i < src->ndim(); ++i)
+    {
+        if (i == axis)
+            continue;
+        if (dst->shape()[d] != src->shape()[i])
+        {
+            throw std::invalid_argument(
+                op_name + ": shape mismatch at dimension " +
+                std::to_string(d) +
+                " (dst: " + std::to_string(dst->shape()[d]) + " vs src " +
+                std::to_string(i) + ": " + std::to_string(src->shape()[i]) +
+                ")");
+        }
+        merge_axis(src->mutable_axes()[i], dst->mutable_axes()[d]);
+        ++d;
+    }
+}
+
+//! Validate logsumexp output: dst is src with the trailing dimension removed.
+inline void validate_logsumexp_drop_last_shape_and_merge(
+    TensorGraph::TensorNode *src,
+    TensorGraph::TensorNode *dst,
+    const std::string &op_name)
+{
+    if (src->ndim() < 1 || dst->ndim() != src->ndim() - 1)
+    {
+        throw std::invalid_argument(op_name +
+                                    ": dst ndim must equal src.ndim - 1 (" +
+                                    std::to_string(dst->ndim()) + " vs " +
+                                    std::to_string(src->ndim()) + ")");
+    }
+    for (Index i = 0; i < dst->ndim(); ++i)
+    {
+        if (dst->shape()[i] != src->shape()[i])
+        {
+            throw std::invalid_argument(
+                op_name + ": shape mismatch at dimension " +
+                std::to_string(i) +
+                " (dst: " + std::to_string(dst->shape()[i]) +
+                " vs src: " + std::to_string(src->shape()[i]) + ")");
+        }
+        merge_axis(src->mutable_axes()[i], dst->mutable_axes()[i]);
+    }
+}
+
+//! Validate logsumexp output: dst is src with the leading dimension removed.
+inline void validate_logsumexp_drop_first_shape_and_merge(
+    TensorGraph::TensorNode *src,
+    TensorGraph::TensorNode *dst,
+    const std::string &op_name)
+{
+    if (src->ndim() < 1 || dst->ndim() != src->ndim() - 1)
+    {
+        throw std::invalid_argument(op_name +
+                                    ": dst ndim must equal src.ndim - 1 (" +
+                                    std::to_string(dst->ndim()) + " vs " +
+                                    std::to_string(src->ndim()) + ")");
+    }
+    for (Index i = 0; i < dst->ndim(); ++i)
+    {
+        if (dst->shape()[i] != src->shape()[i + 1])
+        {
+            throw std::invalid_argument(
+                op_name + ": shape mismatch at dimension " +
+                std::to_string(i) +
+                " (dst: " + std::to_string(dst->shape()[i]) +
+                " vs src: " + std::to_string(i + 1) + ": " +
+                std::to_string(src->shape()[i + 1]) + ")");
+        }
+        merge_axis(src->mutable_axes()[i + 1], dst->mutable_axes()[i]);
+    }
+}
+
+//! Validate logsumexp output: dst is maxsumexp with trailing pair dim removed.
+inline void validate_logsumexp_shape_and_merge(TensorGraph::TensorNode *src,
+    TensorGraph::TensorNode *dst,
+    const std::string &op_name)
+{
+    validate_logsumexp_drop_last_shape_and_merge(src, dst, op_name);
+}
+
+//! Validate flash_sdpa Q/K/V shape (C-order): [head_size, n_seq, batch...].
+//! Q and K share batch dims and head_size (axis 0); Q's seq (axis 1)
+//! may differ from K's. V's seq must match K (key-sequence length).
+inline void validate_flash_sdpa_qkv_shape_and_merge(TensorGraph::TensorNode *Q,
+    TensorGraph::TensorNode *K,
+    TensorGraph::TensorNode *V,
+    const std::string &op_name)
+{
+    if (Q->ndim() != K->ndim())
+        throw std::invalid_argument(op_name + ": Q.ndim must match K.ndim");
+    if (V->ndim() != K->ndim())
+        throw std::invalid_argument(op_name + ": V.ndim must match K.ndim");
+    const Index head_ax = 0;
+    const Index seq_ax = 1;
+    if (Q->shape()[head_ax] != K->shape()[head_ax])
+        throw std::invalid_argument(
+            op_name + ": Q head_size must match K head_size");
+    if (V->shape()[head_ax] != K->shape()[head_ax])
+        throw std::invalid_argument(
+            op_name + ": V head_size must match K head_size");
+    if (V->shape()[seq_ax] != K->shape()[seq_ax])
+        throw std::invalid_argument(
+            op_name + ": V seq must match K seq (key-sequence length)");
+    for (Index i = 2; i < K->ndim(); ++i)
+    {
+        if (Q->shape()[i] != K->shape()[i])
+            throw std::invalid_argument(
+                op_name + ": Q.dim[" + std::to_string(i) +
+                "] must match K.dim[" + std::to_string(i) + "]");
+        if (V->shape()[i] != K->shape()[i])
+            throw std::invalid_argument(
+                op_name + ": V.dim[" + std::to_string(i) +
+                "] must match K.dim[" + std::to_string(i) + "]");
+    }
+    merge_axis(Q->mutable_axes()[head_ax], K->mutable_axes()[head_ax]);
+    merge_axis(Q->mutable_axes()[seq_ax], K->mutable_axes()[seq_ax]);
+    for (Index i = 2; i < K->ndim(); ++i)
+    {
+        merge_axis(Q->mutable_axes()[i], K->mutable_axes()[i]);
+    }
+    merge_axis(V->mutable_axes()[head_ax], K->mutable_axes()[head_ax]);
+    merge_axis(V->mutable_axes()[seq_ax], K->mutable_axes()[seq_ax]);
+    for (Index i = 2; i < K->ndim(); ++i)
+    {
+        merge_axis(V->mutable_axes()[i], K->mutable_axes()[i]);
+    }
+}
+
+//! Validate embedding output shape and merge axes.
+inline void validate_embedding_shape_and_merge(TensorGraph::TensorNode *embed,
+    TensorGraph::TensorNode *index,
+    TensorGraph::TensorNode *vocab,
+    const std::string &op_name)
+{
+    if (embed->ndim() != index->ndim() + 1)
+    {
+        throw std::invalid_argument(
+            op_name + ": embed ndim must equal index.ndim + 1 (" +
+            std::to_string(embed->ndim()) + " vs " +
+            std::to_string(index->ndim()) + ")");
+    }
+    for (Index i = 0; i < index->ndim(); ++i)
+    {
+        if (embed->shape()[i] != index->shape()[i])
+        {
+            throw std::invalid_argument(
+                op_name + ": embed.dim[" + std::to_string(i) +
+                "] must match index.dim[" + std::to_string(i) + "] (" +
+                std::to_string(embed->shape()[i]) + " vs " +
+                std::to_string(index->shape()[i]) + ")");
+        }
+        merge_axis(embed->mutable_axes()[i], index->mutable_axes()[i]);
+    }
+    if (embed->shape()[index->ndim()] != vocab->dim(1))
+    {
+        throw std::invalid_argument(
+            op_name + ": embed.dim[" + std::to_string(index->ndim()) +
+            "] must match vocab.dim[1] (" +
+            std::to_string(embed->shape()[index->ndim()]) + " vs " +
+            std::to_string(vocab->dim(1)) + ")");
+    }
+    merge_axis(embed->mutable_axes()[index->ndim()], vocab->mutable_axes()[1]);
+}
+
+} // namespace nntile

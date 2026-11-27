@@ -1,0 +1,18 @@
+{
+  "_comment": "Middle Diffusers DiT (~1 min train loop on 1 CPU core)",
+  "sample_size": 64,
+  "patch_size": 2,
+  "in_channels": 3,
+  "out_channels": 3,
+  "num_layers": 8,
+  "attention_head_dim": 64,
+  "num_attention_heads": 4,
+  "dropout": 0.0,
+  "attention_bias": true,
+  "activation_fn": "gelu-approximate",
+  "num_embeds_ada_norm": 1000,
+  "norm_type": "ada_norm_zero",
+  "norm_elementwise_affine": false,
+  "norm_eps": 1e-5,
+  "upcast_attention": false
+}

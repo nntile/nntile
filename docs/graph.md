@@ -1,0 +1,128 @@
+# TensorGraph execution backend
+
+**Status:** implementation detail of torch_nntile  
+**Product entry:** [torch_nntile](torch_nntile.md) (`device="nntile"`, PyTorch autograd)  
+**C++ stack:** [cpp/README.md](cpp/README.md)
+
+torch_nntile does **not** ship its own autograd. Forward and backward are
+PyTorch's; recorded ATen / classic ops append to a deferred **TensorGraph**,
+lower to **TileGraph**, and run through **Runtime** (StarPU). There is no
+separate per-op “eager graph” path and no standalone NNGraph /
+`python/nntile` bindings (removed).
+
+```text
+PyTorch autograd (forward / backward)
+     │  record ops
+     ▼
+TensorGraph
+     │  seal_phase + append_tensor_graph_phase
+     ▼
+TileGraph
+     │  Runtime::compile + execute / execute_range
+     ▼
+Runtime → StarPU → kernels
+```
+
+## Libraries
+
+| Library | Role |
+|---------|------|
+| **libnntile** | TensorGraph → TileGraph → Runtime (StarPU) |
+| **libtorch_nntile** | LibTorch PrivateUse1 `device=nntile` + C++ models |
+| **torch_nntile** (Python) | Pip wheel / bindings over libtorch_nntile |
+
+Apps (Python or C++) go through **libtorch_nntile**. Autograd is PyTorch’s;
+libnntile holds the compute IR and executor.
+
+## Execution model
+
+1. **Record** — tensor ops append to one session-scoped `TensorGraph`.
+2. **Compile** — seal the pending phase, lower to `TileGraph`, run
+   `Runtime::compile()` (DCE / allocate).
+3. **Run** — `Runtime::execute()` / `execute_range()` submits StarPU tasks
+   (async).
+4. **Wait** — `Runtime::wait()` (or host readout such as `.to("cpu")`) joins
+   workers.
+
+Python helpers: `torch_nntile.compile_graph()`, `run()`, `wait()`.
+Local lower (`compile_graph()`, legacy `execute()`, host `.to("cpu")`
+auto-flush) requires `NNTILE_ENABLE_LOCAL_COMPILER=1` (off by default).
+
+`nntile::RemoteExecutionDriver` submits an already-lowered `TileGraph`
+over `NNTILE_DRIVER_SOCKET` (same-user only by default: mode 0600, or
+0660 with group `nntile-ops` when that group exists and the daemon can
+chown the node; other local users must present a matching
+`NNTILE_DRIVER_TOKEN` in the handshake - and when the daemon has a
+token configured, every client must present it). StarPU stays in
+`ExecutionDaemon` on one resident
+`RuntimeExecutionDriver` for the connection (tiles survive two
+Flushes). Accepted sockets get receive/send timeouts from
+`NNTILE_DAEMON_RECV_TIMEOUT_MS` / `NNTILE_DAEMON_SEND_TIMEOUT_MS`
+(default 60000 ms, `0` restores blocking I/O), so one silent client
+cannot hold the serial accept loop - or `ExecutionDaemon::stop()` -
+forever. The wire allowlist is the v1 Flush lower:
+`TILE_ADD` / `TILE_ADD_INPLACE`, `TILE_MULTIPLY`, `TILE_GEMM`,
+`TILE_ADD_SLICE`, `TILE_RELU`, `TILE_COPY` /
+`TILE_COPY_INTERSECTION`, `TILE_FILL`, `TILE_UNREGISTER`, and
+(when built with `NNTILE_TORCH_NATIVE_OPS`) `TILE_TORCH_UNARY` /
+`TILE_TORCH_BINARY` / `TILE_TORCH_TERNARY` (`attrs.kind` is the
+aten TorchKind). Other tile `op_name` values fail closed
+(`UnknownOp`). Kernels must not have that socket path.
+
+`nntile::tensor::encode_phase` / `decode_phase` emit Flush `PhaseIR`
+JSON (`{nodes, ops}`). v1 allowlist: `TORCH_UNARY`, `TORCH_BINARY`,
+`TORCH_TERNARY`, `GATHER`, `SCATTER`, `UNREGISTER`. Torch-native
+aten kind is `attrs.kind`. Last `TensorRef` drop records
+`UNREGISTER`. Unknown `op_name` fails closed (`UnknownOp`).
+
+Incremental compile aims for **O(work this call)** complexity — see
+[dev/graph_compiler_on_design.md](dev/graph_compiler_on_design.md).
+
+## Static tiling and schedules (optional)
+
+| Artifact | Role |
+|----------|------|
+| Axis-group tiling / `tiling.json` | Tile geometry (`AxisDescriptor`, `tiling_spec_json.hh`) |
+| `execution.json` | Optional static worker assignment for tile ops |
+
+`Runtime::compile()` does **not** invent a schedule. If no schedule is set
+before `execute_range`, `run_graph_locked` installs one:
+`generate_affinity_batch_execution_schedule()` when any CUDA worker exists,
+otherwise `generate_round_robin_execution_schedule()`. An explicit
+`set_execution_schedule` or a loaded file wins and skips that step. The
+generators live in `nntile/include/nntile/core/execution_schedule.hh`. Schema:
+[dev/execution_json_schema.md](dev/execution_json_schema.md).
+
+### NNHaul backend
+
+`-DNNTILE_USE_NNHAUL=ON` builds the same TensorGraph → TileGraph → Runtime
+path against `libnnhaul` instead of StarPU. There is no runtime switch and
+no binary that links both libraries. The default (`OFF`) stays the StarPU
+build described above.
+
+On that build, `Context` calls `nnhaul::init` / `nnhaul::shutdown`, and
+`Runtime::wait` calls `nnhaul::wait`. `ooc` other than 0 throws. `redux`
+other than 0 throws before insert. MPI rank checks and `mpi_transfer` stay
+on the StarPU arm; the NNHaul arm submits as rank 0. `execution.json` uses
+`hardware.workers` (see the schema doc). A StarPU file with only
+`hardware.worker_kind` fails load with “regenerate execution.json”.
+
+## Where to read next
+
+| Doc | Contents |
+|-----|----------|
+| [torch_nntile.md](torch_nntile.md) | User-facing `device=nntile` API, wheels, models |
+| [cpp/README.md](cpp/README.md) | libnntile layer map |
+| [dev/README.md](dev/README.md) | Design notes index |
+| [dev/torch_nntile_tensor_architecture.md](dev/torch_nntile_tensor_architecture.md) | `TensorRef`, I/O, INVALIDATE, session memory |
+| [dev/graph_compiler_on_design.md](dev/graph_compiler_on_design.md) | O(N) incremental compile invariants |
+| [dev/execution_json_schema.md](dev/execution_json_schema.md) | `execution.json` contract |
+
+## Removed (do not revive)
+
+- **NNGraph** (`include/nntile/nn/`, `CompiledGraph`, graph autograd)
+- **`python/nntile`** package and NNGraph pybind
+- C++ **`nntile/examples/gpt2_graph_training`** and related NNGraph demos
+
+Training examples live under `torch_nntile/examples/` (DeepReLU, GPT-2, Llama,
+…).

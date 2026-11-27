@@ -1,0 +1,9 @@
+{
+  "_comment": "Overhead XS: C=6400, 4 blocks, 32^2",
+  "in_channels": 3,
+  "num_classes": 10,
+  "height": 32,
+  "width": 32,
+  "base_channels": 6400,
+  "blocks": 4
+}

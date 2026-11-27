@@ -1,0 +1,149 @@
+# @copyright (c) 2026-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#
+# @file torch_nntile/tests/test_cross_entropy_parity.py
+# Cross-entropy parity: CPU PyTorch vs nntile tensor ops.
+
+import pytest
+import torch
+import torch.nn.functional as F
+from conftest import nntile_cpu
+from torch_nntile.training import cross_entropy
+
+import torch_nntile
+
+
+def test_cross_entropy_forward_mean_matches_cpu():
+    torch.manual_seed(0)
+    batch, classes = 8, 5
+    logits_cpu = torch.randn(batch, classes, dtype=torch.float32)
+    target = torch.randint(0, classes, (batch,))
+
+    loss_cpu = F.cross_entropy(logits_cpu, target, reduction="mean")
+    logits_nnt = logits_cpu.detach().to("nntile")
+    loss_nnt = cross_entropy(logits_nnt, target.to("nntile"), reduction="mean")
+
+    assert torch.allclose(
+        nntile_cpu(loss_nnt.detach()),
+        loss_cpu,
+        rtol=1e-4,
+        atol=1e-4,
+    )
+
+
+def test_cross_entropy_no_grad_skips_autograd_fn():
+    """Inference must not attach grad_fn or retain maxsumexp via Function."""
+    torch.manual_seed(2)
+    logits = torch.randn(4, 3, dtype=torch.float32, requires_grad=True).to(
+        "nntile"
+    )
+    target = torch.randint(0, 3, (4,)).to("nntile")
+    with torch.no_grad():
+        loss = cross_entropy(logits, target, reduction="mean")
+    assert loss.grad_fn is None
+    assert not loss.requires_grad
+
+
+def test_cross_entropy_forward_sum_matches_cpu():
+    torch.manual_seed(1)
+    batch, classes = 4, 3
+    logits_cpu = torch.randn(batch, classes, dtype=torch.float32)
+    target = torch.randint(0, classes, (batch,))
+
+    loss_cpu = F.cross_entropy(logits_cpu, target, reduction="sum")
+    logits_nnt = logits_cpu.detach().to("nntile")
+    loss_nnt = cross_entropy(logits_nnt, target.to("nntile"), reduction="sum")
+
+    assert torch.allclose(
+        nntile_cpu(loss_nnt.detach()),
+        loss_cpu,
+        rtol=1e-4,
+        atol=1e-4,
+    )
+
+
+def test_cross_entropy_backward_matches_cpu():
+    torch.manual_seed(2)
+    batch, classes = 6, 4
+    logits_cpu = torch.randn(
+        batch, classes, dtype=torch.float32, requires_grad=True
+    )
+    target = torch.randint(0, classes, (batch,))
+
+    loss_cpu = F.cross_entropy(logits_cpu, target, reduction="mean")
+    loss_cpu.backward()
+    grad_cpu = logits_cpu.grad.detach().clone()
+
+    logits_nnt = logits_cpu.detach().clone().to("nntile").requires_grad_(True)
+    loss_nnt = cross_entropy(logits_nnt, target.to("nntile"), reduction="mean")
+    loss_nnt.backward()
+    grad_nnt = nntile_cpu(logits_nnt.grad)
+
+    assert torch.allclose(grad_nnt, grad_cpu, rtol=1e-4, atol=1e-4)
+
+
+def test_cross_entropy_backward_multidim_labels_matches_cpu():
+    torch.manual_seed(4)
+    b1, b2, classes = 3, 4, 5
+    # nntile: class dim is last; PyTorch CE expects (N, C, ...).
+    logits_pytorch = torch.randn(
+        b1, classes, b2, dtype=torch.float32, requires_grad=True
+    )
+    target = torch.randint(0, classes, (b1, b2))
+
+    loss_cpu = F.cross_entropy(logits_pytorch, target, reduction="mean")
+    loss_cpu.backward()
+    grad_cpu = logits_pytorch.grad.detach()
+
+    logits_nnt = (
+        logits_pytorch.detach()
+        .permute(0, 2, 1)
+        .contiguous()
+        .to("nntile")
+        .requires_grad_(True)
+    )
+    loss_nnt = cross_entropy(logits_nnt, target.to("nntile"), reduction="mean")
+    loss_nnt.backward()
+    grad_nnt = nntile_cpu(logits_nnt.grad).permute(0, 2, 1).contiguous()
+
+    assert torch.allclose(grad_nnt, grad_cpu, rtol=1e-4, atol=1e-4)
+
+
+@pytest.mark.skip(
+    reason="nntile mean cross_entropy uses 1/numel scale; PyTorch uses "
+    "1/count_non_ignore when ignore_index is set",
+)
+def test_cross_entropy_ignore_index_matches_cpu():
+    torch.manual_seed(3)
+    batch, classes = 5, 3
+    logits_cpu = torch.randn(batch, classes, dtype=torch.float32)
+    target = torch.tensor([0, 1, -100, 2, -100], dtype=torch.long)
+    ignore_index = -100
+
+    loss_cpu = F.cross_entropy(
+        logits_cpu,
+        target,
+        reduction="mean",
+        ignore_index=ignore_index,
+    )
+    logits_nnt = logits_cpu.detach().to("nntile")
+    loss_nnt = cross_entropy(
+        logits_nnt,
+        target.to("nntile"),
+        reduction="mean",
+        ignore_index=ignore_index,
+    )
+
+    assert torch.allclose(
+        nntile_cpu(loss_nnt.detach()),
+        loss_cpu,
+        rtol=1e-4,
+        atol=1e-4,
+    )
+
+
+def test_cross_entropy_rejects_cpu_target():
+    logits_nnt = torch.randn(4, 5, dtype=torch.float32).to("nntile")
+    target = torch.randint(0, 5, (4,))
+    with pytest.raises(ValueError, match="nntile target"):
+        cross_entropy(logits_nnt, target, reduction="mean")

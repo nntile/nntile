@@ -1,0 +1,16 @@
+{
+  "vocab_size": 128,
+  "hidden_size": 64,
+  "intermediate_size": 128,
+  "num_layers": 2,
+  "num_heads": 4,
+  "max_position_embeddings": 64,
+  "attention_types": [[["global"], 2]],
+  "window_size": 32,
+  "attention_dropout": 0.0,
+  "embed_dropout": 0.0,
+  "resid_dropout": 0.0,
+  "classifier_dropout": 0.0,
+  "bos_token_id": 0,
+  "eos_token_id": 0
+}

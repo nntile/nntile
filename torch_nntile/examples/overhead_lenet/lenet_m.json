@@ -1,0 +1,10 @@
+{
+  "_comment": "Overhead M: 64^2",
+  "in_channels": 1,
+  "num_classes": 10,
+  "height": 64,
+  "width": 64,
+  "conv1_channels": 768,
+  "conv2_channels": 3072,
+  "fc_hidden": 2048
+}

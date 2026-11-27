@@ -1,0 +1,9 @@
+{
+  "_comment": "Middle VGG (~1 min train loop on 1 CPU core)",
+  "in_channels": 3,
+  "num_classes": 10,
+  "height": 128,
+  "width": 128,
+  "channels": [64, 128, 256],
+  "fc_hidden": 512
+}

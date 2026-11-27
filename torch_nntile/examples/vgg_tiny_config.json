@@ -1,0 +1,9 @@
+{
+  "_comment": "Tiny VGG-style CNN for torch_nntile showcase",
+  "in_channels": 3,
+  "num_classes": 10,
+  "height": 16,
+  "width": 16,
+  "channels": [8, 16],
+  "fc_hidden": 32
+}

@@ -7,231 +7,429 @@
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
 # @file CMakeLists.txt
-# This is a top-level CMake script, that is tested to work only with a
-# single-configuration build systems like Ninja or Unix Makefile.
+# Top-level CMake (unified nntile package).
 #
 # @version 1.1.0
 
-
-###############################################################################
-#                       THIS IS A TOP-LEVEL CMAKELISTS.txt                    #
-#                                                                             #
-#        It is intended to find all dependencies (required or optional)       #
-#                    and set up corresponding variables                       #
-###############################################################################
-
-# Set minimum CMake version to avoid configuration problems
 cmake_minimum_required(VERSION 3.24)
 message(STATUS "Using CMake ${CMAKE_VERSION}")
 
-# Define the project
 project(NNTile VERSION 1.1.0 LANGUAGES CXX C)
 
-# Show a path to additional auxiliary CMake scripts
-list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake_modules")
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
-# List of options and cache variables
-# Build shared libraries instead of static
 option(BUILD_SHARED_LIBS "Build shared libraries instead of static" ON)
+option(BUILD_LIBNNTILE "Build the core C++ libnntile library" ON)
+option(NNTILE_USE_NNHAUL
+    "Link libnnhaul instead of StarPU (one backend per build)" OFF)
+option(NNTILE_FORCE_CHUNKED_KERNELS
+    "Dispatch every op through its chunked kernel, including contiguous operands" OFF)
 option(USE_CUDA "Use CUDA toolkit (cuBLAS and cuDNN are required)" ON)
 option(USE_CUDA_FP16 "Enable FP16 CUDA support" ON)
 option(USE_CUDA_TF32 "Enable TF32 CUDA support" ON)
 option(USE_CUDA_BF16 "Enable BF16 CUDA support" ON)
 option(USE_CUDA_FP8 "Enable FP8 CUDA support" ON)
+option(USE_FLASH_SDPA "Build cuDNN flash SDPA (disabled on torch_nntile until C-order migration)" OFF)
 option(USE_CBLAS "Use CPU CBLAS" ON)
-option(BUILD_TESTS "Build tests" ON)
-option(BUILD_TESTS_PYTORCH "Build NNGraph tests comparing against PyTorch C++ frontend (LibTorch)" ON)
 option(BUILD_DOCS "Build Doxygen-based documentation" OFF)
-option(BUILD_EXAMPLES "Build examples" ON)
+# Default ON: the user-facing product is the torch_nntile pip wheel (needs
+# LibTorch on CMAKE_PREFIX_PATH). Layered CI and Torch-less configures must
+# pass -DBUILD_LIBTORCH_NNTILE=OFF -DBUILD_TORCH_NNTILE=OFF.
+option(BUILD_LIBTORCH_NNTILE
+    "Build LibTorch bridge libtorch_nntile (requires LibTorch)" ON)
+option(BUILD_LIBTORCH_NNTILE_EXAMPLES "Build libtorch_nntile C++ examples" OFF)
+option(BUILD_TORCH_NNTILE
+    "Build torch_nntile Python product (_C extension + pip wheel)" ON)
 option(BUILD_COVERAGE "Generate code coverage report" OFF)
-option(BUILD_PYTHON_WRAPPERS "Generate Python wrappers" ON)
+# Dual-path torch_nntile (both default ON). Turn one off to skip that
+# torch_nntile stack while developing the other.
+#   NNTILE_TORCH_NATIVE_OPS: append torch_dispatch sources to libnntile
+#     + torch_nntile aten wrappers
+#   NNTILE_NNTILE_NATIVE_OPS: torch_nntile classic wrappers / models
+#     (libnntile classic kernels are the default CMake source lists)
+option(NNTILE_TORCH_NATIVE_OPS
+    "Enable torch-native StarPU/aten compute (libnntile + torch_nntile)"
+    ON)
+option(NNTILE_NNTILE_NATIVE_OPS
+    "Enable classic nntile::kernel ops in torch_nntile" ON)
 
-# For easier code navigation and interaction in editors.
+# Standard CMake testing switch (default ON). Tests are added only for
+# enabled components: BUILD_LIBNNTILE, BUILD_LIBTORCH_NNTILE, and/or
+# BUILD_TORCH_NNTILE. Pass -DBUILD_TESTING=OFF to skip all tests.
+include(CTest)
+if(BUILD_COVERAGE)
+    set(BUILD_TESTING ON CACHE BOOL "Build the testing tree" FORCE)
+endif()
+
+# In-tree wheel needs libtorch_nntile. Against an install prefix, keep
+# BUILD_LIBTORCH_NNTILE=OFF and pass -DNNTILE_PREFIX=... (and optionally
+# -DTORCH_NNTILE_PREFIX=...).
+if(BUILD_TORCH_NNTILE AND NOT BUILD_LIBTORCH_NNTILE)
+    set(_wheel_has_prefix FALSE)
+    if(DEFINED NNTILE_PREFIX AND NOT NNTILE_PREFIX STREQUAL "")
+        set(_wheel_has_prefix TRUE)
+    elseif(DEFINED ENV{NNTILE_PREFIX} AND NOT "$ENV{NNTILE_PREFIX}" STREQUAL "")
+        set(_wheel_has_prefix TRUE)
+    endif()
+    if(NOT _wheel_has_prefix)
+        set(BUILD_LIBTORCH_NNTILE ON CACHE BOOL
+            "Build LibTorch bridge libtorch_nntile (requires LibTorch)"
+            FORCE)
+        message(STATUS
+            "BUILD_TORCH_NNTILE=ON -> enabling BUILD_LIBTORCH_NNTILE")
+    else()
+        message(STATUS
+            "BUILD_TORCH_NNTILE=ON with install prefix "
+            "(not building libtorch_nntile)")
+    endif()
+endif()
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-# Set C++-17 standard publicly
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED TRUE)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-# Specify the library
-add_library(nntile)
+macro(nntile_apply_common_includes target)
+    # BUILD_INTERFACE only: install export uses INSTALL_INTERFACE on
+    # libnntile. StarPU headers come from StarPU::starpu.
+    target_include_directories(${target} PUBLIC
+        "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/nntile/include>"
+        "$<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>"
+    )
+    target_include_directories(${target} PRIVATE
+        "${PROJECT_SOURCE_DIR}/external"
+    )
+    if(NNTILE_USE_NNHAUL)
+        # Visible before any include. defs.h also #defines it, but headers
+        # branch on the macro before they include defs.h.
+        target_compile_definitions(${target} PUBLIC NNTILE_USE_NNHAUL)
+        if(NNTILE_FORCE_CHUNKED_KERNELS)
+            target_compile_definitions(${target} PUBLIC
+                NNTILE_FORCE_CHUNKED_KERNELS)
+        endif()
+        target_link_libraries(${target} PUBLIC
+            "$<BUILD_INTERFACE:nnhaul>")
+    else()
+        target_link_libraries(${target} PUBLIC StarPU::starpu)
+    endif()
+endmacro()
 
-# Get the pkg-config
+macro(nntile_propagation_scope target out_var)
+    get_target_property(_imported ${target} IMPORTED)
+    if(_imported)
+        set(${out_var} INTERFACE)
+    else()
+        set(${out_var} PUBLIC)
+    endif()
+endmacro()
+
+macro(nntile_apply_cuda target)
+    nntile_propagation_scope(${target} _scope)
+    if(NNTILE_LINK_CUDA)
+        if(NNTILE_CUDA_ARCHITECTURES)
+            set_target_properties(${target} PROPERTIES
+                CUDA_ARCHITECTURES "${NNTILE_CUDA_ARCHITECTURES}")
+        endif()
+        target_link_libraries(${target} ${_scope} CUDA::cublas CUDNN::cudnn_all)
+        target_include_directories(${target} ${_scope}
+            "$<BUILD_INTERFACE:${cudnn_frontend_SOURCE_DIR}/include>")
+    endif()
+endmacro()
+
+macro(nntile_apply_cblas target)
+    nntile_propagation_scope(${target} _scope)
+    if(NNTILE_LINK_CBLAS)
+        target_link_libraries(${target} ${_scope} BLAS::BLAS)
+        if(CBLAS_INCLUDE_DIR)
+            target_include_directories(${target} ${_scope} "${CBLAS_INCLUDE_DIR}")
+        endif()
+    endif()
+endmacro()
+
 find_package(PkgConfig REQUIRED)
 
-# Add external sources/headers
+# Install nlohmann_json with NNTile so find_dependency(nlohmann_json) works.
+set(JSON_Install ON CACHE BOOL "Install nlohmann_json with NNTile" FORCE)
 add_subdirectory("external")
 
-# Get the StarPU as the first dependency. StarPU defines if we are in
-# simulation by SimGrid mode or not.
-pkg_check_modules(StarPU REQUIRED starpu-1.4)
-target_link_libraries(nntile PUBLIC ${StarPU_LDFLAGS})
-target_include_directories(nntile PUBLIC
-    "${PROJECT_SOURCE_DIR}/include"
-    "${PROJECT_BINARY_DIR}/include"
-    ${StarPU_INCLUDE_DIRS}
-    )
-# Check if StarPU uses SimGrid mode
 include(CheckSymbolExists)
+if(NNTILE_USE_NNHAUL)
+    # libnnhaul is a GPU-only runtime: one CUDA worker, no CPU workers.
+    # A CPU-only NNTile build has nothing to schedule on.
+    if(NOT USE_CUDA)
+        message(FATAL_ERROR
+            "NNTILE_USE_NNHAUL is CUDA-only: libnnhaul creates no CPU "
+            "workers. Enable USE_CUDA.")
+    endif()
+    # Torch-native dispatch runs on NNHaul too: the graph IR
+    # (TorchKind/TorchDispatchArgs and the tensor/tile layers) is
+    # backend-neutral, and nntile/src/nnhaul/torch_dispatch.cc carries
+    # the codelet substrate. Flash SDPA is still StarPU-only.
+    if(NNTILE_TORCH_NATIVE_OPS)
+        message(STATUS
+            "NNTILE_USE_NNHAUL + NNTILE_TORCH_NATIVE_OPS: torch-native "
+            "dispatch on the NNHaul backend")
+    endif()
+    if(USE_FLASH_SDPA)
+        message(FATAL_ERROR
+            "NNTILE_USE_NNHAUL does not build flash SDPA. "
+            "Leave USE_FLASH_SDPA OFF.")
+    endif()
+    set(NNHAUL_ROOT "" CACHE PATH
+        "nnhaul build directory or prefix that contains libnnhaul")
+    find_path(NNHAUL_INCLUDE_DIR nnhaul/nnhaul.hh
+        HINTS "${NNHAUL_ROOT}/include" "${NNHAUL_ROOT}/../include")
+    find_library(NNHAUL_LIBRARY nnhaul
+        HINTS "${NNHAUL_ROOT}" "${NNHAUL_ROOT}/lib")
+    if(NOT NNHAUL_INCLUDE_DIR OR NOT NNHAUL_LIBRARY)
+        message(FATAL_ERROR
+            "NNTILE_USE_NNHAUL=ON but libnnhaul was not found. "
+            "Set NNHAUL_ROOT to the nnhaul build directory.")
+    endif()
+    find_package(CUDAToolkit REQUIRED)
+    find_path(CUDNN_INCLUDE_DIR cudnn.h REQUIRED)
+    find_library(CUDNN_LIBRARY cudnn REQUIRED)
+    # libnnhaul is a static archive in the in-tree build. UNKNOWN accepts
+    # either that archive or a shared library from a later install.
+    add_library(nnhaul UNKNOWN IMPORTED)
+    set_target_properties(nnhaul PROPERTIES
+        IMPORTED_LOCATION "${NNHAUL_LIBRARY}")
+    target_include_directories(nnhaul INTERFACE
+        "${NNHAUL_INCLUDE_DIR}"
+        ${CUDAToolkit_INCLUDE_DIRS}
+        "${CUDNN_INCLUDE_DIR}")
+    # A build-directory NNHAUL_ROOT carries the CMake-generated
+    # nnhaul/defs.h (the configured chunk class) under its own include
+    # tree; an installed prefix already has it beside nnhaul.hh.
+    if(EXISTS "${NNHAUL_ROOT}/include/nnhaul/defs.h")
+        target_include_directories(nnhaul INTERFACE
+            "${NNHAUL_ROOT}/include")
+    endif()
+    target_link_libraries(nnhaul INTERFACE
+        CUDA::cudart
+        CUDA::cublas
+        "${CUDNN_LIBRARY}")
+    set(HAVE_STARPU_SIMGRID OFF)
+else()
+# StarPU::starpu (pkg-config); shared with installed nntileConfig.cmake.
+include("${PROJECT_SOURCE_DIR}/cmake/NNTileFindStarPU.cmake")
+
 set(CMAKE_REQUIRED_INCLUDES ${StarPU_INCLUDE_DIRS})
 check_symbol_exists(STARPU_SIMGRID "starpu_config.h" HAVE_STARPU_SIMGRID)
-# If StarPU is in SimGrid mode then we have to "emulate" devices
 if(HAVE_STARPU_SIMGRID)
     message(STATUS "StarPU is compiled in SIMGRID mode")
-    target_compile_definitions(nntile PUBLIC STARPU_SIMGRID)
 endif()
-
-# Add certain compilation flags for warnings etc
-#add_compile_options(-Wall -Wextra)# -Wpedantic-errors)
+endif()
 
 set(NNTILE_USE_CUDA OFF)
 set(NNTILE_LINK_CUDA OFF)
-# Emulate CUDA in case of SimGrid mode
+set(NNTILE_CUDA_ARCHITECTURES "")
 if(HAVE_STARPU_SIMGRID)
     if(USE_CUDA)
         set(NNTILE_USE_CUDA ON)
     endif()
-# Check if CUDA is available only in normal mode (no SimGrid)
 elseif(USE_CUDA)
     include(CheckLanguage)
     check_language(CUDA)
     if(CMAKE_CUDA_COMPILER)
+        if(CMAKE_CUDA_ARCHITECTURES)
+            set(CMAKE_CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"
+                CACHE STRING "Semicolon-separated CUDA SM versions for NVCC"
+                FORCE)
+        else()
+            set(CMAKE_CUDA_ARCHITECTURES "70;75;80;86;89;90"
+                CACHE STRING "Semicolon-separated CUDA SM versions for NVCC"
+                FORCE)
+        endif()
         enable_language(CUDA)
         find_package(CUDAToolkit 11.0 REQUIRED)
+        # Shared cudart for every consumer of libnntile: the nnhaul
+        # branch already pulls CUDA::cudart (shared) via the imported
+        # nnhaul target, while the StarPU-only path silently took
+        # nvcc's static default - two different cudart instances
+        # across wheels of the same library, and a baked-in launch
+        # path that no interposition or profiler can see.
+        set(CMAKE_CUDA_RUNTIME_LIBRARY Shared)
+        # Prefer pip nvidia-*-cu12 for cublas/cudart when wheel CI (or a
+        # local build) exports NVIDIA_* paths / NNTILE_CUDA_FROM_PIP.
+        include("${PROJECT_SOURCE_DIR}/cmake/NNTilePreferPipCuda.cmake")
         add_subdirectory("external/cudnn_frontend")
-        # Show paths to cudnn source and include corresponding CMake file
-        message(STATUS "cuDNN frontend SOURCE: ${cudnn_frontend_SOURCE_DIR}")
-        message(STATUS "cuDNN frontend BINARY: ${cudnn_frontend_BINARY_DIR}")
-        # Disable tests for cuDNN frontend
         include(${cudnn_frontend_SOURCE_DIR}/cmake/cuDNN.cmake)
-        target_link_libraries(nntile PUBLIC CUDA::cublas CUDNN::cudnn_all)
-        target_include_directories(nntile PUBLIC ${cudnn_frontend_SOURCE_DIR}/include)
         set(NNTILE_USE_CUDA ON)
         set(NNTILE_LINK_CUDA ON)
-        # Set support for FP16
         if(USE_CUDA_FP16)
             set(NNTILE_USE_CUDA_FP16 ON)
-            message(STATUS "CUDA FP16 support enabled")
         else()
             set(NNTILE_USE_CUDA_FP16 OFF)
-            message(STATUS "CUDA FP16 support disabled")
         endif()
-        # Set support for TF32
         if(USE_CUDA_TF32)
             set(NNTILE_USE_CUDA_TF32 ON)
-            message(STATUS "CUDA TF32 support enabled")
         else()
             set(NNTILE_USE_CUDA_TF32 OFF)
-            message(STATUS "CUDA TF32 support disabled")
         endif()
-        # Set support for BF16
         if(USE_CUDA_BF16)
             set(NNTILE_USE_CUDA_BF16 ON)
-            message(STATUS "CUDA BF16 support enabled")
         else()
             set(NNTILE_USE_CUDA_BF16 OFF)
-            message(STATUS "CUDA BF16 support disabled")
         endif()
-        # Set support for FP8
         if(USE_CUDA_FP8 AND CUDAToolkit_VERSION GREATER_EQUAL 11.8)
             set(NNTILE_USE_CUDA_FP8 ON)
-            message(STATUS "CUDA FP8 support enabled")
         else()
             set(NNTILE_USE_CUDA_FP8 OFF)
-            message(STATUS "CUDA FP8 support enabled")
         endif()
+        set(NNTILE_CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}")
+    else()
+        message(WARNING
+            "USE_CUDA=ON but no CUDA compiler was found - continuing "
+            "with a CPU-only build (cuBLAS/cuDNN-dependent features "
+            "are disabled)")
     endif()
 endif()
 
-# Get CBLAS
+message(STATUS "NNTILE_USE_CUDA: ${NNTILE_USE_CUDA}")
+
+set(NNTILE_USE_FLASH_SDPA OFF)
+if(USE_FLASH_SDPA AND NNTILE_USE_CUDA)
+    set(NNTILE_USE_FLASH_SDPA ON)
+endif()
+
 set(NNTILE_USE_CBLAS OFF)
-# Emulate CBLAS in case of SimGrid mode
+set(NNTILE_LINK_CBLAS OFF)
+# The NNHaul backend has no CPU worker, so no codelet can execute a
+# CPU (CBLAS) body. Do not link a BLAS that nothing can call.
+if(NNTILE_USE_NNHAUL)
+    set(USE_CBLAS OFF)
+endif()
 if(HAVE_STARPU_SIMGRID)
     if(USE_CBLAS)
         set(NNTILE_USE_CBLAS ON)
-        set(NNTILE_LINK_CBLAS OFF)
     endif()
-# Check if CBLAS is available only in normal mode (no SimGrid)
 elseif(USE_CBLAS)
     find_package(BLAS)
-    if(BLAS_FOUND)
-        target_link_libraries(nntile PUBLIC BLAS::BLAS)
+    if(APPLE)
+        find_path(CBLAS_INCLUDE_DIR NAMES Accelerate/Accelerate.h)
+    else()
+        find_path(CBLAS_INCLUDE_DIR NAMES cblas.h PATH_SUFFIXES openblas)
+    endif()
+    if(BLAS_FOUND AND CBLAS_INCLUDE_DIR)
         set(NNTILE_USE_CBLAS ON)
         set(NNTILE_LINK_CBLAS ON)
+    elseif(BLAS_FOUND)
+        message(WARNING "BLAS found but CBLAS headers were not found; disabling CBLAS")
     endif()
 endif()
 
-# Get MPI, disabled for StarPU master-slave option
-#find_package(MPI REQUIRED)
-#target_link_libraries(nntile PUBLIC MPI::MPI_CXX)
-
-target_link_libraries(nntile PUBLIC nlohmann_json::nlohmann_json)
-
-target_include_directories(nntile PRIVATE
-    "${PROJECT_SOURCE_DIR}/external"
-    )
-
-# Configure list of definitions
-configure_file("${PROJECT_SOURCE_DIR}/include/nntile/defs.h.in"
-    "${PROJECT_BINARY_DIR}/include/nntile/defs.h" @ONLY)
-
-# Check if code coverage report is needed
 if(BUILD_COVERAGE)
-    # Tell user what we are doing here
-    message(STATUS "Code coverage report was requested, so option BUILD_TESTS"
-        " is ON."
-        " The report itself can be generated by \"make coverage\" command.")
-    # Enable tests even if they were manually disabled
-    set(BUILD_TESTS ON)
-    # Use CodeCoverage.cmake from cmake_modules
     include(CodeCoverage)
-    # Append coverage flags
     append_coverage_compiler_flags()
-    # Set global coverage exclude
-    set(COVERAGE_EXCLUDES "${PROJECT_SOURCE_DIR}/tests/*"
-        "${PROJECT_BINARY_DIR}/tests/*")
-    # Setup a target for an overall coverage
+    set(COVERAGE_EXCLUDES "${PROJECT_SOURCE_DIR}/nntile/tests/*"
+        "${PROJECT_BINARY_DIR}/nntile/tests/*")
     setup_target_for_coverage_lcov(NAME coverage
         EXECUTABLE ctest
         LCOV_ARGS --no-external
         GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
 endif()
 
-# Add directory with the sources
-add_subdirectory("src")
+if((BUILD_LIBTORCH_NNTILE OR BUILD_TORCH_NNTILE)
+        AND NOT NNTILE_TORCH_NATIVE_OPS
+        AND NOT NNTILE_NNTILE_NATIVE_OPS)
+    message(FATAL_ERROR
+        "At least one of NNTILE_TORCH_NATIVE_OPS or "
+        "NNTILE_NNTILE_NATIVE_OPS must be ON")
+endif()
 
-# Add sirectory with headers
-add_subdirectory("include")
-
-# Find LibTorch (PyTorch C++ frontend) for NNGraph comparison tests
+# LibTorch is required for libtorch_nntile, and for
+# NNTILE_TORCH_NATIVE_OPS (torch kernels inside libnntile StarPU codelets).
 set(NNTILE_HAVE_TORCH OFF)
-if(BUILD_TESTS_PYTORCH AND BUILD_TESTS AND NOT HAVE_STARPU_SIMGRID)
-    find_package(Torch QUIET)
-    if(Torch_FOUND)
-        set(NNTILE_HAVE_TORCH ON)
-        message(STATUS "LibTorch found: ${TORCH_INSTALL_PREFIX}")
-    else()
-        message(WARNING "BUILD_TESTS_PYTORCH=ON but LibTorch not found. "
-            "Set CMAKE_PREFIX_PATH to LibTorch root, e.g.: "
-            "cmake -DCMAKE_PREFIX_PATH=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)') ..")
+if(BUILD_LIBTORCH_NNTILE OR NNTILE_TORCH_NATIVE_OPS)
+    find_package(Torch REQUIRED)
+    set(NNTILE_HAVE_TORCH ON)
+    message(STATUS "LibTorch found: ${TORCH_INSTALL_PREFIX}")
+endif()
+if(NNTILE_TORCH_NATIVE_OPS AND NOT NNTILE_HAVE_TORCH)
+    message(FATAL_ERROR
+        "NNTILE_TORCH_NATIVE_OPS=ON requires LibTorch "
+        "(set CMAKE_PREFIX_PATH to Torch)")
+endif()
+
+if(BUILD_LIBNNTILE)
+    add_subdirectory(nntile)
+endif()
+
+if(BUILD_LIBTORCH_NNTILE)
+    if(NOT TARGET nntile AND NOT TARGET nntile::nntile)
+        find_package(nntile REQUIRED CONFIG)
     endif()
+    # Align PrivateUse1 / executor sources with the linked libnntile.
+    if(DEFINED NNTILE_BUILT_WITH_TORCH_NATIVE_OPS)
+        set(NNTILE_TORCH_NATIVE_OPS
+            "${NNTILE_BUILT_WITH_TORCH_NATIVE_OPS}" CACHE BOOL
+            "Enable torch-native StarPU/aten compute (libnntile + torch_nntile)"
+            FORCE)
+    endif()
+    if(DEFINED NNTILE_BUILT_WITH_NNTILE_NATIVE_OPS)
+        set(NNTILE_NNTILE_NATIVE_OPS
+            "${NNTILE_BUILT_WITH_NNTILE_NATIVE_OPS}" CACHE BOOL
+            "Enable classic nntile::kernel ops in torch_nntile"
+            FORCE)
+    endif()
+    add_subdirectory(torch_nntile)
 endif()
 
-# Add subdirectory with tests
-if(BUILD_TESTS AND NOT HAVE_STARPU_SIMGRID)
-    include(CTest)
-    add_subdirectory("tests")
+# Wheel against installed libs only (no libtorch_nntile rebuild).
+if(BUILD_TORCH_NNTILE AND NOT BUILD_LIBTORCH_NNTILE)
+    if(NOT TARGET torch_nntile AND NOT TARGET torch_nntile::torch_nntile)
+        find_package(torch_nntile REQUIRED CONFIG)
+    endif()
+    include("${PROJECT_SOURCE_DIR}/torch_nntile/cmake/TorchNntileWheel.cmake")
 endif()
 
-# Add subdirectory with examples
-if(BUILD_EXAMPLES)
-    add_subdirectory("examples")
-endif()
+# C++ tests follow BUILD_TESTING and only for enabled components.
+# Layered CI can also pass all of BUILD_LIBNNTILE / BUILD_LIBTORCH_NNTILE /
+# BUILD_TORCH_NNTILE OFF and link tests against an install prefix:
+# nntile suite if only libnntile is installed, torch suite if
+# libtorch_nntile is present.
+if(BUILD_TESTING AND NOT HAVE_STARPU_SIMGRID)
+    if(NOT BUILD_LIBNNTILE AND NOT BUILD_LIBTORCH_NNTILE
+            AND NOT BUILD_TORCH_NNTILE)
+        if(NOT TARGET torch_nntile AND NOT TARGET torch_nntile::torch_nntile)
+            find_package(torch_nntile QUIET CONFIG)
+        endif()
+        if(TARGET torch_nntile OR TARGET torch_nntile::torch_nntile
+                OR torch_nntile_FOUND)
+            if(NOT Torch_FOUND)
+                find_package(Torch REQUIRED)
+                set(NNTILE_HAVE_TORCH ON)
+            endif()
+            if(DEFINED NNTILE_BUILT_WITH_TORCH_NATIVE_OPS)
+                set(NNTILE_TORCH_NATIVE_OPS
+                    "${NNTILE_BUILT_WITH_TORCH_NATIVE_OPS}")
+            endif()
+            add_subdirectory(
+                "${PROJECT_SOURCE_DIR}/torch_nntile/tests"
+                "${PROJECT_BINARY_DIR}/torch_nntile/tests")
+        else()
+            if(NOT TARGET nntile AND NOT TARGET nntile::nntile)
+                find_package(nntile REQUIRED CONFIG)
+            endif()
+            if(DEFINED NNTILE_BUILT_WITH_CUDA)
+                set(NNTILE_USE_CUDA "${NNTILE_BUILT_WITH_CUDA}")
+                set(NNTILE_LINK_CUDA "${NNTILE_BUILT_WITH_CUDA}")
+            endif()
+            if(DEFINED NNTILE_BUILT_WITH_TORCH_NATIVE_OPS)
+                set(NNTILE_TORCH_NATIVE_OPS
+                    "${NNTILE_BUILT_WITH_TORCH_NATIVE_OPS}")
+            endif()
+            add_subdirectory(
+                "${PROJECT_SOURCE_DIR}/nntile/tests"
+                "${PROJECT_BINARY_DIR}/nntile/tests")
+        endif()
+    endif()
 
-# Check if Python wrappers are requested
-if(BUILD_PYTHON_WRAPPERS)
-    add_subdirectory("wrappers/python")
+    if(BUILD_LIBTORCH_NNTILE)
+        add_subdirectory(
+            "${PROJECT_SOURCE_DIR}/torch_nntile/tests"
+            "${PROJECT_BINARY_DIR}/torch_nntile/tests")
+    endif()
 endif()

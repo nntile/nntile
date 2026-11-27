@@ -1,0 +1,82 @@
+name: NNTile Catch2 setup
+description: >
+  Restore or build Catch2 into an install prefix. Uses actions/cache so
+  cross-run hits skip the compile; callers upload the prefix as a workflow
+  artifact for same-run test jobs.
+inputs:
+  git-tag:
+    description: Catch2 git tag (e.g. v3.11.0)
+    required: false
+    default: v3.11.0
+  install-prefix:
+    description: Absolute install prefix for Catch2
+    required: false
+    default: ${{ github.workspace }}/catch2-prefix
+  build-type:
+    description: CMAKE_BUILD_TYPE
+    required: false
+    default: RelWithDebInfo
+runs:
+  using: composite
+  steps:
+    - name: Cache Catch2 prefix
+      id: cache-catch2
+      uses: actions/cache@v5
+      with:
+        path: ${{ inputs.install-prefix }}
+        key: >-
+          catch2-${{ inputs.git-tag }}-${{ runner.os }}-g++-shared-${{
+          inputs.build-type }}-v1
+    - name: Build and install Catch2
+      if: steps.cache-catch2.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        CATCH2_GIT_TAG: ${{ inputs.git-tag }}
+        CATCH2_PREFIX: ${{ inputs.install-prefix }}
+        CATCH2_BUILD_TYPE: ${{ inputs.build-type }}
+      run: |
+        set -euo pipefail
+        src=/tmp/catch2-src
+        build=/tmp/catch2-build
+        rm -rf "${src}" "${build}" "${CATCH2_PREFIX}"
+        git clone --depth 1 --branch "${CATCH2_GIT_TAG}" \
+          https://github.com/catchorg/Catch2.git "${src}"
+        cmake -S "${src}" -B "${build}" \
+          -DCMAKE_BUILD_TYPE="${CATCH2_BUILD_TYPE}" \
+          -DCMAKE_INSTALL_PREFIX="${CATCH2_PREFIX}" \
+          -DCMAKE_C_COMPILER=gcc \
+          -DCMAKE_CXX_COMPILER=g++ \
+          -DBUILD_SHARED_LIBS=ON \
+          -DCATCH_INSTALL_DOCS=OFF \
+          -DCATCH_INSTALL_EXTRAS=ON \
+          -DCATCH_DEVELOPMENT_BUILD=OFF \
+          -GNinja
+        cmake --build "${build}" -j"$(nproc)"
+        cmake --install "${build}"
+        rm -rf "${src}" "${build}"
+    - name: Verify Catch2 install
+      shell: bash
+      env:
+        CATCH2_PREFIX: ${{ inputs.install-prefix }}
+      run: |
+        set -euo pipefail
+        test -f "${CATCH2_PREFIX}/lib/cmake/Catch2/Catch2Config.cmake"
+        test -f "${CATCH2_PREFIX}/lib/cmake/Catch2/Catch.cmake"
+        ls "${CATCH2_PREFIX}/lib"/libCatch2.so* \
+          "${CATCH2_PREFIX}/lib"/libCatch2Main.so*
+        # find_package(Catch2) pulls Catch2Targets.cmake which calls
+        # add_library; that is not allowed under cmake -P (script mode).
+        # Configure a tiny project instead. Use LANGUAGES NONE + Ninja so
+        # we do not need make or a CXX toolchain just to find_package.
+        check=/tmp/find_catch2_check
+        rm -rf "${check}"
+        mkdir -p "${check}"
+        cat > "${check}/CMakeLists.txt" <<'EOF'
+        cmake_minimum_required(VERSION 3.16)
+        project(FindCatch2Check LANGUAGES NONE)
+        find_package(Catch2 3.11 CONFIG REQUIRED)
+        message(STATUS "Catch2 ${Catch2_VERSION} OK")
+        EOF
+        cmake -S "${check}" -B "${check}/build" \
+          -DCMAKE_PREFIX_PATH="${CATCH2_PREFIX}" \
+          -GNinja

@@ -1,0 +1,9 @@
+{
+  "_comment": "Overhead XL: C=17280, 3 blocks (depth analog), 128^2",
+  "in_channels": 3,
+  "num_classes": 10,
+  "height": 128,
+  "width": 128,
+  "base_channels": 17280,
+  "blocks": 3
+}

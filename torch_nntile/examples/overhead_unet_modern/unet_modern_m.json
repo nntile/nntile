@@ -1,0 +1,10 @@
+{
+  "_comment": "Overhead M: C=480, bilinear, 64^2",
+  "in_channels": 1,
+  "num_classes": 3,
+  "height": 64,
+  "width": 64,
+  "base_channels": 480,
+  "depth": 4,
+  "upsample_mode": "bilinear"
+}

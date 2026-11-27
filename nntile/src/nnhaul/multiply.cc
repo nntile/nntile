@@ -1,0 +1,193 @@
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file src/starpu/multiply.cc
+ * Per-element product of two StarPU buffers
+ *
+ * @version 1.1.0
+ * */
+
+// Corresponding header
+#include "nntile/nnhaul/ops/multiply.hh"
+
+// Standard libraries
+#include <cstdint>
+#include <cstdlib>
+#include <stdexcept>
+
+// Other NNTile headers
+#include "nntile/kernel/multiply.hh"
+
+namespace nntile::haul
+{
+
+//! Constructor
+template<typename T>
+Multiply<std::tuple<T>>::Multiply():
+    codelet(
+        "nntile_multiply",
+        &Multiply<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &Multiply<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &Multiply<std::tuple<T>>::footprint)
+{
+    // Modes are not fixed, they are decided during runtime by default
+}
+
+//! StarPU wrapper for kernel::multiply::cpu<T>
+template<typename T>
+void Multiply<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t const *>(cl_args);
+    Index nelems = args->nelems;
+    Scalar alpha = args->alpha;
+    // Get interfaces
+    auto src1 = ::nntile::haul::buf_chunks<T>(buffers, 0);
+    auto src2 = ::nntile::haul::buf_chunks<T>(buffers, 1);
+    auto dst = ::nntile::haul::buf_chunks<T>(buffers, 2);
+    // Launch kernel per flat chunk piece (single piece if unchunked)
+    ::nntile::haul::for_each_flat_piece(
+        nelems,
+        [&](std::size_t n, const T *s1, const T *s2, T *d) {
+            kernel::multiply::cpu<T>(n, alpha, s1, s2, d);
+        },
+        src1,
+        src2,
+        dst);
+}
+
+// Specializations of CPU wrapper for accelerated types
+template<>
+void Multiply<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Multiply<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void Multiply<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Multiply<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void Multiply<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Multiply<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+#ifdef NNTILE_USE_CUDA
+//! Apply multiply on StarPU buffer on CUDA
+template<typename T>
+void Multiply<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t const *>(cl_args);
+    Index nelems = args->nelems;
+    Scalar alpha = args->alpha;
+    // Get interfaces
+    auto src1 = ::nntile::haul::buf_chunks<T>(buffers, 0);
+    auto src2 = ::nntile::haul::buf_chunks<T>(buffers, 1);
+    auto dst = ::nntile::haul::buf_chunks<T>(buffers, 2);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Launch kernel per flat chunk piece (single piece if unchunked)
+    ::nntile::haul::for_each_flat_piece(
+        nelems,
+        [&](std::size_t n, const T *s1, const T *s2, T *d) {
+            kernel::multiply::cuda<T>(stream, n, alpha, s1, s2, d);
+        },
+        src1,
+        src2,
+        dst);
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void Multiply<std::tuple<fp32_fast_tf32_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Multiply<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Multiply<std::tuple<fp32_fast_fp16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Multiply<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Multiply<std::tuple<fp32_fast_bf16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Multiply<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
+
+//! Footprint for add tasks that depends only on cl_arg
+template<typename T>
+std::uint64_t Multiply<std::tuple<T>>::footprint(void const *cl_args, std::size_t) noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t const *>(cl_args);
+    uint32_t hash = 0;
+    hash = ::nntile::haul::fnv1a(&args->nelems, sizeof(args->nelems), hash);
+    hash = ::nntile::haul::fnv1a(&args->alpha, sizeof(args->alpha), hash);
+    return hash;
+}
+
+template<typename T>
+void Multiply<std::tuple<T>>::submit(int starpu_worker_hint, Index nelems, Scalar alpha, ::nnhaul::Handle & src1, ::nnhaul::Handle & src2, ::nnhaul::Handle & dst)
+{
+    args_t *args = (args_t *)std::malloc(sizeof(*args));
+    args->nelems = nelems;
+    args->alpha = alpha;
+    // Put amount of read-write bytes into flop count
+    double nflops = sizeof(T) * 3 * nelems;
+    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
+        { { STARPU_R, &src1 }, { STARPU_R, &src2 }, { STARPU_W, &dst } }, args, sizeof(*args));
+    std::free(args);
+
+}
+
+// Explicit instantiation
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class Multiply<std::tuple<nntile::fp64_t>>;
+template class Multiply<std::tuple<nntile::fp32_t>>;
+template class Multiply<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class Multiply<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class Multiply<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class Multiply<std::tuple<nntile::bf16_t>>;
+template class Multiply<std::tuple<nntile::fp16_t>>;
+
+//! Pack of multiply operations for different types
+multiply_pack_t multiply;
+
+} // namespace nntile::haul

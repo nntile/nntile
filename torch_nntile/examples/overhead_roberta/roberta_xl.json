@@ -1,0 +1,16 @@
+{
+  "_comment": "RoBERTa overhead XL: 6 layers, hidden_size=5760 (45 heads x head_dim 128), seq_len=2880",
+  "vocab_size": 2048,
+  "hidden_size": 5760,
+  "intermediate_size": 23040,
+  "num_hidden_layers": 6,
+  "num_attention_heads": 45,
+  "max_position_embeddings": 2880,
+  "type_vocab_size": 1,
+  "hidden_dropout_prob": 0.0,
+  "attention_probs_dropout_prob": 0.0,
+  "layer_norm_eps": 1e-05,
+  "bos_token_id": 0,
+  "eos_token_id": 2,
+  "pad_token_id": 1
+}

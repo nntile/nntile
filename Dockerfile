@@ -136,7 +136,9 @@ RUN --mount=type=cache,target=/opt/conda/pkgs \
         datasets \
         pytest \
         pytest-benchmark \
-        tokenizers
+        tokenizers \
+        patchelf \
+        auditwheel
 
 # Make RUN commands use the new environment:
 SHELL ["conda", "run", "-n", "nntile", "/bin/bash", "-c"]
@@ -211,7 +213,7 @@ ENV OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
 WORKDIR /workspace/nntile
 
 # Define Python path for the development
-ENV PYTHONPATH=/workspace/nntile/build/wrappers/python
+ENV PYTHONPATH=/workspace/nntile/build/python
 
 # Open Jupyter Lab and Tensorboard ports
 EXPOSE 8888 6006
@@ -240,6 +242,8 @@ RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCHS} \
     -DCMAKE_PREFIX_PATH=$CONDA_PREFIX \
     -DCMAKE_DISABLE_FIND_PACKAGE_pybind11=ON \
+    -DBUILD_LIBTORCH_NNTILE=OFF \
+    -DBUILD_TORCH_NNTILE=OFF \
     -GNinja
 
 # Finally, build the NNTile inplace without installation

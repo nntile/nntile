@@ -1,0 +1,186 @@
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file src/starpu/isfinite.cc
+ * Accumulate flags for NaN and Inf in a buffer
+ *
+ * @version 1.1.0
+ * */
+
+// Corresponding header
+#include "nntile/nnhaul/ops/isfinite.hh"
+
+// Standard libraries
+#include <cstdint>
+#include <cstdlib>
+#include <stdexcept>
+
+// Other NNTile headers
+#include "nntile/kernel/isfinite.hh"
+
+namespace nntile::haul
+{
+
+//! Constructor
+template<typename T>
+Isfinite<std::tuple<T>>::Isfinite():
+    codelet(
+        "nntile_isfinite",
+        &Isfinite<std::tuple<T>>::cpu,
+#ifdef NNTILE_USE_CUDA
+        &Isfinite<std::tuple<T>>::cuda,
+#else
+        nullptr,
+#endif
+        &Isfinite<std::tuple<T>>::footprint)
+{
+    // Modes are not fixed, they are decided during runtime by default
+}
+
+//! StarPU wrapper for kernel::isfinite::cpu<T>
+template<typename T>
+void Isfinite<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    args_t const *args = reinterpret_cast<args_t const *>(cl_args);
+    // Get interfaces
+    auto data = ::nntile::haul::buf_chunks<T>(buffers, 0);
+    // The flag is a single-element tile: element 0 always lives in
+    // chunk 0, and each chunk call can only ever clear it.
+    bool_t *flag = ::nntile::haul::buf_chunks<bool_t>(buffers, 1).ptr(0);
+    // Launch kernel per chunk (single chunk if unchunked)
+    for (std::size_t i = 0; i < data.count(); ++i)
+    {
+        kernel::isfinite::cpu<T>(data.elems(i), data.ptr(i), flag);
+    }
+}
+
+// Specializations of CPU wrapper for accelerated types
+template<>
+void Isfinite<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Isfinite<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void Isfinite<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Isfinite<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void Isfinite<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Isfinite<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+#ifdef NNTILE_USE_CUDA
+//! StarPU wrapper for kernel::isfinite::cuda<T>
+template<typename T>
+void Isfinite<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    args_t const *args = reinterpret_cast<args_t const *>(cl_args);
+    // Get interfaces
+    auto data = ::nntile::haul::buf_chunks<T>(buffers, 0);
+    // The flag is a single-element tile: element 0 always lives in
+    // chunk 0, and each chunk call can only ever clear it.
+    bool_t *flag = ::nntile::haul::buf_chunks<bool_t>(buffers, 1).ptr(0);
+    // Get CUDA stream
+    cudaStream_t stream = ::nnhaul::cuda_stream();
+    // Launch kernel per chunk (single chunk if unchunked)
+    for (std::size_t i = 0; i < data.count(); ++i)
+    {
+        kernel::isfinite::cuda<T>(stream, data.elems(i), data.ptr(i), flag);
+    }
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void Isfinite<std::tuple<fp32_fast_tf32_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Isfinite<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Isfinite<std::tuple<fp32_fast_fp16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Isfinite<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Isfinite<std::tuple<fp32_fast_bf16_t>>::cuda(
+    void *buffers[],
+    void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Isfinite<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
+
+//! Footprint for isfinite tasks that depends only on cl_arg
+template<typename T>
+std::uint64_t Isfinite<std::tuple<T>>::footprint(void const *cl_args, std::size_t) noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t const *>(cl_args);
+    uint32_t hash = 0;
+    hash = ::nntile::haul::fnv1a(&args->nelems, sizeof(args->nelems), hash);
+    return hash;
+}
+
+template<typename T>
+void Isfinite<std::tuple<T>>::submit(int starpu_worker_hint, Index nelems, ::nnhaul::Handle & data, ::nnhaul::Handle & flag)
+//! Insert isfinite task into StarPU pool of tasks
+/*! No argument checking is performed. All the inputs are packed and passed to
+ * nntile_starpu_task_insert() function. If task submission fails, this routines
+ * throws an std::runtime_error() exception.
+ * */
+{
+    // Codelet arguments
+    args_t *args = (args_t *)std::malloc(sizeof(*args));
+    args->nelems = nelems;
+    // Submit task
+    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
+        { { STARPU_R, &data }, { STARPU_RW, &flag } }, args, sizeof(*args));
+    std::free(args);
+
+}
+
+// Explicit instantiation
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class Isfinite<std::tuple<nntile::fp64_t>>;
+template class Isfinite<std::tuple<nntile::fp32_t>>;
+template class Isfinite<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class Isfinite<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class Isfinite<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class Isfinite<std::tuple<nntile::bf16_t>>;
+template class Isfinite<std::tuple<nntile::fp16_t>>;
+
+//! Pack of isfinite operations for different types
+isfinite_pack_t isfinite;
+
+} // namespace nntile::haul

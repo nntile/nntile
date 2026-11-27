@@ -1,0 +1,17 @@
+{
+  "_comment": "Middle GPT-Neo HF (~1 min train loop on 1 CPU core)",
+  "vocab_size": 2048,
+  "hidden_size": 512,
+  "intermediate_size": 2048,
+  "num_layers": 6,
+  "num_heads": 8,
+  "max_position_embeddings": 512,
+  "attention_types": [[["global"], 6]],
+  "window_size": 256,
+  "attention_dropout": 0.0,
+  "embed_dropout": 0.0,
+  "resid_dropout": 0.0,
+  "classifier_dropout": 0.0,
+  "bos_token_id": 0,
+  "eos_token_id": 0
+}
