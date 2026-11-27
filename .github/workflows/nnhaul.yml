@@ -75,6 +75,14 @@ jobs:
           ref: ${{ inputs.ref || github.ref }}
           persist-credentials: false
 
+      - name: Set up Python and PyTorch
+        run: |
+          python3 -m venv "${RUNNER_TEMP}/venv"
+          "${RUNNER_TEMP}/venv/bin/python" -m pip install --upgrade pip
+          WHEEL_PYTHON="${RUNNER_TEMP}/venv/bin/python" \
+            bash torch_nntile/tools/ensure_torch_cuda.sh
+          echo "${RUNNER_TEMP}/venv/bin" >> "${GITHUB_PATH}"
+
       - name: configure product
         run: |
           TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')

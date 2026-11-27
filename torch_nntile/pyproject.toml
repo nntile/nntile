@@ -95,3 +95,7 @@ environment.CUDA_HOME = "/usr/local/cuda"
 environment.PATH = "/usr/local/cuda/bin:$PATH"
 # Stubs for libcuda; pip nvidia libs come via RPATH / site-packages.
 environment.LD_LIBRARY_PATH = "/usr/local/cuda/lib64/stubs:$LD_LIBRARY_PATH"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests import after manipulating sys.path / pytest.importorskip.
+"tests/*.py" = ["E402"]
