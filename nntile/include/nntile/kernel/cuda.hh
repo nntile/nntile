@@ -23,10 +23,7 @@
 #include <cuda_fp16.h>
 #include <cuda_bf16.h>
 
-// FP8 formats may be not supported by CUDA Toolkit
-#ifdef NNTILE_USE_CUDA_FP8
-#   include <cuda_fp8.h>
-#endif
+#include <cuda_fp8.h>
 
 #include <cstdint>
 #include <cstdio>

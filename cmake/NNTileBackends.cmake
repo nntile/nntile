@@ -6,12 +6,8 @@
 #
 # Exports the `nnhaul` link target (in-tree subproject or NNHAUL_ROOT).
 
-# NNTile 2.0 has no CPU backend and no second runtime.
-if(NOT USE_CUDA)
-    message(FATAL_ERROR
-        "NNTile 2.0 is CUDA-only: NNHaul creates one CUDA worker and no "
-        "CPU workers. Enable USE_CUDA.")
-endif()
+# NNTile 2.0 has no CPU backend and no second runtime; CUDA is enabled
+# unconditionally by the top-level configure.
 
 # No CPU worker exists, so no host BLAS is linked.
 

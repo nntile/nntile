@@ -15,7 +15,7 @@ NNHAUL_CHUNK_SIZE_MB=1 sh tools/run_chunked_suite.sh build-nnhaul
 NNHAUL_CHUNK_SIZE_MB=2 sh tools/run_chunked_suite.sh build-nnhaul
 ```
 
-`USE_CUDA=OFF` is a configure error by design.
+`USE_CUDA` is a removed 1.x switch; configure always enables CUDA.
 
 ## Python product
 

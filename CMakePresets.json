@@ -10,7 +10,6 @@
       "binaryDir": "${sourceDir}/build-nnhaul",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "USE_CUDA": "ON",
         "BUILD_LIBTORCH_NNTILE": "ON",
         "BUILD_TORCH_NNTILE": "ON",
         "BUILD_TESTING": "ON"

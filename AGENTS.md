@@ -25,7 +25,7 @@ cmake -S . -B build -GNinja \
 cmake --build build -j
 ```
 
-`USE_CUDA=OFF` must fail at configure time.
+`USE_CUDA` is a removed 1.x switch: passing it (even `ON`) fails at configure time because the build is always CUDA.
 
 ## Tests
 

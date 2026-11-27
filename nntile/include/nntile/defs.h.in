@@ -15,7 +15,6 @@
 #pragma once
 
 #cmakedefine NNTILE_USE_CUDA
-#cmakedefine NNTILE_USE_CUDA_FP8
 
 //! Kernel families switched off for this build (semicolon separated).
 #define NNTILE_DISABLED_KERNELS "@NNTILE_DISABLED_KERNELS@"

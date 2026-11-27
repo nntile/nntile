@@ -26,7 +26,7 @@ cmake --build --preset nnhaul -j
 sh tools/run_chunked_suite.sh build-nnhaul
 ```
 
-A plain configure needs `USE_CUDA=ON`; a CUDA-free configure is a hard error.
+Configure always enables CUDA; a CUDA-free build is a hard error and `USE_CUDA` is rejected as a removed switch.
 There is no backend-selection option.
 
 In this product `libnntile.so` links a shared `libnnhaul.so` (installed beside

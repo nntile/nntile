@@ -50,8 +50,9 @@ jobs:
             echo "ok: ${desc}"
           }
 
-          # CUDA-only product: OFF must fail before any dependency fetch.
+          # CUDA-only product: USE_CUDA is a removed 1.x switch, both values.
           expect_failure "USE_CUDA=OFF is rejected" -DUSE_CUDA=OFF
+          expect_failure "USE_CUDA=ON is rejected" -DUSE_CUDA=ON
           # Removed 1.x backend and kernel switches must not be silently ignored.
           expect_failure "NNTILE_USE_NNHAUL=OFF is rejected" -DNNTILE_USE_NNHAUL=OFF
           expect_failure "USE_CBLAS=ON is rejected" -DUSE_CBLAS=ON

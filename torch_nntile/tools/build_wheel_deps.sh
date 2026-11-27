@@ -90,7 +90,6 @@ configure_nntile_cmake() {
     if [ "${use_cuda}" = "1" ]; then
         export TORCH_NNTILE_USE_CUDA=1
         cmake_args+=(
-            -DUSE_CUDA=ON
             -DCUDAToolkit_ROOT="${CUDA_HOME}"
         )
         if [ -n "${CMAKE_CUDA_COMPILER:-}" ]; then

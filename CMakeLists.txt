@@ -42,14 +42,9 @@ endif()
 option(BUILD_LIBNNTILE "Build the core C++ libnntile library" ON)
 # NNTile 2.0 has exactly one runtime: NNHaul. It is CUDA-only and its
 # codelets are chunked-only. There is no backend switch.
-option(USE_CUDA "Use CUDA toolkit (cuBLAS and cuDNN are required)" ON)
-option(USE_CUDA_FP8 "Enable FP8 CUDA support" ON)
-# Fail before any dependency fetch: an NNTile 2.0 tree has no non-CUDA build.
-if(NOT USE_CUDA)
-    message(FATAL_ERROR
-        "NNTile 2.0 is CUDA-only: the NNHaul backend and every chunked "
-        "kernel entry point require CUDA. Enable USE_CUDA.")
-endif()
+# NNTile 2.0 has no CUDA switch: the NNHaul backend and every chunked
+# kernel entry point require CUDA. Explicit USE_CUDA is rejected below as a
+# removed 1.x option.
 # Default ON: the user-facing product is the torch_nntile pip wheel (needs
 # LibTorch on CMAKE_PREFIX_PATH). Layered CI and Torch-less configures must
 # pass -DBUILD_LIBTORCH_NNTILE=OFF -DBUILD_TORCH_NNTILE=OFF.
@@ -69,6 +64,8 @@ option(BUILD_COVERAGE "Generate code coverage report" OFF)
 # warn and purge it so an incremental reconfigure keeps working.
 foreach(_removed_opt IN ITEMS
         NNTILE_USE_NNHAUL
+        USE_CUDA
+        USE_CUDA_FP8
         BUILD_NNHAUL
         NNTILE_BUILD_NNHAUL
         NNTILE_TORCH_NATIVE_OPS
@@ -187,8 +184,10 @@ add_subdirectory("external")
 if(BUILD_TESTING AND NOT BUILD_LIBNNTILE AND NOT BUILD_LIBTORCH_NNTILE
         AND NOT BUILD_TORCH_NNTILE)
     find_package(nntile QUIET CONFIG)
-    if(DEFINED NNTILE_BUILT_WITH_CUDA)
-        set(USE_CUDA "${NNTILE_BUILT_WITH_CUDA}")
+    if(DEFINED NNTILE_BUILT_WITH_CUDA AND NOT NNTILE_BUILT_WITH_CUDA)
+        message(FATAL_ERROR
+            "the installed nntile was built without CUDA; NNTile 2.0 is "
+            "CUDA-only, so its tests cannot run against it")
     endif()
     # The test lists must reflect the installed library's disabled families,
     # not this source tree's default. An install configured with
@@ -201,6 +200,40 @@ if(BUILD_TESTING AND NOT BUILD_LIBNNTILE AND NOT BUILD_LIBTORCH_NNTILE
             FORCE)
     endif()
 endif()
+
+set(NNTILE_USE_CUDA ON)
+set(NNTILE_LINK_CUDA ON)
+set(NNTILE_CUDA_ARCHITECTURES "")
+include(CheckLanguage)
+check_language(CUDA)
+if(CMAKE_CUDA_COMPILER)
+    if(CMAKE_CUDA_ARCHITECTURES)
+        set(CMAKE_CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"
+            CACHE STRING "Semicolon-separated CUDA SM versions for NVCC"
+            FORCE)
+    else()
+        set(CMAKE_CUDA_ARCHITECTURES "70;75;80;86;89;90"
+            CACHE STRING "Semicolon-separated CUDA SM versions for NVCC"
+            FORCE)
+    endif()
+    enable_language(CUDA)
+    find_package(CUDAToolkit 12.0 REQUIRED)
+    # Prefer pip nvidia-*-cu12 for cublas/cudart when wheel CI (or a
+    # local build) exports NVIDIA_* paths / NNTILE_CUDA_FROM_PIP.
+    include("${PROJECT_SOURCE_DIR}/cmake/NNTilePreferPipCuda.cmake")
+    add_subdirectory("external/cudnn_frontend")
+    # An installed nntile found by find_package already imported
+    # CUDNN::cudnn_all; importing it twice is a CMake error.
+    if(NOT TARGET CUDNN::cudnn_all)
+        include(${cudnn_frontend_SOURCE_DIR}/cmake/cuDNN.cmake)
+    endif()
+    set(NNTILE_CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}")
+else()
+    message(FATAL_ERROR
+        "no CUDA compiler was found; NNTile 2.0 is CUDA-only.")
+endif()
+
+message(STATUS "NNTILE_USE_CUDA: ${NNTILE_USE_CUDA}")
 
 # Shared cudart for every consumer of libnntile: the nnhaul branch already
 # pulls CUDA::cudart (shared) via the imported nnhaul target, while the
@@ -219,53 +252,6 @@ if(NOT NNHAUL_ROOT STREQUAL "")
     set(NNTILE_NNHAUL_EXTERNAL TRUE)
 endif()
 
-set(NNTILE_USE_CUDA OFF)
-set(NNTILE_LINK_CUDA OFF)
-set(NNTILE_CUDA_ARCHITECTURES "")
-if(USE_CUDA)
-    include(CheckLanguage)
-    check_language(CUDA)
-    if(CMAKE_CUDA_COMPILER)
-        if(CMAKE_CUDA_ARCHITECTURES)
-            set(CMAKE_CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"
-                CACHE STRING "Semicolon-separated CUDA SM versions for NVCC"
-                FORCE)
-        else()
-            set(CMAKE_CUDA_ARCHITECTURES "70;75;80;86;89;90"
-                CACHE STRING "Semicolon-separated CUDA SM versions for NVCC"
-                FORCE)
-        endif()
-        enable_language(CUDA)
-        find_package(CUDAToolkit 12.0 REQUIRED)
-        # Prefer pip nvidia-*-cu12 for cublas/cudart when wheel CI (or a
-        # local build) exports NVIDIA_* paths / NNTILE_CUDA_FROM_PIP.
-        include("${PROJECT_SOURCE_DIR}/cmake/NNTilePreferPipCuda.cmake")
-        add_subdirectory("external/cudnn_frontend")
-        # An installed nntile found by find_package already imported
-        # CUDNN::cudnn_all; importing it twice is a CMake error.
-        if(NOT TARGET CUDNN::cudnn_all)
-            include(${cudnn_frontend_SOURCE_DIR}/cmake/cuDNN.cmake)
-        endif()
-        set(NNTILE_USE_CUDA ON)
-        set(NNTILE_LINK_CUDA ON)
-        if(USE_CUDA_FP8 AND CUDAToolkit_VERSION GREATER_EQUAL 11.8)
-            set(NNTILE_USE_CUDA_FP8 ON)
-        else()
-            set(NNTILE_USE_CUDA_FP8 OFF)
-        endif()
-        set(NNTILE_CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}")
-    else()
-        message(FATAL_ERROR
-            "USE_CUDA=ON but no CUDA compiler was found. NNTile 2.0 is "
-            "CUDA-only.")
-    endif()
-endif()
-
-message(STATUS "NNTILE_USE_CUDA: ${NNTILE_USE_CUDA}")
-if(NOT NNTILE_USE_CUDA)
-    message(FATAL_ERROR
-        "NNTile 2.0 requires a working CUDA toolchain and cuBLAS/cuDNN.")
-endif()
 
 # No CPU worker exists, so no host BLAS is linked.
 
@@ -327,10 +313,6 @@ if(BUILD_TESTING)
         else()
             if(NOT TARGET nntile AND NOT TARGET nntile::nntile)
                 find_package(nntile REQUIRED CONFIG)
-            endif()
-            if(DEFINED NNTILE_BUILT_WITH_CUDA)
-                set(NNTILE_USE_CUDA "${NNTILE_BUILT_WITH_CUDA}")
-                set(NNTILE_LINK_CUDA "${NNTILE_BUILT_WITH_CUDA}")
             endif()
             add_subdirectory(
                 "${PROJECT_SOURCE_DIR}/nntile/tests"
