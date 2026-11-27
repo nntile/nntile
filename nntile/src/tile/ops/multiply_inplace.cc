@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/src/tile_graph/multiply_inplace.cc
  * TileGraph multiply inplace operation implementation.
@@ -27,7 +27,7 @@ namespace
 template<typename T>
 void run(Runtime& rt, Scalar a, TileGraph::TileNode* s, TileGraph::TileNode* d)
 {
-    nntile::core::multiply_inplace<T>(rt.starpu_worker_hint(), a, rt.get_tile<T>(s), rt.get_tile<T>(d));
+    nntile::core::multiply_inplace<T>(rt.worker_hint(), a, rt.get_tile<T>(s), rt.get_tile<T>(d));
 }
 } // namespace
 void multiply_inplace(Scalar a, TileGraph::TileNode* s, TileGraph::TileNode* d)

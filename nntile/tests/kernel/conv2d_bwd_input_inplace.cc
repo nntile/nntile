@@ -4,14 +4,19 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file tests/kernel/conv2d_bwd_input_inplace.cc
  * Placeholder for conv2d_bwd_input_inplace kernel test
  *
  * @version 1.1.0
  * */
-
+/*!
+ * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.
+ * Kept in-tree for future re-enablement. No product path calls this code;
+ * its tests are not registered while the family is in
+ * NNTILE_DISABLED_KERNELS.
+ */
 #include "nntile/kernel/conv2d_bwd_input_inplace.hh"
 #include "../testing.hh"
 #include <iostream>

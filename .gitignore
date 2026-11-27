@@ -16,3 +16,4 @@ __pycache__
 *.safetensors
 wheelhouse/
 _build_info.py
+build-nnhaul/

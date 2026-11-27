@@ -5,7 +5,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tile_graph/embedding.cc
  * Test TileGraph embedding vs nntile::core (parity).
@@ -58,7 +58,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph embedding", "[graph][t
     nntile::core::Tile<nntile::int64_t> I(ih);
     nntile::core::Tile<fp32_t> V(vh), E(eh);
     {
-        auto a = I.acquire(STARPU_W);
+        auto a = I.acquire(ACCESS_W);
         a[0] = 0;
         a[1] = 2;
         a[2] = 4;
@@ -67,7 +67,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph embedding", "[graph][t
     }
     using Yv = typename fp32_t::repr_t;
     {
-        auto b = V.acquire(STARPU_W);
+        auto b = V.acquire(ACCESS_W);
         for(int j = 0; j < 15; ++j)
         {
             b[j] = Yv(voc[static_cast<size_t>(j)]);
@@ -75,7 +75,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph embedding", "[graph][t
         b.release();
     }
     {
-        auto c = E.acquire(STARPU_W);
+        auto c = E.acquire(ACCESS_W);
         for(int t = 0; t < 12; ++t)
         {
             c[t] = Yv(0.0f);
@@ -84,10 +84,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph embedding", "[graph][t
     }
     nntile::core::embedding<fp32_t>(-1, m, n, k, k0, ks, V.nelems / ks,
             I, V, E);
-    starpu_task_wait_for_all();
+    task_wait_for_all();
     std::vector<float> tr(12);
     {
-        auto L = E.acquire(STARPU_R);
+        auto L = E.acquire(ACCESS_R);
         for(int t = 0; t < 12; ++t)
         {
             tr[static_cast<size_t>(t)] = static_cast<float>(L[t]);

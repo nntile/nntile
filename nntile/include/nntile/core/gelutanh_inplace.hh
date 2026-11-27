@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/core/gelutanh_inplace.hh
  * Approximate GeLU operation for Tile<T>
@@ -20,9 +20,9 @@ namespace nntile::core
 {
 
 template<typename T>
-void gelutanh_inplace_async(int starpu_worker_hint, const Tile<T> &A);
+void gelutanh_inplace_async(int worker_hint, const Tile<T> &A);
 
 template<typename T>
-void gelutanh_inplace(int starpu_worker_hint, const Tile<T> &A);
+void gelutanh_inplace(int worker_hint, const Tile<T> &A);
 
 } // namespace nntile::core

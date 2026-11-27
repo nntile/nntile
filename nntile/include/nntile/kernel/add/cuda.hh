@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/kernel/add/cuda.hh
  * Add operation on buffers on CUDA
@@ -38,7 +38,7 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *src1,
  * index from its own flat offset (chunk = offset / elems, in-chunk offset =
  * offset % elems; a shift/mask on the runtime chunk class; a single-chunk operand uses the sentinel shift 62 so there is no runtime-divisor path). The chunked
  * result is bitwise-equal to cuda()'s because every element computes the
- * same expression on the same values. There is no chunk-count cap.
+ * same expression on the same values. There is no per-operand chunk-count cap; the launch total is bounded by the 2^20-slot chunk-ptr transport.
  * */
 template<typename T>
 void chunked(cudaStream_t stream, Index nelems, Scalar alpha,

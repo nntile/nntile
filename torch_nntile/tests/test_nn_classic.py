@@ -185,4 +185,3 @@ def test_add_nonleaf_backward():
     assert torch.allclose(nntile_cpu(gx_n), gx_cpu, rtol=1e-4, atol=1e-4)
     assert torch.allclose(nntile_cpu(gy_n), gy_cpu, rtol=1e-4, atol=1e-4)
     assert_classic_graph()
-

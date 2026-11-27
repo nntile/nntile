@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tensor_graph/hypot_scalar_inverse.cc
  * Test TensorGraph hypot_scalar_inverse operation.
@@ -38,7 +38,7 @@ constexpr Scalar alpha_half = 0.5;
 constexpr float tolerance = 1e-5f;
 constexpr int distr_rank_single = 0;
 
-} 
+}
 
 TEST_CASE("TensorGraph hypot_scalar_inverse structure", "[graph][tensor]")
 {

@@ -7,8 +7,6 @@
 import torch
 from conftest import nntile_cpu
 
-import torch_nntile
-
 
 def test_add_inplace_matches_cpu():
     a_cpu = torch.tensor([[1.0, 2.0], [3.0, 4.0]])

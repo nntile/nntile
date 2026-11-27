@@ -6,9 +6,8 @@
 
 """PyTorch nntile device (PrivateUse1; requires libnntile).
 
-Stock ``torch.nn`` on ``device=nntile`` uses torch-native kernels.
-Classic nntile kernels live under :mod:`torch_nntile.nn` (``functional``,
-``module``, ``model``). Autograd is PyTorch's.
+The classic nntile kernel stack lives under :mod:`torch_nntile.nn`
+(``functional``, ``module``, ``model``). Autograd is PyTorch's.
 """
 
 from __future__ import annotations
@@ -18,17 +17,16 @@ import os
 
 import torch
 
-from ._build_info import BUILT_WITH_CUDA, NNTILE_NATIVE_OPS, TORCH_NATIVE_OPS
+from ._build_info import BUILT_WITH_CUDA
 from ._cuda_deps import ensure_linux_cuda_deps
 
 ensure_linux_cuda_deps(required=BUILT_WITH_CUDA)
 
-# Stock torch.nn on device=nntile uses torch-native TORCH_* codelets when
-# TORCH_NATIVE_OPS is on. Classic nntile::kernel ops live under
-# torch_nntile.nn (functional / module / model) when NNTILE_NATIVE_OPS is on.
+# Classic nntile::kernel ops live under torch_nntile.nn (functional /
+# module / model).
 from . import _C  # noqa: E402, F401 - loads kernels and allocator
-from . import (  # noqa: E402, F401; noqa: E402, backward-compat alias
-    compat as _compat, kernels as kernels, nn as nn)
+from . import kernels as kernels  # noqa: E402, F401
+from . import nn as nn  # noqa: E402
 
 _registered = False
 _atexit_shutdown_registered = False
@@ -49,7 +47,11 @@ def _register_shutdown_atexit() -> None:
 
 def _shutdown_on_exit() -> None:
     if is_context_initialized():
-        wait()
+        try:
+            wait()
+        except Exception:
+            # A latched device/plan fault must not skip teardown at exit.
+            pass
         shutdown_context()
 
 
@@ -144,22 +146,22 @@ def init_context(
     cpu_fallback: bool = False,
     account_id: str | None = None,
 ) -> None:
-    """Configure StarPU workers, or connect to nntile-server.
+    """Configure NNHaul workers, or connect to nntile-server.
 
     With the NNHaul backend, ``ncpu`` is ignored: libnnhaul is GPU-only
-    and creates exactly one CUDA worker. No CPU worker is ever recorded
-    in the schedule, so every codelet with a CUDA kernel executes on the
-    GPU and a codelet without one raises.
+    and creates one CUDA worker. Select the GPU with
+    ``CUDA_VISIBLE_DEVICES``. ``ooc_enabled`` must be 0 (disk OOC is not
+    supported); ``ooc_path`` and ``ooc_size`` are compatibility arguments.
 
     When ``NNTILE_SERVER_SOCKET`` is set, this process is a platform
-    kernel: no local StarPU, no hardware knobs. ``.to("nntile")``
+    kernel: no local NNHaul, no hardware knobs. ``.to("nntile")``
     Ingresses bytes and ``.to("cpu")`` Flushes the recorded TensorGraph.
 
     Otherwise records ops into a shared TensorGraph; call
     :func:`compile_graph` or :func:`execute` (both require
     ``NNTILE_ENABLE_LOCAL_COMPILER=1``) to compile on this process.
 
-    ``cpu_fallback`` defaults to False: unregistered aten ops raise
+    ``cpu_fallback`` must stay False: unregistered aten ops raise
     instead of silently copying nntile tensors to CPU. Move data only
     with ``.to("nntile")`` / ``.to("cpu")``.
     """
@@ -207,7 +209,7 @@ def compile_graph() -> None:
     use the same gate so a shared-node kernel cannot lower locally.
 
     Does **not** wait for a prior :func:`run`. The next phase may be sealed
-    and submitted while StarPU is still executing an earlier phase; call
+    and submitted while NNHaul is still executing an earlier phase; call
     :func:`wait` when host-side results or reclaim are required.
     """
     _require_local_compiler()
@@ -215,7 +217,7 @@ def compile_graph() -> None:
 
 
 def run() -> None:
-    """Submit the compiled graph to StarPU (asynchronous; does not wait).
+    """Submit the compiled graph to NNHaul (asynchronous; does not wait).
 
     Reclaim is ordinary ``INVALIDATE`` ops in the submitted stream: last
     ``TensorRef`` drop records ``tensor::invalidate``, and
@@ -223,7 +225,7 @@ def run() -> None:
     Free the step autograd graph (``del loss`` after ``loss.detach()``) before
     :func:`compile_graph` so those temps are unmarked. ``del`` of inputs after
     their last recorded use is safe (invalidate is ordered after that use).
-    Only :func:`wait` joins StarPU (host readout / shutdown).
+    Only :func:`wait` joins NNHaul (host readout / shutdown).
     """
     _C.run()
 
@@ -245,27 +247,9 @@ def is_cpu_fallback_enabled() -> bool:
     return _C.is_cpu_fallback_enabled()
 
 
-def uses_nnhaul() -> bool:
-    """True when libnntile runs on the NNHaul runtime backend."""
-    return _C.uses_nnhaul()
-
-
-def restrict_cpu() -> None:
-    """Pin StarPU codelets to CPU workers (StarPU backend only).
-
-    Raises on NNHaul: that runtime has no CPU workers.
-    """
-    _C.restrict_cpu()
-
-
-def restrict_cuda() -> None:
-    """Pin StarPU codelets to CUDA workers (libnntile)."""
-    _C.restrict_cuda()
-
-
-def restore_where() -> None:
-    """Restore default StarPU codelet worker placement."""
-    _C.restore_where()
+def backend() -> str:
+    """Name of the execution backend (NNTile 2.0 has exactly one)."""
+    return "nnhaul"
 
 
 def join_predecessor() -> int:
@@ -279,7 +263,7 @@ def join_predecessor() -> int:
 
 
 def wait() -> None:
-    """Join StarPU after :func:`run` for host-visible completion.
+    """Join NNHaul after :func:`run` for host-visible completion.
 
     Pin release / async tile reclaim already ran at the end of :func:`run`.
     Compacts TensorGraph history so the next :func:`compile_graph` stays
@@ -294,7 +278,7 @@ wait_for_all = wait
 
 
 def shutdown_context() -> None:
-    """Shut down libnntile / StarPU and release the global context.
+    """Shut down libnntile / NNHaul and release the global context.
 
     Flushes any pending TensorGraph and graph session, waits for workers, then
     calls ``Context::shutdown``. Safe to call multiple times. An ``atexit`` hook
@@ -310,23 +294,20 @@ def shutdown_context() -> None:
 def set_axis_group_name(tensor: torch.Tensor, names: dict[int, str]) -> None:
     """Name TensorGraph axis groups for selected dimensions of a tensor.
 
-  Only the listed dimensions are named; others stay unnamed. Names propagate
-  to merged axis groups when ops combine tensors. Call before
-  :func:`execute` in graph mode.
-  """
+    Only the listed dimensions are named; others stay unnamed. Names propagate
+    to merged axis groups when ops combine tensors. Call before
+    :func:`execute` in graph mode.
+    """
     _C.set_axis_group_name(tensor, names)
 
 
-def set_axis_group_tiling(name: str, tile_sizes: int | list[int] | tuple[int, ...]) -> None:
+def set_axis_group_tiling(
+    name: str, tile_sizes: int | list[int] | tuple[int, ...]
+) -> None:
     """Set tiling for a named axis group before :func:`execute`.
 
     ``tile_sizes`` may be a uniform tile size (``int``) or explicit per-tile
     sizes (``list``/``tuple``) that sum to the axis extent.
-
-    Temporarily raises if a torch-native (``TORCH_*``) compute op is in
-    the pending graph: stock aten on ``device=nntile`` stays untiled.
-    Classic ``torch_nntile.nn`` graphs may tile. See
-    ``docs/dev/torch_nntile_aten_ops.md``.
     """
     _C.set_axis_group_tiling(name, tile_sizes)
 
@@ -334,8 +315,8 @@ def set_axis_group_tiling(name: str, tile_sizes: int | list[int] | tuple[int, ..
 def format_axis_groups() -> str:
     """Return axis-group summary for the pending TensorGraph.
 
-  Format matches the axis-group section of C++ ``TensorGraph::to_string``.
-  """
+    Format matches the axis-group section of C++ ``TensorGraph::to_string``.
+    """
     return _C.format_axis_groups()
 
 
@@ -345,7 +326,7 @@ def print_axis_groups() -> None:
 
 
 def pending_op_names() -> list[str]:
-    """Return op names in the pending TensorGraph phase (classic vs TORCH_*)."""
+    """Return op names in the pending TensorGraph phase."""
     return list(_C.pending_op_names())
 
 
@@ -381,8 +362,6 @@ __all__ = [
     "_C",
     "built_with_cuda",
     "BUILT_WITH_CUDA",
-    "TORCH_NATIVE_OPS",
-    "NNTILE_NATIVE_OPS",
     "init_context",
     "execute",
     "local_compiler_enabled",
@@ -393,9 +372,6 @@ __all__ = [
     "has_pending_graph",
     "is_context_initialized",
     "is_cpu_fallback_enabled",
-    "restrict_cpu",
-    "restrict_cuda",
-    "restore_where",
     "wait",
     "wait_for_all",
     "shutdown_context",

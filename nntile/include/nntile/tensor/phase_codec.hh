@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/tensor/phase_codec.hh
  * TensorGraph phase codec: Flush ``PhaseIR`` JSON ``{nodes, ops}``.
@@ -19,10 +19,6 @@
 #include <nntile/tensor/graph_decl.hh>
 #include <nntile/tensor/tensor_ref.hh>
 
-#ifdef NNTILE_TORCH_NATIVE_OPS
-#include <nntile/starpu/torch_dispatch.hh>
-#endif
-
 #include <nlohmann/json.hpp>
 
 #include <cstddef>
@@ -35,28 +31,11 @@
 namespace nntile::tensor
 {
 
-#ifdef NNTILE_TORCH_NATIVE_OPS
-//! Serialize the packed torch dispatch meta (scalars / iargs / per-slot
-//! layouts) that torch-native ops need on a wire. Only fields that
-//! differ from a default ``starpu::TorchDispatchArgs`` are emitted, so
-//! graphs recorded before the layouts existed decode unchanged.
-nlohmann::json encode_torch_dispatch_attrs(
-    starpu::TorchDispatchArgs const &extra);
 
-//! Inverse of ``encode_torch_dispatch_attrs``. Missing keys decode to a
-//! default ``TorchDispatchArgs``; malformed keys fail closed.
-starpu::TorchDispatchArgs decode_torch_dispatch_attrs(
-    nlohmann::json const &attrs);
-#endif
-
-//! Flush PhaseIR allowlist: v1 six names, classic TensorGraph ops,
-//! and CUDA-only FLASH names. Unknown names fail closed
-//! (``UnknownOp``). Last ``TensorRef`` drop records ``UNREGISTER``.
-//! Torch-native aten kind is ``attrs.kind``.
+//! Flush PhaseIR allowlist: v1 six names plus classic TensorGraph ops.
+//! Unknown names fail closed (``UnknownOp``). Last ``TensorRef`` drop
+//! records ``UNREGISTER``.
 inline constexpr char const *kV1PhaseOps[] = {
-    "TORCH_UNARY",
-    "TORCH_BINARY",
-    "TORCH_TERNARY",
     "GATHER",
     "SCATTER",
     "UNREGISTER",
@@ -132,8 +111,6 @@ inline constexpr char const *kV1PhaseOps[] = {
     "SWAP_TWO_AXES",
     "TOTAL_SUM_ACCUM",
     "TRANSPOSE",
-    "FLASH_SDPA_BWD_CUDNN",
-    "FLASH_SDPA_FWD_CUDNN",
 };
 
 inline constexpr std::size_t kV1PhaseOpCount =

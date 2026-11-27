@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/scale_inplace/cuda.cu
  * Scale inplace operation on buffers on CUDA
@@ -57,6 +57,36 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha, T *data)
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, alpha, data);
 }
 
+
+template<typename T>
+static __global__
+void chunked_cuda_kernel(Index nelems, Scalar alpha_, ChunkMut<T> data)
+{
+    int i = threadIdx.x + blockIdx.x*blockDim.x;
+    using Y = typename T::repr_t;
+    const Y alpha{alpha_};
+    if(i < nelems)
+    {
+        T *p = data.at(i);
+        p[0] = T{alpha * Y{p[0]}};
+    }
+}
+
+template<typename T>
+void chunked(cudaStream_t stream, Index nelems, Scalar alpha,
+        T* const* data_chunks, Index ndata, Index elems_data, ChunkClass cls)
+    noexcept
+{
+    if(nelems <= 0 || ndata <= 0)
+    {
+        return;
+    }
+    dim3 blocks((nelems+255)/256), threads(256);
+    (chunked_cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, alpha,
+        chunk_mut<T>(data_chunks, ndata, elems_data, cls,
+            "nntile_scale_inplace"));
+}
+
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index nelems, Scalar alpha,
@@ -77,5 +107,25 @@ template
 void cuda<fp64_t>(cudaStream_t stream, Index nelems, Scalar alpha,
         fp64_t *data)
     noexcept;
+
+template
+void chunked<fp32_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        fp32_t* const* data_chunks, Index ndata, Index elems_data,
+        ChunkClass cls) noexcept;
+
+template
+void chunked<fp64_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        fp64_t* const* data_chunks, Index ndata, Index elems_data,
+        ChunkClass cls) noexcept;
+
+template
+void chunked<bf16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        bf16_t* const* data_chunks, Index ndata, Index elems_data,
+        ChunkClass cls) noexcept;
+
+template
+void chunked<fp16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        fp16_t* const* data_chunks, Index ndata, Index elems_data,
+        ChunkClass cls) noexcept;
 
 } // namespace nntile::kernel::scale_inplace

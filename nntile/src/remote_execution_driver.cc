@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/src/remote_execution_driver.cc
  * Unix-socket TileGraph driver (NNTILE_DRIVER_SOCKET).
@@ -15,9 +15,7 @@
 #include <nntile/remote_execution_driver.hh>
 
 #include <nntile/context.hh>
-#ifdef NNTILE_USE_NNHAUL
 #include <nntile/backend_workers.hh>
-#endif
 #include <nntile/dtype.hh>
 #include <nntile/remote_tile_codec.hh>
 
@@ -1097,12 +1095,10 @@ std::vector<std::uint8_t> RemoteExecutionDriver::gather_bool(
     return reply.at("data").get<std::vector<std::uint8_t>>();
 }
 
-ExecutionDaemon::ExecutionDaemon(
-    std::string socket_path, DaemonCudaRestrict restrict_cuda)
+ExecutionDaemon::ExecutionDaemon(std::string socket_path)
     : path_(
           socket_path.empty() ? default_driver_socket_path()
-                              : std::move(socket_path)),
-      restrict_cuda_(restrict_cuda)
+                              : std::move(socket_path))
 {
 }
 
@@ -1118,33 +1114,10 @@ void ExecutionDaemon::start()
         throw std::runtime_error("ExecutionDaemon already started");
     }
     // Production ``executiond`` has no ContextFixture. Skip if this
-    // process already inited StarPU (C++ tests).
-#ifdef NNTILE_USE_NNHAUL
+    // process already inited NNHaul (C++ tests).
     if (!g_backend_ready)
-#else
-    if (!starpu_is_initialized())
-#endif
     {
         ctx_ = std::make_unique<Context>(-1, -1, 0);
-    }
-    // Self-configure the worker pool after StarPU init so one daemon
-    // process can pin itself to CUDA without env orchestration.
-    DaemonCudaRestrict const restrict = [&]
-    {
-        if (restrict_cuda_ != DaemonCudaRestrict::Auto)
-        {
-            return restrict_cuda_;
-        }
-        char const *env = std::getenv("NNTILE_DAEMON_RESTRICT_CUDA");
-        if (env != nullptr && env[0] == '1')
-        {
-            return DaemonCudaRestrict::Cuda;
-        }
-        return DaemonCudaRestrict::None;
-    }();
-    if (restrict == DaemonCudaRestrict::Cuda)
-    {
-        restrict_codelets_to_cuda();
     }
     stop_ = false;
     listen_fd_ = listen_unix(

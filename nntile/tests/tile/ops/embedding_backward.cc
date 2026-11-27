@@ -5,7 +5,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tile_graph/embedding_backward.cc
  * Test TileGraph embedding backward vs nntile::core (parity).
@@ -46,18 +46,18 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph embedding_backward", "
     nntile::core::Tile<nntile::int64_t> I(ih);
     nntile::core::Tile<fp32_t> Eg(egh), Vg(vh);
     using Y = typename fp32_t::repr_t;
-    { auto a=I.acquire(STARPU_W); a[0]=0; a[1]=2; a[2]=4; a[3]=1; a.release(); }
-    { auto b=Eg.acquire(STARPU_W);
+    { auto a=I.acquire(ACCESS_W); a[0]=0; a[1]=2; a[2]=4; a[3]=1; a.release(); }
+    { auto b=Eg.acquire(ACCESS_W);
       for(int i=0;i<12;++i) b[i]=Y(ega[static_cast<size_t>(i)]);
       b.release(); }
-    { auto c=Vg.acquire(STARPU_W);
+    { auto c=Vg.acquire(ACCESS_W);
       for(int j=0;j<15;++j) c[j]=Y(vga[static_cast<size_t>(j)]);
       c.release(); }
     nntile::core::embedding_backward<fp32_t>(-1, m,n,k,k0,ks,Vg.nelems/ks,
             Scalar{1.0},Scalar{1.0},I,Eg,Vg,redux);
-    starpu_task_wait_for_all();
+    task_wait_for_all();
     std::vector<float> tr(15);
-    { auto L=Vg.acquire(STARPU_R);
+    { auto L=Vg.acquire(ACCESS_R);
       for(int j=0;j<15;++j) tr[static_cast<size_t>(j)]=static_cast<float>(L[j]);
       L.release(); }
     nntile::test::require_relative_element_error(gout, tr);

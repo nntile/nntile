@@ -4,10 +4,10 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file include/nntile/starpu/gelu_backward.hh
- * Backward GeLU operation on a StarPU buffer
+ * @file include/nntile/nnhaul/ops/gelu_backward.hh
+ * Backward GeLU operation on a NNHaul buffer
  *
  * @version 1.1.0
  * */
@@ -23,7 +23,7 @@
 // NNTile headers
 #include <nntile/nnhaul/codelet.hh>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Generic wrapper class for gelu_backward operation is not defined
@@ -67,7 +67,7 @@ public:
 
     //! Submit gelu_backward task
     void submit(
-        int starpu_worker_hint,
+        int worker_hint,
         Index nelems,
         Scalar alpha,
         ::nnhaul::Handle & x,
@@ -92,4 +92,4 @@ using gelu_backward_pack_t = OperationPack<
 //! Pack of gelu_backward operations for different types
 extern gelu_backward_pack_t gelu_backward;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

@@ -5,7 +5,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/src/tile_graph/scale_fiber.cc
  * TileGraph scale fiber operation implementation.
@@ -28,7 +28,7 @@ namespace
 template<typename T>
 void run(Runtime& rt, Scalar a, TileGraph::TileNode* s, TileGraph::TileNode* d, Index ax, Index bd)
 {
-    nntile::core::scale_fiber<T>(rt.starpu_worker_hint(), a, rt.get_tile<T>(s), rt.get_tile<T>(d), ax, bd);
+    nntile::core::scale_fiber<T>(rt.worker_hint(), a, rt.get_tile<T>(s), rt.get_tile<T>(d), ax, bd);
 }
 } // namespace
 void scale_fiber(Scalar a, TileGraph::TileNode* s, TileGraph::TileNode* d, Index axis, Index batch_ndim)

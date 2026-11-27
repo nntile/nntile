@@ -4,10 +4,10 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file include/nntile/starpu/silu.hh
- * SiLU operation on a StarPU buffer
+ * @file include/nntile/nnhaul/ops/silu.hh
+ * SiLU operation on a NNHaul buffer
  *
  * @version 1.1.0
  * */
@@ -23,7 +23,7 @@
 // NNTile headers
 #include <nntile/nnhaul/codelet.hh>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Generic wrapper class for silu operation is not defined
@@ -65,7 +65,7 @@ public:
 
     //! Submit silu task
     void submit(
-        int starpu_worker_hint,
+        int worker_hint,
         Index nelems,
         ::nnhaul::Handle & src,
         ::nnhaul::Handle & dst
@@ -87,4 +87,4 @@ using silu_pack_t = OperationPack<
 //! Pack of silu operations for different types
 extern silu_pack_t silu;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

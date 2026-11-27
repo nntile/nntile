@@ -3,13 +3,8 @@
  *
  * @file torch_nntile/csrc/nntile_add.cpp
  * PrivateUse1 ``aten::add`` (torch autograd InputBuffer / AccumulateGrad
- * and user ``torch.add``).
- *
- * Dual-path: if torch-native ops are enabled, ``aten::add`` always uses
- * torch-native kernels (HF / ``torch.nn`` graphs: broadcast, SDPA, mixed
- * layouts). Classic ``nntile::tensor::add`` is used only when torch-native
- * is off (classic-only builds). ``torch_nntile.nn`` still calls classic
- * add directly.
+ * and user ``torch.add``). The classic ``nntile::tensor::add`` kernels
+ * handle float32; int64 is not supported.
  */
 
 #include "nntile_graph_recorder.h"
@@ -19,12 +14,7 @@
 
 #include <nntile/defs.h>
 
-#ifdef NNTILE_NNTILE_NATIVE_OPS
 #include "nntile_executor_classic.h"
-#endif
-#ifdef NNTILE_TORCH_NATIVE_OPS
-#include "nntile_executor.h"
-#endif
 
 #include <ATen/ExpandUtils.h>
 #include <ATen/Functions.h>
@@ -54,7 +44,6 @@ void check_add_dtypes(
         "nntile add supports float32 only");
 }
 
-#ifdef NNTILE_NNTILE_NATIVE_OPS
 void require_classic_add_fp32(
     const at::Tensor &self,
     const at::Tensor &other,
@@ -100,7 +89,6 @@ void classic_add_inplace(
     require_classic_add_fp32(self, other, "add_");
     classic_tensor_add_inplace_fp32(alpha, other, 1.0f, self);
 }
-#endif
 
 void run_add(
     const at::Tensor &self,
@@ -108,18 +96,7 @@ void run_add(
     const at::Scalar &alpha,
     at::Tensor &out)
 {
-#ifdef NNTILE_TORCH_NATIVE_OPS
-    tensor_add_fp32(
-        1.0f,
-        self,
-        alpha.to<float>(),
-        other,
-        out);
-#elif defined(NNTILE_NNTILE_NATIVE_OPS)
     classic_add_out(self, other, alpha.to<float>(), out);
-#else
-    TORCH_CHECK(false, "nntile add is not available in this build");
-#endif
 }
 
 } // namespace
@@ -133,39 +110,14 @@ at::Tensor add_scalar(
     require_nntile_operand(self, "add.Scalar", "self");
     if (self.scalar_type() == at::ScalarType::Long)
     {
-#ifdef NNTILE_TORCH_NATIVE_OPS
-        TORCH_CHECK(
-            alpha.to<double>() == 1.0,
-            "nntile add.Scalar int64: alpha must be 1");
-        at::Tensor filled = empty_metadata_tensor(
-            self.sizes(),
-            at::kLong,
-            self.device());
-        tensor_fill_i64(filled, other.to<int64_t>());
-        at::Tensor out = empty_metadata_tensor(
-            self.sizes(),
-            at::kLong,
-            self.device());
-        tensor_add_i64(self, filled, out);
-        return out;
-#else
         TORCH_CHECK(
             false,
-            "nntile add.Scalar int64 requires torch-native ops");
-#endif
+            "nntile add.Scalar int64 is not supported by the classic "
+            "nntile kernel stack");
     }
     TORCH_CHECK(
         self.scalar_type() == at::ScalarType::Float,
         "nntile add.Scalar supports float32 only");
-#ifdef NNTILE_TORCH_NATIVE_OPS
-    at::Tensor filled = at::empty_like(self);
-    at::Tensor out = at::empty_like(self);
-    tensor_fill_fp32(
-        filled,
-        other.to<float>() * alpha.to<float>());
-    tensor_add_fp32(1.0f, self, 1.0f, filled, out);
-    return out;
-#elif defined(NNTILE_NNTILE_NATIVE_OPS)
     TORCH_CHECK(
         self.is_contiguous(),
         "nntile add.Scalar: classic add requires a contiguous tensor");
@@ -176,9 +128,6 @@ at::Tensor add_scalar(
         other.to<float>() * alpha.to<float>());
     classic_tensor_add_fp32(1.0f, self, 1.0f, filled, out);
     return out;
-#else
-    TORCH_CHECK(false, "nntile add.Scalar is not available in this build");
-#endif
 }
 
 at::Tensor &add_scalar_out(
@@ -215,22 +164,10 @@ at::Tensor add_tensor(
     if (self.scalar_type() == at::kLong &&
         other.scalar_type() == at::kLong)
     {
-#ifdef NNTILE_TORCH_NATIVE_OPS
-        TORCH_CHECK(
-            alpha.to<double>() == 1.0,
-            "nntile add.Tensor int64: alpha must be 1");
-        auto bcast = at::infer_size(self.sizes(), other.sizes());
-        at::Tensor out = empty_metadata_tensor(
-            bcast,
-            at::kLong,
-            self.device());
-        tensor_add_i64(self, other, out);
-        return out;
-#else
         TORCH_CHECK(
             false,
-            "nntile add.Tensor int64 requires torch-native ops");
-#endif
+            "nntile add.Tensor int64 is not supported by the classic "
+            "nntile kernel stack");
     }
     check_add_dtypes(self, other);
     std::vector<int64_t> out_sizes =
@@ -287,41 +224,18 @@ at::Tensor &add__tensor(
     if (self.scalar_type() == at::kLong &&
         other.scalar_type() == at::kLong)
     {
-#ifdef NNTILE_TORCH_NATIVE_OPS
-        TORCH_CHECK(
-            alpha.to<double>() == 1.0,
-            "nntile add_.Tensor int64: alpha must be 1");
-        at::Tensor tmp = empty_metadata_tensor(
-            self.sizes(),
-            at::kLong,
-            self.device());
-        tensor_add_i64(self, other, tmp);
-        self.copy_(tmp);
-        return self;
-#else
         TORCH_CHECK(
             false,
-            "nntile add_.Tensor int64 requires torch-native ops");
-#endif
+            "nntile add_.Tensor int64 is not supported by the classic "
+            "nntile kernel stack");
     }
     check_add_dtypes(self, other);
     TORCH_CHECK(
         self.sizes().equals(
             at::infer_size(self.sizes(), other.sizes())),
         "nntile add_.Tensor: other must broadcast to self");
-#ifdef NNTILE_TORCH_NATIVE_OPS
-    tensor_add_inplace_fp32(
-        alpha.to<float>(),
-        other,
-        1.0f,
-        self);
-    return self;
-#elif defined(NNTILE_NNTILE_NATIVE_OPS)
     classic_add_inplace(self, other, alpha.to<float>());
     return self;
-#else
-    TORCH_CHECK(false, "nntile add_ is not available in this build");
-#endif
 }
 
 at::Tensor &add__scalar(

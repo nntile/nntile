@@ -9,8 +9,9 @@ from __future__ import annotations
 import torch
 from conftest import nntile_cpu
 
-from torch_nntile.nn.model.mlp_mixer import (
-    MlpMixer, MlpMixerConfig, MlpMixerCpu, copy_cpu_weights_to_nntile)
+from torch_nntile.nn.model.mlp_mixer import (MlpMixer, MlpMixerConfig,
+                                             MlpMixerCpu,
+                                             copy_cpu_weights_to_nntile)
 
 
 def _tiny_config() -> MlpMixerConfig:

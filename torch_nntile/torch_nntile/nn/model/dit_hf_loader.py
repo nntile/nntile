@@ -8,8 +8,8 @@
 
 from __future__ import annotations
 
-from torch_nntile.nn.linear import (
-    linear_to_output_weight, linear_to_qkv_bias, linear_to_qkv_weight)
+from torch_nntile.nn.linear import (linear_to_output_weight,
+                                    linear_to_qkv_bias, linear_to_qkv_weight)
 from torch_nntile.nn.model.dit import _ADA_MOD_NAMES, DiT, DiTConfig
 from torch_nntile.nn.model.hf_rope_layout import copy_linear
 

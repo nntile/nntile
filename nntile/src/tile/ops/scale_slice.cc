@@ -5,7 +5,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/src/tile_graph/scale_slice.cc
  * TileGraph scale slice operation implementation.
@@ -28,7 +28,7 @@ namespace
 template<typename T>
 void run(Runtime& rt, Scalar a, TileGraph::TileNode* s, TileGraph::TileNode* d, Index ax)
 {
-    nntile::core::scale_slice<T>(rt.starpu_worker_hint(), a, rt.get_tile<T>(s), rt.get_tile<T>(d), ax);
+    nntile::core::scale_slice<T>(rt.worker_hint(), a, rt.get_tile<T>(s), rt.get_tile<T>(d), ax);
 }
 } // namespace
 void scale_slice(Scalar a, TileGraph::TileNode* s, TileGraph::TileNode* d, Index axis)

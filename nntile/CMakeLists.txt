@@ -4,10 +4,10 @@
 #                              (AIRI), Russia. All rights reserved.
 #
 # NNTile is software framework for fast training of big neural networks on
-# distributed-memory heterogeneous systems based on StarPU runtime system.
+# distributed-memory heterogeneous systems with GPU acceleration.
 #
 # @file nntile/CMakeLists.txt
-# libnntile: kernel -> starpu -> core -> TileGraph -> TensorGraph -> Runtime.
+# libnntile: kernel -> nnhaul -> core -> TileGraph -> TensorGraph -> Runtime.
 #
 # @version 1.1.0
 
@@ -18,13 +18,17 @@ endif()
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
+# NNTILE_DISABLED_KERNELS and nntile_filter_disabled_kernel_tests() are
+# defined by cmake/NNTileKernelScope.cmake, included from the top level so
+# tests-only builds see them too.
+
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/include/nntile/defs.h.in"
     "${PROJECT_BINARY_DIR}/include/nntile/defs.h"
     @ONLY
 )
 
-# TensorGraph stack: kernel -> starpu -> core -> tile -> tensor -> runtime.
+# TensorGraph stack: kernel -> nnhaul -> core -> tile -> tensor -> runtime.
 add_library(nntile)
 add_library(nntile::nntile ALIAS nntile)
 target_sources(nntile PRIVATE
@@ -42,23 +46,9 @@ target_include_directories(nntile PUBLIC
 )
 nntile_apply_common_includes(nntile)
 nntile_apply_cuda(nntile)
-nntile_apply_cblas(nntile)
-if(HAVE_STARPU_SIMGRID)
-    target_compile_definitions(nntile PUBLIC STARPU_SIMGRID)
-endif()
-if(NNTILE_TORCH_NATIVE_OPS)
-    if(NOT Torch_FOUND)
-        find_package(Torch REQUIRED)
-    endif()
-    target_link_libraries(nntile PUBLIC ${TORCH_LIBRARIES})
-    # defs.h already #cmakedefine's this; avoid -D redefinition warnings.
-    message(STATUS "libnntile links LibTorch (NNTILE_TORCH_NATIVE_OPS)")
-endif()
 
 add_subdirectory(src)
 
-# Classic kernel/op suites always register. When NNTILE_TORCH_NATIVE_OPS
-# is ON, the torch_native layer suite is added as well.
 if(BUILD_TESTING)
     add_subdirectory(tests)
 endif()
@@ -111,6 +101,5 @@ install(
     FILES
         "${CMAKE_CURRENT_BINARY_DIR}/nntileConfig.cmake"
         "${CMAKE_CURRENT_BINARY_DIR}/nntileConfigVersion.cmake"
-        "${PROJECT_SOURCE_DIR}/cmake/NNTileFindStarPU.cmake"
     DESTINATION ${_nntile_cmake_dir}
 )

@@ -17,8 +17,8 @@ from torch import Tensor
 from torch_nntile.nn import Embedding, LayerNorm
 from torch_nntile.nn.functional import add
 from torch_nntile.nn.linear import NntileLinear
-from torch_nntile.nn.model.bert import (
-    BertConfig, BertEncoder, _bert_activation)
+from torch_nntile.nn.model.bert import (BertConfig, BertEncoder,
+                                        _bert_activation)
 
 
 @dataclass

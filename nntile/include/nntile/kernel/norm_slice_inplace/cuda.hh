@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/kernel/norm_slice_inplace/cuda.hh
  * Euclidean norms of fibers into a slice of a buffer on CUDA
@@ -42,7 +42,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
  * with the shared max-rescale and atomicAdd reduction), so the result equals
  * cuda()'s up to the same atomic ordering nondeterminism the general branch
  * already has - and is bitwise cuda()'s on the m==1 branch, which has no
- * atomics. There is no chunk-count cap.
+ * atomics. There is no per-operand chunk-count cap; the launch total is bounded by the 2^20-slot chunk-ptr transport.
  *
  * @param[in] stream: CUDA stream
  * @param[in] m: Size of the first mode of src and dst

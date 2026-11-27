@@ -5,7 +5,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/src/tensor_graph/gemm.cc
  * TensorGraph GEMM operation implementation.
@@ -225,6 +225,13 @@ void gemm(TensorGraph::TensorNode *a,
     {
         throw std::invalid_argument(
             "gemm: input tensors must have the same dtype");
+    }
+    if (a == b || a == c || b == c)
+    {
+        throw std::invalid_argument(
+            "gemm: the NNHaul backend needs three distinct tensors "
+            "(one TILE_OP carries one operand run per tile); copy the "
+            "shared input first");
     }
 
     validate_gemm_shape_and_merge(a, b, c, trans_a, trans_b, ndim, batch_ndim);

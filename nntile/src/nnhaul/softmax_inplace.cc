@@ -4,10 +4,10 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file src/starpu/softmax_inplace.cc
- * Inplace softmax operation for StarPU buffer
+ * @file src/nnhaul/softmax_inplace.cc
+ * Inplace softmax operation for NNHaul buffer
  *
  * @version 1.2.0
  * */
@@ -25,9 +25,8 @@
 #include "nntile/kernel/softmax_inplace.hh"
 #include "nntile/nnhaul/chunk_units.hh"
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
-
 
 // ---------------------------------------------------------------------------
 // Native chunked softmax_inplace driver (chunk_units.hh scheme; see the
@@ -130,13 +129,9 @@ void SoftmaxInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get interfaces
     auto buf_mse = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
-    if((buf_mse->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+    if((buf_mse->chunk_count() == 1) && (buf_dst->chunk_count() == 1)
        )
     {
-        // Classic contiguous dispatch: illegal under the force flag
-        // (the tripwire proves it never happens in a flag-on run).
-        chunkunits::classic_dispatch_tripwire("nntile_softmax_inplace", false);
-        // Unchunked fast path: the historical single kernel call, bitwise
         kernel::softmax_inplace::cpu<T>(args->m, args->n, args->k,
             buf_mse->get_ptr<T>(), args->alpha, buf_dst->get_ptr<T>());
         return;
@@ -205,13 +200,9 @@ void SoftmaxInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    if((buf_mse->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+    if((buf_mse->chunk_count() == 1) && (buf_dst->chunk_count() == 1)
        )
     {
-        // Classic contiguous dispatch: illegal under the force flag
-        // (the tripwire proves it never happens in a flag-on run).
-        chunkunits::classic_dispatch_tripwire("nntile_softmax_inplace", false);
-        // Unchunked fast path: the historical single kernel call, bitwise
         kernel::softmax_inplace::cuda<T>(stream, args->m, args->n, args->k,
             buf_mse->get_ptr<T>(), args->alpha, buf_dst->get_ptr<T>());
         return;
@@ -222,7 +213,7 @@ void SoftmaxInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // mapped host memory (shared arena, reused across instances); the kernel
     // table via per-thread shift/mask reads. The elementwise formula is
     // byte-for-byte cuda()'s, so the result is bitwise cuda()'s. (The
-    // historical piecewise fallback is DELETED -- rule 11: a launch the
+    // historical piecewise fallback has been deleted: a launch the
     // table cannot serve aborts.)
     chunkunits::ChunkView<T> const cv_mse(buf_mse);
     chunkunits::ChunkView<T> const cv_dst(buf_dst);
@@ -250,17 +241,15 @@ void SoftmaxInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
             }
         }
     }
-        // (rule 11, user directive 2026-10-19) There is no per-piece
+        // There is no per-piece
     // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot table
     // serve any launch up to a 16 TiB operand, so a failed upload is an
     // invariant violation, not a mode to stage around.
     std::fprintf(stderr,
         "nntile_softmax_inplace: chunk-ptr table cannot serve this launch (invariant "
-        "violation; the per-piece staging fallback was deleted by rule "
-        "11)\n");
+        "violation; no per-piece staging fallback exists)\n");
     std::abort();
 }
-
 
 // Specializations of CUDA wrapper for accelerated types
 template<>
@@ -304,18 +293,18 @@ std::uint64_t SoftmaxInplace<std::tuple<T>>::footprint(void const *cl_args, std:
     // n and k, then the total size of buffers will remain the same, but the
     // footprint will be different
     uint32_t hash = 0;
-    hash = ::nntile::haul::fnv1a(&args->m, sizeof(args->m), hash);
-    hash = ::nntile::haul::fnv1a(&args->n, sizeof(args->n), hash);
-    hash = ::nntile::haul::fnv1a(&args->k, sizeof(args->k), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->m, sizeof(args->m), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->n, sizeof(args->n), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->k, sizeof(args->k), hash);
     return hash;
 }
 
 template<typename T>
-void SoftmaxInplace<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, Index k, ::nnhaul::Handle & maxsumexp, Scalar alpha,
+void SoftmaxInplace<std::tuple<T>>::submit(int worker_hint, Index m, Index n, Index k, ::nnhaul::Handle & maxsumexp, Scalar alpha,
         ::nnhaul::Handle & dst)
-//! Insert softmax_inplace task into StarPU pool of tasks
+//! Insert softmax_inplace task into NNHaul task pool
 /*! No argument checking is performed. All the inputs are packed and passed to
- * nntile_starpu_task_insert() function. If task submission fails, this routines
+ * submit() call. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
@@ -330,8 +319,8 @@ void SoftmaxInplace<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Inde
     // Submit task: the BODY picks the unchunked fast path or the native
     // chunked unit driver; softmax_inplace never stages.
     (void)nflops;
-    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
-        { { STARPU_R, &maxsumexp }, { STARPU_RW, &dst } }, args, sizeof(*args));
+    ::nntile::nnhaul::insert_task(codelet.raw, worker_hint,
+        { { ACCESS_R, &maxsumexp }, { ACCESS_RW, &dst } }, args, sizeof(*args));
     std::free(args);
 
 }
@@ -350,4 +339,4 @@ template class SoftmaxInplace<std::tuple<nntile::fp16_t>>;
 //! Pack of softmax_inplace operations for different types
 softmax_inplace_pack_t softmax_inplace;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

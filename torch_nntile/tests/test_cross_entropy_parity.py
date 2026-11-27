@@ -8,9 +8,8 @@ import pytest
 import torch
 import torch.nn.functional as F
 from conftest import nntile_cpu
-from torch_nntile.training import cross_entropy
 
-import torch_nntile
+from torch_nntile.training import cross_entropy
 
 
 def test_cross_entropy_forward_mean_matches_cpu():
@@ -34,9 +33,7 @@ def test_cross_entropy_forward_mean_matches_cpu():
 def test_cross_entropy_no_grad_skips_autograd_fn():
     """Inference must not attach grad_fn or retain maxsumexp via Function."""
     torch.manual_seed(2)
-    logits = torch.randn(4, 3, dtype=torch.float32, requires_grad=True).to(
-        "nntile"
-    )
+    logits = torch.randn(4, 3, dtype=torch.float32, requires_grad=True).to("nntile")
     target = torch.randint(0, 3, (4,)).to("nntile")
     with torch.no_grad():
         loss = cross_entropy(logits, target, reduction="mean")
@@ -65,9 +62,7 @@ def test_cross_entropy_forward_sum_matches_cpu():
 def test_cross_entropy_backward_matches_cpu():
     torch.manual_seed(2)
     batch, classes = 6, 4
-    logits_cpu = torch.randn(
-        batch, classes, dtype=torch.float32, requires_grad=True
-    )
+    logits_cpu = torch.randn(batch, classes, dtype=torch.float32, requires_grad=True)
     target = torch.randint(0, classes, (batch,))
 
     loss_cpu = F.cross_entropy(logits_cpu, target, reduction="mean")
@@ -109,11 +104,7 @@ def test_cross_entropy_backward_multidim_labels_matches_cpu():
     assert torch.allclose(grad_nnt, grad_cpu, rtol=1e-4, atol=1e-4)
 
 
-@pytest.mark.skip(
-    reason="nntile mean cross_entropy uses 1/numel scale; PyTorch uses "
-    "1/count_non_ignore when ignore_index is set",
-)
-def test_cross_entropy_ignore_index_matches_cpu():
+def test_cross_entropy_ignore_index_sum_matches_cpu():
     torch.manual_seed(3)
     batch, classes = 5, 3
     logits_cpu = torch.randn(batch, classes, dtype=torch.float32)
@@ -123,14 +114,14 @@ def test_cross_entropy_ignore_index_matches_cpu():
     loss_cpu = F.cross_entropy(
         logits_cpu,
         target,
-        reduction="mean",
+        reduction="sum",
         ignore_index=ignore_index,
     )
     logits_nnt = logits_cpu.detach().to("nntile")
     loss_nnt = cross_entropy(
         logits_nnt,
         target.to("nntile"),
-        reduction="mean",
+        reduction="sum",
         ignore_index=ignore_index,
     )
 
@@ -140,6 +131,21 @@ def test_cross_entropy_ignore_index_matches_cpu():
         rtol=1e-4,
         atol=1e-4,
     )
+
+
+def test_cross_entropy_mean_with_ignore_index_is_rejected():
+    # PyTorch divides by the non-ignored count; nntile's fused reduction
+    # cannot, so the unsupported combination is rejected instead of
+    # returning a silently mis-scaled mean.
+    logits_nnt = torch.randn(5, 3, dtype=torch.float32).to("nntile")
+    target = torch.tensor([0, 1, -100, 2, -100], dtype=torch.long).to("nntile")
+    with pytest.raises(ValueError, match="use reduction='sum'"):
+        cross_entropy(
+            logits_nnt,
+            target,
+            reduction="mean",
+            ignore_index=-100,
+        )
 
 
 def test_cross_entropy_rejects_cpu_target():

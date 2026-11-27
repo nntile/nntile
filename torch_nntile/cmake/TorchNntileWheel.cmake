@@ -13,7 +13,7 @@ find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
 set(TORCH_NNTILE_WHEELHOUSE "${CMAKE_BINARY_DIR}/wheelhouse"
     CACHE PATH "Output directory for torch_nntile wheels")
-set(TORCH_NNTILE_WHEEL_VERSION "0.1.0"
+set(TORCH_NNTILE_WHEEL_VERSION "2.0.0"
     CACHE STRING "torch_nntile wheel version (TORCH_NNTILE_WHEEL_VERSION)")
 option(TORCH_NNTILE_WHEEL_REPAIR
     "Run auditwheel/delocate after pip wheel (ON for manylinux CI; OFF for local)"
@@ -67,24 +67,14 @@ else()
         "-DTORCH_NNTILE_PREFIX=... / -DNNTILE_PREFIX=...")
 endif()
 
-if(NNTILE_TORCH_NATIVE_OPS)
-    set(_wheel_torch_native "1")
-else()
-    set(_wheel_torch_native "0")
-endif()
-if(NNTILE_NNTILE_NATIVE_OPS)
-    set(_wheel_nntile_native "1")
-else()
-    set(_wheel_nntile_native "0")
-endif()
-
 set(_wheel_env
     "TORCH_NNTILE_WHEEL=1"
     "TORCH_NNTILE_WHEEL_VERSION=${TORCH_NNTILE_WHEEL_VERSION}"
     "NNTILE_SOURCE_DIR=${PROJECT_SOURCE_DIR}"
-    "NNTILE_TORCH_NATIVE_OPS=${_wheel_torch_native}"
-    "NNTILE_NNTILE_NATIVE_OPS=${_wheel_nntile_native}"
 )
+if(NOT TORCH_NNTILE_WHEEL_REPAIR)
+    list(APPEND _wheel_env "TORCH_NNTILE_WHEEL_BUILD_RPATH=1")
+endif()
 if(_wheel_nntile_build_dir)
     list(APPEND _wheel_env "NNTILE_BUILD_DIR=${_wheel_nntile_build_dir}")
 endif()
@@ -124,16 +114,12 @@ set(_wheel_build_script
     "${CMAKE_CURRENT_BINARY_DIR}/build_torch_nntile_wheel.sh")
 set(_repair_linux
     "${PROJECT_SOURCE_DIR}/torch_nntile/tools/repair_wheel_linux.sh")
-set(_repair_macos
-    "${PROJECT_SOURCE_DIR}/torch_nntile/tools/repair_wheel_macos.sh")
 set(_wheel_pkg_dir "${PROJECT_SOURCE_DIR}/torch_nntile")
 
 # Prefer CMAKE_CURRENT_SOURCE_DIR when included from torch_nntile/.
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tools/repair_wheel_linux.sh")
     set(_repair_linux
         "${CMAKE_CURRENT_SOURCE_DIR}/tools/repair_wheel_linux.sh")
-    set(_repair_macos
-        "${CMAKE_CURRENT_SOURCE_DIR}/tools/repair_wheel_macos.sh")
     set(_wheel_pkg_dir "${CMAKE_CURRENT_SOURCE_DIR}")
 endif()
 
@@ -177,13 +163,7 @@ file(APPEND "${_wheel_build_script}"
 )
 
 if(TORCH_NNTILE_WHEEL_REPAIR)
-    if(APPLE)
-        file(APPEND "${_wheel_build_script}"
-            "for w in \"\${raw_wheels[@]}\"; do\n"
-            "  bash \"${_repair_macos}\" \"\$w\" \"${TORCH_NNTILE_WHEELHOUSE}\" arm64\n"
-            "done\n"
-        )
-    elseif(UNIX)
+    if(UNIX AND NOT APPLE)
         file(APPEND "${_wheel_build_script}"
             "for w in \"\${raw_wheels[@]}\"; do\n"
             "  bash \"${_repair_linux}\" \"\$w\" \"${TORCH_NNTILE_WHEELHOUSE}\"\n"

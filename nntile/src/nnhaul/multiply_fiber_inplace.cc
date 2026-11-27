@@ -4,10 +4,10 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file src/starpu/multiply_fiber_inplace.cc
- * StarPU wrappers for per-element product of a tensor and a broadcasted fiber
+ * @file src/nnhaul/multiply_fiber_inplace.cc
+ * NNHaul wrappers for per-element product of a tensor and a broadcasted fiber
  *
  * @version 1.1.0
  * */
@@ -25,7 +25,7 @@
 #include "nntile/kernel/multiply_fiber_inplace.hh"
 #include "nntile/nnhaul/chunk_units.hh"
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 // ---------------------------------------------------------------------------
@@ -128,7 +128,7 @@ MultiplyFiberInplace<std::tuple<T>>::MultiplyFiberInplace():
     // Modes are not fixed, they are decided during runtime by default
 }
 
-//! StarPU wrapper for kernel::multiply_fiber_inplace::cpu<T>
+//! NNHaul wrapper for kernel::multiply_fiber_inplace::cpu<T>
 template<typename T>
 void MultiplyFiberInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
@@ -138,7 +138,7 @@ void MultiplyFiberInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get interfaces
     auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
-    if((buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+    if((buf_src->chunk_count() == 1) && (buf_dst->chunk_count() == 1)
        )
     {
         // Unchunked fast path: the historical single kernel call, bitwise
@@ -199,7 +199,7 @@ void MultiplyFiberInplace<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], vo
 }
 
 #ifdef NNTILE_USE_CUDA
-//! StarPU wrapper for kernel::multiply_fiber_inplace::cuda<T>
+//! NNHaul wrapper for kernel::multiply_fiber_inplace::cuda<T>
 template<typename T>
 void MultiplyFiberInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
@@ -211,7 +211,7 @@ void MultiplyFiberInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    if((buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+    if((buf_src->chunk_count() == 1) && (buf_dst->chunk_count() == 1)
        )
     {
         // Unchunked fast path: the historical single kernel call, bitwise
@@ -220,25 +220,32 @@ void MultiplyFiberInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
             buf_dst->get_ptr<T>());
         return;
     }
-    chunkunits::ArenaCuda<T> arena(stream);
-    multiply_fiber_inplace_chunked<T>(
-        args->m,
-        args->n,
-        args->k,
-        args->alpha,
-        buf_src,
-        buf_dst,
-        arena,
-        [stream](Index mm, Index nn, Index kk, Scalar al, T const *p1,
-            T *pd) {
-            kernel::multiply_fiber_inplace::cuda<T>(stream, mm, nn, kk, al,
-                p1, pd);
-        });
-    if(!arena.ok_state())
+    chunkunits::ChunkView<T> const cvs(buf_src);
+    chunkunits::ChunkView<T> const cvd(buf_dst);
+    chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
+    tabs.clear();
+    std::size_t const o_ps = tabs.add(cvs);
+    std::size_t const o_pd = tabs.add(cvd);
+    chunkunits::ChunkPtrTable &arena = chunkunits::chunk_ptr_table();
+    if(arena.begin(stream))
     {
+        void const *table_base = arena.upload_tables(tabs);
+        if(table_base != nullptr)
+        {
+            kernel::multiply_fiber_inplace::chunked<T>(stream, args->m,
+                args->n, args->k, args->alpha,
+                arena.table_view<const T *>(table_base, o_ps),
+                Index(cvs.nchunks),
+                arena.table_view<T *>(table_base, o_pd),
+                Index(cvd.nchunks),
+                Index(cvs.chunk_elems), Index(cvd.chunk_elems));
+            arena.end(stream);
+            return;
+        }
         std::fprintf(stderr,
-            "nntile_multiply_fiber_inplace: chunked CUDA driver aborted "
-            "after a stream error; dst left unwritten\n");
+            "nntile_multiply_fiber_inplace: chunk-ptr table cannot serve "
+            "this launch\n");
+        std::abort();
     }
 }
 
@@ -283,17 +290,17 @@ std::uint64_t MultiplyFiberInplace<std::tuple<T>>::footprint(void const *cl_args
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Apply hash over parameters m, n and k
     uint32_t hash = 0;
-    hash = ::nntile::haul::fnv1a(&args->m, sizeof(args->m), hash);
-    hash = ::nntile::haul::fnv1a(&args->n, sizeof(args->n), hash);
-    hash = ::nntile::haul::fnv1a(&args->k, sizeof(args->k), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->m, sizeof(args->m), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->n, sizeof(args->n), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->k, sizeof(args->k), hash);
     return hash;
 }
 
 template<typename T>
-void MultiplyFiberInplace<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, Index k, Scalar alpha, ::nnhaul::Handle & src, ::nnhaul::Handle & dst)
-//! Insert multiply_fiber_inplace task into StarPU pool of tasks
+void MultiplyFiberInplace<std::tuple<T>>::submit(int worker_hint, Index m, Index n, Index k, Scalar alpha, ::nnhaul::Handle & src, ::nnhaul::Handle & dst)
+//! Insert multiply_fiber_inplace task into NNHaul task pool
 /*! No argument checking is performed. All the inputs are packed and passed to
- * nntile_starpu_task_insert() function. If task submission fails, this routines
+ * submit() call. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
@@ -308,8 +315,8 @@ void MultiplyFiberInplace<std::tuple<T>>::submit(int starpu_worker_hint, Index m
     // Submit task: the BODY picks the unchunked fast path or the native
     // chunked fiber driver; multiply_fiber_inplace never stages.
     (void)nflops;
-    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
-        { { STARPU_R, &src }, { STARPU_RW, &dst } }, args, sizeof(*args));
+    ::nntile::nnhaul::insert_task(codelet.raw, worker_hint,
+        { { ACCESS_R, &src }, { ACCESS_RW, &dst } }, args, sizeof(*args));
     std::free(args);
 
 }
@@ -328,4 +335,4 @@ template class MultiplyFiberInplace<std::tuple<nntile::fp16_t>>;
 //! Pack of multiply_fiber_inplace operations for different types
 multiply_fiber_inplace_pack_t multiply_fiber_inplace;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

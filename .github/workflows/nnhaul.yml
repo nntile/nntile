@@ -1,0 +1,91 @@
+# @copyright (c) 2026-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#
+# @file .github/workflows/nnhaul.yml
+# The default-product CI: the vendored NNHaul backend on a CUDA GPU.
+#
+# The GPU job needs a self-hosted runner with: CUDA toolkit (nvcc, cuBLAS,
+# cuDNN), CMake >= 3.24, Ninja, a C++17 compiler, and PyTorch when the
+# torch_nntile product is built. Label the runner group below accordingly.
+#
+# @version 1.1.0
+
+name: NNHaul backend
+
+on:
+  pull_request:
+  push:
+    branches: [torch_nntile, main, nntile-2.0]
+  workflow_dispatch:
+
+concurrency:
+  group: nnhaul-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  nnhaul-gpu:
+    name: default product (NNHaul) build and suites
+    # Self-hosted GPU runner: hosted runners have no CUDA device.
+    runs-on: [self-hosted, linux, gpu, cuda]
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: configure
+        run: |
+          cmake -S . -B build-nnhaul -GNinja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DBUILD_LIBTORCH_NNTILE=OFF \
+            -DBUILD_TORCH_NNTILE=OFF \
+            -DNNHAUL_BUILD_TESTS=ON \
+            -DBUILD_TESTING=ON
+
+      - name: build
+        run: cmake --build build-nnhaul -j"$(nproc)"
+
+      - name: nnhaul runtime suite
+        run: |
+          export LD_LIBRARY_PATH="$PWD/build-nnhaul/nntile:$PWD/build-nnhaul/nnhaul:${LD_LIBRARY_PATH:-}"
+          ctest --test-dir build-nnhaul \
+            -R '^(nnhaul_|trace_analyzer$|trace_pipeline$)' \
+            --output-on-failure --no-tests=error
+
+      - name: nntile suite on NNHaul (4 MiB chunk class)
+        run: NNHAUL_CHUNK_SIZE_MB=4 sh tools/run_chunked_suite.sh build-nnhaul
+
+      - name: nntile suite on NNHaul (1 MiB chunk class)
+        run: NNHAUL_CHUNK_SIZE_MB=1 sh tools/run_chunked_suite.sh build-nnhaul
+
+      - name: nntile suite on NNHaul (2 MiB chunk class)
+        run: NNHAUL_CHUNK_SIZE_MB=2 sh tools/run_chunked_suite.sh build-nnhaul
+
+  torch-classic:
+    name: torch_nntile classic product
+    runs-on: [self-hosted, linux, gpu, cuda]
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: configure product
+        run: |
+          TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
+          cmake -S . -B build-torch -GNinja             -DCMAKE_BUILD_TYPE=RelWithDebInfo             -DCMAKE_PREFIX_PATH="$TORCH_PREFIX"
+
+      - name: build product
+        run: cmake --build build-torch -j"$(nproc)"
+
+      - name: install wheel
+        run: |
+          python3 -m pip install --force-reinstall --no-deps \
+            build-torch/wheelhouse/torch_nntile-*.whl
+
+      - name: wheel smoke
+        run: python3 torch_nntile/tools/smoke_test_wheel.py
+
+      - name: Python tests
+        env:
+          NNTILE_ENABLE_LOCAL_COMPILER: "1"
+        run: |
+          python3 -m pip install pytest
+          cd torch_nntile
+          python3 -m pytest -q tests

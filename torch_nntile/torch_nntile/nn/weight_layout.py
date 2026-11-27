@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from typing import Literal
 
-import torch
 from torch import Tensor
 
 _QKV_KEYS = ("q_weight", "k_weight", "v_weight")

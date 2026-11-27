@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/core/sumprod_slice.hh
  * Scalar product of slices of two Tile<T>
@@ -20,11 +20,11 @@ namespace nntile::core
 {
 
 template<typename T>
-void sumprod_slice_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
+void sumprod_slice_async(int worker_hint, Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
         Scalar beta, const Tile<T> &dst, Index axis, int redux=0);
 
 template<typename T>
-void sumprod_slice(int starpu_worker_hint, Scalar alpha, const Tile<T> &src1, const Tile<T> &src2, Scalar beta,
+void sumprod_slice(int worker_hint, Scalar alpha, const Tile<T> &src1, const Tile<T> &src2, Scalar beta,
         const Tile<T> &dst, Index axis, int redux=0);
 
 } // namespace nntile::core

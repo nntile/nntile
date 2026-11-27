@@ -5,7 +5,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/src/tile_graph/total_sum_accum.cc
  * TileGraph total sum accum operation implementation.
@@ -35,7 +35,7 @@ void run(
     TileGraph::TileNode* v,
     Index ig)
 {
-    nntile::core::total_sum_accum<T>(runtime.starpu_worker_hint(), 
+    nntile::core::total_sum_accum<T>(runtime.worker_hint(),
         a, runtime.get_tile<T>(lse), runtime.get_tile<T>(s), runtime.get_tile<nntile::int64_t>(cl), runtime.get_tile<nntile::fp32_t>(v), ig);
 }
 } // namespace

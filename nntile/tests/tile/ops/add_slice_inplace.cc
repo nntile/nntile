@@ -5,7 +5,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tile_graph/add_slice_inplace.cc
  * Test TileGraph add slice inplace vs nntile::core (parity).
@@ -47,14 +47,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph add_slice_inplace", "[
     const std::vector<float> gout = rt.get_output<float>(t2);
     nntile::core::Tile<fp32_t> T1(t1s), T2(t2s);
     using Y = typename nntile::fp32_t::repr_t;
-    { auto A = T1.acquire(STARPU_W), B = T2.acquire(STARPU_W);
+    { auto A = T1.acquire(ACCESS_W), B = T2.acquire(ACCESS_W);
       for(Index i = 0; i < n1; ++i) A[i] = Y(v1[static_cast<size_t>(i)]);
       for(Index i = 0; i < n2; ++i) B[i] = Y(0.1f * static_cast<float>(i + 1));
       A.release(); B.release(); }
     nntile::core::add_slice_inplace<fp32_t>(-1, a, T1, b, T2, axis);
-    starpu_task_wait_for_all();
+    task_wait_for_all();
     std::vector<float> tref(60);
-    { auto L = T2.acquire(STARPU_R);
+    { auto L = T2.acquire(ACCESS_R);
       for(Index i = 0; i < 60; ++i) tref[static_cast<size_t>(i)] = static_cast<float>(L[i]);
       L.release(); }
     nntile::test::require_relative_element_error(gout, tref);

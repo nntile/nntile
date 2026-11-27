@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/kernel/cuda.hh
  * CUDA-related compute types
@@ -32,15 +32,12 @@
 #include <cstdio>
 #include <cstdlib>
 
-#ifdef NNTILE_USE_NNHAUL
-// One source of truth for the chunk class (rule 7): the kernel-side
-// constant below must equal nnhaul::kChunkClassBytes in every NNHaul
-// build (kernel translation units see the public macro through the
-// target's PUBLIC definition). The kernel files must also build in the
-// StarPU configuration, where the nnhaul headers are absent -- hence
-// the restatement inside the namespace instead of an alias.
+// One source of truth for the chunk class: the kernel-side
+// constant below must equal nnhaul::kChunkClassBytes (kernel translation
+// units see the public macro through the target's PUBLIC definition).
+// The value is restated inside the namespace to keep the public header
+// free of an engine alias.
 #include <nnhaul/nnhaul.hh>
-#endif
 
 namespace nntile::kernel
 {
@@ -143,7 +140,7 @@ const typename CUDAComputeType<T>::value *cast_pointer_cuda(const T *ptr)
         } \
     } while (0)
 
-// ---- (rule 7) the runtime chunk class of the chunked kernels ----
+// ----  the runtime chunk class of the chunked kernels ----
 //
 // The ONE chunk class is a power of two and a RUNTIME value: the
 // process-wide size is initialized by nnhaul from the
@@ -154,8 +151,8 @@ const typename CUDAComputeType<T>::value *cast_pointer_cuda(const T *ptr)
 // tables). A single-chunk operand uses the sentinel shift 62 (every
 // flat offset stays in chunk 0) and an all-ones mask.
 //
-// StarPU builds (no nnhaul headers) keep a runtime default of 16 MiB;
-// the chunked kernels are only dispatched through the NNHaul backend.
+// The chunk class is always the configured nnhaul chunk class; chunked
+// kernels are dispatched only through NNHaul.
 //
 // Scope of the "no runtime divisor" claim is unchanged: chunk paging
 // is pure shift/mask; only straddling-run room arithmetic divides.
@@ -180,28 +177,20 @@ struct ChunkClass
     int shift = 0;        //!< log2(class size), the shift count
 };
 
-#ifdef NNTILE_USE_NNHAUL
 //! The process-wide runtime chunk class (size - 1 and log2(size)).
 inline ChunkClass chunk_class() noexcept
 {
     return ChunkClass{::nnhaul::chunk_class_mask(),
         ::nnhaul::chunk_class_shift()};
 }
-#else
-inline ChunkClass chunk_class() noexcept
-{
-    constexpr std::size_t bytes = std::size_t{16} << 20;
-    return ChunkClass{bytes - 1, chunk_log2(bytes)};
-}
-#endif
 
 //! Sentinel shift of a single-chunk operand: everything in chunk 0.
 inline constexpr int kChunkSingleShift = 62;
 
 //! Per-operand chunk shift: the class shift minus log2(sizeof(T)) for
 //! a multi-chunk operand -- aborting loudly unless its full chunk is
-//! exactly the runtime class (the invariant the nnhaul side
-//! guarantees) -- and the single-chunk sentinel otherwise. `elems` is
+//! exactly the runtime class (guaranteed by the runtime side) -- and
+//! the single-chunk sentinel otherwise. `elems` is
 //! the operand's full-chunk element count the caller derived from its
 //! buffer view; `cls` is the runtime class (mask + shift in bytes).
 template<typename T>
@@ -242,6 +231,50 @@ inline std::size_t chunk_mask_of(std::size_t nchunks,
     ChunkClass cls) noexcept
 {
     return nchunks > 1 ? cls.mask / sizeof(T) : ~std::size_t{0};
+}
+
+//! Read-only chunked operand view for one-launch kernels.
+template<typename T>
+struct ChunkConst
+{
+    const T* const* ptrs;
+    int shift;
+    long mask;
+
+    __device__ __forceinline__ const T *at(long i) const
+    {
+        return ptrs[i >> shift] + (i & mask);
+    }
+};
+
+//! Mutable chunked operand view for one-launch kernels.
+template<typename T>
+struct ChunkMut
+{
+    T* const* ptrs;
+    int shift;
+    long mask;
+
+    __device__ __forceinline__ T *at(long i) const
+    {
+        return ptrs[i >> shift] + (i & mask);
+    }
+};
+
+template<typename T>
+inline ChunkConst<T> chunk_const(const T* const* ptrs, std::size_t nchunks,
+    std::size_t elems, ChunkClass cls, char const *op) noexcept
+{
+    return ChunkConst<T>{ptrs, chunk_shift_of<T>(nchunks, elems, cls, op),
+        static_cast<long>(chunk_mask_of<T>(nchunks, cls))};
+}
+
+template<typename T>
+inline ChunkMut<T> chunk_mut(T* const* ptrs, std::size_t nchunks,
+    std::size_t elems, ChunkClass cls, char const *op) noexcept
+{
+    return ChunkMut<T>{ptrs, chunk_shift_of<T>(nchunks, elems, cls, op),
+        static_cast<long>(chunk_mask_of<T>(nchunks, cls))};
 }
 
 } // namespace nntile::kernel

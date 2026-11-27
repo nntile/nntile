@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/kernel/multiply_fiber/cuda.hh
  * Per-element multiplication of a tensor by a broadcasted fiber on CUDA
@@ -43,7 +43,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
  * f / elems_s2, f % elems_s2 and f / elems_dst, f % elems_dst (shift/mask on the
  * runtime chunk class). The per-element arithmetic is
  * exactly cuda()'s, so the result is BITWISE the whole-buffer cuda() call.
- * There is no chunk-count cap.
+ * There is no per-operand chunk-count cap; the launch total is bounded by the 2^20-slot chunk-ptr transport.
  *
  * @param[in] stream: CUDA stream
  * @param[in] m: Size of the first mode of dst tensor

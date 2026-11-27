@@ -3,7 +3,7 @@
 #
 # @file torch_nntile/tests/test_models_classic_graph.py
 # C++ nntile-native models must record classic kernels on forward.
-# Backward may use aten::add (TORCH_BINARY) to combine fan-in grads.
+# Backward may use classic ADD / ADD_INPLACE to combine fan-in grads.
 # These are torch_nntile::models (ports of deleted nntile::model::*), not
 # Hugging Face torch.nn rewrites.
 
@@ -15,11 +15,6 @@ from classic_graph import assert_classic_graph
 
 import torch_nntile
 from torch_nntile import _C
-
-pytestmark = pytest.mark.skipif(
-    not getattr(torch_nntile, "NNTILE_NATIVE_OPS", False),
-    reason="classic nntile-native ops not built",
-)
 
 
 def _ids(batch: int = 2, seq: int = 8, vocab: int = 128) -> torch.Tensor:

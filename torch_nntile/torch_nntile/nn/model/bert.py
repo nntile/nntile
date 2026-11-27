@@ -16,9 +16,8 @@ from torch import Tensor
 
 from torch_nntile.nn import GELU, Embedding, LayerNorm, ReLU, SiLU
 from torch_nntile.nn.functional import add
-from torch_nntile.nn.linear import (
-    NntileAttentionOutput, NntileLinear, NntileQKVProjection,
-    prepare_sdpa_mask)
+from torch_nntile.nn.linear import (NntileAttentionOutput, NntileLinear,
+                                    NntileQKVProjection, prepare_sdpa_mask)
 from torch_nntile.nn.sdpa import sdpa_kernel
 
 

@@ -9,15 +9,20 @@
 from __future__ import annotations
 
 import torch
-from transformers import LlamaConfig as HfLlamaConfig, LlamaForCausalLM
+from transformers import LlamaConfig as HfLlamaConfig
+from transformers import LlamaForCausalLM
 
-from torch_nntile.nn.linear import (
-    gqa_output_to_linear_weight, gqa_q_to_linear_weight,
-    linear_to_gqa_output_weight, linear_to_gqa_q_weight,
-    linear_to_output_weight, linear_to_qkv_weight, output_to_linear_weight,
-    qkv_to_linear_weight)
-from torch_nntile.nn.model.hf_rope_layout import (
-    copy_linear, hf_to_nntile_qkv_weight, nntile_to_hf_qkv_weight)
+from torch_nntile.nn.linear import (gqa_output_to_linear_weight,
+                                    gqa_q_to_linear_weight,
+                                    linear_to_gqa_output_weight,
+                                    linear_to_gqa_q_weight,
+                                    linear_to_output_weight,
+                                    linear_to_qkv_weight,
+                                    output_to_linear_weight,
+                                    qkv_to_linear_weight)
+from torch_nntile.nn.model.hf_rope_layout import (copy_linear,
+                                                  hf_to_nntile_qkv_weight,
+                                                  nntile_to_hf_qkv_weight)
 from torch_nntile.nn.model.llama import LlamaCausal, LlamaConfig
 
 

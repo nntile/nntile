@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tensor_graph/scale_inplace.cc
  * Test TensorGraph scale_inplace operation.
@@ -34,7 +34,7 @@ namespace
 
 constexpr Scalar alpha = 2.5;
 
-} 
+}
 
 TEST_CASE("TensorGraph scale_inplace structure", "[graph][tensor]")
 {

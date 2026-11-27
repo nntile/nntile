@@ -23,13 +23,6 @@ if(NOT Torch_FOUND)
     message(STATUS "LibTorch found: ${TORCH_INSTALL_PREFIX}")
 endif()
 
-if(NOT DEFINED NNTILE_NNTILE_NATIVE_OPS)
-    set(NNTILE_NNTILE_NATIVE_OPS ON)
-endif()
-if(NOT DEFINED NNTILE_TORCH_NATIVE_OPS)
-    set(NNTILE_TORCH_NATIVE_OPS ON)
-endif()
-
 set(TORCH_NNTILE_CSRC_COMMON
     csrc/nntile_allocator.cpp
     csrc/nntile_tensor_gc.cpp
@@ -43,7 +36,6 @@ set(TORCH_NNTILE_CSRC_COMMON
     csrc/nntile_gemm_layout.cpp
     csrc/nntile_add.cpp
     csrc/nntile_narrow.cpp
-    csrc/nntile_split.cpp
     csrc/nntile_norm.cpp
 )
 
@@ -74,71 +66,10 @@ set(TORCH_NNTILE_CSRC_CLASSIC
     csrc/models/mlp_mixer.cpp
 )
 
-set(TORCH_NNTILE_CSRC_ATEN
-    csrc/nntile_executor_torch_native.cpp
-    csrc/nntile_mul.cpp
-    csrc/nntile_cat.cpp
-    csrc/nntile_hypot.cpp
-    csrc/nntile_linear.cpp
-    csrc/nntile_relu.cpp
-    csrc/nntile_threshold_backward.cpp
-    csrc/nntile_silu.cpp
-    csrc/nntile_trig.cpp
-    csrc/nntile_silu_backward.cpp
-    csrc/nntile_gelu.cpp
-    csrc/nntile_gelu_backward.cpp
-    csrc/nntile_softmax.cpp
-    csrc/nntile_softmax_backward.cpp
-    csrc/nntile_mm.cpp
-    csrc/nntile_bmm.cpp
-    csrc/nntile_addmm.cpp
-    csrc/nntile_sum.cpp
-    csrc/nntile_embedding.cpp
-    csrc/nntile_sdpa_aten.cpp
-    csrc/nntile_sub.cpp
-    csrc/nntile_host_aten.cpp
-    csrc/nntile_log_softmax.cpp
-    csrc/nntile_nll_loss.cpp
-    csrc/nntile_avg_pool2d.cpp
-    csrc/nntile_adaptive_avg_pool2d.cpp
-    csrc/nntile_max_pool2d.cpp
-    csrc/nntile_upsample2d.cpp
-    csrc/nntile_convolution.cpp
-    csrc/nntile_batch_norm.cpp
-    csrc/nntile_layer_norm.cpp
-    csrc/nntile_broadcast_torch_native.cpp
-)
-
-if(NOT NNTILE_TORCH_NATIVE_OPS AND NOT NNTILE_NNTILE_NATIVE_OPS)
-    message(FATAL_ERROR
-        "At least one of NNTILE_TORCH_NATIVE_OPS or "
-        "NNTILE_NNTILE_NATIVE_OPS must be ON")
-endif()
-
-set(TORCH_NNTILE_CSRC ${TORCH_NNTILE_CSRC_COMMON})
-if(NNTILE_NNTILE_NATIVE_OPS)
-    list(APPEND TORCH_NNTILE_CSRC ${TORCH_NNTILE_CSRC_CLASSIC})
-    list(APPEND TORCH_NNTILE_CSRC csrc/nntile_broadcast.cpp)
-endif()
-if(NNTILE_TORCH_NATIVE_OPS)
-    list(APPEND TORCH_NNTILE_CSRC ${TORCH_NNTILE_CSRC_ATEN})
-    # Aten SDPA calls ``sdpa_forward`` / ``sdpa_backward`` in nntile_sdpa.cpp.
-    if(NOT NNTILE_NNTILE_NATIVE_OPS)
-        list(APPEND TORCH_NNTILE_CSRC
-            csrc/nntile_sdpa.cpp
-            csrc/nntile_executor.cpp)
-    endif()
-endif()
-
-if(NNTILE_TORCH_NATIVE_OPS AND NNTILE_NNTILE_NATIVE_OPS)
-    message(STATUS
-        "libtorch_nntile: torch-native aten + classic nntile kernels")
-elseif(NNTILE_TORCH_NATIVE_OPS)
-    message(STATUS "libtorch_nntile: torch-native aten only")
-else()
-    message(STATUS "libtorch_nntile: classic nntile kernels only")
-endif()
-
+set(TORCH_NNTILE_CSRC ${TORCH_NNTILE_CSRC_COMMON}
+    ${TORCH_NNTILE_CSRC_CLASSIC}
+    csrc/nntile_broadcast.cpp)
+message(STATUS "libtorch_nntile: classic nntile kernels")
 add_library(torch_nntile SHARED ${TORCH_NNTILE_CSRC})
 add_library(torch_nntile::torch_nntile ALIAS torch_nntile)
 
@@ -168,10 +99,6 @@ else()
     set(TORCH_NNTILE_BUILT_WITH_CUDA OFF)
 endif()
 message(STATUS "libtorch_nntile CUDA: ${TORCH_NNTILE_BUILT_WITH_CUDA}")
-
-if(BUILD_LIBTORCH_NNTILE_EXAMPLES)
-    add_subdirectory(examples/cpp)
-endif()
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/TorchNntileWheel.cmake")
 

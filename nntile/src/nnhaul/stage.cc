@@ -4,9 +4,9 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * @file src/nnhaul/stage.cc
- * State of the universal staging fallback: the chunked-handle registry
+ * State of the chunked-handle bookkeeping: the chunked-handle registry
  * and the live scratch-handle set (see nnhaul/stage.hh for the lifetime
- * scheme).
+ * scheme). The former universal staged fallback no longer exists.
  *
  * @version 1.1.0
  * */
@@ -20,7 +20,7 @@
 
 namespace nntile
 {
-namespace haul
+namespace nnhaul
 {
 namespace stage
 {
@@ -66,7 +66,7 @@ bool handle_is_chunked(::nnhaul::Handle &handle)
     // alive while the gate is off, so this cannot miss a live tile.
     // One chunk class (the new nnhaul engine): every tile decomposes
     // into whole chunk-class chunks, so chunkedness is the gate.
-    return ::nntile::haul::tile_chunking_enabled();
+    return ::nntile::nnhaul::tile_chunking_enabled();
 }
 
 std::size_t handle_chunk_bytes(::nnhaul::Handle &handle)
@@ -128,5 +128,5 @@ void drain_scratches()
 }
 
 } // namespace stage
-} // namespace haul
+} // namespace nnhaul
 } // namespace nntile

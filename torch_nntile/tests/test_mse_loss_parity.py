@@ -26,7 +26,7 @@ def test_mse_loss_backward_scales_by_grad_output():
     grad_cpu = x_cpu.grad.detach().clone()
 
     x_nnt = x_cpu.detach().clone().to("nntile").requires_grad_(True)
-    (weight * mse_loss(x_nnt, scale=1.0)).backward()
+    mse_loss(x_nnt, scale=weight).backward()
 
     assert torch.allclose(
         nntile_cpu(x_nnt.grad), grad_cpu, rtol=1e-4, atol=1e-4
@@ -48,7 +48,7 @@ def test_mse_loss_backward_sum_of_weighted_losses():
 
     x_nnt = x_cpu.detach().clone().to("nntile").requires_grad_(True)
     y_nnt = y_cpu.detach().clone().to("nntile").requires_grad_(True)
-    (w1 * mse_loss(x_nnt) + w2 * mse_loss(y_nnt)).backward()
+    (mse_loss(x_nnt, scale=w1) + mse_loss(y_nnt, scale=w2)).backward()
 
     assert torch.allclose(
         nntile_cpu(x_nnt.grad), x_grad_cpu, rtol=1e-4, atol=1e-4

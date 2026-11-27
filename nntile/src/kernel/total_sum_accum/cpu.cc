@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/total_sum_accum/cpu.cc
  * Total sum accumulated of a buffer on CPU
@@ -45,7 +45,7 @@ void cpu(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index, cons
     auto labels = reinterpret_cast<const I *>(labels_);
     for(Index i = 0; i < n_outputs; ++i)
     {
-        if (labels[i] != ignore_index)
+        if (labels[i] != ignore_index && labels[i] >= 0 && labels[i] < n_labels)
         {
             // Kahan summation rule for the following:
             //      *val += logsumexp[i] - src[labels[i] + i*n_labels];

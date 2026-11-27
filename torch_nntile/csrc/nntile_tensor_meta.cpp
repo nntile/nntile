@@ -90,7 +90,16 @@ nntile::TensorRef tensor_ref(const at::Tensor &tensor)
     {
         return nntile::TensorRef{};
     }
-    return meta->ref;
+    nntile::TensorRef ref = meta->ref;
+    // A reset/shutdown destroys the owning TensorGraph. Using such a
+    // tensor afterwards must fail loudly: every consumer dereferences the
+    // raw node, and the node's storage is gone (and may have been reused).
+    TORCH_CHECK(
+        !ref || ref.is_current(),
+        "torch_nntile: this nntile tensor belongs to a destroyed graph "
+        "session (reset_graph_session/shutdown_context was called); move "
+        "the value to a new nntile tensor before using it again");
+    return ref;
 }
 
 nntile::TensorGraph::TensorNode *nntile_node(const at::Tensor &tensor)
@@ -119,4 +128,3 @@ void share_tensor_ref_for_reshape(const at::Tensor &base, at::Tensor &view)
 }
 
 } // namespace torch_nntile
-

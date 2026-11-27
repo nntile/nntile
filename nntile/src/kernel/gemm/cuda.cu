@@ -4,10 +4,10 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/gemm/cuda.cu
- * GEMM workspace staging (user directive, GEMM POLICY 2026-10-19):
+ * GEMM workspace staging :
  *
  * 1. ONE plain cudaMalloc'd workspace, default exactly 1 GiB, allocated
  *    ONCE per process on first use and NEVER freed, resized or
@@ -21,7 +21,7 @@
  *    no room for that surprise at all).
  * 2. The workspace is PER GPU: it is bound to the CUDA device current
  *    at first use; a later call on a different device throws (this is a
- *    single-GPU campaign; the guard keeps the binding honest if that
+ *    single-GPU design; the guard keeps the binding honest if that
  *    ever changes).
  * 3. The workspace is touched ONLY by the COMPUTE stream: the fused
  *    gather kernel, the cuBLAS call and the fused scatter kernel of a
@@ -36,7 +36,7 @@
  *    from OFFSET 0 (no allocator, no free list).
  *
  * A cudaMalloc failure is a LOUD error (stderr + abort): there is no
- * fallback and no smaller workspace (rule 11). The overflow check
+ * fallback and no smaller workspace . The overflow check
  * (staged bytes against the capacity) is POLICY and lives in the gemm
  * wrapper (src/nnhaul/gemm.cc), which knows the operand names.
  *
@@ -54,9 +54,7 @@
 // Other NNTile headers
 #include "nntile/base_types.hh"
 #include "nntile/kernel/cuda.hh"
-#ifdef NNTILE_USE_NNHAUL
 #include <nnhaul/nnhaul.hh>
-#endif
 
 namespace nntile::kernel::gemm
 {
@@ -113,7 +111,6 @@ Workspace &workspace()
         {
             dev0 = -1;
         }
-#ifdef NNTILE_USE_NNHAUL
         // ONE reservation: borrow the engine's preallocated workspace.
         // NNHaul allocates it before the chunk arena, so its size is
         // known to the arena budget and no second 1 GiB block exists.
@@ -128,7 +125,6 @@ Workspace &workspace()
             s.borrowed = true;
             return s;
         }
-#endif
         s.bytes = workspace_bytes_from_env();
         int dev = -1;
         cudaError_t const gd = cudaGetDevice(&dev);
@@ -164,6 +160,23 @@ Workspace &workspace()
         return true;
     }();
     (void) ws_printer;
+    if(w.borrowed)
+    {
+        // The borrowed region belongs to the CURRENT nnhaul runtime; a
+        // second Context (or a re-init) frees the old region and maps a
+        // new one. Re-query every use instead of caching a dead pointer.
+        void *nbase = nullptr;
+        std::size_t nbytes = 0;
+        if(!::nnhaul::workspace_region(&nbase, &nbytes)
+            || nbase == nullptr || nbytes == 0)
+        {
+            throw std::runtime_error(
+                "nntile gemm: the borrowed NNHaul workspace region is not "
+                "available (no live NNHaul runtime)");
+        }
+        w.base = static_cast<unsigned char *>(nbase);
+        w.bytes = nbytes;
+    }
     int dev = -1;
     if(cudaGetDevice(&dev) == cudaSuccess && dev != w.device)
     {
@@ -175,7 +188,7 @@ Workspace &workspace()
     return w;
 }
 
-//! (user directive, 2026-10-19) The fused stage kernel and its
+//!  The fused stage kernel and its
 //! StagePlan machinery are deleted -- the staging is
 //! kernel::copy::chunked (see src/nnhaul/gemm.cc); this module keeps
 //! only the workspace.

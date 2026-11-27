@@ -4,10 +4,10 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file include/nntile/starpu/hypot.hh
- * hypot operation on StarPU buffers
+ * @file include/nntile/nnhaul/ops/hypot.hh
+ * hypot operation on NNHaul buffers
  *
  * @version 1.1.0
  * */
@@ -23,7 +23,7 @@
 // NNTile headers
 #include <nntile/nnhaul/codelet.hh>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Generic wrapper class for hypot operation is not defined
@@ -67,7 +67,7 @@ public:
 
     //! Submit hypot task
     void submit(
-        int starpu_worker_hint,
+        int worker_hint,
         Index nelems,
         Scalar alpha,
         ::nnhaul::Handle & src1,
@@ -92,4 +92,4 @@ using hypot_pack_t = OperationPack<
 //! Pack of hypot operations for different types
 extern hypot_pack_t hypot;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/gemm_core_reference.hh
  * Reference GEMM via nntile::core for tile/tensor parity tests.
@@ -16,9 +16,6 @@
 
 #include <vector>
 
-#ifndef NNTILE_USE_NNHAUL
-#include <starpu.h>
-#endif
 
 #include <nntile/constants.hh>
 #include <nntile/core/gemm.hh>
@@ -49,9 +46,9 @@ inline std::vector<float> core_gemm_reference_fp32(
     nntile::core::Tile<T> tb(b_shape);
     nntile::core::Tile<T> tc(c_shape);
     {
-        auto la = ta.acquire(STARPU_W);
-        auto lb = tb.acquire(STARPU_W);
-        auto lc = tc.acquire(STARPU_W);
+        auto la = ta.acquire(ACCESS_W);
+        auto lb = tb.acquire(ACCESS_W);
+        auto lc = tc.acquire(ACCESS_W);
         for (Index i = 0; i < ta.nelems; ++i)
         {
             la[i] = Y(a_data[static_cast<size_t>(i)]);
@@ -73,11 +70,11 @@ inline std::vector<float> core_gemm_reference_fp32(
     const TransOp op_b(trans_b ? TransOp::Trans : TransOp::NoTrans);
     nntile::core::gemm<T>(
         -1, alpha, op_a, ta, op_b, tb, Scalar(0), tc, ndim, batch_ndim, 0);
-    starpu_task_wait_for_all();
+    task_wait_for_all();
 
     std::vector<float> out(static_cast<size_t>(tc.nelems));
     {
-        auto lc = tc.acquire(STARPU_R);
+        auto lc = tc.acquire(ACCESS_R);
         for (Index i = 0; i < tc.nelems; ++i)
         {
             out[static_cast<size_t>(i)] = static_cast<float>(lc[i]);

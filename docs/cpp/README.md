@@ -1,90 +1,47 @@
 # C++ implementation overview
 
-NNTile ships two installable libraries:
+NNTile 2.0 has one backend, NNHaul, and one kernel layout, chunk-addressable.
 
-| Library | Contents | Umbrella headers |
-|---------|----------|------------------|
-| **libnntile** | kernel → starpu → core → TileGraph → TensorGraph → Runtime | [`nntile.hh`](../../nntile/include/nntile.hh), [`tensor.hh`](../../nntile/include/nntile/tensor.hh), [`tile.hh`](../../nntile/include/nntile/tile.hh), [`runtime.hh`](../../nntile/include/nntile/runtime.hh) |
-| **libtorch_nntile** | LibTorch PrivateUse1 (`device=nntile`) + models | [`torch_nntile`](../../torch_nntile/README.md) |
+## Layers
 
-`torch_nntile` / **libtorch_nntile** link **libnntile** only.
+### kernel
 
-Product entry: [../torch_nntile.md](../torch_nntile.md). Execution backend:
-[../graph.md](../graph.md).
+**Namespace:** `nntile::kernel`
 
-```mermaid
-flowchart TB
-  subgraph torch [libtorch_nntile]
-    Aten[PrivateUse1 / ATen]
-    Models[torch::nn models]
-  end
-  subgraph tg [libnntile]
-    TG[TensorGraph]
-    TileG[TileGraph]
-    RT[Runtime]
-    Core[nntile::core]
-    StarPU[nntile::starpu]
-    Kernel[nntile::kernel]
-  end
-  torch --> tg
-  TG --> TileG --> RT --> Core --> StarPU --> Kernel
-```
+Raw CPU/CUDA kernels. CUDA kernels have contiguous and chunked entry points:
+62 of 69 kernel families have a dedicated one-launch chunked entry; the
+remaining 7 are disabled families. Chunk-aware drivers remain as a
+transitional/CPU-reference path (see `docs/chunked-tiles.md`).
 
-## Layer headers
+CPU kernels are **contiguous-only** (`void cpu(...)` taking plain pointers).
+They are kept in the source tree as reference implementations for the kernel
+A/B tests. NNHaul creates no CPU worker today, so no compute codelet runs on
+the host from the product runtime; the only host-side codelet is the scalar
+logger (`log_scalar`), which forwards one value to the logger thread. The
+reference kernels stay because a future NNHaul release is expected to enable
+CPU workers, and chunked CPU kernels are planned for that future enablement;
+none exist yet.
 
-- [`include/nntile/kernel.hh`](../../nntile/include/nntile/kernel.hh)
-- [`include/nntile/starpu.hh`](../../nntile/include/nntile/starpu.hh)
-- [`include/nntile/core.hh`](../../nntile/include/nntile/core.hh)
-- [`include/nntile/tile.hh`](../../nntile/include/nntile/tile.hh)
-- [`include/nntile/tensor.hh`](../../nntile/include/nntile/tensor.hh)
-- [`include/nntile/runtime.hh`](../../nntile/include/nntile/runtime.hh)
+### nnhaul
 
-Sources mirror tests: `nntile/src/<level>/<op>.cc` ↔ `nntile/tests/<level>/<op>.cc`.
+**Namespace:** `nntile::nnhaul`
 
-## kernel
+NNHaul codelets wrapping the chunked kernel entry points, plus the chunk
+pointer transport. Every tile is chunk-backed. `libnntile` links the shared
+`libnnhaul` runtime.
 
-**Namespace:** `nntile::kernel::<op>`
+### core / tile / tensor / runtime
 
-Raw numerical kernels on contiguous buffers (CPU and CUDA translation units under
-`nntile/src/kernel/<op>/`).
+`core` submits one codelet for a tile; `tile` lowers tensor operations to
+tile operations; `tensor` records the autograd-facing graph; `runtime`
+executes compiled tile graphs.
 
-## starpu
+There is no separate codelet runtime layer in NNTile 2.0.
 
-**Namespace:** `nntile::starpu`
+## Libraries
 
-StarPU codelets wrapping kernel calls. This layer is compiled only when
-`NNTILE_USE_NNHAUL` is `OFF` (the default). That build links `StarPU::starpu`.
+- `libnnhaul.so` — runtime engine
+- `libnntile.so` — kernel → NNHaul → core → tile → tensor → runtime
+- `libtorch_nntile.so` — PrivateUse1 bridge and classic models
 
-## nnhaul
-
-**Namespace:** `nntile::haul` (wrappers) over `nnhaul` (`libnnhaul`)
-
-Compiled only when `NNTILE_USE_NNHAUL` is `ON`. That build links `libnnhaul`
-and does not link StarPU. `nntile::core` submit implementations select the
-backend with `#ifdef NNTILE_USE_NNHAUL`. TensorGraph, the torch session, and
-`nntile/src/kernel/` stay backend-agnostic. One backend per binary.
-
-## core
-
-**Namespace:** `nntile::core`
-
-Single-tile operations (`Tile<T>`), plus optional execution schedules
-(`execution_schedule.hh`).
-
-## tensor / tile / runtime
-
-**Namespaces:** `nntile::tensor`, `nntile::tile`, `nntile::runtime`
-
-| Layer | Role |
-|-------|------|
-| **TensorGraph** | Symbolic tensors (`TensorNode`) and ops (`OpNode` with `lower_to_tile`) |
-| **TileGraph** | Tiled IR; tile ops implement `execute(Runtime&)` |
-| **Runtime** | `compile`, `execute` / `execute_range`, `wait`; optional static schedule |
-
-Typical flow: record into `TensorGraph` → `seal_phase` +
-`append_tensor_graph_phase` → `Runtime::compile()` → `execute_range()` →
-`wait()`. `ExecutionDriver` is tiles-only `submit` / `wait`:
-`RuntimeExecutionDriver` in-process, or `RemoteExecutionDriver` over
-`NNTILE_DRIVER_SOCKET`. Flush `PhaseIR` is
-`nntile::tensor::encode_phase` / `decode_phase` (v1 allowlist; unknown
-ops fail closed). Design notes: [../dev/README.md](../dev/README.md).
+See [../backends.md](../backends.md) and [../graph.md](../graph.md).

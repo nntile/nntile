@@ -4,10 +4,10 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file src/starpu/maxsumexp.cc
- * Max and sum of exponents for StarPU buffer
+ * @file src/nnhaul/maxsumexp.cc
+ * Max and sum of exponents for NNHaul buffer
  *
  * @version 1.2.0
  * */
@@ -26,7 +26,7 @@
 #include "nntile/kernel/maxsumexp.hh"
 #include "nntile/nnhaul/chunk_units.hh"
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 // ---------------------------------------------------------------------------
@@ -47,8 +47,7 @@ namespace nntile::haul
 // the caller's beta, every continuation piece with beta=1, which merges
 // max_first = max(max_a, max_b) and sum = sum_a*exp(max_a-max_first) +
 // sum_b*exp(max_b-max_first) - the algebraically exact combine (the same
-// algebra kernel::accumulate_maxsumexp implements for tensor-level
-// partial merges), applied in fiber-position order on the single
+// algebra used for tensor-level partial merges), applied in fiber-position order on the single
 // in-order stream. NO fiber is ever split mid-piece, so no extra combine
 // kernel is needed; the result equals the plain call up to the rounding
 // of the piecewise merge (CUDA adds its shared-memory atomicAdd
@@ -151,13 +150,9 @@ void MaxSumExp<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get interfaces
     auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
-    if((buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+    if((buf_src->chunk_count() == 1) && (buf_dst->chunk_count() == 1)
        )
     {
-        // Classic contiguous dispatch: illegal under the force flag
-        // (the tripwire proves it never happens in a flag-on run).
-        chunkunits::classic_dispatch_tripwire("nntile_maxsumexp", false);
-        // Unchunked fast path: the historical single kernel call, bitwise
         kernel::maxsumexp::cpu<T>(args->m, args->n, args->k,
             buf_src->get_ptr<T>(), args->beta, buf_dst->get_ptr<T>());
         return;
@@ -227,25 +222,17 @@ void MaxSumExp<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    if((buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+    if((buf_src->chunk_count() == 1) && (buf_dst->chunk_count() == 1)
        )
     {
-        // Classic contiguous dispatch: illegal under the force flag
-        // (the tripwire proves it never happens in a flag-on run).
-        chunkunits::classic_dispatch_tripwire("nntile_maxsumexp", false);
-        // Unchunked fast path: the historical single kernel call, bitwise
         kernel::maxsumexp::cuda<T>(stream, args->m, args->n, args->k,
             buf_src->get_ptr<T>(), args->beta, buf_dst->get_ptr<T>());
         return;
     }
     // Chunked single-launch path: ONE chunk-aware kernel over the whole
-    // (m, n, k) range.  The piece driver below launches one kernel per
-        // chunk-resident run and thereby pays the full m*n grid per piece; on
-    // the GPT-2 attention shape (m=1, n=12288, k=1024) that dominated the
-    // p90 tail.  The arithmetic order is unchanged, so this reproduces the
-    // contiguous kernel up to its shared-atomic floor.  The piece driver
-    // stays as the fallback for a failed
-    // table upload.
+    // (m, n, k) range, instead of one kernel per chunk-resident run (which
+    // pays the full m*n grid per piece). The arithmetic order is unchanged,
+    // so this reproduces the contiguous kernel up to its shared-atomic floor.
     if(args->m > 0 && args->n > 0 && args->k > 0)
     {
         chunkunits::ChunkView<T> const cv_src(buf_src);
@@ -287,17 +274,15 @@ void MaxSumExp<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
             }
         }
     }
-        // (rule 11, user directive 2026-10-19) There is no per-piece
+        // There is no per-piece
     // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot table
     // serve any launch up to a 16 TiB operand, so a failed upload is an
     // invariant violation, not a mode to stage around.
     std::fprintf(stderr,
         "nntile_maxsumexp: chunk-ptr table cannot serve this launch (invariant "
-        "violation; the per-piece staging fallback was deleted by rule "
-        "11)\n");
+        "violation; no per-piece staging fallback exists)\n");
     std::abort();
 }
-
 
 // Specializations of CUDA wrapper for accelerated types
 template<>
@@ -338,39 +323,33 @@ std::uint64_t MaxSumExp<std::tuple<T>>::footprint(void const *cl_args, std::size
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     uint32_t hash = 0;
-    hash = ::nntile::haul::fnv1a(&args->m, sizeof(args->m), hash);
-    hash = ::nntile::haul::fnv1a(&args->n, sizeof(args->n), hash);
-    hash = ::nntile::haul::fnv1a(&args->k, sizeof(args->k), hash);
-    hash = ::nntile::haul::fnv1a(&args->beta, sizeof(args->beta), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->m, sizeof(args->m), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->n, sizeof(args->n), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->k, sizeof(args->k), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->beta, sizeof(args->beta), hash);
     return hash;
 }
 
 template<typename T>
-void MaxSumExp<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n,
+void MaxSumExp<std::tuple<T>>::submit(int worker_hint, Index m, Index n,
         Index k, ::nnhaul::Handle & src, ::nnhaul::Handle & dst, Scalar beta, int redux)
-//! Insert maxsumexp task into StarPU pool of tasks
+//! Insert maxsumexp task into NNHaul task pool
 /*! No argument checking is performed. All the inputs are packed and passed to
- * nntile_starpu_task_insert() function. If task submission fails, this routines
+ * submit() call. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
     constexpr Scalar zero = 0, one = 1;
     // Access mode for the dst handle
-    enum starpu_data_access_mode dst_mode;
+    enum data_access_mode dst_mode;
     if(beta == zero)
     {
-        dst_mode = STARPU_W;
+        dst_mode = ACCESS_W;
     }
     else if(beta == one)
     {
-        if(redux != 0)
-        {
-            dst_mode = STARPU_REDUX;
-        }
-        else
-        {
-            dst_mode = static_cast<starpu_data_access_mode>(STARPU_RW | STARPU_COMMUTE);
-        }
+        (void)redux;
+        dst_mode = static_cast<data_access_mode>(ACCESS_RW | ACCESS_COMMUTE);
     }
     else
     {
@@ -388,8 +367,8 @@ void MaxSumExp<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n,
     // chunked unit driver; maxsumexp never goes through the staging
     // fallback.
     (void)nflops;
-    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
-        { { STARPU_R, &src }, { dst_mode, &dst } }, args, sizeof(*args));
+    ::nntile::nnhaul::insert_task(codelet.raw, worker_hint,
+        { { ACCESS_R, &src }, { dst_mode, &dst } }, args, sizeof(*args));
     std::free(args);
 
 }
@@ -408,4 +387,4 @@ template class MaxSumExp<std::tuple<nntile::fp16_t>>;
 //! Pack of maxsumexp operations for different types
 maxsumexp_pack_t maxsumexp;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/src/tile_graph/hypot_inplace.cc
  * TileGraph hypot inplace operation implementation.
@@ -28,7 +28,7 @@ template<typename T>
 void run(
     Runtime& runtime, Scalar a, TileGraph::TileNode* s, Scalar b, TileGraph::TileNode* d)
 {
-    nntile::core::hypot_inplace<T>(runtime.starpu_worker_hint(), a, runtime.get_tile<T>(s), b, runtime.get_tile<T>(d));
+    nntile::core::hypot_inplace<T>(runtime.worker_hint(), a, runtime.get_tile<T>(s), b, runtime.get_tile<T>(d));
 }
 } // namespace
 void hypot_inplace(Scalar alpha, TileGraph::TileNode* src, Scalar beta, TileGraph::TileNode* dst)

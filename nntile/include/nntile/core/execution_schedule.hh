@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/core/execution_schedule.hh
  * Static task schedule (worker assignment per tile op). ``execution.json`` is
@@ -62,7 +62,6 @@ struct ExecutionSchedule
 {
     std::string policy;
     int num_workers = 1;
-    bool use_cuda_workers = false;
     std::vector<ScheduleWorkerInfo> workers;
     ExecutionScheduleFingerprint fingerprint;
     std::map<std::string, int> tile_virtual_worker;

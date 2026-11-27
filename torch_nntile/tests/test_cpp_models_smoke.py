@@ -6,16 +6,10 @@
 
 from __future__ import annotations
 
-import pytest
 import torch
 from classic_graph import assert_classic_graph
 
-from torch_nntile import NNTILE_NATIVE_OPS, _C
-
-pytestmark = pytest.mark.skipif(
-    not NNTILE_NATIVE_OPS,
-    reason="classic nntile-native ops not built",
-)
+from torch_nntile import _C
 
 
 def test_cpp_models_listed():

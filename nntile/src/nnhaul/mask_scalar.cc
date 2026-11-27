@@ -4,10 +4,10 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file src/starpu/mask_scalar.cc
- * StarPU wrappers for mask_scalar operation
+ * @file src/nnhaul/mask_scalar.cc
+ * NNHaul wrappers for mask_scalar operation
  *
  * @version 1.2.0
  * */
@@ -31,21 +31,20 @@
 #include <vector>
 #endif
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 #ifdef NNTILE_USE_CUDA
 namespace
 {
-/*! Piece-3 in-trainer host-section instrument (piece 7's
- * NNHAUL_BODY_DIAG discipline, ONE representative wrapper): with
- * NNHAUL_RING_DIAG=1 in the environment, every chunked mask instance
- * records steady-clock section times of the merged-table host work --
- * (1) staging build (clear + the operand adds) and (2) the table upload
- * (begin + upload_tables, i.e. the single H2D copy) -- and the
- * process-exit summary prints medians/tails. This is the instrument the
- * piece-3 pinned-vs-pageable decision was measured with (an
- * in-trainer-population variant; the rejected pinned regime has since
+/*! In-trainer host-section instrument for one representative wrapper,
+ * following the NNHAUL_BODY_DIAG approach: with NNHAUL_RING_DIAG=1 in the
+ * environment, every chunked mask instance records steady-clock section
+ * times of the merged-table host work -- (1) staging build (clear + the
+ * operand adds) and (2) the table upload (begin + upload_tables, i.e. the
+ * single H2D copy) -- and the process-exit summary prints medians/tails.
+ * This is the instrument used to compare pinned and pageable host memory
+ * (an in-trainer-population variant; the rejected pinned regime has since
  * been removed from the transport). Zero cost when off (one branch on a
  * cached bool per instance). */
 struct RingDiag
@@ -214,7 +213,7 @@ MaskScalar<std::tuple<T>>::MaskScalar():
     // Modes are not fixed, they are decided during runtime by default
 }
 
-//! Mask scalar operation for StarPU buffer on CPU
+//! Mask scalar operation for NNHaul buffer on CPU
 template<typename T>
 void MaskScalar<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
@@ -224,13 +223,9 @@ void MaskScalar<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get interfaces
     auto buf_data = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_mask = static_cast<::nnhaul::Buffer *>(buffers[1]);
-    if((buf_data->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_mask->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+    if((buf_data->chunk_count() == 1) && (buf_mask->chunk_count() == 1)
        )
     {
-        // Classic contiguous dispatch: illegal under the force flag
-        // (the tripwire proves it never happens in a flag-on run).
-        chunkunits::classic_dispatch_tripwire("nntile_mask_scalar", false);
-        // Unchunked fast path: the historical single kernel call, bitwise
         kernel::mask_scalar::cpu<T>(args->nrows, args->ncols,
             buf_mask->get_ptr<nntile::bool_t>(), args->val,
             buf_data->get_ptr<T>());
@@ -286,7 +281,7 @@ void MaskScalar<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_arg
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Mask scalar StarPU buffer on CUDA
+//! Mask scalar NNHaul buffer on CUDA
 template<typename T>
 void MaskScalar<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
@@ -298,13 +293,9 @@ void MaskScalar<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto buf_mask = static_cast<::nnhaul::Buffer *>(buffers[1]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    if((buf_data->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_mask->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+    if((buf_data->chunk_count() == 1) && (buf_mask->chunk_count() == 1)
        )
     {
-        // Classic contiguous dispatch: illegal under the force flag
-        // (the tripwire proves it never happens in a flag-on run).
-        chunkunits::classic_dispatch_tripwire("nntile_mask_scalar", false);
-        // Unchunked fast path: the historical single kernel call, bitwise
         kernel::mask_scalar::cuda<T>(stream, args->nrows, args->ncols,
             buf_mask->get_ptr<nntile::bool_t>(), args->val,
             buf_data->get_ptr<T>());
@@ -366,14 +357,13 @@ void MaskScalar<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
             }
         }
     }
-        // (rule 11, user directive 2026-10-19) There is no per-piece
+        // There is no per-piece
     // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot table
     // serve any launch up to a 16 TiB operand, so a failed upload is an
     // invariant violation, not a mode to stage around.
     std::fprintf(stderr,
         "nntile_mask_scalar: chunk-ptr table cannot serve this launch (invariant "
-        "violation; the per-piece staging fallback was deleted by rule "
-        "11)\n");
+        "violation; no per-piece staging fallback exists)\n");
     std::abort();
 }
 
@@ -416,17 +406,17 @@ std::uint64_t MaskScalar<std::tuple<T>>::footprint(void const *cl_args, std::siz
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     uint32_t hash = 0;
-    hash = ::nntile::haul::fnv1a(&args->nrows, sizeof(args->nrows), hash);
-    hash = ::nntile::haul::fnv1a(&args->ncols, sizeof(args->ncols), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->nrows, sizeof(args->nrows), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->ncols, sizeof(args->ncols), hash);
     return hash;
 }
 
 template<typename T>
-void MaskScalar<std::tuple<T>>::submit(int starpu_worker_hint,
+void MaskScalar<std::tuple<T>>::submit(int worker_hint,
         Index nrows, Index ncols, ::nnhaul::Handle & mask, Scalar val, ::nnhaul::Handle & data)
-//! Insert mask_scalar task into StarPU pool of tasks
+//! Insert mask_scalar task into NNHaul task pool
 /*! No argument checking is performed. All the inputs are packed and passed to
- * nntile_starpu_task_insert() function. If task submission fails, this routines
+ * submit() call. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
@@ -440,8 +430,8 @@ void MaskScalar<std::tuple<T>>::submit(int starpu_worker_hint,
     // Submit task: the BODY picks the unchunked fast path or the native
     // chunked column driver; mask_scalar never stages.
     (void)nflops;
-    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
-        { { STARPU_RW, &data }, { STARPU_R, &mask } }, args, sizeof(*args));
+    ::nntile::nnhaul::insert_task(codelet.raw, worker_hint,
+        { { ACCESS_RW, &data }, { ACCESS_R, &mask } }, args, sizeof(*args));
     std::free(args);
 
 }
@@ -460,4 +450,4 @@ template class MaskScalar<std::tuple<nntile::fp16_t>>;
 //! Pack of mask_scalar operations for different types
 mask_scalar_pack_t mask_scalar;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

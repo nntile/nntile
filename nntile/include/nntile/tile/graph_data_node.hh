@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/tile/graph_data_node.hh
  * TileGraph::TileNode - data node for TileGraph (shape, dtype, name).
@@ -81,11 +81,11 @@ class TileGraph::TileNode
 
     std::string to_string() const;
 
-    //! StarPU payload (set by Runtime::allocate / adopt). O(1) get_tile.
+    //! NNHaul payload (set by Runtime::allocate / adopt). O(1) get_tile.
     void set_payload(std::shared_ptr<void> payload)
     {
         payload_ = std::move(payload);
-        starpu_registered_ = payload_ != nullptr;
+        registered_ = payload_ != nullptr;
     }
     std::shared_ptr<void> const &payload() const
     {
@@ -94,20 +94,20 @@ class TileGraph::TileNode
     void clear_payload()
     {
         payload_.reset();
-        starpu_registered_ = false;
+        registered_ = false;
     }
     bool has_payload() const
     {
         return payload_ != nullptr;
     }
     //! False after graph UNREGISTER / payload drop (skip double unregister).
-    bool is_starpu_registered() const
+    bool is_registered() const
     {
-        return starpu_registered_;
+        return registered_;
     }
-    void note_starpu_unregistered()
+    void note_unregistered()
     {
-        starpu_registered_ = false;
+        registered_ = false;
     }
 
   private:
@@ -120,7 +120,7 @@ class TileGraph::TileNode
     TileGraph::TensorDescriptor *tensor_desc_ = nullptr;
     std::vector<Index> tile_coord_;
     std::shared_ptr<void> payload_;
-    bool starpu_registered_ = false;
+    bool registered_ = false;
 
     friend class TileGraph;
 };

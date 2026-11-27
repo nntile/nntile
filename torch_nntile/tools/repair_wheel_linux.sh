@@ -6,9 +6,13 @@ dest_dir="${2:?destination directory is required}"
 package_dir="$(cd "$(dirname "$0")/.." && pwd)"
 repo_root="$(cd "${package_dir}/.." && pwd)"
 build_dir="${NNTILE_BUILD_DIR:-${repo_root}/build/torch_nntile_wheel}"
-starpu_prefix="${STARPU_PREFIX:-/opt/starpu}"
+nntile_prefix="${NNTILE_PREFIX:-${TORCH_NNTILE_PREFIX:-}}"
 
-export LD_LIBRARY_PATH="${build_dir}/nntile:${build_dir}/torch_nntile:${starpu_prefix}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+_ld_paths="${build_dir}/nntile:${build_dir}/nnhaul:${build_dir}/torch_nntile"
+if [ -n "${nntile_prefix}" ]; then
+    _ld_paths="${_ld_paths}:${nntile_prefix}/lib"
+fi
+export LD_LIBRARY_PATH="${_ld_paths}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
 
 mkdir -p "${dest_dir}"
 
@@ -85,8 +89,9 @@ fi
 shopt -s nullglob
 for sofile in \
     "${tmpdir}"/torch_nntile.libs/libnntile*.so \
+    "${tmpdir}"/torch_nntile.libs/libnnhaul*.so \
     "${tmpdir}"/torch_nntile.libs/libtorch_nntile*.so \
-    "${tmpdir}"/torch_nntile.libs/libstarpu*.so; do
+; do
     patch_so_rpath "${sofile}"
 done
 shopt -u nullglob

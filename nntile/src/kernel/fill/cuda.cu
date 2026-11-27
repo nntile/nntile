@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/fill/cuda.cu
  * Fill operation on CUDA
@@ -76,7 +76,7 @@ static __device__ __forceinline__ void fill_store(fp32_t *p, fp32_t v)
 //! Chunk-aware fill: the SAME flat thread mapping (i = tid + bid*256) and
 //! the SAME per-element store as cuda_kernel, with the destination address
 //! resolved through its chunk table read straight from the device table
-//! (piece 9 / rule 10: no staging, no table __syncthreads). The result
+//! . The result
 //! is bitwise cuda()'s.
 //!
 //! A block whose 256-element window lies inside one chunk (the common

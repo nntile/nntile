@@ -5,7 +5,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/src/tile_graph/copy_intersection.cc
  * TileGraph copy intersection operation implementation.
@@ -38,7 +38,7 @@ void run(
     TileGraph::TileNode* d,
     TileGraph::TileNode* sc)
 {
-    nntile::core::copy_intersection<T>(runtime.starpu_worker_hint(), 
+    nntile::core::copy_intersection<T>(runtime.worker_hint(),
         runtime.get_tile<T>(s), so, runtime.get_tile<T>(d), df, runtime.get_tile<nntile::int64_t>(sc));
 }
 } // namespace

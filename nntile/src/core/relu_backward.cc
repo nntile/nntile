@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/core/relu_backward.cc
  * Backward ReLU operation for Tile<T>
@@ -13,16 +13,8 @@
  * */
 
 #include "nntile/core/relu_backward.hh"
-#ifdef NNTILE_USE_NNHAUL
 #include "nntile/nnhaul/ops/relu_backward.hh"
-#else
-#include "nntile/starpu/relu_backward.hh"
-#endif
-#ifdef NNTILE_USE_NNHAUL
 #include "nntile/nnhaul/sync_defer.hh"
-#else
-#include "nntile/starpu/config.hh"
-#endif
 
 namespace nntile::core
 {
@@ -31,7 +23,7 @@ namespace nntile::core
 /*! @param[inout] A: Tile for the element-wise backward ReLU operation
  * */
 template<typename T>
-void relu_backward_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &x, const Tile<T> &dy,
+void relu_backward_async(int worker_hint, Scalar alpha, const Tile<T> &x, const Tile<T> &dy,
         Scalar beta, const Tile<T> &dx)
 {
     // Check shapes
@@ -43,97 +35,69 @@ void relu_backward_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &x,
     {
         throw std::runtime_error("x.shape != dx.shape");
     }
-    #ifdef NNTILE_USE_NNHAUL
-    int mpi_rank = 0;
-    #else
-    int mpi_rank = starpu_mpi_world_rank();
-    #endif
-    #ifdef NNTILE_USE_NNHAUL
-    int dx_rank = 0;
-    #else
-    int dx_rank = dx.mpi_get_rank();
-    #endif
-    #ifndef NNTILE_USE_NNHAUL
-    x.mpi_transfer(dx_rank, mpi_rank);
-    #endif
-    #ifndef NNTILE_USE_NNHAUL
-    dy.mpi_transfer(dx_rank, mpi_rank);
-    #endif
-    if(mpi_rank == dx_rank)
-    {
-        // Submit task without any arguments checked
-        #ifdef NNTILE_USE_NNHAUL
-        haul::relu_backward.submit<std::tuple<T>>(starpu_worker_hint, x.nelems, alpha, x, dy, beta, dx);
-        #else
-        starpu::relu_backward.submit<std::tuple<T>>(starpu_worker_hint, x.nelems, alpha, x, dy, beta, dx);
-        #endif
-
-    }
+    // Submit task without any arguments checked
+    nnhaul::relu_backward.submit<std::tuple<T>>(worker_hint, x.nelems, alpha, x, dy, beta, dx);
 }
 
 //! Blocking version of tile-wise backward ReLU operation
 /*! @param[inout] A: Tile for the element-wise backward ReLU operation
  * */
 template<typename T>
-void relu_backward(int starpu_worker_hint, Scalar alpha, const Tile<T> &x, const Tile<T> &dy,
+void relu_backward(int worker_hint, Scalar alpha, const Tile<T> &x, const Tile<T> &dy,
         Scalar beta, const Tile<T> &dx)
 {
-    relu_backward_async<T>(starpu_worker_hint, alpha, x, dy, beta, dx);
-    #ifdef NNTILE_USE_NNHAUL
+    relu_backward_async<T>(worker_hint, alpha, x, dy, beta, dx);
     nntile::nnhaul_task_wait_for_all_unless_deferred();
-#else
-    nntile::starpu_task_wait_for_all_unless_deferred();
-#endif
 }
 
 // Explicit instantiation
 template
-void relu_backward_async<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &x, const Tile<fp32_t> &dy,
+void relu_backward_async<fp32_t>(int worker_hint, Scalar alpha, const Tile<fp32_t> &x, const Tile<fp32_t> &dy,
         Scalar beta, const Tile<fp32_t> &dx);
 
 template
-void relu_backward_async<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &x,
+void relu_backward_async<fp32_fast_tf32_t>(int worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &x,
         const Tile<fp32_fast_tf32_t> &dy, Scalar beta, const Tile<fp32_fast_tf32_t> &dx);
 
 template
-void relu_backward_async<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &x,
+void relu_backward_async<fp32_fast_fp16_t>(int worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &x,
         const Tile<fp32_fast_fp16_t> &dy, Scalar beta, const Tile<fp32_fast_fp16_t> &dx);
 
 template
-void relu_backward_async<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &x,
+void relu_backward_async<fp32_fast_bf16_t>(int worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &x,
         const Tile<fp32_fast_bf16_t> &dy, Scalar beta, const Tile<fp32_fast_bf16_t> &dx);
 
 template
-void relu_backward_async<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &x, const Tile<fp64_t> &dy,
+void relu_backward_async<fp64_t>(int worker_hint, Scalar alpha, const Tile<fp64_t> &x, const Tile<fp64_t> &dy,
         Scalar beta, const Tile<fp64_t> &dx);
 
 template
-void relu_backward_async<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &x, const Tile<bf16_t> &dy,
+void relu_backward_async<bf16_t>(int worker_hint, Scalar alpha, const Tile<bf16_t> &x, const Tile<bf16_t> &dy,
         Scalar beta, const Tile<bf16_t> &dx);
 
 // Explicit instantiation
 template
-void relu_backward<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &x, const Tile<fp32_t> &dy,
+void relu_backward<fp32_t>(int worker_hint, Scalar alpha, const Tile<fp32_t> &x, const Tile<fp32_t> &dy,
         Scalar beta, const Tile<fp32_t> &dx);
 
 template
-void relu_backward<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &x,
+void relu_backward<fp32_fast_tf32_t>(int worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &x,
         const Tile<fp32_fast_tf32_t> &dy, Scalar beta, const Tile<fp32_fast_tf32_t> &dx);
 
 template
-void relu_backward<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &x,
+void relu_backward<fp32_fast_fp16_t>(int worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &x,
         const Tile<fp32_fast_fp16_t> &dy, Scalar beta, const Tile<fp32_fast_fp16_t> &dx);
 
 template
-void relu_backward<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &x,
+void relu_backward<fp32_fast_bf16_t>(int worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &x,
         const Tile<fp32_fast_bf16_t> &dy, Scalar beta, const Tile<fp32_fast_bf16_t> &dx);
 
 template
-void relu_backward<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &x, const Tile<fp64_t> &dy,
+void relu_backward<fp64_t>(int worker_hint, Scalar alpha, const Tile<fp64_t> &x, const Tile<fp64_t> &dy,
         Scalar beta, const Tile<fp64_t> &dx);
 
 template
-void relu_backward<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &x, const Tile<bf16_t> &dy,
+void relu_backward<bf16_t>(int worker_hint, Scalar alpha, const Tile<bf16_t> &x, const Tile<bf16_t> &dy,
         Scalar beta, const Tile<bf16_t> &dx);
 
 } // namespace nntile::core

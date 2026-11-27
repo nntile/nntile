@@ -4,10 +4,10 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file src/starpu/scale.cc
- * Scale operation on a StarPU buffers
+ * @file src/nnhaul/scale.cc
+ * Scale operation on a NNHaul buffers
  *
  * @version 1.2.0
  * */
@@ -25,7 +25,7 @@
 #include "nntile/nnhaul/chunk_units.hh"
 #include "nntile/nnhaul/ops/clear.hh"
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Constructor
@@ -44,7 +44,7 @@ Scale<std::tuple<T>>::Scale():
     // Modes are not fixed, they are decided during runtime by default
 }
 
-//! StarPU wrapper for kernel::scale::cpu<T>
+//! NNHaul wrapper for kernel::scale::cpu<T>
 template<typename T>
 void Scale<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
@@ -52,10 +52,10 @@ void Scale<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    auto src = ::nntile::haul::buf_chunks<T>(buffers, 0);
-    auto dst = ::nntile::haul::buf_chunks<T>(buffers, 1);
+    auto src = ::nntile::nnhaul::buf_chunks<T>(buffers, 0);
+    auto dst = ::nntile::nnhaul::buf_chunks<T>(buffers, 1);
     // Launch kernel per flat chunk piece (single piece if unchunked)
-    ::nntile::haul::for_each_flat_piece(
+    ::nntile::nnhaul::for_each_flat_piece(
         args->nelems,
         [&](std::size_t n, const T *s, T *d) {
             kernel::scale::cpu<T>(n, args->alpha, s, d);
@@ -90,48 +90,30 @@ void Scale<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
 }
 
 #ifdef NNTILE_USE_CUDA
-//! StarPU wrapper for kernel::scale::cuda<T>
+//! NNHaul wrapper for kernel::scale::cuda<T>
 template<typename T>
 void Scale<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
+    chunkunits::require_kernel_index_envelope(
+        static_cast<std::size_t>(args->nelems), "nntile_scale");
     // Get interfaces
-    auto src = ::nntile::haul::buf_chunks<T>(buffers, 0);
-    auto dst = ::nntile::haul::buf_chunks<T>(buffers, 1);
+    auto src = ::nntile::nnhaul::buf_chunks<T>(buffers, 0);
+    auto dst = ::nntile::nnhaul::buf_chunks<T>(buffers, 1);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    // Chunked single-launch path: when at least one operand is chunked (or
-    // the force flag is on), issue the WHOLE flat
-    // operation as ONE chunk-aware kernel instead of the per-piece walk's
-    // launches. The chunk base-pointer tables are built on the host from
-    // the ChunkViews and parked in the shared device chunk-ptr table; the
-    // kernel reads the table per-thread by shift/mask (rule 10: no smem staging). No chunk-count cap.
-    // The per-element expression is identical, so the result is cuda()'s
-    // bitwise. The all-unchunked case (flag off) and a failed table upload
-    // keep the historical for_each_flat_piece path verbatim.
     {
         auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[0]);
         auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
-        bool const all_plain = (buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
-            && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels());
+        bool const all_plain = (buf_src->chunk_count() == 1)
+            && (buf_dst->chunk_count() == 1);
         if(!(all_plain) && args->nelems > 0)
         {
-            if(buf_src->chunk_count() == 1 && buf_dst->chunk_count() == 1)
-            {
-                // Piece C (2026-10-18c): the all-1-chunk degenerate
-                // launch is the FIRST thing the chunked block does --
-                // the chunk counts are read straight off the buffers,
-                // before any ChunkView/LaunchTables work exists, so the
-                // degenerate host path is as lean as the classic
-                // dispatch above (gemm path-F precedent; launch
-                // pointer-identical, bitwise by construction, table
-                // untouched).
-                kernel::scale::cuda<T>(stream, args->nelems, args->alpha,
-                    buf_src->get_ptr<T>(), buf_dst->get_ptr<T>());
-                return;
-            }
+            // Chunked single-launch path: the whole multi-chunk range is
+            // issued as ONE chunk-aware kernel reading the shared device
+            // chunk-pointer table; the per-element math matches cuda().
             chunkunits::ChunkView<T> const cvs(buf_src);
             chunkunits::ChunkView<T> const cvd(buf_dst);
             chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
@@ -160,24 +142,20 @@ void Scale<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
                     arena.end(stream);
                     return;
                 }
-                    // (rule 11, user directive 2026-10-19) There is no per-piece
+                    // There is no per-piece
                     // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot table
                     // serve any launch up to a 16 TiB operand, so a failed upload is an
                     // invariant violation, not a mode to stage around.
                     std::fprintf(stderr,
                         "nntile_scale: chunk-ptr table cannot serve this launch (invariant "
-                        "violation; the per-piece staging fallback was deleted by rule "
-                        "11)\n");
+                        "violation; no per-piece staging fallback exists)\n");
                     std::abort();
             }
         }
-        if(args->nelems > 0)
-        {
-            chunkunits::classic_dispatch_tripwire("nntile_scale", false);
-        }
+
     }
     // Launch kernel per flat chunk piece (single piece if unchunked)
-    ::nntile::haul::for_each_flat_piece(
+    ::nntile::nnhaul::for_each_flat_piece(
         args->nelems,
         [&](std::size_t n, const T *s, T *d) {
             kernel::scale::cuda<T>(stream, n, args->alpha, s, d);
@@ -219,19 +197,19 @@ std::uint64_t Scale<std::tuple<T>>::footprint(void const *cl_args, std::size_t) 
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     uint32_t hash = 0;
-    hash = ::nntile::haul::fnv1a(&args->nelems, sizeof(args->nelems), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->nelems, sizeof(args->nelems), hash);
     return hash;
 }
 
 template<typename T>
-void Scale<std::tuple<T>>::submit(int starpu_worker_hint,
+void Scale<std::tuple<T>>::submit(int worker_hint,
     Index nelems, Scalar alpha, ::nnhaul::Handle & src, ::nnhaul::Handle & dst)
 {
     constexpr Scalar zero = 0.0;
     // if alpha is zero, function reduces to clear
     if(alpha == zero)
     {
-        clear.submit(starpu_worker_hint, dst);
+        clear.submit(worker_hint, dst);
         return;
     }
     // Codelet arguments
@@ -239,8 +217,8 @@ void Scale<std::tuple<T>>::submit(int starpu_worker_hint,
     args->nelems = nelems;
     args->alpha = alpha;
     // Submit task
-    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
-        { { STARPU_R, &src }, { STARPU_W, &dst } }, args, sizeof(*args));
+    ::nntile::nnhaul::insert_task(codelet.raw, worker_hint,
+        { { ACCESS_R, &src }, { ACCESS_W, &dst } }, args, sizeof(*args));
     std::free(args);
 
 }
@@ -259,4 +237,4 @@ template class Scale<std::tuple<nntile::fp16_t>>;
 //! Pack of scale operations for different types
 scale_pack_t scale;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

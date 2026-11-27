@@ -278,7 +278,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(rt.execution_schedule().ops.size() == nops);
 }
 
-#ifdef NNTILE_USE_NNHAUL
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNHaul execution.json round-trips hardware.workers",
     "[execution_schedule]")
@@ -302,7 +301,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(loaded.ops.size() == sched.ops.size());
 
     char const *const stale_path =
-        "/tmp/nntile_execution_schedule_starpu_shape.json";
+        "/tmp/nntile_execution_schedule_engine_shape.json";
     std::ofstream stale(stale_path);
     stale << "{\n"
              "  \"hardware\": {\"num_workers\": 1, \"worker_kind\": \"cpu\"},\n"
@@ -312,4 +311,3 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE_THROWS_AS(
         load_execution_schedule_json(stale_path), std::runtime_error);
 }
-#endif

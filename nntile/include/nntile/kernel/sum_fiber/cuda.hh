@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/kernel/sum_fiber/cuda.hh
  * Sums over slices into a fiber of a buffer on CUDA
@@ -40,8 +40,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch, Scalar al
  * the same values in the same order and the shared-memory atomicAdd sees
  * the same partial sums: the result is cuda()'s, up to the same atomic
  * ordering nondeterminism cuda() itself already has. A launch whose pointer
- * set exceeds the table aborts (rule 11, 2026-10-19: no per-piece
- * fallback exists).
+ * set exceeds the table aborts (no per-chunk fallback exists).
  *
  * @param[in] stream: CUDA stream
  * @param[in] m: Size of the first mode of src

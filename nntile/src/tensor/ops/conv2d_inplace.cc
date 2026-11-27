@@ -1,18 +1,24 @@
-#include <nntile/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/src/tensor_graph/conv2d_inplace.cc
  * TensorGraph conv2d_inplace operation implementation.
  *
  * @version 1.1.0
  * */
-
+/*!
+ * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.
+ * Kept in-tree for future re-enablement. No product path calls this code;
+ * its tests are not registered while the family is in
+ * NNTILE_DISABLED_KERNELS.
+ */
+#include <nntile/common.hh>
+#include "nntile/kernel_scope.hh"
 #include "nntile/tensor/ops/conv2d_inplace.hh"
 
 #include <algorithm>
@@ -81,8 +87,6 @@ void assert_full_in_channels(
 
 } // namespace
 
-
-
 void conv2d_inplace(Scalar alpha,
                     TensorGraph::TensorNode* X,
                     TensorGraph::TensorNode* C,
@@ -92,6 +96,7 @@ void conv2d_inplace(Scalar alpha,
                     std::array<Index, 2> stride,
                     std::array<Index, 2> dilation)
 {
+    nntile::require_kernel_family("conv2d_inplace");
     if(X == nullptr || C == nullptr || Y == nullptr)
         throw std::invalid_argument("conv2d_inplace: tensors must be non-null");
     if(X->graph() != C->graph() || C->graph() != Y->graph())

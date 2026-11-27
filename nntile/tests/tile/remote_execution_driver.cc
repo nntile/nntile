@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tile/remote_execution_driver.cc
  * RemoteExecutionDriver submits a TileGraph over a Unix socket.
@@ -13,6 +13,7 @@
  * */
 
 #include "context_fixture.hh"
+#include "nntile/kernel_scope.hh"
 #include "test_frobenius.hh"
 
 #include <nntile/execution_driver.hh>
@@ -34,9 +35,6 @@
 #include <nntile/tile/ops/sum_slice.hh>
 #include <nntile/tile/ops/transpose.hh>
 #include <nntile/tile/ops/unregister.hh>
-#ifdef NNTILE_TORCH_NATIVE_OPS
-#include <nntile/tile/ops/torch_dispatch.hh>
-#endif
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
@@ -285,120 +283,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         driver.gather(z->id()), {4.f, 6.f});
 }
 
-#ifdef NNTILE_TORCH_NATIVE_OPS
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "RemoteExecutionDriver TILE_TORCH v1 kinds",
-    "[graph][tile][driver][remote]")
-{
-    std::string const path = test_socket_path("torch");
-    ExecutionDaemon daemon(path);
-    daemon.start();
-    RemoteExecutionDriver driver(path);
-
-    TileGraph graph("driver_remote_torch");
-    auto *x = graph.data({2, 2}, "x", DataType::FP32);
-    auto *y = graph.data({2, 2}, "y", DataType::FP32);
-    auto *add_out = graph.data({2, 2}, "add", DataType::FP32);
-    auto *relu_out = graph.data({2, 2}, "relu", DataType::FP32);
-    auto *bias = graph.data({2}, "bias", DataType::FP32);
-    auto *lin_out = graph.data({2, 2}, "lin", DataType::FP32);
-    tg::torch_binary(
-        starpu::TorchKind::Add, x, y, add_out);
-    tg::torch_unary(
-        starpu::TorchKind::Relu, x, relu_out);
-    tg::torch_ternary(
-        starpu::TorchKind::Linear, x, y, bias, lin_out);
-
-    driver.bind(x->id(), {1, -2, 3, -4});
-    driver.bind(y->id(), {1, 1, 1, 1});
-    driver.bind(bias->id(), {0.5f, -0.5f});
-    driver.submit(graph);
-    driver.wait();
-    nntile::test::require_relative_element_error(
-        driver.gather(add_out->id()), {2.f, -1.f, 4.f, -3.f});
-    nntile::test::require_relative_element_error(
-        driver.gather(relu_out->id()), {1.f, 0.f, 3.f, 0.f});
-    auto const lin = driver.gather(lin_out->id());
-    REQUIRE(lin.size() == 4);
-}
-
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "RemoteExecutionDriver TILE_TORCH Add explicit alpha 0",
-    "[graph][tile][driver][remote]")
-{
-    std::string const path = test_socket_path("add0");
-    ExecutionDaemon daemon(path);
-    daemon.start();
-    RemoteExecutionDriver driver(path);
-
-    TileGraph graph("driver_remote_torch_add0");
-    auto *x = graph.data({2, 2}, "x", DataType::FP32);
-    auto *y = graph.data({2, 2}, "y", DataType::FP32);
-    auto *out = graph.data({2, 2}, "out", DataType::FP32);
-    starpu::TorchDispatchArgs extra;
-    extra.scalars[0] = static_cast<Scalar>(0);
-    tg::torch_binary(
-        starpu::TorchKind::Add, x, y, out, extra);
-
-    driver.bind(x->id(), {1, -2, 3, -4});
-    driver.bind(y->id(), {1, 1, 1, 1});
-    driver.submit(graph);
-    driver.wait();
-    nntile::test::require_relative_element_error(
-        driver.gather(out->id()), {1.f, -2.f, 3.f, -4.f});
-}
-
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "RemoteExecutionDriver TILE_TORCH_BINARY Mm keeps transposed layout",
-    "[graph][tile][driver][remote]")
-{
-    // mm(grad.t(), x) as recorded for stock-aten Linear backward: the
-    // daemon-side node holds grad (2x3, row-major) and the packed view
-    // layout reads it as its 3x2 transpose. Before the layouts survived
-    // the remote tile codec the daemon fell back to a contiguous 3x2
-    // read of the same bytes and computed the wrong product.
-    std::string const path = test_socket_path("mmt");
-    ExecutionDaemon daemon(path);
-    daemon.start();
-    RemoteExecutionDriver driver(path);
-
-    TileGraph graph("driver_remote_mm_t");
-    auto *grad = graph.data({2, 3}, "grad", DataType::FP32);
-    auto *x = graph.data({2, 2}, "x", DataType::FP32);
-    auto *out = graph.data({3, 2}, "out", DataType::FP32);
-    starpu::TorchDispatchArgs extra{};
-    extra.in_layout_set[0] = 1;
-    extra.in_ndim[0] = 2;
-    extra.in_sizes[0][0] = 3; // grad.t()
-    extra.in_sizes[0][1] = 2;
-    extra.in_strides[0][0] = 1;
-    extra.in_strides[0][1] = 3;
-    extra.in_offset[0] = 0;
-    extra.in_layout_set[1] = 1;
-    extra.in_ndim[1] = 2;
-    extra.in_sizes[1][0] = 2;
-    extra.in_sizes[1][1] = 2;
-    extra.in_strides[1][0] = 2;
-    extra.in_strides[1][1] = 1;
-    extra.out_layout_set[0] = 1;
-    extra.out_ndim[0] = 2;
-    extra.out_sizes[0][0] = 3;
-    extra.out_sizes[0][1] = 2;
-    extra.out_strides[0][0] = 2;
-    extra.out_strides[0][1] = 1;
-    tg::torch_binary(starpu::TorchKind::Mm, grad, x, out, extra);
-
-    // grad (2x3): [[1, 2, 3], [4, 5, 6]]; x (2x2): [[1, 2], [3, 4]].
-    driver.bind(grad->id(), {1.f, 2.f, 3.f, 4.f, 5.f, 6.f});
-    driver.bind(x->id(), {1.f, 2.f, 3.f, 4.f});
-    driver.submit(graph);
-    driver.wait();
-    // grad.t() @ x = [[13, 18], [17, 24], [21, 30]].
-    nntile::test::require_relative_element_error(
-        driver.gather(out->id()),
-        {13.f, 18.f, 17.f, 24.f, 21.f, 30.f});
-}
-#endif
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "RemoteExecutionDriver TILE_UNREGISTER",
@@ -433,7 +317,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     // Runtime::eliminate_dead_ops as soon as any TILE_UNREGISTER was
     // pending - the keep-sink fallback ran only when the work list was
     // empty. The pruned op never wrote its tile and the gather aborted
-    // in _starpu_data_check_initialized (nntile/platform#41 upstream
+    // in the engine initialized check (nntile/platform#41 upstream
     // ask 4).
     std::string const path = test_socket_path("dce_wire");
     ExecutionDaemon daemon(path);
@@ -540,6 +424,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "RemoteExecutionDriver TILE_CONV2D_INPLACE",
     "[graph][tile][driver][remote]")
 {
+    if(nntile::kernel_family_disabled("conv2d_inplace"))
+    {
+        SKIP("kernel family conv2d_inplace is disabled in this build");
+    }
     std::string const path = test_socket_path("conv");
     ExecutionDaemon daemon(path);
     daemon.start();
@@ -572,7 +460,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE(
-    "ExecutionDaemon inits StarPU when none exists",
+    "ExecutionDaemon inits NNHaul when none exists",
     "[graph][tile][driver][remote]")
 {
     std::string const path = test_socket_path("nocontext");

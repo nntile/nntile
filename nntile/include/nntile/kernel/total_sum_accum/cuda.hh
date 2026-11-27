@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/kernel/total_sum_accum/cuda.hh
  * total_sum_accum operation for buffers on CUDA
@@ -34,9 +34,12 @@ void cuda(cudaStream_t stream, Scalar alpha, Index n_labels, Index n_outputs,
  * base-pointer arrays are device-table views of the operand tables built
  * by the driver, and each block copies them into shared memory once. Each
  * thread's per-column read (logsumexp[i], labels[i], src[labels[i], i]) is
- * identical to cuda()'s, so the block partial and the global float
- * atomicAdds see the same values in the same block grouping: the result is
- * cuda()'s up to the same float-atomic ordering nondeterminism.
+ * identical to cuda()'s. Within a block the 256 contributions reduce
+ * through a fixed warp tree; block partials combine with one global
+ * atomicAdd each, so the cross-block order is nondeterministic exactly
+ * like cuda()'s own atomic tail. There is no process-global scratch state:
+ * concurrent launches on different streams cannot mix partials. `val` must
+ * be a single chunk.
  *
  * @param[in] stream: CUDA stream
  * @param[in] alpha: Scalar multiplier

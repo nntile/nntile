@@ -4,25 +4,23 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/core/pow.cc
  * Power operation for Tile<T>
  *
  * @version 1.1.0
  * */
-
+/*!
+ * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.
+ * Kept in-tree for future re-enablement. No product path calls this code;
+ * its tests are not registered while the family is in
+ * NNTILE_DISABLED_KERNELS.
+ */
 #include "nntile/core/pow.hh"
-#ifdef NNTILE_USE_NNHAUL
+#include "nntile/kernel_scope.hh"
 #include "nntile/nnhaul/ops/pow.hh"
-#else
-#include "nntile/starpu/pow.hh"
-#endif
-#ifdef NNTILE_USE_NNHAUL
 #include "nntile/nnhaul/sync_defer.hh"
-#else
-#include "nntile/starpu/config.hh"
-#endif
 
 namespace nntile::core
 {
@@ -31,86 +29,65 @@ namespace nntile::core
 /*! @param[inout] A: Tile for the element-wise power operation
  * */
 template<typename T>
-void pow_async(int starpu_worker_hint, Scalar alpha, Scalar exp, const Tile<T> &A)
+void pow_async(int worker_hint, Scalar alpha, Scalar exp, const Tile<T> &A)
 {
-    #ifdef NNTILE_USE_NNHAUL
-    int mpi_rank = 0;
-    #else
-    int mpi_rank = starpu_mpi_world_rank();
-    #endif
-    #ifdef NNTILE_USE_NNHAUL
-    int a_rank = 0;
-    #else
-    int a_rank = A.mpi_get_rank();
-    #endif
-    if(mpi_rank == a_rank)
-    {
-        // Submit task without any arguments checked
-        #ifdef NNTILE_USE_NNHAUL
-        haul::pow.submit<std::tuple<T>>(starpu_worker_hint, A.nelems, alpha, exp, A);
-        #else
-        starpu::pow.submit<std::tuple<T>>(starpu_worker_hint, A.nelems, alpha, exp, A);
-        #endif
-
-    }
+    nntile::require_kernel_family("pow");
+    // Submit task without any arguments checked
+    nnhaul::pow.submit<std::tuple<T>>(worker_hint, A.nelems, alpha, exp, A);
 }
 
 //! Blocking version of tile-wise power operation
 /*! @param[inout] A: Tile for the element-wise power operation
  * */
 template<typename T>
-void pow(int starpu_worker_hint, Scalar alpha, Scalar exp, const Tile<T> &A)
+void pow(int worker_hint, Scalar alpha, Scalar exp, const Tile<T> &A)
 {
-    pow_async<T>(starpu_worker_hint, alpha, exp, A);
-    #ifdef NNTILE_USE_NNHAUL
+    pow_async<T>(worker_hint, alpha, exp, A);
     nntile::nnhaul_task_wait_for_all_unless_deferred();
-#else
-    nntile::starpu_task_wait_for_all_unless_deferred();
-#endif
 }
 
 // Explicit instantiation
 template
-void pow_async<fp32_t>(int starpu_worker_hint, Scalar alpha, Scalar exp, const Tile<fp32_t> &A);
+void pow_async<fp32_t>(int worker_hint, Scalar alpha, Scalar exp, const Tile<fp32_t> &A);
 
 template
-void pow_async<fp64_t>(int starpu_worker_hint, Scalar alpha, Scalar exp, const Tile<fp64_t> &A);
+void pow_async<fp64_t>(int worker_hint, Scalar alpha, Scalar exp, const Tile<fp64_t> &A);
 
 template
-void pow_async<bf16_t>(int starpu_worker_hint, Scalar alpha, Scalar exp, const Tile<bf16_t> &A);
+void pow_async<bf16_t>(int worker_hint, Scalar alpha, Scalar exp, const Tile<bf16_t> &A);
 
 template
-void pow_async<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha, Scalar exp,
+void pow_async<fp32_fast_tf32_t>(int worker_hint, Scalar alpha, Scalar exp,
         const Tile<fp32_fast_tf32_t> &A);
 
 template
-void pow_async<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha, Scalar exp,
+void pow_async<fp32_fast_fp16_t>(int worker_hint, Scalar alpha, Scalar exp,
         const Tile<fp32_fast_fp16_t> &A);
 
 template
-void pow_async<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha, Scalar exp,
+void pow_async<fp32_fast_bf16_t>(int worker_hint, Scalar alpha, Scalar exp,
         const Tile<fp32_fast_bf16_t> &A);
 
 // Explicit instantiation
 template
-void pow<fp32_t>(int starpu_worker_hint, Scalar alpha, Scalar exp, const Tile<fp32_t> &A);
+void pow<fp32_t>(int worker_hint, Scalar alpha, Scalar exp, const Tile<fp32_t> &A);
 
 template
-void pow<fp64_t>(int starpu_worker_hint, Scalar alpha, Scalar exp, const Tile<fp64_t> &A);
+void pow<fp64_t>(int worker_hint, Scalar alpha, Scalar exp, const Tile<fp64_t> &A);
 
 template
-void pow<bf16_t>(int starpu_worker_hint, Scalar alpha, Scalar exp, const Tile<bf16_t> &A);
+void pow<bf16_t>(int worker_hint, Scalar alpha, Scalar exp, const Tile<bf16_t> &A);
 
 template
-void pow<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha, Scalar exp,
+void pow<fp32_fast_tf32_t>(int worker_hint, Scalar alpha, Scalar exp,
         const Tile<fp32_fast_tf32_t> &A);
 
 template
-void pow<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha, Scalar exp,
+void pow<fp32_fast_fp16_t>(int worker_hint, Scalar alpha, Scalar exp,
         const Tile<fp32_fast_fp16_t> &A);
 
 template
-void pow<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha, Scalar exp,
+void pow<fp32_fast_bf16_t>(int worker_hint, Scalar alpha, Scalar exp,
         const Tile<fp32_fast_bf16_t> &A);
 
 } // namespace nntile::core

@@ -4,10 +4,10 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file include/nntile/starpu/maxsumexp.hh
- * Max and sum of exponents for StarPU buffer
+ * @file include/nntile/nnhaul/ops/maxsumexp.hh
+ * Max and sum of exponents for NNHaul buffer
  *
  * @version 1.1.0
  * */
@@ -23,7 +23,7 @@
 // NNTile headers
 #include <nntile/nnhaul/codelet.hh>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Generic wrapper class for maxsumexp operation is not defined
@@ -66,9 +66,9 @@ public:
         noexcept;
 #endif // NNTILE_USE_CUDA
 
-    //! Submit maxsumexp task (beta=0 overwrite / STARPU_W; beta=1 accumulate)
+    //! Submit maxsumexp task (beta=0 overwrite / ACCESS_W; beta=1 accumulate)
     void submit(
-        int starpu_worker_hint,
+        int worker_hint,
         Index m,
         Index n,
         Index k,
@@ -94,4 +94,4 @@ using maxsumexp_pack_t = OperationPack<
 //! Pack of maxsumexp operations for different types
 extern maxsumexp_pack_t maxsumexp;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

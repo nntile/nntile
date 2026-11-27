@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/hypot_scalar_inverse/cuda.cu
  * Inverse of a hypot operation of a buffer and a scalar on CUDA
@@ -82,9 +82,8 @@ static __device__ __forceinline__ long hsi_chunk_index(long f, Index elems,
 //! (i = tid + bid*256) and the SAME per-element expression (copied
 //! verbatim from cuda_kernel; hypot is a call, so there is no
 //! FMA-contraction freedom) with the destination address resolved through
-//! its chunk table read straight from the device table (piece 9 / rule
-//! 10: no staging, no table __syncthreads). The result is bitwise
-//! cuda()'s.
+//! its chunk table read straight from the device table (no staging, no
+//! table __syncthreads). The result is bitwise cuda()'s.
 template<typename T>
 static __global__
 void chunked_cuda_kernel(Index nelems, Scalar eps_, Scalar alpha_,

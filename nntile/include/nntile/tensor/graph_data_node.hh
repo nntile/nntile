@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/tensor/graph_data_node.hh
  * TensorGraph::TensorNode - data node for TensorGraph (shape, dtype, name).
@@ -136,18 +136,18 @@ class TensorGraph::TensorNode
         touch_gen_ = gen;
     }
 
-    //! True while StarPU still holds a handle for this tensor's tiles.
-    bool is_starpu_registered() const
+    //! True while NNHaul still holds a handle for this tensor's tiles.
+    bool is_registered() const
     {
-        return starpu_registered_;
+        return registered_;
     }
-    void note_starpu_registered()
+    void note_registered()
     {
-        starpu_registered_ = true;
+        registered_ = true;
     }
-    void note_starpu_unregistered()
+    void note_unregistered()
     {
-        starpu_registered_ = false;
+        registered_ = false;
     }
 
   private:
@@ -161,7 +161,7 @@ class TensorGraph::TensorNode
     std::string name_;
     bool has_producer_ = false;
     bool has_constant_value_ = false;
-    bool starpu_registered_ = false;
+    bool registered_ = false;
     Scalar constant_value_ = 0;
     std::optional<std::vector<std::uint8_t>> bind_hint_;
     mutable std::uint32_t touch_gen_ = 0;
@@ -389,54 +389,6 @@ inline void validate_logsumexp_shape_and_merge(TensorGraph::TensorNode *src,
     const std::string &op_name)
 {
     validate_logsumexp_drop_last_shape_and_merge(src, dst, op_name);
-}
-
-//! Validate flash_sdpa Q/K/V shape (C-order): [head_size, n_seq, batch...].
-//! Q and K share batch dims and head_size (axis 0); Q's seq (axis 1)
-//! may differ from K's. V's seq must match K (key-sequence length).
-inline void validate_flash_sdpa_qkv_shape_and_merge(TensorGraph::TensorNode *Q,
-    TensorGraph::TensorNode *K,
-    TensorGraph::TensorNode *V,
-    const std::string &op_name)
-{
-    if (Q->ndim() != K->ndim())
-        throw std::invalid_argument(op_name + ": Q.ndim must match K.ndim");
-    if (V->ndim() != K->ndim())
-        throw std::invalid_argument(op_name + ": V.ndim must match K.ndim");
-    const Index head_ax = 0;
-    const Index seq_ax = 1;
-    if (Q->shape()[head_ax] != K->shape()[head_ax])
-        throw std::invalid_argument(
-            op_name + ": Q head_size must match K head_size");
-    if (V->shape()[head_ax] != K->shape()[head_ax])
-        throw std::invalid_argument(
-            op_name + ": V head_size must match K head_size");
-    if (V->shape()[seq_ax] != K->shape()[seq_ax])
-        throw std::invalid_argument(
-            op_name + ": V seq must match K seq (key-sequence length)");
-    for (Index i = 2; i < K->ndim(); ++i)
-    {
-        if (Q->shape()[i] != K->shape()[i])
-            throw std::invalid_argument(
-                op_name + ": Q.dim[" + std::to_string(i) +
-                "] must match K.dim[" + std::to_string(i) + "]");
-        if (V->shape()[i] != K->shape()[i])
-            throw std::invalid_argument(
-                op_name + ": V.dim[" + std::to_string(i) +
-                "] must match K.dim[" + std::to_string(i) + "]");
-    }
-    merge_axis(Q->mutable_axes()[head_ax], K->mutable_axes()[head_ax]);
-    merge_axis(Q->mutable_axes()[seq_ax], K->mutable_axes()[seq_ax]);
-    for (Index i = 2; i < K->ndim(); ++i)
-    {
-        merge_axis(Q->mutable_axes()[i], K->mutable_axes()[i]);
-    }
-    merge_axis(V->mutable_axes()[head_ax], K->mutable_axes()[head_ax]);
-    merge_axis(V->mutable_axes()[seq_ax], K->mutable_axes()[seq_ax]);
-    for (Index i = 2; i < K->ndim(); ++i)
-    {
-        merge_axis(V->mutable_axes()[i], K->mutable_axes()[i]);
-    }
 }
 
 //! Validate embedding output shape and merge axes.

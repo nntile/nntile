@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/core/add_inplace.hh
  * Add operation for Tile<T>'s
@@ -21,12 +21,12 @@ namespace nntile::core
 
 // Tile-wise add operation
 template<typename T>
-void add_inplace_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta,
+void add_inplace_async(int worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta,
         const Tile<T> &dst);
 
 // Tile-wise add operation
 template<typename T>
-void add_inplace(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta,
+void add_inplace(int worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta,
         const Tile<T> &dst);
 
 } // namespace nntile::core

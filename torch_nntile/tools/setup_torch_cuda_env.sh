@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install torch (cu128) once and export pip nvidia paths for libnntile/StarPU.
+# Install torch (cu128) once and export pip nvidia paths for libnntile.
 # Source this script; do not execute in a subshell.
 #
 # nvcc and libcuda stubs come from the thin system toolkit
@@ -46,8 +46,8 @@ if [ -z "${CUDA_HOME:-}" ]; then
 fi
 
 # Resolve pip nvidia package roots (include + lib) for cmake / LD_LIBRARY_PATH.
-# StarPU's CUDA headers pull in cusolver/cusparse even when those libs are not
-# linked; expose their pip include dirs for the StarPU build.
+# cuDNN headers pull in cusolver/cusparse even when those libs are not
+# linked; expose their pip include dirs for the nntile build.
 nvidia_env="$("${python}" - <<'PY'
 from pathlib import Path
 import importlib

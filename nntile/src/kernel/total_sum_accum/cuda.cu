@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/total_sum_accum/cuda.cu
  * total_sum_accum operation on CUDA
@@ -14,6 +14,7 @@
 
 #include "nntile/kernel/total_sum_accum/cuda.hh"
 #include <cstdio>
+#include <cstdlib>
 #include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::total_sum_accum
@@ -36,7 +37,7 @@ void cuda_kernel(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_ind
         __syncthreads();
         Y val1 = static_cast<Y>(logsumexp[i]);
         Y val2 = val1;
-        if (labels[i] != ignore_index)
+        if (labels[i] != ignore_index && labels[i] >= 0 && labels[i] < n_labels)
             val2 = static_cast<Y>(src[labels[i] + i*n_labels]);
         atomicAdd(&block_val, val1-val2);
         __syncthreads();
@@ -100,20 +101,6 @@ struct TotalSumAccumChunkTables
     Scalar alpha;
 };
 
-//! Fixed scratch for the deterministic cross-block tail. One slot per block.
-//! gridDim.x is 4 for the engine's n_outputs=1024 shape; the gate's large
-//! tabular shape reaches 4097 blocks, so the capacity covers 8192 blocks
-//! (n_outputs up to 2^21). double keeps the per-block partials exact for
-//! every T (an fp32 partial is exactly representable in double; fp64
-//! partials are kept at full precision).
-static constexpr unsigned kTsaScratchBlocks = 8192;
-static __device__ double tsa_scratch[kTsaScratchBlocks];
-//! Arrival ticket for the deterministic tail: the last block of a launch
-//! resets it to 0 (atomicInc rewinds) so the next launch starts clean. This
-//! assumes launches are serialized on one stream, which is how the engine
-//! calls the kernel (and how `val` is already accumulated).
-static __device__ unsigned tsa_ticket = 0;
-
 //! Warp-tree block partial shared by the chunked kernels. cuda() reduces
 //! each block's 256 contributions with a same-address __shared__ atomicAdd
 //! (arrival-order nondeterministic) and finishes with ONE global atomicAdd
@@ -127,22 +114,15 @@ static __device__ unsigned tsa_ticket = 0;
 //! own shared slot, thread 0 sums the 8 slots in a fixed order. That makes
 //! the within-block reduction deterministic.
 //!
-//! Cross-block: the block partials are combined deterministically too --
-//! each block stores its partial to tsa_scratch[blockIdx.x], fences, and
-//! takes a ticket; the last arriving block sums scratch[0..gridDim.x-1] in
-//! fixed index order and adds alpha*sum to val once. The per-block partials
-//! are order-independent and the final sum order is fixed, so the whole
-//! kernel is bitwise stable across runs. This is NOT a claim that the old
-//! per-block global atomicAdd tail was stable -- it was not; it had the same
-//! arrival-order nondeterminism as cuda()'s own atomic. (When gridDim.x
-//! exceeds the scratch capacity the kernel falls back to that per-block
-//! global atomicAdd tail, which remains order-nondeterministic.)
+//! Cross-block: one global atomicAdd per block, like cuda()'s tail, so
+//! the result carries the same arrival-order nondeterminism as classic.
+//! There is no process-global scratch or ticket: two launches on different
+//! streams cannot mix their partials.
 //!
 //! Performance note: cuda()'s 256-way same-address shared atomic serializes
-//! to ~17 us on the loss-head shape when the gather responses arrive in a
-//! burst (exactly what the chunked src table indirection produces); the
-//! tree is immune to that pattern (3.0 us bulk, under classic on
-//! bulk/p50/p90). The deterministic tail adds only a few-block serial sum.
+//! when the gather responses arrive in a burst (exactly what the chunked
+//! src table indirection produces); the tree avoids that serialization
+//! pattern. The deterministic tail adds only a few-block serial sum.
 template<typename T>
 static __device__ __forceinline__ void tsa_tree_partial(float *val,
     Scalar alpha, typename T::repr_t contrib)
@@ -164,29 +144,11 @@ static __device__ __forceinline__ void tsa_tree_partial(float *val,
         Y block_val = warp_val[0] + warp_val[1] + warp_val[2]
             + warp_val[3] + warp_val[4] + warp_val[5] + warp_val[6]
             + warp_val[7];
-        if(gridDim.x <= kTsaScratchBlocks)
-        {
-            // Deterministic cross-block tail (see comment above).
-            tsa_scratch[blockIdx.x] = static_cast<double>(block_val);
-            __threadfence();
-            unsigned const last = gridDim.x - 1u;
-            unsigned const ticket = atomicInc(&tsa_ticket, last);
-            if(ticket == last)
-            {
-                double sum = 0.0;
-                for(unsigned b = 0; b < gridDim.x; ++b)
-                {
-                    sum += tsa_scratch[b];
-                }
-                atomicAdd(val, static_cast<float>(alpha*sum));
-            }
-        }
-        else
-        {
-            // Scratch too small for this grid: documented fallback, the
-            // classic per-block global atomic tail (order nondeterministic).
-            atomicAdd(val, static_cast<float>(alpha*block_val));
-        }
+        // Cross-block: one global atomicAdd per block, exactly like
+        // cuda()'s tail. A process-global scratch/ticket would be shared
+        // by two launches on different streams and silently mix their
+        // partials; the atomic tail has no cross-launch state.
+        atomicAdd(val, static_cast<float>(alpha*block_val));
     }
 }
 
@@ -225,7 +187,7 @@ void chunked_cuda_kernel(TotalSumAccumChunkTables<T> t)
         Y val2 = val1;
         Index const lc = tsa_chunk_of(i, t.elems_lab, t.shift_lab);
         std::int64_t const lab = t.labels[lc][i - long(lc) * long(t.elems_lab)].value;
-        if(lab != t.ignore_index)
+        if(lab != t.ignore_index && lab >= 0 && lab < t.n_labels)
         {
             val2 = static_cast<Y>(tsa_get(t.src, t.elems_src, t.shift_src,
                 long(lab) + i*long(t.n_labels)));
@@ -235,12 +197,11 @@ void chunked_cuda_kernel(TotalSumAccumChunkTables<T> t)
     tsa_tree_partial<T>(t.val[0], t.alpha, contrib);
 }
 
-//! (piece C, 2026-10-18c) Mixed-shape variant for launches whose small
+//!  Mixed-shape variant for launches whose small
 //! operands (logsumexp, labels, val) are all SINGLE-CHUNK while src is
-//! multi-chunk -- the total_sum_accum graph shape (lse 4 KiB, labels
-//! 8 KiB, val 4 B beside the 196.32 MiB src). The single-chunk bases
-//! travel as plain kernel parameters (the piece-4 degenerate-launch
-//! resolution applied per operand: a 1-chunk table is its own base
+//! multi-chunk -- a shape that occurs when the operands are tiny beside a
+//! large src. The single-chunk bases travel as plain kernel parameters
+//! (a 1-chunk table is its own base
 //! pointer, so the table keeps serving only the genuinely multi-chunk
 //! src). This removes one dependent table-slot load per operand per
 //! thread from the serial chain of this 4-block latency-bound kernel;
@@ -263,7 +224,7 @@ void chunked_smalls_cuda_kernel(Scalar alpha, Index n_labels,
         Y val1 = static_cast<Y>(lse[i]);
         Y val2 = val1;
         std::int64_t const lab = labels[i].value;
-        if(lab != ignore_index)
+        if(lab != ignore_index && lab >= 0 && lab < n_labels)
         {
             val2 = static_cast<Y>(tsa_get(src, elems_src, shift_src,
                 long(lab) + i*long(n_labels)));
@@ -273,7 +234,7 @@ void chunked_smalls_cuda_kernel(Scalar alpha, Index n_labels,
     tsa_tree_partial<T>(val, alpha, contrib);
 }
 
-//! (piece 16) The bench/engine shape reached WITHOUT the direct one-chunk
+//! The common shape reached WITHOUT the direct one-chunk
 //! bases (the caller only holds device-resident pointer tables): the small
 //! operands (logsumexp, labels, val) are all single-chunk -- a property
 //! the host knows from the chunk counts -- so each thread resolves them
@@ -298,7 +259,7 @@ void chunked_smalls_table_cuda_kernel(Scalar alpha, Index n_labels,
         Y val1 = static_cast<Y>(lse0[i]);
         Y val2 = val1;
         std::int64_t const lab = lab0[i].value;
-        if(lab != ignore_index)
+        if(lab != ignore_index && lab >= 0 && lab < n_labels)
         {
             val2 = static_cast<Y>(tsa_get(src, elems_src, shift_src,
                 long(lab) + i*long(n_labels)));
@@ -325,9 +286,17 @@ void chunked(cudaStream_t stream, Scalar alpha, Index n_labels,
     {
         return;
     }
-    // Piece C: mixed shape (small operands single-chunk, src
+    if(nval != 1)
+    {
+        // val is one float accumulator; the kernel reads val_chunks[0]
+        // only. Refuse a chunked val instead of silently ignoring it.
+        std::fprintf(stderr, "nntile total_sum_accum: val must be one "
+            "chunk (got %d)\n", int(nval));
+        std::abort();
+    }
+    // Mixed shape (small operands single-chunk, src
     // multi-chunk) takes the smalls-direct variant: the 1-chunk bases
-    // arrive as plain parameters (the degenerate resolution per
+    // arrive as plain parameters (a degenerate resolution per
     // operand), only src reads the table. Falls back to the fully
     // tabular kernel whenever any small operand is multi-chunk or the
     // direct bases were not supplied.
@@ -341,7 +310,7 @@ void chunked(cudaStream_t stream, Scalar alpha, Index n_labels,
             lse0, src_chunks, elems_src, shift_src, labels0, val0);
         return;
     }
-    // Piece 16: the small operands are single-chunk (host-known from the
+    // The small operands are single-chunk (host-known from the
     // chunk counts), the direct bases were not supplied -- resolve the
     // three table slots once per thread (uniform L1-resident loads) in the
     // slim smalls-table kernel instead of the fat-struct tabular walk.
@@ -378,8 +347,8 @@ void chunked(cudaStream_t stream, Scalar alpha, Index n_labels,
     t.ignore_index = ignore_index;
     t.alpha = alpha;
     // Same geometry as the whole-buffer entry: one thread per column.
-    // Rule 10: no dynamic shared memory (the tables are read from the
-    // table directly; only the static block_val reduction cell remains).
+    // No dynamic shared memory (the tables are read directly; only the
+    // static block_val reduction cell remains).
     dim3 blocks((n_outputs + 255) / 256), threads(256);
     (chunked_cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(t);
 }

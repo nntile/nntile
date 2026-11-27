@@ -15,7 +15,8 @@ namespace torch_nntile
 //! Whether linked libnntile was compiled with ``NNTILE_USE_CUDA``.
 bool built_with_cuda();
 
-//! Unregistered aten ops raise; ``cpu_fallback=true`` is explicit opt-in.
+//! Unregistered aten ops always raise. ``cpu_fallback`` is kept for source
+//! compatibility and must be false; true is rejected.
 void init_context(
     int ncpu = -1,
     int ncuda = -1,
@@ -32,16 +33,10 @@ bool is_context_initialized();
 
 bool is_cpu_fallback_enabled();
 
-void restrict_cpu();
-
-void restrict_cuda();
-
-void restore_where();
-
-//! Block until submitted StarPU tasks finish.
+//! Block until submitted tasks finish.
 void wait_for_all();
 
-//! Shut down libnntile / StarPU (safe to call repeatedly).
+//! Shut down libnntile (safe to call repeatedly).
 void shutdown_context();
 
 bool has_pending_graph();
@@ -49,7 +44,7 @@ bool has_pending_graph();
 //! Lower and compile the pending TensorGraph.
 void compile_graph();
 
-//! Submit the compiled graph to StarPU (does not wait).
+//! Submit the compiled graph to NNHaul (does not wait).
 void run_graph();
 
 void reset_graph_session();

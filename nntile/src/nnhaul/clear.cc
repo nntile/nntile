@@ -4,10 +4,10 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file src/starpu/clear.cc
- * Clear a StarPU buffer
+ * @file src/nnhaul/clear.cc
+ * Clear a NNHaul buffer
  *
  * @version 1.2.0
  * */
@@ -26,7 +26,7 @@
 #endif // NNTILE_USE_CUDA
 #include "nntile/nnhaul/chunk_units.hh"
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Constructor
@@ -43,20 +43,20 @@ Clear::Clear():
 {
     // Modes cannot be variable for clear operation
     // Construct modes
-    constexpr std::array<starpu_data_access_mode, 1> modes = {
-        STARPU_W
+    constexpr std::array<data_access_mode, 1> modes = {
+        ACCESS_W
     };
     // Set modes
     codelet.set_modes_fixed(modes);
 }
 
-//! Clear a StarPU buffer on CPU
+//! Clear a NNHaul buffer on CPU
 void Clear::cpu(void *buffers[], void *cl_args)
     noexcept
 {
     (void)cl_args;
     // Get interfaces
-    auto data = ::nntile::haul::buf_chunks<unsigned char>(buffers, 0);
+    auto data = ::nntile::nnhaul::buf_chunks<unsigned char>(buffers, 0);
     // Clear buffer chunk by chunk (single chunk if unchunked)
     for (std::size_t i = 0; i < data.count(); ++i)
     {
@@ -70,29 +70,22 @@ void Clear::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     (void)cl_args;
-    auto data = ::nntile::haul::buf_chunks<unsigned char>(buffers, 0);
+    auto data = ::nntile::nnhaul::buf_chunks<unsigned char>(buffers, 0);
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    // (user directive, 2026-10-19, second form) ONE launch for the
-    // chunked clear: per-chunk cudaMemsetAsync does not scale (a 16 MiB
-    // chunk is ~4 us of fill at 3.6 TB/s -- launch overhead would
-    // dominate on H200-class bandwidth). The kernel rounds the clear up
+    // ONE launch for the
+    // chunked clear: per-chunk cudaMemsetAsync does not scale (one launch
+    // per chunk; launch overhead would dominate on a fast card). The
+    // kernel rounds the clear up
     // to a 16-byte multiple (allocation padding absorbs the <=15 B) so
     // every unit is one unconditional uint4 store through the chunk
     // table. Degenerate 1-chunk case: the single memset.
     {
         auto buf_data = static_cast<::nnhaul::Buffer *>(buffers[0]);
         bool const all_plain =
-            buf_data->chunk_count() == 1
-            && !chunkunits::force_chunked_kernels();
+            buf_data->chunk_count() == 1;
         std::size_t const nbytes = buf_data->nbytes();
         if(!(all_plain) && nbytes > 0)
         {
-            if(buf_data->chunk_count() == 1)
-            {
-                ::cudaMemsetAsync(buf_data->get_ptr<unsigned char>(), 0,
-                    nbytes, stream);
-                return;
-            }
             chunkunits::ChunkView<unsigned char> const cvd(buf_data);
             chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
             tabs.clear();
@@ -110,21 +103,18 @@ void Clear::cuda(void *buffers[], void *cl_args)
                     table.end(stream);
                     return;
                 }
-                // (rule 11) No per-piece fallback exists: a launch the
+                //  No per-piece fallback exists: a launch the
                 // table cannot serve is an invariant violation.
                 std::fprintf(stderr,
                     "nntile_clear: chunk-ptr table cannot serve this "
-                    "launch (invariant violation; rule 11)\n");
+                    "launch \n");
                 std::abort();
             }
             std::fprintf(stderr,
-                "nntile_clear: chunk-ptr table init failed (rule 11)\n");
+                "nntile_clear: chunk-ptr table init failed \n");
             std::abort();
         }
-        if(nbytes > 0)
-        {
-            chunkunits::classic_dispatch_tripwire("nntile_clear", false);
-        }
+
     }
     for (std::size_t i = 0; i < data.count(); ++i)
     {
@@ -134,16 +124,16 @@ void Clear::cuda(void *buffers[], void *cl_args)
 #endif // NNTILE_USE_CUDA
 
 //! Submit clear task
-void Clear::submit(int starpu_worker_hint, ::nnhaul::Handle & data)
+void Clear::submit(int worker_hint, ::nnhaul::Handle & data)
 {
     // Submit task
     std::size_t nnhaul_nbytes = data.nbytes();
-    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
-        { { STARPU_W, &data } }, &nnhaul_nbytes, sizeof(nnhaul_nbytes));
+    ::nntile::nnhaul::insert_task(codelet.raw, worker_hint,
+        { { ACCESS_W, &data } }, &nnhaul_nbytes, sizeof(nnhaul_nbytes));
 
 }
 
 //! Clear operation object
 Clear clear;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

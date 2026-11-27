@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/maxsumexp/cpu.cc
  * Max and sum of exponents of a buffer on CPU
@@ -131,7 +131,7 @@ void cpu(Index m, Index n, Index k, const T *src, Scalar beta, T *maxsumexp)
             }
             else if(overwrite)
             {
-                // All-masked fiber: write zeros so STARPU_W leaves no garbage
+                // All-masked fiber: write zeros so ACCESS_W leaves no garbage
                 maxsumexp[dst_offset] = static_cast<T>(zero);
                 maxsumexp[dst_offset+1] = static_cast<T>(zero);
             }

@@ -4,10 +4,10 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file include/nntile/starpu/transpose.hh
- * Transpose operation on StarPU buffers
+ * @file include/nntile/nnhaul/ops/transpose.hh
+ * Transpose operation on NNHaul buffers
  *
  * @version 1.1.0
  * */
@@ -23,7 +23,7 @@
 // Other NNTile headers
 #include <nntile/nnhaul/codelet.hh>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Generic wrapper class for transpose operation is not defined
@@ -67,7 +67,7 @@ public:
 
     //! Submit transpose task
     void submit(
-        int starpu_worker_hint,
+        int worker_hint,
         Index m,
         Index n,
         Scalar alpha,
@@ -91,4 +91,4 @@ using transpose_pack_t = OperationPack<
 //! Pack of transpose operations for different types
 extern transpose_pack_t transpose;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

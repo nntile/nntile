@@ -3,7 +3,7 @@
 #
 # @file torch_nntile/tests/test_models_python_classic_graph.py
 # Python torch_nntile.nn.model must record classic kernels on forward.
-# Backward may use aten::add (TORCH_BINARY) to combine fan-in grads.
+# Backward may use classic ADD / ADD_INPLACE to combine fan-in grads.
 
 from __future__ import annotations
 
@@ -23,11 +23,6 @@ from torch_nntile.nn.model.llama import LlamaCausal, LlamaConfig
 from torch_nntile.nn.model.mlp_mixer import MlpMixer, MlpMixerConfig
 from torch_nntile.nn.model.roberta import RobertaConfig, RobertaMlm
 from torch_nntile.nn.model.t5 import T5Config, T5ForConditionalGeneration
-
-pytestmark = pytest.mark.skipif(
-    not getattr(torch_nntile, "NNTILE_NATIVE_OPS", False),
-    reason="classic nntile-native ops not built",
-)
 
 
 def _ids(batch: int = 2, seq: int = 8, vocab: int = 128) -> torch.Tensor:

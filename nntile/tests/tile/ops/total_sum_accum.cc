@@ -5,7 +5,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tile_graph/total_sum_accum.cc
  * Test TileGraph total sum accum vs nntile::core (parity).
@@ -49,15 +49,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph total_sum_accum", "[gr
     nntile::core::Tile<fp32_t> L(leh), S(srh), Vref(vh);
     nntile::core::Tile<nntile::int64_t> C(clh);
     using Y = typename fp32_t::repr_t;
-    { auto a1=L.acquire(STARPU_W),a2=S.acquire(STARPU_W);
+    { auto a1=L.acquire(ACCESS_W),a2=S.acquire(ACCESS_W);
       for(Index i=0;i<4;++i) a1[i]=Y(lse[static_cast<size_t>(i)]);
       for(Index i=0;i<2*2*3;++i) a2[i]=Y(src[static_cast<size_t>(i)]);
       a1.release(); a2.release(); }
-    { auto b=C.acquire(STARPU_W);
+    { auto b=C.acquire(ACCESS_W);
       b[0]=0; b[1]=1; b[2]=2; b[3]=0; b.release(); }
-    { auto z=Vref.acquire(STARPU_W); z[0]=Y(0.0f); z.release(); }
+    { auto z=Vref.acquire(ACCESS_W); z[0]=Y(0.0f); z.release(); }
     nntile::core::total_sum_accum<fp32_t>(-1, a, L, S, C, Vref, ign);
-    starpu_task_wait_for_all();
-    float tref=0; { auto L2=Vref.acquire(STARPU_R); tref=static_cast<float>(L2[0]); L2.release(); }
+    task_wait_for_all();
+    float tref=0; { auto L2=Vref.acquire(ACCESS_R); tref=static_cast<float>(L2[0]); L2.release(); }
     nntile::test::require_relative_element_error(gout, std::vector<float>{tref});
 }

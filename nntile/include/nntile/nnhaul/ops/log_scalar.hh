@@ -4,10 +4,10 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file include/nntile/starpu/log_scalar.hh
- * StarPU wrapper to log scalar value
+ * @file include/nntile/nnhaul/ops/log_scalar.hh
+ * NNHaul wrapper to log scalar value
  *
  * @version 1.1.0
  * */
@@ -24,7 +24,7 @@
 // NNTile headers
 #include <nntile/nnhaul/codelet.hh>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Generic wrapper class for log_scalar operation is not defined
@@ -61,7 +61,7 @@ public:
 
     //! Submit log_scalar task
     void submit(
-        int starpu_worker_hint,
+        int worker_hint,
         const std::string &name,
         ::nnhaul::Handle & value
     );
@@ -81,4 +81,4 @@ using log_scalar_pack_t = OperationPack<
 //! Pack of log_scalar operations for different types
 extern log_scalar_pack_t log_scalar;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

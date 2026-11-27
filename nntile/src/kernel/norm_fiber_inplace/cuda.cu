@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/norm_fiber_inplace/cuda.cu
  * Sums over slices into a fiber of a buffer on CUDA
@@ -119,6 +119,68 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch,
             src, beta, dst);
 }
 
+template<typename T>
+static __global__
+void chunked_cuda_kernel(Index m, Index n, Index k, Index batch, Scalar alpha,
+        ChunkConst<T> src, Scalar beta, ChunkMut<T> dst)
+{
+    using Y = typename T::repr_t;
+    constexpr Y zero{0.0};
+
+    Index i2_batched = blockIdx.x * blockDim.x + threadIdx.x;
+    Index i2 = i2_batched % k;
+    Index b = i2_batched / k;
+
+    if (b < batch && i2 < k)
+    {
+        Y sum = zero;
+
+        for (Index i1 = 0; i1 < n; ++i1)
+        {
+            for (Index i0 = 0; i0 < m; ++i0)
+            {
+                Index src_idx = i0 + i2 * m + i1 * m * k + b * m * k * n;
+                Y val = Y{src.at(src_idx)[0]};
+                sum = ::hypot(sum, val);
+            }
+        }
+
+        Y result;
+        if (beta == zero)
+        {
+            result = Y{::fabs(alpha) * sum};
+        }
+        else
+        {
+            Y old_val = Y{dst.at(i2_batched)[0]};
+            result = Y{::hypot(beta * old_val, alpha * sum)};
+        }
+        dst.at(i2_batched)[0] = T{result};
+    }
+}
+
+template<typename T>
+void chunked(cudaStream_t stream, Index m, Index n, Index k, Index batch,
+        Scalar alpha, const T* const* src_chunks, Index nsrc,
+        Scalar beta, T* const* dst_chunks, Index ndst,
+        Index elems_src, Index elems_dst, ChunkClass cls)
+    noexcept
+{
+    if(nsrc <= 0 || ndst <= 0)
+    {
+        return;
+    }
+    dim3 threads(1, 1, 1);
+    dim3 blocks(k*batch, 1, 1);
+    (chunked_cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, batch,
+        alpha,
+        chunk_const<T>(src_chunks, nsrc, elems_src, cls,
+            "nntile_norm_fiber_inplace"),
+        beta,
+        chunk_mut<T>(dst_chunks, ndst, elems_dst, cls,
+            "nntile_norm_fiber_inplace"));
+}
+
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, Index batch,
@@ -133,6 +195,25 @@ void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, Index batch,
 template
 void cuda<bf16_t>(cudaStream_t stream, Index m, Index n, Index k, Index batch,
         Scalar alpha, const bf16_t *src, Scalar beta, bf16_t *dst)
+    noexcept;
+
+template
+void chunked<fp32_t>(cudaStream_t stream, Index m, Index n, Index k,
+        Index batch, Scalar alpha, const fp32_t* const* src_chunks,
+        Index nsrc, Scalar beta, fp32_t* const* dst_chunks, Index ndst,
+        Index elems_src, Index elems_dst, ChunkClass cls)
+    noexcept;
+template
+void chunked<fp64_t>(cudaStream_t stream, Index m, Index n, Index k,
+        Index batch, Scalar alpha, const fp64_t* const* src_chunks,
+        Index nsrc, Scalar beta, fp64_t* const* dst_chunks, Index ndst,
+        Index elems_src, Index elems_dst, ChunkClass cls)
+    noexcept;
+template
+void chunked<bf16_t>(cudaStream_t stream, Index m, Index n, Index k,
+        Index batch, Scalar alpha, const bf16_t* const* src_chunks,
+        Index nsrc, Scalar beta, bf16_t* const* dst_chunks, Index ndst,
+        Index elems_src, Index elems_dst, ChunkClass cls)
     noexcept;
 
 } // namespace nntile::kernel::norm_fiber_inplace

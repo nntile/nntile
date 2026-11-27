@@ -4,10 +4,10 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file include/nntile/starpu/add_fiber.hh
- * StarPU wrappers for addition of a tensor and a broadcasted fiber
+ * @file include/nntile/nnhaul/ops/add_fiber.hh
+ * NNHaul wrappers for addition of a tensor and a broadcasted fiber
  *
  * @version 1.1.0
  * */
@@ -23,7 +23,7 @@
 // NNTile headers
 #include <nntile/nnhaul/codelet.hh>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Generic wrapper class for add_fiber operation is not defined
@@ -70,7 +70,7 @@ public:
 
     //! Submit add task
     void submit(
-        int starpu_worker_hint,
+        int worker_hint,
         Index m,
         Index n,
         Index k,
@@ -97,4 +97,4 @@ using add_fiber_pack_t = OperationPack<
 //! Pack of add_fiber operations for different types
 extern add_fiber_pack_t add_fiber;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

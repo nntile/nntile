@@ -4,10 +4,10 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file src/starpu/embedding.cc
- * Embeddings from vocabulary within StarPU buffers
+ * @file src/nnhaul/embedding.cc
+ * Embeddings from vocabulary within NNHaul buffers
  *
  * @version 1.2.0
  * */
@@ -27,7 +27,7 @@
 #include "nntile/kernel/embedding.hh"
 #include "nntile/nnhaul/chunk_units.hh"
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 // ---------------------------------------------------------------------------
@@ -70,7 +70,7 @@ struct EmbChunkView
             {
                 std::fprintf(stderr,
                     "nntile embedding: multi-chunk buffer %zu-byte full chunk "
-                    "!= the compile-time %zu-byte class (rule 7)\n",
+                    "!= the compile-time %zu-byte class \n",
                     b->chunk_bytes(0),
                     chunkunits::chunk_class_bytes());
                 std::abort();
@@ -156,9 +156,6 @@ std::vector<int64_t> index_to_host(::nnhaul::Buffer *buf, Index m, Index n,
     std::vector<int64_t> out(nelems == 0 ? 1 : nelems);
     if(buf->chunk_count() == 1)
     {
-        // (review 540 #1) Under the force flag an UNCHUNKED buffer also
-        // takes this path -- a 1-chunk buffer IS its chunk (rule-3
-        // degenerate; chunk_bytes(0) == nbytes, never the class).
         host_copy(out.data(), buf->get_ptr<int64_t>(), nelems * sizeof(int64_t));
         return out;
     }
@@ -166,7 +163,7 @@ std::vector<int64_t> index_to_host(::nnhaul::Buffer *buf, Index m, Index n,
     {
         std::fprintf(stderr,
             "nntile embedding: multi-chunk buffer %zu-byte full chunk != the "
-            "compile-time %zu-byte class (rule 7)\n",
+            "compile-time %zu-byte class \n",
             buf->chunk_bytes(0), chunkunits::chunk_class_bytes());
         std::abort();
     }
@@ -231,7 +228,7 @@ Embedding<std::tuple<T>>::Embedding():
     // Modes are not fixed, they are decided during runtime by default
 }
 
-//! Apply embedding on StarPU buffer on CPU
+//! Apply embedding on NNHaul buffer on CPU
 template<typename T>
 void Embedding<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
@@ -242,13 +239,9 @@ void Embedding<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     auto buf_index = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_vocab = static_cast<::nnhaul::Buffer *>(buffers[1]);
     auto buf_embed = static_cast<::nnhaul::Buffer *>(buffers[2]);
-    if((buf_index->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_vocab->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
-        && (buf_embed->chunk_count() == 1 && !chunkunits::force_chunked_kernels()))
+    if((buf_index->chunk_count() == 1) && (buf_vocab->chunk_count() == 1)
+        && (buf_embed->chunk_count() == 1))
     {
-        // Classic contiguous dispatch: illegal under the force flag
-        // (the tripwire proves it never happens in a flag-on run).
-        chunkunits::classic_dispatch_tripwire("nntile_embedding", false);
-        // Unchunked fast path: the historical single kernel call, bitwise
         const int64_t *index = buf_index->get_ptr<int64_t>();
         const T *vocab = buf_vocab->get_ptr<T>();
         T *embed = buf_embed->get_ptr<T>();
@@ -321,7 +314,7 @@ void Embedding<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Apply embedding on StarPU buffer on CUDA
+//! Apply embedding on NNHaul buffer on CUDA
 template<typename T>
 void Embedding<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
@@ -334,13 +327,9 @@ void Embedding<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto buf_embed = static_cast<::nnhaul::Buffer *>(buffers[2]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    if((buf_index->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_vocab->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
-        && (buf_embed->chunk_count() == 1 && !chunkunits::force_chunked_kernels()))
+    if((buf_index->chunk_count() == 1) && (buf_vocab->chunk_count() == 1)
+        && (buf_embed->chunk_count() == 1))
     {
-        // Classic contiguous dispatch: illegal under the force flag
-        // (the tripwire proves it never happens in a flag-on run).
-        chunkunits::classic_dispatch_tripwire("nntile_embedding", false);
-        // Unchunked fast path: the historical single kernel call, bitwise
         const int64_t *index = buf_index->get_ptr<int64_t>();
         const T *vocab = buf_vocab->get_ptr<T>();
         T *embed = buf_embed->get_ptr<T>();
@@ -362,10 +351,10 @@ void Embedding<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // chunk-aware kernel with the three chunk base-pointer tables read from
     // the shared device chunk-ptr table (no chunk-count cap) - each element
     // derives its chunk index from its own flat offset by divmod - instead
-    // of the per-segment 2D-copy driver below (which issued ~1k
-    // cudaMemcpy2DAsync launches for the GPT-2 token embedding). A pure
+    // of the per-segment 2D-copy driver below (which issued many
+    // cudaMemcpy2DAsync launches for a large token embedding). A pure
     // copy, bitwise the whole-buffer call.  A launch whose pointer
-    // set exceeds the table ABORTS (rule 11 -- no fallback exists).
+    // set exceeds the table ABORTS.
     {
         EmbChunkView<int64_t> const cv_index(buf_index);
         EmbChunkView<T> const cv_vocab(buf_vocab);
@@ -378,10 +367,8 @@ void Embedding<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
             // resolved chunk bases -- the piece-4/6 degenerate-launch
             // pattern (geometry and instruction stream identical to the
             // flag-off path, bitwise by construction; no pointer table
-            // to read, so the table is untouched). This covers the GPT-2
-            // position-embedding call (wpe: 3 MiB vocab, 6 MiB embed
-            // tile, 8 KiB index -- all 1-chunk at the class; pair-4
-            // informational 1.59x med). The chunked kernel stays the
+            // to read, so the table is untouched). This covers the single-chunk
+            // case. The chunked kernel stays the
             // multi-chunk path (the 10-chunk wte call).
             kernel::embedding::cuda<T>(
                 stream,
@@ -435,17 +422,15 @@ void Embedding<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
             }
         }
     }
-        // (rule 11, user directive 2026-10-19) There is no per-piece
+        // There is no per-piece
     // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot table
     // serve any launch up to a 16 TiB operand, so a failed upload is an
     // invariant violation, not a mode to stage around.
     std::fprintf(stderr,
         "nntile_embedding: chunk-ptr table cannot serve this launch (invariant "
-        "violation; the per-piece staging fallback was deleted by rule "
-        "11)\n");
+        "violation; no per-piece staging fallback exists)\n");
     std::abort();
 }
-
 
 // Specializations of CUDA wrapper for accelerated types
 template<>
@@ -487,20 +472,20 @@ std::uint64_t Embedding<std::tuple<T>>::footprint(void const *cl_args, std::size
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Apply hash over parameters m, n, k and k_size.
     uint32_t hash = 0;
-    hash = ::nntile::haul::fnv1a(&args->m, sizeof(args->m), hash);
-    hash = ::nntile::haul::fnv1a(&args->n, sizeof(args->n), hash);
-    hash = ::nntile::haul::fnv1a(&args->k, sizeof(args->k), hash);
-    hash = ::nntile::haul::fnv1a(&args->k_size, sizeof(args->k_size), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->m, sizeof(args->m), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->n, sizeof(args->n), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->k, sizeof(args->k), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->k_size, sizeof(args->k_size), hash);
     return hash;
 }
 
 template<typename T>
-void Embedding<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, Index k, Index k_start, Index k_size,
+void Embedding<std::tuple<T>>::submit(int worker_hint, Index m, Index n, Index k, Index k_start, Index k_size,
         Index index_range,
         ::nnhaul::Handle & index, ::nnhaul::Handle & vocab, ::nnhaul::Handle & embed)
-//! Insert embedding task into StarPU pool of tasks
+//! Insert embedding task into NNHaul task pool
 /*! No argument checking is performed. All the inputs are packed and passed to
- * nntile_starpu_task_insert() function. If task submission fails, this routines
+ * submit() call. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
@@ -516,8 +501,8 @@ void Embedding<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, 
     // Submit task: the BODY picks the unchunked fast path or the native
     // chunked gather; embedding never goes through the staging fallback.
     (void)nflops;
-    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
-        { { STARPU_R, &index }, { STARPU_R, &vocab }, { STARPU_RW, &embed } }, args, sizeof(*args));
+    ::nntile::nnhaul::insert_task(codelet.raw, worker_hint,
+        { { ACCESS_R, &index }, { ACCESS_R, &vocab }, { ACCESS_RW, &embed } }, args, sizeof(*args));
     std::free(args);
 
 }
@@ -536,4 +521,4 @@ template class Embedding<std::tuple<nntile::fp16_t>>;
 //! Pack of embedding operations for different types
 embedding_pack_t embedding;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

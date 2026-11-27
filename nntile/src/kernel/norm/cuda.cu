@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/norm/cuda.cu
  * Euclidean norm of all elements in a buffer on CUDA
@@ -125,6 +125,109 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *src,
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, alpha, src, beta, dst);
 }
 
+template<typename T>
+static __global__
+void chunked_cuda_kernel(Index nelems, Scalar alpha_, ChunkConst<T> src,
+        Scalar beta_, ChunkMut<T> dst)
+{
+    using Y = typename T::repr_t;
+    const Y alpha = static_cast<Y>(alpha_), beta = static_cast<Y>(beta_);
+    constexpr Y zero = 0.0, one = 1.0;
+
+    // Simple reduction: compute sum of squares
+    __shared__ Y shared_norm[1024];
+
+    int tid = threadIdx.x;
+    Y norm_max = zero;
+    Y norm_ssq = zero;
+    Y c = zero;
+
+    // Each thread computes partial sum of squares
+    for(Index i = tid; i < nelems; i += blockDim.x)
+    {
+        Y val = ::fabs(static_cast<Y>(src.at(i)[0]));
+        if(val > 0)
+        {
+            if(norm_max >= val)
+            {
+                Y tmp1 = val / norm_max;
+                Y y = tmp1*tmp1 - c;
+                Y t = norm_ssq + y;
+                c = (t-norm_ssq) - y;
+                norm_ssq = t;
+            }
+            else
+            {
+                Y tmp1 = norm_max / val;
+                Y tmp2 = tmp1 * tmp1;
+                Y y = one - c*tmp2;
+                norm_ssq *= tmp2;
+                Y t = norm_ssq + y;
+                c = (t-norm_ssq) - y;
+                norm_ssq = t;
+                norm_max = val;
+            }
+        }
+    }
+
+    // Store partial sum
+    if (norm_ssq > zero)
+    {
+        shared_norm[tid] = norm_max * ::sqrt(norm_ssq);
+    }
+    else
+    {
+        shared_norm[tid] = zero;
+    }
+    __syncthreads();
+
+    // Reduce within block (only active threads participate)
+    for(int s = blockDim.x/2; s > 0; s >>= 1)
+    {
+        if(tid < s)
+        {
+            shared_norm[tid] = ::hypot(shared_norm[tid], shared_norm[tid + s]);
+        }
+        __syncthreads();
+    }
+
+    // Final result computation by thread 0
+    if(tid == 0)
+    {
+        T *dst_ptr = dst.at(0);
+        Y norm_val = shared_norm[0] * ::fabs(alpha);
+        if(beta == zero)
+        {
+            dst_ptr[0] = norm_val;
+        }
+        else
+        {
+            Y dst_val = static_cast<Y>(dst_ptr[0]);
+            dst_ptr[0] = ::hypot(norm_val, beta * dst_val);
+        }
+    }
+}
+
+template<typename T>
+void chunked(cudaStream_t stream, Index nelems, Scalar alpha,
+        const T* const* src_chunks, Index nsrc,
+        Scalar beta, T* const* dst_chunks, Index ndst,
+        Index elems_src, Index elems_dst, ChunkClass cls)
+    noexcept
+{
+    if(nsrc <= 0 || ndst <= 0)
+    {
+        return;
+    }
+    // ONE block of up to 1024 threads, exactly like the contiguous kernel.
+    dim3 threads(1024);
+    dim3 blocks(1);
+    (chunked_cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, alpha,
+        chunk_const<T>(src_chunks, nsrc, elems_src, cls, "nntile_norm"),
+        beta,
+        chunk_mut<T>(dst_chunks, ndst, elems_dst, cls, "nntile_norm"));
+}
+
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index nelems, Scalar alpha,
@@ -144,6 +247,31 @@ void cuda<bf16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
 template
 void cuda<fp16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
         const fp16_t *src, Scalar beta, fp16_t *dst)
+    noexcept;
+
+template
+void chunked<fp32_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        const fp32_t* const* src_chunks, Index nsrc, Scalar beta,
+        fp32_t* const* dst_chunks, Index ndst, Index elems_src,
+        Index elems_dst, ChunkClass cls)
+    noexcept;
+template
+void chunked<fp64_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        const fp64_t* const* src_chunks, Index nsrc, Scalar beta,
+        fp64_t* const* dst_chunks, Index ndst, Index elems_src,
+        Index elems_dst, ChunkClass cls)
+    noexcept;
+template
+void chunked<bf16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        const bf16_t* const* src_chunks, Index nsrc, Scalar beta,
+        bf16_t* const* dst_chunks, Index ndst, Index elems_src,
+        Index elems_dst, ChunkClass cls)
+    noexcept;
+template
+void chunked<fp16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        const fp16_t* const* src_chunks, Index nsrc, Scalar beta,
+        fp16_t* const* dst_chunks, Index ndst, Index elems_src,
+        Index elems_dst, ChunkClass cls)
     noexcept;
 
 } // namespace nntile::kernel::norm

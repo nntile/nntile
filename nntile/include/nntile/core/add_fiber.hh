@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/core/add_fiber.hh
  * Tile wrappers for addition of a tensor and a broadcasted fiber
@@ -21,12 +21,12 @@ namespace nntile::core
 
 // Tile<T> addition of a tensor and a broadcasted fiber
 template<typename T>
-void add_fiber_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<T> &src2,
+void add_fiber_async(int worker_hint, Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<T> &src2,
         const Tile<T> &dst, Index axis, Index batch_ndim);
 
 // Tile<T> addition of a tensor and a broadcasted fiber
 template<typename T>
-void add_fiber(int starpu_worker_hint, Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<T> &src2,
+void add_fiber(int worker_hint, Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<T> &src2,
         const Tile<T> &dst, Index axis, Index batch_ndim);
 
 } // namespace nntile::core

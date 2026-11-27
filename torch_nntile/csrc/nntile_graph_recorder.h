@@ -31,7 +31,7 @@ void execute_pending_graph();
 //! Lower and compile the pending TensorGraph (synchronous CPU work).
 void compile_graph();
 
-//! Submit the compiled graph to StarPU (asynchronous; does not wait).
+//! Submit the compiled graph to NNHaul (asynchronous; does not wait).
 void run_graph();
 
 //! Block until submitted run() tasks finish; then reclaim / release pin holds
@@ -41,8 +41,7 @@ void wait_graph_session();
 
 /*! Join the OLDER of two in-flight NNHaul batches (the predecessor),
  * leaving the just-issued one running. Returns the joined batch seq, or
- * 0 when there is no predecessor. Only meaningful with NNTILE_USE_NNHAUL;
- * the StarPU build returns 0. */
+ * 0 when there is no predecessor. */
 std::uint64_t join_predecessor();
 
 void reset_graph_session();
@@ -82,11 +81,11 @@ double record_nntile_seconds();
 //! ``TORCH_NNTILE_SKIP_KERNELS=1``: still run PrivateUse1 intercept
 //! (output shapes, TensorRefs, pack layout). Do not insert TensorGraph
 //! compute ops. Last-drop ``UNREGISTER`` is still recorded and compiled
-//! to StarPU unregister tasks. Payload copies / compute kernels do not
+//! to NNHaul unregister tasks. Payload copies / compute kernels do not
 //! run. Results are not numerically meaningful.
 bool skip_nntile_kernels();
 
-//! Platform kernel: Ingress / Flush instead of local StarPU.
+//! Platform kernel: Ingress / Flush instead of local NNHaul.
 //! When hooks are set, ``.to("nntile")`` sends host bytes and
 //! ``.to("cpu")`` encodes the pending TensorGraph as PhaseIR.
 using PlatformIngressHook = std::function<void(

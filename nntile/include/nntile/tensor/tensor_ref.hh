@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/tensor/tensor_ref.hh
  * External accessibility handle for a TensorGraph::TensorNode.
@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <vector>
 
@@ -28,7 +29,7 @@ namespace nntile
 //!
 //! ``TensorGraph`` keeps ``unique_ptr<TensorNode>``. Ops store raw
 //! ``TensorNode *``. When the last ``TensorRef`` for a node is destroyed,
-//! ``tensor::unregister`` is recorded (StarPU handle GC). After
+//! ``tensor::unregister`` is recorded (NNHaul handle GC). After
 //! ``wait()`` + ``drop_all_ops()``, unreachable IR is destroyed (holes
 //! remain in ``data_``).
 class TensorRef
@@ -40,6 +41,11 @@ class TensorRef
     static TensorRef adopt(TensorGraph::TensorNode *node);
 
     TensorGraph::TensorNode *get() const noexcept;
+
+    //! False once the graph that owned this node has been destroyed.
+    //! Consumers that would dereference get() must reject a stale ref
+    //! instead of reading freed storage.
+    bool is_current() const noexcept;
     TensorGraph::TensorNode &operator*() const { return *get(); }
     TensorGraph::TensorNode *operator->() const { return get(); }
 
@@ -71,6 +77,28 @@ bool tensor_ref_is_live(TensorGraph::TensorNode const *node) noexcept;
 //! Gate ``TensorRef`` hold destructors (set false before destroying graphs).
 void set_tensor_nodes_alive(bool alive);
 bool tensor_nodes_alive() noexcept;
+
+//! Generation of the live node set. Bumped whenever node storage is
+//! destroyed; a Hold captures it so a later graph reset followed by a new
+//! graph cannot make a stale raw node pointer look live again.
+std::uint64_t tensor_nodes_generation() noexcept;
+
+//! True while any TensorRef Hold exists anywhere. A graph with live
+//! holders is retired rather than freed on reset, so a check-then-deref
+//! in another thread cannot hit freed node storage.
+bool tensor_refs_alive() noexcept;
+
+//! Invalidate every Hold captured so far. Called immediately before the
+//! owning graph's node storage is destroyed (not on a plain alive toggle,
+//! which some callers use only to suppress unregister recording).
+void bump_tensor_nodes_generation() noexcept;
+
+//! Serialize node destruction against off-thread Hold destructors.
+//! Holders take the same lock while they check the generation and release
+//! the node; the recorder holds it across the generation bump and the
+//! graph's node-storage destruction.
+void tensor_nodes_destruction_lock() noexcept;
+void tensor_nodes_destruction_unlock() noexcept;
 
 //! Queue logicals whose last ``TensorRef`` died (for compile-time payload flush).
 void note_tensor_ref_released(TensorGraph::TensorNode *node);

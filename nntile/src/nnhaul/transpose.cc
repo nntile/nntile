@@ -4,10 +4,10 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file src/starpu/transpose.cc
- * Transpose operation for StarPU buffers
+ * @file src/nnhaul/transpose.cc
+ * Transpose operation for NNHaul buffers
  *
  * @version 1.2.0
  * */
@@ -26,7 +26,7 @@
 #include "nntile/nnhaul/chunk_units.hh"
 #include "nntile/nnhaul/stage.hh"
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 // ---------------------------------------------------------------------------
@@ -163,7 +163,7 @@ Transpose<std::tuple<T>>::Transpose():
     // Modes are not fixed, they are decided during runtime by default
 }
 
-//! StarPU wrapper for kernel::transpose::cpu<T>
+//! NNHaul wrapper for kernel::transpose::cpu<T>
 template<typename T>
 void Transpose<std::tuple<T>>::cpu(void *buffers[], void *cl_args) noexcept
 {
@@ -172,13 +172,9 @@ void Transpose<std::tuple<T>>::cpu(void *buffers[], void *cl_args) noexcept
     // Get interfaces
     auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
-    if((buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+    if((buf_src->chunk_count() == 1) && (buf_dst->chunk_count() == 1)
        )
     {
-        // Classic contiguous dispatch: illegal under the force flag
-        // (the tripwire proves it never happens in a flag-on run).
-        chunkunits::classic_dispatch_tripwire("nntile_transpose", false);
-        // Unchunked fast path: the historical single kernel call, bitwise
         kernel::transpose::cpu<T>(args->m, args->n, args->alpha,
             buf_src->get_ptr<T>(), buf_dst->get_ptr<T>());
         return;
@@ -235,7 +231,7 @@ void Transpose<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args
 }
 
 #ifdef NNTILE_USE_CUDA
-//! StarPU wrapper for kernel::transpose::cuda<T>
+//! NNHaul wrapper for kernel::transpose::cuda<T>
 template<typename T>
 void Transpose<std::tuple<T>>::cuda(void *buffers[], void *cl_args) noexcept
 {
@@ -246,37 +242,16 @@ void Transpose<std::tuple<T>>::cuda(void *buffers[], void *cl_args) noexcept
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    if((buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+    if((buf_src->chunk_count() == 1) && (buf_dst->chunk_count() == 1)
        )
     {
-        // Classic contiguous dispatch: illegal under the force flag
-        // (the tripwire proves it never happens in a flag-on run).
-        chunkunits::classic_dispatch_tripwire("nntile_transpose", false);
-        // Unchunked fast path: the historical single kernel call, bitwise
         kernel::transpose::cuda<T>(stream, args->m, args->n, args->alpha,
             buf_src->get_ptr<T>(), buf_dst->get_ptr<T>());
         return;
     }
-    // Chunked single-launch path: the WHOLE transpose is issued as ONE
-    // chunk-aware kernel with the chunk base-pointer tables read from the
-    // shared device chunk-ptr table (no chunk-count cap), instead of the
-    // per-panel driver's O(src windows x dst row runs) launches. Elementwise
-    // and bitwise the whole-buffer call. A launch whose pointer set exceeds
-    // the table, and the arbitrary factorizations,
-    // keep the per-panel driver below as the fallback.
-    // Piece C (2026-10-18c): the all-1-chunk degenerate launch is
-    // the FIRST thing the chunked block does -- the chunk counts are
-    // read straight off the buffers, before any
-    // ChunkView/UnitSpan/LaunchTables work exists, so the degenerate
-    // host path is as lean as the classic dispatch above (gemm
-    // path-F precedent; launch pointer-identical, bitwise by
-    // construction, table untouched).
-    if(buf_src->chunk_count() == 1 && buf_dst->chunk_count() == 1)
-    {
-        kernel::transpose::cuda<T>(stream, args->m, args->n, args->alpha,
-            buf_src->get_ptr<T>(), buf_dst->get_ptr<T>());
-        return;
-    }
+    // Chunked single-launch path: the whole multi-chunk range is
+    // issued as ONE chunk-aware kernel reading the shared device
+    // chunk-pointer table; the per-element math matches cuda().
     chunkunits::ChunkView<T> const cv_src(buf_src);
     chunkunits::ChunkView<T> const cv_dst(buf_dst);
     {
@@ -310,17 +285,15 @@ void Transpose<std::tuple<T>>::cuda(void *buffers[], void *cl_args) noexcept
             }
         }
     }
-        // (rule 11, user directive 2026-10-19) There is no per-piece
+        // There is no per-piece
     // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot table
     // serve any launch up to a 16 TiB operand, so a failed upload is an
     // invariant violation, not a mode to stage around.
     std::fprintf(stderr,
         "nntile_transpose: chunk-ptr table cannot serve this launch (invariant "
-        "violation; the per-piece staging fallback was deleted by rule "
-        "11)\n");
+        "violation; no per-piece staging fallback exists)\n");
     std::abort();
 }
-
 
 // Specializations of CUDA wrapper for accelerated types
 template<>
@@ -361,16 +334,16 @@ std::uint64_t Transpose<std::tuple<T>>::footprint(void const *cl_args, std::size
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     uint32_t hash = 0;
-    hash = ::nntile::haul::fnv1a(&args->m, sizeof(args->m), hash);
-    hash = ::nntile::haul::fnv1a(&args->n, sizeof(args->n), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->m, sizeof(args->m), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->n, sizeof(args->n), hash);
     return hash;
 }
 
 template<typename T>
-void Transpose<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, Scalar alpha, ::nnhaul::Handle & src, ::nnhaul::Handle & dst)
-//! Insert transpose task into StarPU pool of tasks
+void Transpose<std::tuple<T>>::submit(int worker_hint, Index m, Index n, Scalar alpha, ::nnhaul::Handle & src, ::nnhaul::Handle & dst)
+//! Insert transpose task into NNHaul task pool
 /*! No argument checking is performed. All the inputs are packed and passed to
- * nntile_starpu_task_insert() function. If task submission fails, this routines
+ * submit() call. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
@@ -381,25 +354,21 @@ void Transpose<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, 
     args->alpha = alpha;
     // Put amount of read-write bytes into flop count
     double nflops = sizeof(T) * 2 * m * n;
-    // Degenerate-geometry guard (family-2 follow-up A): the panel driver
-    // emits one sub-call per (src column window) x (dst row batch). In
-    // the healthy chunk classes the windows batch many columns/rows and
-    // the launch count is tiny, but a chunk at or below n dst-row bytes
+    // Degenerate-geometry guard: the panel driver
+    // emits one sub-call per (src column window) x (dst row batch). With
+    // a normal chunk class the windows batch many columns/rows and the
+    // launch count is tiny, but a chunk at or below n dst-row bytes
     // (chunk_elems <= n) holds at most one dst row, so every window
-    // degrades to one launch PER ELEMENT (3072x3072 fp32 at 12288-byte
-    // chunks = 9.4M launches, whose enqueue alone stalls the runtime
-    // watchdog). Estimate the launch count with the driver's own
+    // degrades to one launch per element and the enqueue alone would
+    // stall the runtime. Estimate the launch count with the driver's own
     // worst-case arithmetic - W = ceil(n / P) src windows of
     // P = max(1, chunk_elems/m) columns, each refined into
     // B = ceil(m / rows_per_chunk) row batches with
     // rows_per_chunk = max(1, chunk_elems/n).
-    // (User order, 2026-10-28) Chunk classes are powers of two with a
-    // 1 MiB floor, so a class at or below one dst row cannot occur in
-    // production, and the historical staging valve for it is DELETED:
-    // the submission fails loudly instead of staging buffers and
-    // running a non-chunked kernel. The family-2 torture geometries
-    // (m=1000, n=777 at 12288-byte test classes ~ 86K launches) stay
-    // far below the threshold and keep the native panel body.
+    // Chunk classes are powers of two with a 1 MiB floor, so a class at
+    // or below one dst row cannot occur in production, and the staging
+    // valve for it is DELETED: the submission fails loudly instead of
+    // staging buffers and running a non-chunked kernel.
     (void)nflops;
     bool degenerate = false;
     std::size_t cb = 0;
@@ -437,7 +406,7 @@ void Transpose<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, 
     }
     if(degenerate)
     {
-        // (User order, 2026-10-28) Fail loudly: chunk classes are
+        // Fail loudly: chunk classes are
         // powers of two with a 1 MiB floor, so this geometry cannot
         // occur in production, and staging buffers to run a
         // non-chunked kernel is not an acceptable answer to it.
@@ -453,8 +422,8 @@ void Transpose<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, 
     }
     // Submit task: the BODY picks the unchunked fast path or the
     // native chunked panel driver.
-    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
-        { { STARPU_R, &src }, { STARPU_W, &dst } }, args,
+    ::nntile::nnhaul::insert_task(codelet.raw, worker_hint,
+        { { ACCESS_R, &src }, { ACCESS_W, &dst } }, args,
         sizeof(*args));
     std::free(args);
 
@@ -474,4 +443,4 @@ template class Transpose<std::tuple<nntile::fp16_t>>;
 //! Pack of transpose operations for different types
 transpose_pack_t transpose;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

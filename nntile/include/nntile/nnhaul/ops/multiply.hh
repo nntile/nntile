@@ -4,10 +4,10 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file include/nntile/starpu/multiply.hh
- * Per-element product of two StarPU buffers
+ * @file include/nntile/nnhaul/ops/multiply.hh
+ * Per-element product of two NNHaul buffers
  *
  * @version 1.1.0
  * */
@@ -23,7 +23,7 @@
 // NNTile headers
 #include <nntile/nnhaul/codelet.hh>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Generic wrapper class for multiply operation is not defined
@@ -66,7 +66,7 @@ public:
 
     //! Submit multiply task
     void submit(
-        int starpu_worker_hint,
+        int worker_hint,
         Index nelems,
         Scalar alpha,
         ::nnhaul::Handle & src1,
@@ -90,4 +90,4 @@ using multiply_pack_t = OperationPack<
 //! Pack of multiply operations for different types
 extern multiply_pack_t multiply;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

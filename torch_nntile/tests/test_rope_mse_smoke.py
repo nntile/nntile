@@ -9,10 +9,10 @@
 from __future__ import annotations
 
 import torch
-from torch_nntile.rope import rope, rope_sin_cos_from_position_ids
-from torch_nntile.training import mse_loss
 
 import torch_nntile
+from torch_nntile.rope import rope, rope_sin_cos_from_position_ids
+from torch_nntile.training import mse_loss
 
 
 def test_rope_forward_shape_on_nntile():

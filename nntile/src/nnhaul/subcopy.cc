@@ -4,9 +4,9 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file src/starpu/subcopy.cc
+ * @file src/nnhaul/subcopy.cc
  * Copy subarray based on contiguous indices
  *
  * @version 1.1.0
@@ -27,7 +27,7 @@
 #include "nntile/nnhaul/chunk_units.hh"
 #include "nntile/nnhaul/pack_args.hh"
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 // ---------------------------------------------------------------------------
@@ -230,7 +230,7 @@ Subcopy<std::tuple<T>>::Subcopy():
     // Modes are not fixed, they are decided during runtime by default
 }
 
-//! Complex copying through StarPU buffers on CPU
+//! Complex copying through NNHaul buffers on CPU
 template<typename T>
 void Subcopy<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
@@ -238,12 +238,12 @@ void Subcopy<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get arguments
     const Index *ndim_ptr, *src_start, *src_stride, *copy_shape, *dst_start,
           *dst_stride;
-    ::nntile::haul::unpack_args_ptr(cl_args, ndim_ptr, src_start, src_stride,
+    ::nntile::nnhaul::unpack_args_ptr(cl_args, ndim_ptr, src_start, src_stride,
             copy_shape, dst_start, dst_stride);
     // Get interfaces
     auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
-    if((buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+    if((buf_src->chunk_count() == 1) && (buf_dst->chunk_count() == 1)
        )
     {
         // Unchunked fast path: the historical single kernel call, bitwise.
@@ -271,7 +271,7 @@ void Subcopy<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Complex copying through StarPU buffers on CUDA
+//! Complex copying through NNHaul buffers on CUDA
 template<typename T>
 void Subcopy<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
@@ -279,14 +279,14 @@ void Subcopy<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get arguments
     const Index *ndim_ptr, *src_start, *src_stride, *copy_shape, *dst_start,
           *dst_stride;
-    ::nntile::haul::unpack_args_ptr(cl_args, ndim_ptr, src_start, src_stride,
+    ::nntile::nnhaul::unpack_args_ptr(cl_args, ndim_ptr, src_start, src_stride,
             copy_shape, dst_start, dst_stride);
     // Get interfaces
     auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    if((buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+    if((buf_src->chunk_count() == 1) && (buf_dst->chunk_count() == 1)
        )
     {
         // Unchunked fast path: the historical single kernel call, bitwise
@@ -295,14 +295,32 @@ void Subcopy<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
             buf_dst->get_ptr<T>());
         return;
     }
-    subcopy_chunked<T>(*ndim_ptr, src_start, src_stride, copy_shape,
-        dst_start, dst_stride, buf_src, buf_dst,
-        [stream](Index sndim, const Index *sstart, const Index *sstride,
-            const Index *sshape, T const *psrc, const Index *dstart,
-            const Index *dstride, T *pdst) {
-            kernel::subcopy::cuda<T>(stream, sndim, sstart, sstride, sshape,
-                psrc, dstart, dstride, pdst);
-        });
+    chunkunits::ChunkView<T> const cvs(buf_src);
+    chunkunits::ChunkView<T> const cvd(buf_dst);
+    chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
+    tabs.clear();
+    std::size_t const o_ps = tabs.add(cvs);
+    std::size_t const o_pd = tabs.add(cvd);
+    chunkunits::ChunkPtrTable &arena = chunkunits::chunk_ptr_table();
+    if(arena.begin(stream))
+    {
+        void const *table_base = arena.upload_tables(tabs);
+        if(table_base != nullptr)
+        {
+            kernel::subcopy::chunked<T>(stream, *ndim_ptr, src_start,
+                src_stride, copy_shape,
+                arena.table_view<const T *>(table_base, o_ps),
+                Index(cvs.nchunks), dst_start, dst_stride,
+                arena.table_view<T *>(table_base, o_pd),
+                Index(cvd.nchunks),
+                Index(cvs.chunk_elems), Index(cvd.chunk_elems));
+            arena.end(stream);
+            return;
+        }
+        std::fprintf(stderr,
+            "nntile_subcopy: chunk-ptr table cannot serve this launch\n");
+        std::abort();
+    }
 }
 #endif // NNTILE_USE_CUDA
 
@@ -313,30 +331,30 @@ std::uint64_t Subcopy<std::tuple<T>>::footprint(void const *cl_args, std::size_t
     // Get arguments
     const Index *ndim_ptr, *src_start, *src_stride, *copy_shape, *dst_start,
           *dst_stride;
-    ::nntile::haul::unpack_args_ptr(cl_args, ndim_ptr, src_start, src_stride,
+    ::nntile::nnhaul::unpack_args_ptr(cl_args, ndim_ptr, src_start, src_stride,
             copy_shape, dst_start, dst_stride);
     std::size_t copy_shape_size = *ndim_ptr * sizeof(*copy_shape);
     // Apply hash over parameter copy_shape
-    return ::nntile::haul::fnv1a(copy_shape, copy_shape_size, 0);
+    return ::nntile::nnhaul::fnv1a(copy_shape, copy_shape_size, 0);
 }
 
 template<typename T>
-void Subcopy<std::tuple<T>>::submit(int starpu_worker_hint,
+void Subcopy<std::tuple<T>>::submit(int worker_hint,
         Index ndim, const std::vector<Index> &src_start,
         const std::vector<Index> &src_stride,
         const std::vector<Index> &dst_start,
         const std::vector<Index> &dst_stride,
         const std::vector<Index> &copy_shape, ::nnhaul::Handle & src, ::nnhaul::Handle & dst,
-        ::nnhaul::Handle & tmp_index, starpu_data_access_mode mode)
+        ::nnhaul::Handle & tmp_index, data_access_mode mode)
 {
     constexpr double nflops = 0;
     (void)nflops;
     // Submit task: the BODY picks the unchunked fast path or the native
     // chunked column driver (any window geometry, strided windows simply
     // degrade to per-column pieces); subcopy never stages.
-    ::nntile::haul::insert_values(codelet.raw, starpu_worker_hint,
+    ::nntile::nnhaul::insert_values(codelet.raw, worker_hint,
         { { &(ndim), sizeof(ndim) }, { &(src_start[0]), ndim*sizeof(src_start[0]) }, { &(src_stride[0]), ndim*sizeof(src_stride[0]) }, { &(copy_shape[0]), ndim*sizeof(copy_shape[0]) }, { &(dst_start[0]), ndim*sizeof(dst_start[0]) }, { &(dst_stride[0]), ndim*sizeof(dst_stride[0]) } },
-        { { STARPU_R, &src }, { mode, &dst } });
+        { { ACCESS_R, &src }, { mode, &dst } });
 
 }
 
@@ -356,4 +374,4 @@ template class Subcopy<std::tuple<nntile::fp16_t>>;
 //! Pack of subcopy operations for different types
 subcopy_pack_t subcopy;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

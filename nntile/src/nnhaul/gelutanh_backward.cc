@@ -4,10 +4,10 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file src/starpu/gelutanh_backward.cc
- * Backward approximate GeLU operation on a StarPU buffer
+ * @file src/nnhaul/gelutanh_backward.cc
+ * Backward approximate GeLU operation on a NNHaul buffer
  *
  * @version 1.2.0
  * */
@@ -24,7 +24,7 @@
 #include "nntile/kernel/gelutanh_backward.hh"
 #include "nntile/nnhaul/chunk_units.hh"
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Constructor
@@ -49,11 +49,11 @@ void GeluTanhBackward<std::tuple<T>>::cpu(void *buffers[], void *cl_args) noexce
     // Get arguments
     args_t const *args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    auto x = ::nntile::haul::buf_chunks<T>(buffers, 0);
-    auto dy = ::nntile::haul::buf_chunks<T>(buffers, 1);
-    auto dx = ::nntile::haul::buf_chunks<T>(buffers, 2);
+    auto x = ::nntile::nnhaul::buf_chunks<T>(buffers, 0);
+    auto dy = ::nntile::nnhaul::buf_chunks<T>(buffers, 1);
+    auto dx = ::nntile::nnhaul::buf_chunks<T>(buffers, 2);
     // Launch kernel per flat chunk piece (single piece if unchunked)
-    ::nntile::haul::for_each_flat_piece(
+    ::nntile::nnhaul::for_each_flat_piece(
         args->nelems,
         [&](std::size_t n, const T *px, const T *pdy, T *pdx) {
             kernel::gelutanh_backward::cpu<T>(n, args->alpha, px, pdy, args->beta, pdx);
@@ -97,46 +97,27 @@ void GeluTanhBackward<std::tuple<T>>::cuda(
 {
     // Get arguments
     args_t const *args = reinterpret_cast<args_t const *>(cl_args);
+    chunkunits::require_kernel_index_envelope(
+        static_cast<std::size_t>(args->nelems),
+        "nntile_gelutanh_backward");
     // Get interfaces
-    auto x = ::nntile::haul::buf_chunks<T>(buffers, 0);
-    auto dy = ::nntile::haul::buf_chunks<T>(buffers, 1);
-    auto dx = ::nntile::haul::buf_chunks<T>(buffers, 2);
+    auto x = ::nntile::nnhaul::buf_chunks<T>(buffers, 0);
+    auto dy = ::nntile::nnhaul::buf_chunks<T>(buffers, 1);
+    auto dx = ::nntile::nnhaul::buf_chunks<T>(buffers, 2);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    // Chunked single-launch path: when at least one operand is chunked (or
-    // the force flag is on), issue the WHOLE flat
-    // operation as ONE chunk-aware kernel instead of the per-piece walk's
-    // launches. The chunk base-pointer tables are built on the host from
-    // the ChunkViews and parked in the shared device chunk-ptr table; the
-    // kernel reads the table per-thread by shift/mask (rule 10: no smem staging). No chunk-count cap.
-    // The per-element expression is identical (including the beta special
-    // cases), so the result is cuda()'s bitwise. The all-unchunked case
-    // (flag off) and a failed table upload keep the historical
-    // for_each_flat_piece path verbatim.
     {
         auto buf_x = static_cast<::nnhaul::Buffer *>(buffers[0]);
         auto buf_dy = static_cast<::nnhaul::Buffer *>(buffers[1]);
         auto buf_dx = static_cast<::nnhaul::Buffer *>(buffers[2]);
-        bool const all_plain = (buf_x->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
-            && (buf_dy->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
-            && (buf_dx->chunk_count() == 1 && !chunkunits::force_chunked_kernels());
+        bool const all_plain = (buf_x->chunk_count() == 1)
+            && (buf_dy->chunk_count() == 1)
+            && (buf_dx->chunk_count() == 1);
         if(!(all_plain) && args->nelems > 0)
         {
-            if(buf_x->chunk_count() == 1 && buf_dy->chunk_count() == 1 && buf_dx->chunk_count() == 1)
-            {
-                // Piece C (2026-10-18c): the all-1-chunk degenerate
-                // launch is the FIRST thing the chunked block does --
-                // the chunk counts are read straight off the buffers,
-                // before any ChunkView/LaunchTables work exists, so the
-                // degenerate host path is as lean as the classic
-                // dispatch above (gemm path-F precedent; launch
-                // pointer-identical, bitwise by construction, table
-                // untouched).
-                kernel::gelutanh_backward::cuda<T>(stream, args->nelems,
-                    args->alpha, buf_x->get_ptr<T>(), buf_dy->get_ptr<T>(), args->beta,
-                    buf_dx->get_ptr<T>());
-                return;
-            }
+            // Chunked single-launch path: the whole multi-chunk range is
+            // issued as ONE chunk-aware kernel reading the shared device
+            // chunk-pointer table; the per-element math matches cuda().
             chunkunits::ChunkView<T> const cvx(buf_x);
             chunkunits::ChunkView<T> const cvdy(buf_dy);
             chunkunits::ChunkView<T> const cvdx(buf_dx);
@@ -173,25 +154,20 @@ void GeluTanhBackward<std::tuple<T>>::cuda(
                     arena.end(stream);
                     return;
                 }
-                    // (rule 11, user directive 2026-10-19) There is no per-piece
+                    // There is no per-piece
                     // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot table
                     // serve any launch up to a 16 TiB operand, so a failed upload is an
                     // invariant violation, not a mode to stage around.
                     std::fprintf(stderr,
                         "nntile_gelutanh_backward: chunk-ptr table cannot serve this launch (invariant "
-                        "violation; the per-piece staging fallback was deleted by rule "
-                        "11)\n");
+                        "violation; no per-piece staging fallback exists)\n");
                     std::abort();
             }
         }
-        if(args->nelems > 0)
-        {
-            chunkunits::classic_dispatch_tripwire("nntile_gelutanh_backward",
-                false);
-        }
+
     }
     // Launch kernel per flat chunk piece (single piece if unchunked)
-    ::nntile::haul::for_each_flat_piece(
+    ::nntile::nnhaul::for_each_flat_piece(
         args->nelems,
         [&](std::size_t n, const T *px, const T *pdy, T *pdx) {
             kernel::gelutanh_backward::cuda<T>(
@@ -248,37 +224,37 @@ std::uint64_t GeluTanhBackward<std::tuple<T>>::footprint(void const *cl_args, st
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     uint32_t hash = 0;
-    hash = ::nntile::haul::fnv1a(&args->nelems, sizeof(args->nelems), hash);
-    hash = ::nntile::haul::fnv1a(&args->alpha, sizeof(args->alpha), hash);
-    hash = ::nntile::haul::fnv1a(&args->beta, sizeof(args->beta), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->nelems, sizeof(args->nelems), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->alpha, sizeof(args->alpha), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->beta, sizeof(args->beta), hash);
     return hash;
 }
 
 template<typename T>
-void GeluTanhBackward<std::tuple<T>>::submit(int starpu_worker_hint, Index nelems, Scalar alpha,
+void GeluTanhBackward<std::tuple<T>>::submit(int worker_hint, Index nelems, Scalar alpha,
         ::nnhaul::Handle & x, ::nnhaul::Handle & dy, Scalar beta, ::nnhaul::Handle & dx)
-//! Insert gelutanh_backward task into StarPU pool of tasks
+//! Insert gelutanh_backward task into NNHaul task pool
 /*! No argument checking is performed. All the inputs are packed and passed to
- * nntile_starpu_task_insert() function. If task submission fails, this routines
+ * submit() call. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
-    starpu_data_access_mode dx_mode;
+    data_access_mode dx_mode;
     if(beta == 0.0)
     {
-        dx_mode = STARPU_W;
+        dx_mode = ACCESS_W;
     }
     else
     {
-        dx_mode = STARPU_RW;
+        dx_mode = ACCESS_RW;
     }
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->nelems = nelems;
     args->alpha = alpha;
     args->beta = beta;
-    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
-        { { STARPU_R, &x }, { STARPU_R, &dy }, { dx_mode, &dx } }, args, sizeof(*args));
+    ::nntile::nnhaul::insert_task(codelet.raw, worker_hint,
+        { { ACCESS_R, &x }, { ACCESS_R, &dy }, { dx_mode, &dx } }, args, sizeof(*args));
     std::free(args);
 
 }
@@ -297,4 +273,4 @@ template class GeluTanhBackward<std::tuple<nntile::fp16_t>>;
 //! Pack of gelutanh_backward operations for different types
 gelutanh_backward_pack_t gelutanh_backward;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

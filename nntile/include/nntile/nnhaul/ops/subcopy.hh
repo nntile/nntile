@@ -4,9 +4,9 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file include/nntile/starpu/subcopy.hh
+ * @file include/nntile/nnhaul/ops/subcopy.hh
  * Copy subarray based on contiguous indices
  *
  * @version 1.1.0
@@ -23,7 +23,7 @@
 // NNTile headers
 #include <nntile/nnhaul/codelet.hh>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Generic wrapper class for subcopy operation is not defined
@@ -64,7 +64,7 @@ public:
 
     //! Submit subcopy task
     void submit(
-        int starpu_worker_hint,
+        int worker_hint,
         Index ndim,
         const std::vector<Index> &src_start,
         const std::vector<Index> &src_stride,
@@ -74,7 +74,7 @@ public:
         ::nnhaul::Handle & src,
         ::nnhaul::Handle & dst,
         ::nnhaul::Handle & tmp_index,
-        starpu_data_access_mode mode
+        data_access_mode mode
     );
 };
 
@@ -95,4 +95,4 @@ using subcopy_pack_t = OperationPack<
 //! Pack of subcopy operations for different types
 extern subcopy_pack_t subcopy;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

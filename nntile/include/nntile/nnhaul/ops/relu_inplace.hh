@@ -4,10 +4,10 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file include/nntile/starpu/relu_inplace.hh
- * Inplace ReLU operation on a StarPU buffer
+ * @file include/nntile/nnhaul/ops/relu_inplace.hh
+ * Inplace ReLU operation on a NNHaul buffer
  *
  * @version 1.1.0
  * */
@@ -23,7 +23,7 @@
 // NNTile headers
 #include <nntile/nnhaul/codelet.hh>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Generic wrapper class for relu_inplace operation is not defined
@@ -65,7 +65,7 @@ public:
 
     //! Submit relu_inplace task
     void submit(
-        int starpu_worker_hint,
+        int worker_hint,
         Index nelems,
         ::nnhaul::Handle & dst
     );
@@ -86,4 +86,4 @@ using relu_inplace_pack_t = OperationPack<
 //! Pack of relu_inplace operations for different types
 extern relu_inplace_pack_t relu_inplace;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

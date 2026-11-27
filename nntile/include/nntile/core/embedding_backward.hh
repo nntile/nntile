@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/core/embedding_backward.hh
  * Backward embeddings from vocabulary within Tile<T>
@@ -20,14 +20,14 @@ namespace nntile::core
 {
 
 template<typename T>
-void embedding_backward_async(int starpu_worker_hint, Index m, Index n,
+void embedding_backward_async(int worker_hint, Index m, Index n,
         Index k, Index k_start, Index k_size, Index index_range,
         Scalar alpha, Scalar beta,
         const Tile<int64_t> &index, const Tile<T> &embed, const Tile<T> &vocab,
         int redux=0);
 
 template<typename T>
-void embedding_backward(int starpu_worker_hint, Index m, Index n, Index k,
+void embedding_backward(int worker_hint, Index m, Index n, Index k,
         Index k_start, Index k_size, Index index_range, Scalar alpha,
         Scalar beta,
         const Tile<int64_t> &index, const Tile<T> &embed, const Tile<T> &vocab,

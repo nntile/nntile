@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tensor_graph/mask_scalar.cc
  * Test TensorGraph mask_scalar operation.
@@ -36,7 +36,7 @@ constexpr Scalar val = -0.5;
 constexpr float tolerance = 1e-5f;
 constexpr int distr_rank_single = 0;
 
-} 
+}
 
 TEST_CASE("TensorGraph mask_scalar structure", "[graph][tensor]")
 {

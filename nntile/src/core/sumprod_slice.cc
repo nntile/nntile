@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/core/sumprod_slice.cc
  * Sums over fibers into a slice of a product of two Tile<T>
@@ -13,30 +13,20 @@
  * */
 
 #include "nntile/core/sumprod_slice.hh"
-#ifdef NNTILE_USE_NNHAUL
 #include "nntile/nnhaul/ops/sumprod_slice.hh"
-#else
-#include "nntile/starpu/sumprod_slice.hh"
-#endif
-#ifdef NNTILE_USE_NNHAUL
 #include "nntile/nnhaul/sync_defer.hh"
-#else
-#include "nntile/starpu/config.hh"
-#endif
 
 namespace nntile::core
 {
 
 template<typename T>
-void sumprod_slice_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
+void sumprod_slice_async(int worker_hint, Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
         Scalar beta, const Tile<T> &dst, Index axis, int redux)
 {
-#ifdef NNTILE_USE_NNHAUL
     if(redux != 0)
     {
         throw std::runtime_error("redux != 0 is not supported");
     }
-#endif
     // Check shapes of src1 and src2
     if(src1.shape != src2.shape)
     {
@@ -83,122 +73,92 @@ void sumprod_slice_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &sr
     n = src1.matrix_shape[axis][0];
     k = src1.shape[axis];
     // Insert task
-    #ifdef NNTILE_USE_NNHAUL
-    int mpi_rank = 0;
-    #else
-    int mpi_rank = starpu_mpi_world_rank();
-    #endif
-    #ifdef NNTILE_USE_NNHAUL
-    int dst_rank = 0;
-    #else
-    int dst_rank = dst.mpi_get_rank();
-    #endif
-    #ifndef NNTILE_USE_NNHAUL
-    src1.mpi_transfer(dst_rank, mpi_rank);
-    #endif
-    #ifndef NNTILE_USE_NNHAUL
-    src2.mpi_transfer(dst_rank, mpi_rank);
-    #endif
-    if(mpi_rank == dst_rank)
-    {
-        #ifdef NNTILE_USE_NNHAUL
-        haul::sumprod_slice.submit<std::tuple<T>>(starpu_worker_hint, m, n, k, alpha, src1, src2,
-                beta, dst, 0);
-        #else
-        starpu::sumprod_slice.submit<std::tuple<T>>(starpu_worker_hint, m, n, k, alpha, src1, src2,
-                beta, dst, 0);
-        #endif
+    nnhaul::sumprod_slice.submit<std::tuple<T>>(worker_hint, m, n, k, alpha, src1, src2,
+            beta, dst, 0);
   // redux ignored for now
-    }
 }
 
 template<typename T>
-void sumprod_slice(int starpu_worker_hint, Scalar alpha, const Tile<T> &src1, const Tile<T> &src2, Scalar beta,
+void sumprod_slice(int worker_hint, Scalar alpha, const Tile<T> &src1, const Tile<T> &src2, Scalar beta,
         const Tile<T> &dst, Index axis, int redux)
 {
-#ifdef NNTILE_USE_NNHAUL
     if(redux != 0)
     {
         throw std::runtime_error("redux != 0 is not supported");
     }
-#endif
-    sumprod_slice_async<T>(starpu_worker_hint, alpha, src1, src2, beta, dst, axis, redux);
-    #ifdef NNTILE_USE_NNHAUL
+    sumprod_slice_async<T>(worker_hint, alpha, src1, src2, beta, dst, axis, redux);
     nntile::nnhaul_task_wait_for_all_unless_deferred();
-#else
-    nntile::starpu_task_wait_for_all_unless_deferred();
-#endif
 }
 
 // Explicit instantiation
 template
-void sumprod_slice_async<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &src1,
+void sumprod_slice_async<fp32_t>(int worker_hint, Scalar alpha, const Tile<fp32_t> &src1,
         const Tile<fp32_t> &src2, Scalar beta, const Tile<fp32_t> &dst,
         Index axis, int redux);
 
 template
-void sumprod_slice_async<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &src1,
+void sumprod_slice_async<fp32_fast_tf32_t>(int worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &src1,
         const Tile<fp32_fast_tf32_t> &src2, Scalar beta, const Tile<fp32_fast_tf32_t> &dst,
         Index axis, int redux);
 
 template
-void sumprod_slice_async<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &src1,
+void sumprod_slice_async<fp32_fast_fp16_t>(int worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &src1,
         const Tile<fp32_fast_fp16_t> &src2, Scalar beta, const Tile<fp32_fast_fp16_t> &dst,
         Index axis, int redux);
 
 template
-void sumprod_slice_async<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &src1,
+void sumprod_slice_async<fp32_fast_bf16_t>(int worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &src1,
         const Tile<fp32_fast_bf16_t> &src2, Scalar beta, const Tile<fp32_fast_bf16_t> &dst,
         Index axis, int redux);
 
 template
-void sumprod_slice_async<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &src1,
+void sumprod_slice_async<fp64_t>(int worker_hint, Scalar alpha, const Tile<fp64_t> &src1,
         const Tile<fp64_t> &src2, Scalar beta, const Tile<fp64_t> &dst,
         Index axis, int redux);
 
 template
-void sumprod_slice_async<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &src1,
+void sumprod_slice_async<bf16_t>(int worker_hint, Scalar alpha, const Tile<bf16_t> &src1,
         const Tile<bf16_t> &src2, Scalar beta, const Tile<bf16_t> &dst,
         Index axis, int redux);
 
 template
-void sumprod_slice_async<fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp16_t> &src1,
+void sumprod_slice_async<fp16_t>(int worker_hint, Scalar alpha, const Tile<fp16_t> &src1,
         const Tile<fp16_t> &src2, Scalar beta, const Tile<fp16_t> &dst,
         Index axis, int redux);
 
 // Explicit instantiation
 template
-void sumprod_slice<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &src1,
+void sumprod_slice<fp32_t>(int worker_hint, Scalar alpha, const Tile<fp32_t> &src1,
         const Tile<fp32_t> &src2, Scalar beta, const Tile<fp32_t> &dst,
         Index axis, int redux);
 
 template
-void sumprod_slice<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &src1,
+void sumprod_slice<fp32_fast_tf32_t>(int worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &src1,
         const Tile<fp32_fast_tf32_t> &src2, Scalar beta, const Tile<fp32_fast_tf32_t> &dst,
         Index axis, int redux);
 
 template
-void sumprod_slice<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &src1,
+void sumprod_slice<fp32_fast_fp16_t>(int worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &src1,
         const Tile<fp32_fast_fp16_t> &src2, Scalar beta, const Tile<fp32_fast_fp16_t> &dst,
         Index axis, int redux);
 
 template
-void sumprod_slice<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &src1,
+void sumprod_slice<fp32_fast_bf16_t>(int worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &src1,
         const Tile<fp32_fast_bf16_t> &src2, Scalar beta, const Tile<fp32_fast_bf16_t> &dst,
         Index axis, int redux);
 
 template
-void sumprod_slice<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &src1,
+void sumprod_slice<fp64_t>(int worker_hint, Scalar alpha, const Tile<fp64_t> &src1,
         const Tile<fp64_t> &src2, Scalar beta, const Tile<fp64_t> &dst,
         Index axis, int redux);
 
 template
-void sumprod_slice<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &src1,
+void sumprod_slice<bf16_t>(int worker_hint, Scalar alpha, const Tile<bf16_t> &src1,
         const Tile<bf16_t> &src2, Scalar beta, const Tile<bf16_t> &dst,
         Index axis, int redux);
 
 template
-void sumprod_slice<fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp16_t> &src1,
+void sumprod_slice<fp16_t>(int worker_hint, Scalar alpha, const Tile<fp16_t> &src1,
         const Tile<fp16_t> &src2, Scalar beta, const Tile<fp16_t> &dst,
         Index axis, int redux);
 

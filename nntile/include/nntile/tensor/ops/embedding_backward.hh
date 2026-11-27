@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/tensor/ops/embedding_backward.hh
  * TensorGraph embedding_backward: vocab = beta*vocab + alpha*scatter(embed)
@@ -27,7 +27,7 @@ namespace nntile::tensor
 
 //! Embedding backward with alpha/beta
 /*! beta=0: overwrite each vocab tile (kernel zeros then accumulates;
- *  STARPU_W on first write per tile).
+ *  ACCESS_W on first write per tile).
  *  beta=1: accumulate only (vocab += alpha*scatter).
  *  Tiling across vocab_size (axis 0) is disallowed.
  */

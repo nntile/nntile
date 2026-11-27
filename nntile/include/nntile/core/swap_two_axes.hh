@@ -16,7 +16,7 @@ namespace nntile::core
 
 template<typename T>
 void swap_two_axes_async(
-    int starpu_worker_hint,
+    int worker_hint,
     const Tile<T> &src,
     const Tile<T> &dst,
     Index dim0,
@@ -24,7 +24,7 @@ void swap_two_axes_async(
 
 template<typename T>
 void swap_two_axes(
-    int starpu_worker_hint,
+    int worker_hint,
     const Tile<T> &src,
     const Tile<T> &dst,
     Index dim0,

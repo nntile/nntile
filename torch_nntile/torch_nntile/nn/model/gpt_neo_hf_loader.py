@@ -9,11 +9,13 @@
 from __future__ import annotations
 
 import torch
-from transformers import GPTNeoConfig as HfGPTNeoConfig, GPTNeoForCausalLM
+from transformers import GPTNeoConfig as HfGPTNeoConfig
+from transformers import GPTNeoForCausalLM
 
-from torch_nntile.nn.linear import (
-    linear_to_output_weight, linear_to_qkv_weight, output_to_linear_weight,
-    qkv_to_linear_weight)
+from torch_nntile.nn.linear import (linear_to_output_weight,
+                                    linear_to_qkv_weight,
+                                    output_to_linear_weight,
+                                    qkv_to_linear_weight)
 from torch_nntile.nn.model.gpt_neo import GPTNeoCausal, GPTNeoConfig
 from torch_nntile.nn.model.hf_rope_layout import copy_linear
 

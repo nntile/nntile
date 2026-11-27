@@ -4,17 +4,17 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * @file include/nntile/nnhaul/stage.hh
- * Universal staging fallback for classic NNTile ops on chunked NNHaul
- * tiles (docs/chunked-tiles.md §4.3): gather chunked buffers into
- * contiguous scratch handles, run the original single-pointer codelet,
- * scatter the results back.
+ * Chunked-handle bookkeeping for classic NNTile ops on NNHaul tiles:
+ * the chunked-handle registry, live scratch handles and their drain list.
+ * The former universal staged fallback (gather into one contiguous
+ * scratch, run the single-pointer codelet, scatter) is gone; drivers use
+ * chunked kernels or chunk-aware piecewise drivers.
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-#ifdef NNTILE_USE_NNHAUL
 
 #include <nntile/base_types.hh>
 #include <nntile/nnhaul/chunk_gate.hh>
@@ -32,7 +32,7 @@
 
 namespace nntile
 {
-namespace haul
+namespace nnhaul
 {
 namespace stage
 {
@@ -142,8 +142,8 @@ inline std::uint64_t staged_read_skip_count() noexcept
 //
 // Every staged submit queues its scratch handles into a live set. The
 // live set is destroyed ONLY when the task queue is known idle -
-// immediately after nnhaul::wait() returned (starpu_task_wait_for_all_
-// counted drains it; see sync_defer.hh) - or, as the process-exit
+// immediately after nnhaul::wait() returned (task_wait_for_all_counted
+// drains it; see sync_defer.hh) - or, as the process-exit
 // fallback, after nnhaul::shutdown() when no runtime exists anymore.
 //
 // Rationale: ~Handle (nnhaul src/api.cc ~428-455) places an invalidate
@@ -179,7 +179,7 @@ void drain_scratches();
 
 /*! insert_task with the universal chunked-tile fallback.
  *
- * UNWIRED (user order, 2026-10-28): its last caller — transpose's
+ * UNWIRED: its last caller — transpose's
  * degenerate-geometry valve — now fails loudly instead of staging
  * (chunk classes are powers of two with a 1 MiB floor, so that
  * geometry cannot occur in production). No driver calls this anymore;
@@ -315,7 +315,7 @@ bool stage_buffers(
         }
         try
         {
-            ::nntile::haul::copy.submit(-1, *s.orig, *s.scratch);
+            ::nntile::nnhaul::copy.submit(-1, *s.orig, *s.scratch);
         }
         catch (::nnhaul::Error const &err)
         {
@@ -352,7 +352,7 @@ bool stage_buffers(
         if (s.scatter)
         {
             note_staged_scatter();
-            ::nntile::haul::copy.submit(-1, *s.scratch, *s.orig);
+            ::nntile::nnhaul::copy.submit(-1, *s.scratch, *s.orig);
         }
         else
         {
@@ -370,11 +370,8 @@ bool stage_buffers(
     // resident replica). Without the marker the scratch squats in the
     // victim list until the next wait()-idle drain: under cap pressure
     // the evictor - which cannot know no future task will name the
-    // handle - D2H-copied every such squat once (measured on GPT-2
-    // classic, cap 2560: 226 GiB of the 340 GiB chunked D2H total was
-    // scratch evictions with a matching H2D count of zero - bytes the
-    // GPU never asked for again), and the lost cap share pushed real
-    // tiles into 2.3x control's eviction volume. The Handle object
+    // handle - D2H-copied every such squat once, and the lost cap share pushed
+    // real tiles into extra eviction traffic. The Handle object
     // itself still rides the stash to the wait()-idle drain: the
     // destructor sees dead already set, waits for the (already done or
     // in-flight) sweep, and frees the host shadow page there.
@@ -425,7 +422,5 @@ inline void staged_insert_values(
 }
 
 } // namespace stage
-} // namespace haul
+} // namespace nnhaul
 } // namespace nntile
-
-#endif // NNTILE_USE_NNHAUL

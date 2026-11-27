@@ -4,10 +4,10 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file src/starpu/subtract_indexed_outputs.cc
- * Subtract a given value from certain matrix elements for StarPU buffer
+ * @file src/nnhaul/subtract_indexed_outputs.cc
+ * Subtract a given value from certain matrix elements for NNHaul buffer
  *
  * @version 1.2.0
  * */
@@ -25,9 +25,8 @@
 #include "nntile/kernel/subtract_indexed_outputs.hh"
 #include "nntile/nnhaul/chunk_units.hh"
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
-
 
 // ---------------------------------------------------------------------------
 // Native chunked subtract_indexed_outputs driver (chunk_units.hh scheme;
@@ -151,13 +150,9 @@ void SubtractIndexedOutputs<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get interfaces
     auto buf_labels = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
-    if((buf_labels->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+    if((buf_labels->chunk_count() == 1) && (buf_dst->chunk_count() == 1)
        )
     {
-        // Classic contiguous dispatch: illegal under the force flag
-        // (the tripwire proves it never happens in a flag-on run).
-        chunkunits::classic_dispatch_tripwire("nntile_subtract_indexed_outputs", false);
-        // Unchunked fast path: the historical single kernel call, bitwise
         kernel::subtract_indexed_outputs::cpu<T>(n_labels, n_outputs,
             ignore_index, val, buf_labels->get_ptr<nntile::int64_t>(),
             buf_dst->get_ptr<T>());
@@ -217,7 +212,7 @@ void SubtractIndexedOutputs<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], 
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Apply subtract_indexed_outputs operation on StarPU buffer on CUDA
+//! Apply subtract_indexed_outputs operation on NNHaul buffer on CUDA
 template<typename T>
 void SubtractIndexedOutputs<std::tuple<T>>::cuda(
     void *buffers[],
@@ -226,6 +221,9 @@ void SubtractIndexedOutputs<std::tuple<T>>::cuda(
 {
     // Get arguments
     auto args = reinterpret_cast<args_t*>(cl_args);
+    chunkunits::require_kernel_index_envelope(
+        static_cast<std::size_t>(args->n_outputs),
+        "nntile_subtract_indexed_outputs");
     Index n_labels = args->n_labels;
     Index n_outputs = args->n_outputs;
     Index ignore_index = args->ignore_index;
@@ -234,13 +232,9 @@ void SubtractIndexedOutputs<std::tuple<T>>::cuda(
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    if((buf_labels->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+    if((buf_labels->chunk_count() == 1) && (buf_dst->chunk_count() == 1)
        )
     {
-        // Classic contiguous dispatch: illegal under the force flag
-        // (the tripwire proves it never happens in a flag-on run).
-        chunkunits::classic_dispatch_tripwire("nntile_subtract_indexed_outputs", false);
-        // Unchunked fast path: the historical single kernel call, bitwise
         kernel::subtract_indexed_outputs::cuda<T>(stream, n_labels,
             n_outputs, ignore_index, args->value,
             buf_labels->get_ptr<nntile::int64_t>(), buf_dst->get_ptr<T>());
@@ -251,15 +245,15 @@ void SubtractIndexedOutputs<std::tuple<T>>::cuda(
     // rides the device table (ONE event-ordered control-stream copy per
     // launch) and the kernel reads it per-thread by shift/mask.
     // Column-local updates, so the result is bitwise the contiguous
-    // call's. (The historical piecewise fallback is DELETED -- rule 11.)
+    // call's.
     chunkunits::ChunkView<nntile::int64_t> const cv_lab(buf_labels);
     chunkunits::ChunkView<T> const cv_dst(buf_dst);
-    // Piece C (2026-10-18c) smalls-direct fast path: a single-chunk
+    // smalls-direct fast path: a single-chunk
     // labels operand (the graph shape beside the multi-chunk dst)
     // travels as its resolved base pointer, so ONLY the dst table is
     // built, uploaded and read through the table; the labels load
-    // shortens by the table hop. The general two-table form below
-    // (and the piecewise fallback) keeps every other shape.
+    // shortens by the table hop. The general two-table form below keeps
+    // every other shape.
     if(cv_lab.nchunks == 1)
     {
         chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
@@ -306,17 +300,15 @@ void SubtractIndexedOutputs<std::tuple<T>>::cuda(
             }
         }
     }
-        // (rule 11, user directive 2026-10-19) There is no per-piece
+        // There is no per-piece
     // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot table
     // serve any launch up to a 16 TiB operand, so a failed upload is an
     // invariant violation, not a mode to stage around.
     std::fprintf(stderr,
         "nntile_subtract_indexed_outputs: chunk-ptr table cannot serve this launch (invariant "
-        "violation; the per-piece staging fallback was deleted by rule "
-        "11)\n");
+        "violation; no per-piece staging fallback exists)\n");
     std::abort();
 }
-
 
 // Specializations of CUDA wrapper for accelerated types
 template<>
@@ -358,9 +350,9 @@ std::uint64_t SubtractIndexedOutputs<std::tuple<T>>::footprint(void const *cl_ar
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Apply hash over parameters m, n and k
     uint32_t hash = 0;
-    hash = ::nntile::haul::fnv1a(&args->n_labels, sizeof(args->n_labels),
+    hash = ::nntile::nnhaul::fnv1a(&args->n_labels, sizeof(args->n_labels),
             hash);
-    hash = ::nntile::haul::fnv1a(&args->n_outputs, sizeof(args->n_outputs),
+    hash = ::nntile::nnhaul::fnv1a(&args->n_outputs, sizeof(args->n_outputs),
             hash);
     return hash;
 }
@@ -378,10 +370,10 @@ void SubtractIndexedOutputs<std::tuple<T>>::submit(
     args->ignore_index = ignore_index;
     // Submit task: the BODY picks the unchunked fast path or the native
     // chunked column driver; subtract_indexed_outputs never stages.
-    ::nntile::haul::insert_task(
+    ::nntile::nnhaul::insert_task(
         codelet.raw,
         -1,
-        {{STARPU_R, &labels}, {STARPU_RW, &dst}},
+        {{ACCESS_R, &labels}, {ACCESS_RW, &dst}},
         args,
         sizeof(*args));
     std::free(args);
@@ -401,4 +393,4 @@ template class SubtractIndexedOutputs<std::tuple<nntile::fp16_t>>;
 //! Pack of subtract_indexed_outputs operations for different types
 subtract_indexed_outputs_pack_t subtract_indexed_outputs;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

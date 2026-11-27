@@ -9,10 +9,11 @@
 from __future__ import annotations
 
 import torch
-from transformers import RobertaConfig as HfRobertaConfig, RobertaForMaskedLM
+from transformers import RobertaConfig as HfRobertaConfig
+from transformers import RobertaForMaskedLM
 
-from torch_nntile.nn.linear import (
-    output_to_linear_weight, qkv_to_linear_bias, qkv_to_linear_weight)
+from torch_nntile.nn.linear import (output_to_linear_weight,
+                                    qkv_to_linear_bias, qkv_to_linear_weight)
 from torch_nntile.nn.model.bert_hf_loader import _load_layer
 from torch_nntile.nn.model.hf_rope_layout import copy_linear
 from torch_nntile.nn.model.roberta import RobertaConfig, RobertaMlm

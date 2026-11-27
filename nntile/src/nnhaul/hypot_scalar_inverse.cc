@@ -4,9 +4,9 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file src/starpu/hypot_scalar_inverse.cc
+ * @file src/nnhaul/hypot_scalar_inverse.cc
  * Inverse of a hypot operation of a buffer and a scalar
  *
  * @version 1.2.0
@@ -24,7 +24,7 @@
 #include "nntile/kernel/hypot_scalar_inverse.hh"
 #include "nntile/nnhaul/chunk_units.hh"
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Constructor
@@ -43,7 +43,7 @@ HypotScalarInverse<std::tuple<T>>::HypotScalarInverse():
     // Modes are not fixed, they are decided during runtime by default
 }
 
-//! Apply hypot_scalar_inverse operation for StarPU buffers in CPU
+//! Apply hypot_scalar_inverse operation for NNHaul buffers in CPU
 template<typename T>
 void HypotScalarInverse<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
@@ -51,9 +51,9 @@ void HypotScalarInverse<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    auto dst = ::nntile::haul::buf_chunks<T>(buffers, 0);
+    auto dst = ::nntile::nnhaul::buf_chunks<T>(buffers, 0);
     // Launch kernel per flat chunk piece (single piece if unchunked)
-    ::nntile::haul::for_each_flat_piece(
+    ::nntile::nnhaul::for_each_flat_piece(
         args->nelems,
         [&](std::size_t n, T *d) {
             kernel::hypot_scalar_inverse::cpu<T>(
@@ -88,47 +88,29 @@ void HypotScalarInverse<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Apply hypot_scalar_inverse for StarPU buffers on CUDA
+//! Apply hypot_scalar_inverse for NNHaul buffers on CUDA
 template<typename T>
 void HypotScalarInverse<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
+    chunkunits::require_kernel_index_envelope(
+        static_cast<std::size_t>(args->nelems),
+        "nntile_hypot_scalar_inverse");
     // Get interfaces
-    auto dst = ::nntile::haul::buf_chunks<T>(buffers, 0);
+    auto dst = ::nntile::nnhaul::buf_chunks<T>(buffers, 0);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    // Chunked single-launch path: when the buffer is chunked (or the force
-    // flag is on), issue the WHOLE flat operation
-    // as ONE chunk-aware kernel instead of the per-piece walk's launches.
-    // The chunk base-pointer table is built on the host from the ChunkView
-    // and parked in the shared device chunk-ptr table; the kernel stages it
-    // into shared memory per block. No chunk-count cap. The per-element
-    // expression is identical, so the result is cuda()'s bitwise. The
-    // all-unchunked case (flag off) and a failed table upload keep the
-    // historical for_each_flat_piece path verbatim.
     {
         auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[0]);
         bool const all_plain =
-            buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels();
+            buf_dst->chunk_count() == 1;
         if(!(all_plain) && args->nelems > 0)
         {
-            if(buf_dst->chunk_count() == 1)
-            {
-                // Piece C (2026-10-18c): the all-1-chunk degenerate
-                // launch is the FIRST thing the chunked block does --
-                // the chunk counts are read straight off the buffers,
-                // before any ChunkView/LaunchTables work exists, so the
-                // degenerate host path is as lean as the classic
-                // dispatch above (gemm path-F precedent; launch
-                // pointer-identical, bitwise by construction, table
-                // untouched).
-                kernel::hypot_scalar_inverse::cuda<T>(
-                    stream, args->nelems, args->eps, args->alpha,
-                    buf_dst->get_ptr<T>());
-                return;
-            }
+            // Chunked single-launch path: the whole multi-chunk range is
+            // issued as ONE chunk-aware kernel reading the shared device
+            // chunk-pointer table; the per-element math matches cuda().
             chunkunits::ChunkView<T> const cvd(buf_dst);
             chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
             tabs.clear();
@@ -151,25 +133,20 @@ void HypotScalarInverse<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
                     arena.end(stream);
                     return;
                 }
-                    // (rule 11, user directive 2026-10-19) There is no per-piece
+                    // There is no per-piece
                     // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot table
                     // serve any launch up to a 16 TiB operand, so a failed upload is an
                     // invariant violation, not a mode to stage around.
                     std::fprintf(stderr,
                         "nntile_hypot_scalar_inverse: chunk-ptr table cannot serve this launch (invariant "
-                        "violation; the per-piece staging fallback was deleted by rule "
-                        "11)\n");
+                        "violation; no per-piece staging fallback exists)\n");
                     std::abort();
             }
         }
-        if(args->nelems > 0)
-        {
-            chunkunits::classic_dispatch_tripwire(
-                "nntile_hypot_scalar_inverse", false);
-        }
+
     }
     // Launch kernel per flat chunk piece (single piece if unchunked)
-    ::nntile::haul::for_each_flat_piece(
+    ::nntile::nnhaul::for_each_flat_piece(
         args->nelems,
         [&](std::size_t n, T *d) {
             kernel::hypot_scalar_inverse::cuda<T>(
@@ -217,17 +194,17 @@ std::uint64_t HypotScalarInverse<std::tuple<T>>::footprint(void const *cl_args, 
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     uint32_t hash = 0;
-    hash = ::nntile::haul::fnv1a(&args->nelems, sizeof(args->nelems), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->nelems, sizeof(args->nelems), hash);
     return hash;
 }
 
 //! Submit hypot_scalar_inverse task
 template<typename T>
-void HypotScalarInverse<std::tuple<T>>::submit(int starpu_worker_hint,
+void HypotScalarInverse<std::tuple<T>>::submit(int worker_hint,
         Index nelems, Scalar eps, Scalar alpha, ::nnhaul::Handle & dst)
-//! Insert hypot_scalar_inverse task into StarPU pool of tasks
+//! Insert hypot_scalar_inverse task into NNHaul task pool
 /*! No argument checking is performed. All the inputs are packed and passed to
- * nntile_starpu_task_insert() function. If task submission fails, this routines
+ * submit() call. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
@@ -237,8 +214,8 @@ void HypotScalarInverse<std::tuple<T>>::submit(int starpu_worker_hint,
     args->eps = eps;
     args->alpha = alpha;
     // Submit task
-    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
-        { { STARPU_RW, &dst } }, args, sizeof(*args));
+    ::nntile::nnhaul::insert_task(codelet.raw, worker_hint,
+        { { ACCESS_RW, &dst } }, args, sizeof(*args));
     std::free(args);
 
 }
@@ -257,4 +234,4 @@ template class HypotScalarInverse<std::tuple<nntile::fp16_t>>;
 //! Pack of hypot_scalar_inverse operations for different types
 hypot_scalar_inverse_pack_t hypot_scalar_inverse;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

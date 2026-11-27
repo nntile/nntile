@@ -5,7 +5,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tile_graph/randn.cc
  * Test TileGraph randn vs nntile::core (parity).
@@ -40,9 +40,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph randn", "[graph][tile]
     const auto gout = r.get_output<float>(d);
     nntile::core::Tile<fp32_t> Td(sh);
     nntile::core::randn<fp32_t>(-1, Td, st, us, seed, mean, std);
-    starpu_task_wait_for_all();
+    task_wait_for_all();
     std::vector<float> tref(60);
-    { auto L=Td.acquire(STARPU_R);
+    { auto L=Td.acquire(ACCESS_R);
       for(Index i=0;i<60;++i) tref[static_cast<size_t>(i)]=static_cast<float>(L[i]);
       L.release(); }
     for(size_t i=0;i<60;++i) REQUIRE(gout[i]==tref[i]);

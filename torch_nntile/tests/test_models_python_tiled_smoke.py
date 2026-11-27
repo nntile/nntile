@@ -18,15 +18,7 @@ import sys
 import textwrap
 from pathlib import Path
 
-import pytest
 from conftest import subprocess_environ
-
-import torch_nntile
-
-pytestmark = pytest.mark.skipif(
-    not getattr(torch_nntile, "NNTILE_NATIVE_OPS", False),
-    reason="classic nntile-native ops not built",
-)
 
 _TESTS_DIR = Path(__file__).resolve().parent
 
@@ -36,9 +28,8 @@ import torch_nntile
 from classic_graph import assert_classic_graph
 
 torch_nntile.init_context(
-    ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
+    ncpu=1, ncuda=1, verbose=0, cpu_fallback=False
 )
-torch_nntile.restrict_cpu()
 """
 
 

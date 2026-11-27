@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/norm_slice_inplace/cuda.cu
  * Euclidean norms of fibers into a slice of a buffer on CUDA
@@ -269,7 +269,7 @@ static __device__ __forceinline__ long nsl_chunk_of(long f, Index elems,
     return f >> shift;
 }
 
-//! (piece 16) Slim m==1 variant for the BOTH-operands-single-chunk case
+//! Slim m==1 variant for the BOTH-operands-single-chunk case
 //! (host-checked: nsrc == 1 && ndst == 1, the sentinel shift): the two
 //! chunk bases are one uniform table-slot load each, and the body is the
 //! SAME instruction stream as cuda_kernel_m1 above -- no chunk arithmetic
@@ -544,7 +544,7 @@ void chunked(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
         dim3 blocks(n);
         if(nsrc == 1 && ndst == 1)
         {
-            // Piece 16: both operands single-chunk -- the slim variant
+            // Both operands single-chunk -- the slim variant
             // mirrors cuda_kernel_m1's instruction stream with one uniform
             // table-slot load per base.
             (chunked_m1_single_kernel<T, 1024, 4>)<<<blocks, threads, 0,

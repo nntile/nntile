@@ -15,44 +15,10 @@
 #include <nntile/context.hh>
 #include <nntile/defs.h>
 
-#ifdef NNTILE_USE_NNHAUL
-#include <nntile/nnhaul/chunk_gate.hh>
-#endif
-
-#ifndef NNTILE_USE_NNHAUL
-#include <starpu.h>
-#endif
-
 #include <memory>
 
 namespace torch_nntile
 {
-
-void apply_torch_session_chunk_policy()
-{
-#ifdef NNTILE_USE_NNHAUL
-    // A torch_nntile session may lower torch_dispatch ops (TILE_TORCH_*),
-    // which consume tiles through contiguous torch tensors and cannot
-    // read a chunk chain — the process-wide session law in
-    // nntile/nnhaul/chunk_gate.hh. Flip the chunked-tile gate OFF at
-    // session start, BEFORE the first tile allocates: the gate flip
-    // inside Runtime::compile only affects future allocations, so a
-    // session that allocates tiles before its first torch-op graph
-    // compiles would hit the compile-time guard even with that flip
-    // working as designed (torch_nntile sessions always mix classic and
-    // torch ops on the same tiles, so chunking must be off for the
-    // WHOLE session). An explicitly set NNHAUL_CHUNK_TILES pins the
-    // session's choice (=0 unchunked from the start, =1 chunked for
-    // classic-only sessions that never record torch ops — a torch-op
-    // graph plus chunked tiles still fails loudly at compile); the
-    // default (unset) is unchunked for torch_nntile.
-    if (std::getenv("NNHAUL_CHUNK_TILES") == nullptr
-        && ::nntile::haul::tile_chunking_enabled())
-    {
-        ::nntile::haul::set_tile_chunking(false);
-    }
-#endif
-}
 
 bool built_with_cuda()
 {
@@ -92,7 +58,6 @@ void create_context_locked()
         return;
     }
     g_context_config_locked = true;
-    apply_torch_session_chunk_policy();
     g_context = std::make_unique<nntile::Context>(
         g_context_config.ncpu,
         g_context_config.ncuda,
@@ -133,6 +98,24 @@ void init_context(
         throw std::runtime_error(
             "torch_nntile context configuration is already locked");
     }
+    if (ncuda > 1)
+    {
+        // The chunked transport is single-device; reject before locking
+        // the configuration so a corrected init_context(ncuda=1) can
+        // still be called in the same process.
+        throw std::runtime_error(
+            "torch_nntile on NNHaul supports one CUDA worker (ncuda<=1)");
+    }
+    if (cpu_fallback)
+    {
+        // The 1.x opt-in ran unregistered aten operators through the CPU
+        // implementation on nntile tensors. NNTile 2.0 has no CPU compute
+        // path, so accepting the flag would silently reintroduce it.
+        throw std::runtime_error(
+            "torch_nntile: cpu_fallback is not supported; unregistered "
+            "operators raise. Move tensors with .to(\"nntile\") / .to(\"cpu\") "
+            "and use the classic nntile operators");
+    }
     g_context_config.ncpu = ncpu;
     g_context_config.ncuda = ncuda;
     g_context_config.ooc_enabled = ooc_enabled;
@@ -168,51 +151,10 @@ void ensure_nntile_context()
     create_context_locked();
 }
 
-bool uses_nnhaul()
-{
-#ifdef NNTILE_USE_NNHAUL
-    return true;
-#else
-    return false;
-#endif
-}
-
-void restrict_cpu()
-{
-    if (platform_session_active())
-    {
-        return;
-    }
-    std::lock_guard<std::mutex> lock(g_context_mutex);
-    create_context_locked();
-    g_context->restrict_cpu();
-}
-
-void restrict_cuda()
-{
-    if (platform_session_active())
-    {
-        return;
-    }
-    std::lock_guard<std::mutex> lock(g_context_mutex);
-    create_context_locked();
-    g_context->restrict_cuda();
-}
-
-void restore_where()
-{
-    if (platform_session_active())
-    {
-        return;
-    }
-    std::lock_guard<std::mutex> lock(g_context_mutex);
-    create_context_locked();
-    g_context->restore_where();
-}
-
 void wait_for_all()
 {
-    // Join StarPU for host-visible completion (reclaim already ran at run()).
+    // Join the engine for host-visible completion (reclaim already ran at
+    // run()).
     wait_graph_session();
 }
 
@@ -224,15 +166,8 @@ void shutdown_context()
     {
         return;
     }
-#ifndef NNTILE_USE_NNHAUL
-    if (starpu_is_initialized())
-    {
-        starpu_task_wait_for_all();
-    }
-#endif
     g_context->shutdown();
     g_context.reset();
 }
 
 } // namespace torch_nntile
-

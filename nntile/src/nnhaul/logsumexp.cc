@@ -4,10 +4,10 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file src/starpu/logsumexp.cc
- * Log of sum of exponents for StarPU buffer
+ * @file src/nnhaul/logsumexp.cc
+ * Log of sum of exponents for NNHaul buffer
  *
  * @version 1.2.0
  * */
@@ -25,7 +25,7 @@
 #include "nntile/kernel/logsumexp.hh"
 #include "nntile/nnhaul/chunk_units.hh"
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 // ---------------------------------------------------------------------------
@@ -114,7 +114,7 @@ void LogSumExp<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get interfaces
     auto buf_mse = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_lse = static_cast<::nnhaul::Buffer *>(buffers[1]);
-    if((buf_mse->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_lse->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+    if((buf_mse->chunk_count() == 1) && (buf_lse->chunk_count() == 1)
        )
     {
         // Unchunked fast path: the historical single kernel call, bitwise
@@ -177,18 +177,19 @@ void LogSumExp<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
+    // The kernel also indexes maxsumexp as 2*i with a 32-bit int, so the
+    // doubled operand is the binding envelope, not nelems alone.
+    chunkunits::require_kernel_index_envelope(
+        static_cast<std::size_t>(args->nelems) * 2,
+        "nntile_logsumexp");
     // Get interfaces
     auto buf_mse = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_lse = static_cast<::nnhaul::Buffer *>(buffers[1]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    if((buf_mse->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_lse->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+    if((buf_mse->chunk_count() == 1) && (buf_lse->chunk_count() == 1)
        )
     {
-        // Classic contiguous dispatch: illegal under the force flag (the
-        // tripwire proves it never happens in a flag-on run).
-        chunkunits::classic_dispatch_tripwire("nntile_logsumexp", false);
-        // Unchunked fast path: the historical single kernel call, bitwise
         kernel::logsumexp::cuda<T>(
             stream, args->nelems, buf_mse->get_ptr<T>(), buf_lse->get_ptr<T>());
         return;
@@ -198,17 +199,9 @@ void LogSumExp<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // mse chunk table -- the pair may straddle chunks -- and writes its
     // logsumexp through the lse table). The tables are parked in the shared
     // device chunk-ptr table; no chunk-count cap. The per-element expression
-    // is identical, so the result is cuda()'s bitwise. The piece driver
-    // below stays as the table-overflow fallback and for degenerate shapes.
+    // is identical, so the result is cuda()'s bitwise.
     if(args->nelems > 0)
     {
-        // Piece C (2026-10-18c): the all-1-chunk degenerate launch is
-        // the FIRST thing the chunked block does -- the chunk counts
-        // are read straight off the buffers, before any
-        // ChunkView/LaunchTables work exists, so the degenerate host
-        // path is as lean as the classic dispatch above (gemm path-F
-        // precedent; launch pointer-identical, bitwise by
-        // construction, table untouched).
         if(buf_mse->chunk_count() == 1 && buf_lse->chunk_count() == 1)
         {
             kernel::logsumexp::cuda<T>(
@@ -245,17 +238,15 @@ void LogSumExp<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
             }
         }
     }
-        // (rule 11, user directive 2026-10-19) There is no per-piece
+        // There is no per-piece
     // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot table
     // serve any launch up to a 16 TiB operand, so a failed upload is an
     // invariant violation, not a mode to stage around.
     std::fprintf(stderr,
         "nntile_logsumexp: chunk-ptr table cannot serve this launch (invariant "
-        "violation; the per-piece staging fallback was deleted by rule "
-        "11)\n");
+        "violation; no per-piece staging fallback exists)\n");
     std::abort();
 }
-
 
 // Specializations of CUDA wrapper for accelerated types
 template<>
@@ -296,17 +287,17 @@ std::uint64_t LogSumExp<std::tuple<T>>::footprint(void const *cl_args, std::size
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     uint32_t hash = 0;
-    hash = ::nntile::haul::fnv1a(&args->nelems, sizeof(args->nelems), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->nelems, sizeof(args->nelems), hash);
     return hash;
 }
 
 //! Submit logsumexp task
 template<typename T>
-void LogSumExp<std::tuple<T>>::submit(int starpu_worker_hint,
+void LogSumExp<std::tuple<T>>::submit(int worker_hint,
         Index nelems, ::nnhaul::Handle & maxsumexp, ::nnhaul::Handle & logsumexp)
-//! Insert logsumexp task into StarPU pool of tasks
+//! Insert logsumexp task into NNHaul task pool
 /*! No argument checking is performed. All the inputs are packed and passed to
- * nntile_starpu_task_insert() function. If task submission fails, this routines
+ * submit() call. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
@@ -315,8 +306,8 @@ void LogSumExp<std::tuple<T>>::submit(int starpu_worker_hint,
     args->nelems = nelems;
     // Submit task: the BODY picks the unchunked fast path or the native
     // chunked unit driver; logsumexp never stages.
-    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
-        { { STARPU_R, &maxsumexp }, { STARPU_W, &logsumexp } }, args, sizeof(*args));
+    ::nntile::nnhaul::insert_task(codelet.raw, worker_hint,
+        { { ACCESS_R, &maxsumexp }, { ACCESS_W, &logsumexp } }, args, sizeof(*args));
     std::free(args);
 
 }
@@ -335,4 +326,4 @@ template class LogSumExp<std::tuple<nntile::fp16_t>>;
 //! Pack of logsumexp operations for different types
 logsumexp_pack_t logsumexp;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

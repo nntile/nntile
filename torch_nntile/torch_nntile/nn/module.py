@@ -20,9 +20,10 @@ from torch import Tensor
 from torch_nntile.loss import cross_entropy as _cross_entropy
 from torch_nntile.nn.activations import gelu, relu, silu
 from torch_nntile.nn.embedding import embedding as _embedding
-from torch_nntile.nn.linear import (
-    NntileAttentionOutput as NntileAttentionOutput,
-    NntileLinear as NntileLinear, NntileQKVProjection as NntileQKVProjection)
+from torch_nntile.nn.linear import \
+    NntileAttentionOutput as NntileAttentionOutput
+from torch_nntile.nn.linear import NntileLinear as NntileLinear
+from torch_nntile.nn.linear import NntileQKVProjection as NntileQKVProjection
 from torch_nntile.nn.norm import layer_norm, rms_norm
 from torch_nntile.nn.sdpa import SDPA as SDPA
 
@@ -146,8 +147,13 @@ class CrossEntropyLoss(nn.Module):
         ignore_index: int = -100,
     ) -> None:
         super().__init__()
-        if reduction not in ("mean", "sum", "none"):
-            raise ValueError("reduction must be 'mean', 'sum', or 'none'")
+        if reduction not in ("mean", "sum"):
+            raise ValueError("reduction must be 'mean' or 'sum'")
+        if reduction == "mean" and ignore_index != -100:
+            raise ValueError(
+                "nntile CrossEntropyLoss: reduction='mean' with "
+                "ignore_index is unsupported; use reduction='sum'"
+            )
         self.reduction = reduction
         self.ignore_index = ignore_index
 
@@ -156,7 +162,7 @@ class CrossEntropyLoss(nn.Module):
             logits,
             target,
             reduction=self.reduction,
-            ignore_index=self.ignore_index,
+            ignore_index=None if self.ignore_index == -100 else self.ignore_index,
         )
 
 

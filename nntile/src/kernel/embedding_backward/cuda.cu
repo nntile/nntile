@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/embedding_backward/cuda.cu
  * Backward of embeddings from vocabulary within buffers
@@ -105,7 +105,7 @@ static __device__ __forceinline__ Index chunk_of(long f, Index elems,
 }
 
 //! In-chunk offset given the PRECOMPUTED in-chunk mask (hoisted once
-//! per kernel; sentinel-62's mask is all-ones). Piece 7.
+//! per kernel; sentinel-62's mask is all-ones).
 static __device__ __forceinline__ long chunk_off(long f, long mask)
 {
     return f & mask;
@@ -113,11 +113,11 @@ static __device__ __forceinline__ long chunk_off(long f, long mask)
 
 //! Chunk-aware embedding backward scatter-add: the same (i2, i0, i1)
 //! thread geometry and atomicAdd as cuda_kernel above, but each of the
-//! three operands is addressed through its chunk table. Piece 9 (rule
-//! 10): NO shared-memory staging -- every thread reads its chunk pointer
+//! three operands is addressed through its chunk table. NO
+//! shared-memory staging -- every thread reads its chunk pointer
 //! straight from the device table (a handful of L1-resident entries), so
 //! the kernel carries no table __syncthreads at all; the in-chunk masks
-//! stay hoisted into registers once per kernel (piece 7).
+//! stay hoisted into registers once per kernel.
 template<typename T>
 static __global__
 void chunked_cuda_kernel(EmbBwdChunkTables<T> t, Scalar alpha_)
@@ -222,7 +222,7 @@ void chunked_zero_cuda_kernel(EmbBwdChunkTables<T> t, long total)
     }
 }
 
-//! Strided-walk chunk-aware embedding backward (piece B, 2026-10-18c):
+//! Strided-walk chunk-aware embedding backward :
 //! the classic geometry verbatim (one 256-thread block per (i0, i1)
 //! occurrence, lanes at consecutive i2, so every atomicAdd instruction
 //! targets one contiguous vocab run and every embed load keeps the
@@ -234,7 +234,7 @@ void chunked_zero_cuda_kernel(EmbBwdChunkTables<T> t, long total)
 //! same iteration; guarded so the final iteration never reads past the
 //! table's last entry). Compile-time chunk shifts (the IDX1/EMB1/VOC1
 //! template flags pick the 62 single-chunk sentinel -- no chunk
-//! arithmetic at all -- or the rule-7 class shift) and 32-bit flat
+//! arithmetic at all -- or the class shift) and 32-bit flat
 //! arithmetic replace the runtime shifts and 64-bit masks of the
 //! elementwise body, which stays as the huge-tile fallback (U32=false:
 //! any operand's flat span >= 2^32; plus the 256*m embed-stride overflow
@@ -278,16 +278,16 @@ void chunked_strided_cuda_kernel(EmbBwdChunkTables<T> t, Scalar alpha_)
     // Initial chunk resolution only for threads that will actually
     // iterate: a thread with tid >= k_size never enters the loop below,
     // and forming its vbp/ebp anyway can index one slot past a table
-    // when fv/fe sit exactly on a chunk multiple (piece-B critic's
-    // latent OOB table-slot read; never dereferenced, now unreachable).
-    // (piece F, 2026-10-19) BLOCK-UNIFORM VOCAB FAST PATH: row, and the
+    // when fv/fe sit exactly on a chunk multiple (a latent OOB
+    // table-slot read; never dereferenced, now unreachable).
+    //  BLOCK-UNIFORM VOCAB FAST PATH: row, and the
     // whole vocab walk [row, row+k_size), is uniform per block (one
     // token per occurrence), and k_size*4 bytes is far below the chunk
     // class, so the walk lies inside ONE vocab chunk unless the row
-    // straddles a boundary (measured once per ~5461 rows at k=768). In
-    // the common case the vocab base resolves once, uniformly, the
-    // loop's vocab advance is a plain pointer add and the mask/rebase
-    // branches disappear -- the classic loop body verbatim. The embed
+    // straddles a boundary. In the common case the vocab base resolves
+    // once, uniformly, the loop's vocab advance is a plain pointer add
+    // and the mask/rebase branches disappear -- the classic loop body
+    // verbatim. The embed
     // side keeps its per-iteration rebase (its per-block spread is
     // m*k elements and crosses chunk boundaries routinely).
     // Launch-constant chunk bases: hoisted so the walk's advance never
@@ -413,10 +413,8 @@ void chunked(cudaStream_t stream, Index m, Index n, Index k, Index k_start,
     {
         // One chunk-aware zero pass (single launch, like the whole-buffer
         // entry's own memset of vocab_nelems). A moderate grid (each thread
-        // grid-strides over several 16-byte stores) measures ~565 GB/s vs
-        // ~553 for a one-store-per-thread grid and ~577 for a contiguous
-        // cudaMemsetAsync; per-chunk memsets are far worse (~440 GB/s from
-        // the launch overhead).
+        // grid-strides over several 16-byte stores) keeps memory throughput
+        // high, while per-chunk memsets lose it to launch overhead.
         long const total = static_cast<long>(vocab_nelems);
         long const block = 256;
         long const work = (total + 3) / 4; // vector-path work units
@@ -453,8 +451,8 @@ void chunked(cudaStream_t stream, Index m, Index n, Index k, Index k_start,
         bool const voc1 = t.nvocab <= 1;
         // One 256-thread block per (i0, i1); lanes walk the k axis in
         // blockDim.x strides (the classic per-instruction patterns). A
-        // full-width (k_size-thread) block was measured 30% slower: the
-        // single-iteration walk cannot cover the block latency.
+        // full-width (k_size-thread) block leaves the single-iteration
+        // walk unable to cover the block latency.
         dim3 const sblocks(1, unsigned(m), unsigned(n));
 #define NNHAUL_EMBBWD_LAUNCH(I1, E1, V1) \
     (chunked_strided_cuda_kernel<T, I1, E1, V1>)<<<sblocks, threads, 0, \

@@ -5,7 +5,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/src/tile_graph/sgd_step.cc
  * TileGraph sgd step operation implementation.
@@ -43,7 +43,7 @@ void run_sgd(
     TileGraph::TileNode* vel,
     TileGraph::TileNode* pn)
 {
-    nntile::core::sgd_step<T>(runtime.starpu_worker_hint(), num_iter, momentum, lr, weight_decay, dampening,
+    nntile::core::sgd_step<T>(runtime.worker_hint(), num_iter, momentum, lr, weight_decay, dampening,
         nesterov, runtime.get_tile<T>(g), runtime.get_tile<T>(vel),
         runtime.get_tile<T>(pn));
 }

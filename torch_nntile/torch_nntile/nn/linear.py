@@ -270,6 +270,12 @@ def prepare_sdpa_mask(
         mask = make_causal_sdpa_mask(q_len, device=x.device)
     if mask is None:
         return None
+    # NNHaul has only the 2-D bool mask path. Normalize additive / batched
+    # masks on the host, then upload the boolean [q, k] result.
+    if mask.device.type == "nntile" and (
+        mask.dtype != torch.bool or mask.dim() > 2
+    ):
+        mask = mask.cpu()
     if mask.dtype == torch.bool:
         bool_mask = mask
     else:

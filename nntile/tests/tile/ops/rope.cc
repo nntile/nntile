@@ -5,7 +5,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tile_graph/rope.cc
  * Test TileGraph rope vs nntile::core (parity).
@@ -47,15 +47,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph rope", "[graph][tile]"
     const auto gout = r.get_output<float>(d);
     nntile::core::Tile<fp32_t> Si(sh), Co(sh), Src(tsh), D(tsh);
     using Y = typename fp32_t::repr_t;
-    { auto a=Si.acquire(STARPU_W),b=Co.acquire(STARPU_W);
+    { auto a=Si.acquire(ACCESS_W),b=Co.acquire(ACCESS_W);
       for(int i=0;i<2;++i) {a[i]=Y(sv[static_cast<size_t>(i)]); b[i]=Y(cv[static_cast<size_t>(i)]);}a.release();b.release(); }
-    { auto c=Src.acquire(STARPU_W);
+    { auto c=Src.acquire(ACCESS_W);
       for(int i=0;i<20;++i) c[i]=Y(src[static_cast<size_t>(i)]); c.release(); }
-    { auto d0=D.acquire(STARPU_W); for(int i=0;i<20;++i) d0[i]=Y(0.0f); d0.release(); }
+    { auto d0=D.acquire(ACCESS_W); for(int i=0;i<20;++i) d0[i]=Y(0.0f); d0.release(); }
     nntile::core::rope<fp32_t>(-1, Si, Co, Src, D);
-    starpu_task_wait_for_all();
+    task_wait_for_all();
     std::vector<float> tr(20);
-    { auto L=D.acquire(STARPU_R);
+    { auto L=D.acquire(ACCESS_R);
       for(int i=0;i<20;++i) tr[static_cast<size_t>(i)]=static_cast<float>(L[i]);
       L.release(); }
     nntile::test::require_relative_element_error(gout, tr);

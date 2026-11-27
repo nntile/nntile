@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/remote_execution_driver.hh
  * RemoteExecutionDriver: submit an already-lowered TileGraph over
@@ -41,7 +41,7 @@ char const *driver_socket_group_name();
 
 //! Client of ``nntile-executiond``. bind() before submit() is queued
 //! into the Submit payload; bind() after submit() is a Bind message.
-//! StarPU stays in the daemon process.
+//! NNHaul stays in the daemon process.
 class RemoteExecutionDriver : public ExecutionDriver
 {
   public:
@@ -84,16 +84,6 @@ class RemoteExecutionDriver : public ExecutionDriver
         pending_bind_bool_;
 };
 
-//! CUDA worker restriction applied by an ExecutionDaemon at start.
-//! ``Auto`` consults ``NNTILE_DAEMON_RESTRICT_CUDA`` ("1" restricts,
-//! anything else does not); ``None`` / ``Cuda`` force the choice.
-enum class DaemonCudaRestrict
-{
-    Auto,
-    None,
-    Cuda,
-};
-
 //! Listen on a Unix socket (same-user only by default; mode 0600, or
 //! 0660 for group ``nntile-ops`` when present) and keep one
 //! RuntimeExecutionDriver for the connection. Other local users must
@@ -101,9 +91,7 @@ enum class DaemonCudaRestrict
 class ExecutionDaemon
 {
   public:
-    explicit ExecutionDaemon(
-        std::string socket_path = {},
-        DaemonCudaRestrict restrict_cuda = DaemonCudaRestrict::Auto);
+    explicit ExecutionDaemon(std::string socket_path = {});
 
     ~ExecutionDaemon();
 
@@ -123,7 +111,6 @@ class ExecutionDaemon
     void run();
 
     std::string path_;
-    DaemonCudaRestrict restrict_cuda_ = DaemonCudaRestrict::Auto;
     int listen_fd_ = -1;
     //! True when the socket node was actually chowned to the group
     //! (and therefore widened to 0660) at start().

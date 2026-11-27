@@ -14,7 +14,6 @@
 #include <nntile/core/traits.hh>
 #include <nntile/defs.h>
 
-#ifdef NNTILE_USE_NNHAUL
 
 #include <nntile/data_access.hh>
 #include <nntile/nnhaul/chunk_gate.hh>
@@ -48,7 +47,7 @@ class Tile: public TileTraits
             // address can never alias a stale registry entry.
             if (handle)
             {
-                ::nntile::haul::stage::forget_handle(*handle);
+                ::nntile::nnhaul::stage::forget_handle(*handle);
             }
         }
     };
@@ -73,8 +72,8 @@ class Tile: public TileTraits
         std::size_t const nbytes = storage_bytes(nelems);
         // Classic-stack chunked tiles: one chunk class under the new
         // nnhaul engine (every tile decomposes into whole class chunks).
-        // Disabled for torch_dispatch graphs via the haul gate.
-        std::size_t const chunk_bytes = ::nntile::haul::tile_chunking_enabled()
+        // Always on: the NNHaul product has no unchunked tiles.
+        std::size_t const chunk_bytes = ::nntile::nnhaul::tile_chunking_enabled()
             ? ::nnhaul::chunk_class_bytes()
             : 0;
         payload_->handle =
@@ -83,7 +82,7 @@ class Tile: public TileTraits
         {
             // Exact chunkedness for the stage helper and the compile-time
             // torch gate (raw handles cannot be queried at submit time).
-            ::nntile::haul::stage::note_chunked(*payload_->handle,
+            ::nntile::nnhaul::stage::note_chunked(*payload_->handle,
                 chunk_bytes);
         }
     }
@@ -181,19 +180,19 @@ class TileLocalData
 
     static ::nnhaul::Access map_mode(int mode)
     {
-        if (mode == STARPU_R)
+        if (mode == ACCESS_R)
         {
             return ::nnhaul::Access::Read;
         }
-        if (mode == STARPU_W)
+        if (mode == ACCESS_W)
         {
             return ::nnhaul::Access::Write;
         }
-        if (mode == STARPU_RW)
+        if (mode == ACCESS_RW)
         {
             return ::nnhaul::Access::ReadWrite;
         }
-        throw std::runtime_error("redux or commute acquire is not supported");
+        throw std::runtime_error("commute acquire is not supported");
     }
 
 public:
@@ -251,127 +250,3 @@ TileLocalData<T> Tile<T>::acquire_async(int mode) const
 }
 
 } // namespace nntile::core
-
-#else
-
-#include <nntile/starpu/handle.hh>
-
-namespace nntile::core
-{
-
-template<typename T>
-class TileLocalData;
-
-template<typename T>
-class Tile: public TileTraits, public starpu::VariableHandle
-{
-    size_t _get_size(Index ptr_nelems)
-    {
-        if (nelems > ptr_nelems)
-        {
-            throw std::runtime_error(
-                "Required memory size is larger than actually "
-                "allocated memory");
-        }
-        std::size_t size = nelems * sizeof(T);
-        if (size / sizeof(T) != static_cast<std::size_t>(nelems))
-        {
-            throw std::runtime_error(
-                "Type size_t is not enough to hold size of provided buffer");
-        }
-        return size;
-    }
-
-public:
-    Tile(TileTraits const &traits_, starpu::VariableHandle const &handle_):
-        TileTraits(traits_),
-        starpu::VariableHandle(handle_)
-    {
-    }
-
-    //! Allocation size of a freshly owned tile. Only the TileTraits
-    //! base is initialized when this runs, but nelems is already
-    //! validated there; the round-trip check mirrors _get_size.
-    size_t _get_alloc_size()
-    {
-        size_t size = static_cast<size_t>(nelems) * sizeof(T);
-        if(size / sizeof(T) != static_cast<size_t>(nelems))
-        {
-            throw std::runtime_error(
-                "Type size_t is not enough to hold size of the tile");
-        }
-        return size;
-    }
-
-    explicit Tile(std::vector<Index> const &shape_):
-        TileTraits(shape_),
-        starpu::VariableHandle(_get_alloc_size())
-    {
-    }
-
-    explicit Tile(TileTraits const &traits):
-        TileTraits(traits),
-        starpu::VariableHandle(_get_alloc_size())
-    {
-    }
-
-    Tile(std::vector<Index> const &shape_, T *ptr, Index ptr_nelems):
-        TileTraits(shape_),
-        starpu::VariableHandle(ptr, _get_size(ptr_nelems))
-    {
-    }
-
-    Tile(TileTraits const &traits, T *ptr, Index ptr_nelems):
-        TileTraits(traits),
-        starpu::VariableHandle(ptr, _get_size(ptr_nelems))
-    {
-    }
-
-    TileLocalData<T> acquire(starpu_data_access_mode mode) const;
-
-    TileLocalData<T> acquire_async(starpu_data_access_mode mode) const;
-};
-
-template<typename T>
-class TileLocalData: public starpu::HandleLocalData
-{
-public:
-    TileLocalData(
-        Tile<T> const &tile,
-        starpu_data_access_mode mode,
-        bool is_blocking = true):
-        starpu::HandleLocalData(tile, mode, is_blocking)
-    {
-    }
-
-    T const &operator[](Index i) const
-    {
-        return get_ptr()[i];
-    }
-
-    T &operator[](Index i)
-    {
-        return get_ptr()[i];
-    }
-
-    T *get_ptr() const
-    {
-        return reinterpret_cast<T *>(starpu::HandleLocalData::get_ptr());
-    }
-};
-
-template<typename T>
-TileLocalData<T> Tile<T>::acquire(starpu_data_access_mode mode) const
-{
-    return TileLocalData<T>(*this, mode, true);
-}
-
-template<typename T>
-TileLocalData<T> Tile<T>::acquire_async(starpu_data_access_mode mode) const
-{
-    return TileLocalData<T>(*this, mode, false);
-}
-
-} // namespace nntile::core
-
-#endif

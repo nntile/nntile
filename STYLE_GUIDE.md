@@ -13,7 +13,7 @@ Every source file must start with a copyright/license header:
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file path/to/file.hh
  * Brief description of the file
@@ -31,7 +31,7 @@ For CMakeLists.txt files, use `#` instead of `/*!`:
 #                              (AIRI), Russia. All rights reserved.
 #
 # NNTile is software framework for fast training of big neural networks on
-# distributed-memory heterogeneous systems based on StarPU runtime system.
+# distributed-memory heterogeneous systems with GPU acceleration.
 #
 # @file path/to/CMakeLists.txt
 # Brief description
@@ -196,16 +196,16 @@ void gemm<fp32_t>(Scalar alpha, const TransOp &transA,
 - Use NNTile type aliases: `fp32_t`, `fp64_t`, `fp16_t`, `bf16_t`, `Index`, `Scalar`
 - Support all standard data types when implementing operations (FP32, FP64, FP32_FAST_TF32, FP32_FAST_FP16, FP32_FAST_BF16, FP16, BF16)
 
-## StarPU Integration
+## NNHaul Integration
 
-- **Never use raw pointers** for data that StarPU manages
-- Use StarPU handles and tile acquisition/release patterns
+- **Never use raw pointers** for data that NNHaul manages
+- Use NNHaul handles and tile acquisition/release patterns
 - Operations are asynchronous by default; provide both `*_async` and blocking versions
 
 Example:
 ```cpp
 auto tile = tensor.get_tile(0);
-auto tile_local = tile.acquire(STARPU_W);
+auto tile_local = tile.acquire(ACCESS_W);
 // ... use tile_local ...
 tile_local.release();
 ```

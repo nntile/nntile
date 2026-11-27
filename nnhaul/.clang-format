@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: MIT
+# @copyright (c) 2026-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#
+# NNHaul is a task-based dynamic execution engine: one in-order CUDA
+# stream executes submitted tasks while a reactive data manager moves
+# bytes between the device and pinned host memory on demand.
+#
+# @file .clang-format
+# Canonical clang-format profile for NNHaul (LLVM base, 79-column limit).
+#
+# @version 1.0.0
+
+# Matches the NNTile C++ style: 79 columns, Allman, east const.
+BasedOnStyle: LLVM
+Language: Cpp
+ColumnLimit: 79
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+BreakBeforeBraces: Allman
+AllowShortBlocksOnASingleLine: false
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+BinPackArguments: false
+BinPackParameters: false
+ExperimentalAutoDetectBinPacking: false
+AlignAfterOpenBracket: DontAlign
+BreakConstructorInitializers: AfterColon
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+ReflowComments: true
+SortIncludes: true
+IncludeBlocks: Regroup
+PointerAlignment: Right
+ReferenceAlignment: Pointer
+SpaceAfterCStyleCast: true
+SpacesInParentheses: false

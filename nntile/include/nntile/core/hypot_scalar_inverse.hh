@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/core/hypot_scalar_inverse.hh
  * hypot_scalar_inverse operation for Tile<T>
@@ -20,9 +20,9 @@ namespace nntile::core
 {
 
 template<typename T>
-void hypot_scalar_inverse_async(int starpu_worker_hint, Scalar eps, Scalar alpha, const Tile<T> &dst);
+void hypot_scalar_inverse_async(int worker_hint, Scalar eps, Scalar alpha, const Tile<T> &dst);
 
 template<typename T>
-void hypot_scalar_inverse(int starpu_worker_hint, Scalar eps, Scalar alpha, const Tile<T> &dst);
+void hypot_scalar_inverse(int worker_hint, Scalar eps, Scalar alpha, const Tile<T> &dst);
 
 } // namespace nntile::core

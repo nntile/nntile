@@ -33,7 +33,7 @@ void run_swap_two_axes(
     auto &s = runtime.get_tile<T>(src);
     auto &d = runtime.get_tile<T>(dst);
     nntile::core::swap_two_axes<T>(
-        runtime.starpu_worker_hint(),
+        runtime.worker_hint(),
         s,
         d,
         dim0,

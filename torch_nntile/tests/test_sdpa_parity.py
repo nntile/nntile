@@ -11,10 +11,10 @@ import math
 import pytest
 import torch
 from conftest import nntile_cpu, subprocess_environ
-from torch_nntile.nn import SDPA, sdpa_eager
 
 import torch_nntile
 from torch_nntile import _C
+from torch_nntile.nn import SDPA, sdpa_eager
 
 
 def _projection_to_kernel_layout(x: torch.Tensor) -> torch.Tensor:
@@ -231,9 +231,8 @@ def test_sdpa_deferred_until_execute():
         from torch_nntile.nn import sdpa_eager
 
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
+            ncpu=1, ncuda=1, verbose=0, cpu_fallback=False
         )
-        torch_nntile.restrict_cpu()
 
         shape = (1, 4, 8, 2)
         q_cpu = torch.randn(*shape, requires_grad=True)

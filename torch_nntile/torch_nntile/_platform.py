@@ -7,7 +7,7 @@
 """Flush recorded TensorGraphs to the closed nntile-server.
 
 Loaded only when ``NNTILE_SERVER_SOCKET`` is set. Speaks
-``nntile_protocol`` (platform package). Does not start StarPU.
+``nntile_protocol`` (platform package). Does not start NNHaul.
 """
 
 from __future__ import annotations
@@ -31,7 +31,8 @@ class ClientError(RuntimeError):
 
 class _Conn:
     def __init__(self, path: str, account_id: str) -> None:
-        from nntile_protocol import PROTOCOL_VERSION, nntile_revision, recv, send
+        from nntile_protocol import (PROTOCOL_VERSION, nntile_revision, recv,
+                                     send)
 
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.sock.connect(path)

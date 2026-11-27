@@ -5,7 +5,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tile_graph/add_fiber_inplace.cc
  * Test TileGraph add fiber inplace vs nntile::core (parity).
@@ -49,18 +49,18 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph add_fiber_inplace", "[
     nntile::core::Tile<fp32_t> ts(fib), td(full);
     using Y = typename nntile::fp32_t::repr_t;
     {
-        auto A = ts.acquire(STARPU_W);
-        auto B = td.acquire(STARPU_W);
+        auto A = ts.acquire(ACCESS_W);
+        auto B = td.acquire(ACCESS_W);
         for(Index i = 0; i < nf; ++i) { A[i] = Y(f1[static_cast<size_t>(i)]); }
         for(Index i = 0; i < n; ++i) { B[i] = Y(0.25f * static_cast<float>(i + 1)); }
         A.release();
         B.release();
     }
     nntile::core::add_fiber_inplace<fp32_t>(-1, a, ts, b, td, axis, batch);
-    starpu_task_wait_for_all();
+    task_wait_for_all();
     std::vector<float> tref(n);
     {
-        auto L = td.acquire(STARPU_R);
+        auto L = td.acquire(ACCESS_R);
         for(Index i = 0; i < n; ++i) { tref[static_cast<size_t>(i)] = static_cast<float>(L[i]); }
         L.release();
     }

@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/core/rope.hh
  * Tile wrappers for the Rotary Positional Embedding
@@ -21,12 +21,12 @@ namespace nntile::core
 
 // Tile<T> RoPE
 template<typename T>
-void rope_async(int starpu_worker_hint, const Tile<T> &sin, const Tile<T> &cos,
+void rope_async(int worker_hint, const Tile<T> &sin, const Tile<T> &cos,
         const Tile<T> &src, const Tile<T> &dst, Index sin_pair0 = 0);
 
 // Tile<T> RoPE
 template<typename T>
-void rope(int starpu_worker_hint, const Tile<T> &sin, const Tile<T> &cos,
+void rope(int worker_hint, const Tile<T> &sin, const Tile<T> &cos,
         const Tile<T> &src, const Tile<T> &dst, Index sin_pair0 = 0);
 
 } // namespace nntile::core

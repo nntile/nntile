@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/softmax_inplace/cuda.cu
  * Inplace softmax operation on CUDA
@@ -232,7 +232,7 @@ static __device__ __forceinline__ void smi_set(T *const *sh, Index elems,
 
 //! Chunk-aware elementwise softmax_inplace, one contiguous span of `span`
 //! elements per block, with the block's maxsumexp pairs read once into shared
-//! memory (see the softmax kernel). Piece 9 (rule 10): the chunk-pointer
+//! memory (see the softmax kernel). The chunk-pointer
 //! tables are read straight from the device table (no staging, no table
 //! __syncthreads); the dynamic shared memory carries ONLY the per-row
 //! (max, sum) pairs, whose barrier is algorithmic. Bitwise cuda()'s result.
@@ -304,7 +304,7 @@ void chunked_cuda_kernel_staged(SoftmaxInplaceChunkTables<T> t, long total,
 //! hot loops then address it exactly like the classic kernel's dst_fiber)
 //! or the block falls to the per-element chunk-resolved path (only the
 //! one block per row whose run actually contains a chunk boundary).
-//! Rule 10: no chunk-TABLE staging and no pointer ever transits shared
+//! No chunk-TABLE staging and no pointer ever transits shared
 //! memory -- the shared arrays are the classic kernel's own algorithmic
 //! (max, sum) row staging and dst_block value staging. Every element
 //! performs exactly the operations cuda_kernel_m1 performs, so the result
@@ -414,7 +414,7 @@ void chunked_cuda_kernel_m1(SoftmaxInplaceChunkTables<T> t)
 
 //! Fallback chunk-aware elementwise softmax_inplace (grid-stride): reads the
 //! mse pair per element; used only for shapes whose per-block unit span would
-//! not fit shared memory. Piece 9 (rule 10): direct table reads.
+//! not fit shared memory; uses direct table reads.
 template<typename T>
 static __global__
 void chunked_cuda_kernel_naive(SoftmaxInplaceChunkTables<T> t, long total)
@@ -478,8 +478,8 @@ void chunked(cudaStream_t stream, Index m, Index n, Index k,
         // cuda()'s own m==1 geometry with the per-thread segment walk
         // (see the kernel comment): BLOCK_ROW threads along the middle
         // axis, BLOCK_COL rows per block, no per-element divmod. No
-        // dynamic smem (rule 10: no table/pointer staging at all -- the
-        // walk bases live in registers).
+        // dynamic smem (no table/pointer staging at all -- the walk bases
+        // live in registers).
         constexpr int BLOCK_ROW = 256, BLOCK_COL = 8, BLOCK_LOOP = 8;
         dim3 threads(256);
         dim3 blocks(((k+BLOCK_ROW-1)/BLOCK_ROW)

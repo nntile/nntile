@@ -4,10 +4,10 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file include/nntile/starpu/sgd_step.hh
- * SGD with momentum step with StarPU buffers
+ * @file include/nntile/nnhaul/ops/sgd_step.hh
+ * SGD with momentum step with NNHaul buffers
  *
  * @version 1.1.0
  * */
@@ -23,7 +23,7 @@
 // NNTile headers
 #include <nntile/nnhaul/codelet.hh>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Generic wrapper class for sgd_step operation is not defined
@@ -71,7 +71,7 @@ public:
 
     //! Submit sgd_step task
     void submit(
-        int starpu_worker_hint,
+        int worker_hint,
         Index num_iter,
         Index num_elems,
         Scalar momentum,
@@ -100,4 +100,4 @@ using sgd_step_pack_t = OperationPack<
 //! Pack of sgd_step operations for different types
 extern sgd_step_pack_t sgd_step;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

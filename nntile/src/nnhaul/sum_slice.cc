@@ -4,10 +4,10 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file src/starpu/sum_slice.cc
- * Sum over fibers into a slice of a StarPU buffer
+ * @file src/nnhaul/sum_slice.cc
+ * Sum over fibers into a slice of a NNHaul buffer
  *
  * @version 1.2.0
  * */
@@ -25,7 +25,7 @@
 #include "nntile/kernel/sum_slice.hh"
 #include "nntile/nnhaul/chunk_units.hh"
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 // ---------------------------------------------------------------------------
@@ -135,13 +135,9 @@ void SumSlice<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get interfaces
     auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
-    if((buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+    if((buf_src->chunk_count() == 1) && (buf_dst->chunk_count() == 1)
        )
     {
-        // Classic contiguous dispatch: illegal under the force flag
-        // (the tripwire proves it never happens in a flag-on run).
-        chunkunits::classic_dispatch_tripwire("nntile_sum_slice", false);
-        // Unchunked fast path: the historical single kernel call, bitwise
         kernel::sum_slice::cpu<T>(args->m, args->n, args->k, args->alpha,
             buf_src->get_ptr<T>(), args->beta, buf_dst->get_ptr<T>());
         return;
@@ -212,43 +208,17 @@ void SumSlice<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    if((buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+    if((buf_src->chunk_count() == 1) && (buf_dst->chunk_count() == 1)
        )
     {
-        // Classic contiguous dispatch: illegal under the force flag
-        // (the tripwire proves it never happens in a flag-on run).
-        chunkunits::classic_dispatch_tripwire("nntile_sum_slice", false);
-        // Unchunked fast path: the historical single kernel call, bitwise
         kernel::sum_slice::cuda<T>(stream, args->m, args->n, args->k,
             args->alpha, buf_src->get_ptr<T>(), args->beta,
             buf_dst->get_ptr<T>());
         return;
     }
-    // Chunked single-launch path: issue the WHOLE reduction as ONE
-    // chunk-aware kernel instead of the per-piece driver's O(chunk-resident
-    // pieces) launches. The chunk base-pointer tables are built on the host
-    // and parked in the shared device chunk-ptr table
-    // (no chunk-count cap); the kernel stages them into shared memory per
-    // block. The kernel keeps cuda()'s thread geometry and per-thread
-    // accumulation order, so the result is cuda()'s up to the same atomic
-    // ordering nondeterminism (bitwise on the m==1 branch). The piece driver
-    // below stays as the fallback for a failed
-    // table allocation.
-    // Piece C (2026-10-18c): the all-1-chunk degenerate launch is
-    // the FIRST thing the chunked block does -- the chunk counts are
-    // read straight off the buffers, before any
-    // ChunkView/UnitSpan/LaunchTables work exists, so the degenerate
-    // host path is as lean as the classic dispatch above (gemm
-    // path-F precedent; launch pointer-identical, bitwise by
-    // construction, table untouched).
-    if(args->m > 0 && args->n > 0 && args->k > 0
-        && buf_src->chunk_count() == 1
-        && buf_dst->chunk_count() == 1)
-    {
-        kernel::sum_slice::cuda<T>(stream, args->m, args->n, args->k,
-            args->alpha, buf_src->get_ptr<T>(), args->beta, buf_dst->get_ptr<T>());
-        return;
-    }
+        // Chunked single-launch path: the whole multi-chunk range is
+        // issued as ONE chunk-aware kernel reading the shared device
+    // chunk-pointer table; the per-element math matches cuda().
     chunkunits::ChunkView<T> const cv_src(buf_src);
     chunkunits::ChunkView<T> const cv_dst(buf_dst);
     if(args->m > 0 && args->n > 0 && args->k > 0)
@@ -284,17 +254,15 @@ void SumSlice<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
             }
         }
     }
-        // (rule 11, user directive 2026-10-19) There is no per-piece
+        // There is no per-piece
     // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot table
     // serve any launch up to a 16 TiB operand, so a failed upload is an
     // invariant violation, not a mode to stage around.
     std::fprintf(stderr,
         "nntile_sum_slice: chunk-ptr table cannot serve this launch (invariant "
-        "violation; the per-piece staging fallback was deleted by rule "
-        "11)\n");
+        "violation; no per-piece staging fallback exists)\n");
     std::abort();
 }
-
 
 // Specializations of CUDA wrapper for accelerated types
 template<>
@@ -336,42 +304,36 @@ std::uint64_t SumSlice<std::tuple<T>>::footprint(void const *cl_args, std::size_
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Apply hash over parameters m, n and k
     uint32_t hash = 0;
-    hash = ::nntile::haul::fnv1a(&args->m, sizeof(args->m), hash);
-    hash = ::nntile::haul::fnv1a(&args->n, sizeof(args->n), hash);
-    hash = ::nntile::haul::fnv1a(&args->k, sizeof(args->k), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->m, sizeof(args->m), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->n, sizeof(args->n), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->k, sizeof(args->k), hash);
     return hash;
 }
 
 template<typename T>
-void SumSlice<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, Index k, Scalar alpha, ::nnhaul::Handle & src, Scalar beta,
+void SumSlice<std::tuple<T>>::submit(int worker_hint, Index m, Index n, Index k, Scalar alpha, ::nnhaul::Handle & src, Scalar beta,
         ::nnhaul::Handle & dst, int redux)
-//! Insert sum_slice task into StarPU pool of tasks
+//! Insert sum_slice task into NNHaul task pool
 /*! No argument checking is performed. All the inputs are packed and passed to
- * nntile_starpu_task_insert() function. If task submission fails, this routines
+ * submit() call. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
     // Access mode for the dst handle
     constexpr Scalar zero = 0, one = 1;
-    enum starpu_data_access_mode dst_mode;
+    enum data_access_mode dst_mode;
     if(beta == zero)
     {
-        dst_mode = STARPU_W;
+        dst_mode = ACCESS_W;
     }
     else if(beta == one)
     {
-        if(redux != 0)
-        {
-            dst_mode = STARPU_REDUX;
-        }
-        else
-        {
-            dst_mode = static_cast<starpu_data_access_mode>(STARPU_RW | STARPU_COMMUTE);
-        }
+        (void)redux;
+        dst_mode = static_cast<data_access_mode>(ACCESS_RW | ACCESS_COMMUTE);
     }
     else
     {
-        dst_mode = STARPU_RW;
+        dst_mode = ACCESS_RW;
     }
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
@@ -388,8 +350,8 @@ void SumSlice<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, I
     // Submit task: the BODY picks the unchunked fast path or the native
     // chunked unit driver; sum_slice never stages.
     (void)nflops;
-    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
-        { { STARPU_R, &src }, { dst_mode, &dst } }, args, sizeof(*args));
+    ::nntile::nnhaul::insert_task(codelet.raw, worker_hint,
+        { { ACCESS_R, &src }, { dst_mode, &dst } }, args, sizeof(*args));
     std::free(args);
 
 }
@@ -408,4 +370,4 @@ template class SumSlice<std::tuple<nntile::fp16_t>>;
 //! Pack of sum_slice operations for different types
 sum_slice_pack_t sum_slice;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

@@ -6,8 +6,8 @@
 
 """Models that use classic NNTile kernels via :mod:`torch_nntile.nn.module`.
 
-Stock Hugging Face / ``torch.nn`` models can still run on ``device=nntile``
-(torch-native kernels). This package is the nntile-kernel rewrite path.
+This is the only model path in NNTile 2.0; stock Hugging Face /
+``torch.nn`` models on ``device=nntile`` are not supported.
 """
 
 from .bert import BertConfig, BertMlm, BertModel

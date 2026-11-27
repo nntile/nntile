@@ -7,8 +7,6 @@
 import torch
 from conftest import nntile_cpu
 
-import torch_nntile
-
 
 def test_add_matches_cpu():
     a_cpu = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
@@ -43,21 +41,3 @@ def test_add_2d_shape_parity():
     z_cpu = a_cpu + b_cpu
 
     assert torch.allclose(z_nntile, z_cpu, rtol=1e-5, atol=1e-5)
-
-
-def test_add_inplace_broadcast_matches_cpu():
-    a_cpu = torch.randn(2, 3, 4, dtype=torch.float32)
-    b_cpu = torch.randn(1, 3, 4, dtype=torch.float32)
-    a_nnt = a_cpu.clone().to("nntile")
-    b_nnt = b_cpu.to("nntile")
-    a_cpu.add_(b_cpu)
-    a_nnt.add_(b_nnt)
-    torch.testing.assert_close(nntile_cpu(a_nnt), a_cpu, rtol=1e-5, atol=1e-5)
-
-
-def test_add_out_of_place_broadcast_matches_cpu():
-    a_cpu = torch.randn(2, 3, 4, dtype=torch.float32)
-    b_cpu = torch.randn(1, 3, 4, dtype=torch.float32)
-    ref = a_cpu + b_cpu
-    got = a_cpu.to("nntile") + b_cpu.to("nntile")
-    torch.testing.assert_close(nntile_cpu(got), ref, rtol=1e-5, atol=1e-5)

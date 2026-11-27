@@ -4,9 +4,9 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file src/starpu/rope_backward.cc
+ * @file src/nnhaul/rope_backward.cc
  * Backward of rotary positional embedding
  *
  * @version 1.1.0
@@ -25,7 +25,7 @@
 #include "nntile/kernel/rope_backward.hh"
 #include "nntile/nnhaul/chunk_units.hh"
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 // ---------------------------------------------------------------------------
@@ -170,8 +170,8 @@ void RopeBackward<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     auto buf_cos = static_cast<::nnhaul::Buffer *>(buffers[1]);
     auto buf_dy = static_cast<::nnhaul::Buffer *>(buffers[2]);
     auto buf_dx = static_cast<::nnhaul::Buffer *>(buffers[3]);
-    if((buf_sin->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_cos->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
-        && (buf_dy->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dx->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+    if((buf_sin->chunk_count() == 1) && (buf_cos->chunk_count() == 1)
+        && (buf_dy->chunk_count() == 1) && (buf_dx->chunk_count() == 1)
        )
     {
         // Unchunked fast path: the historical single kernel call, bitwise
@@ -240,6 +240,12 @@ void RopeBackward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t*>(cl_args);
+    // The 32-bit kernel also indexes 2*i, so the doubled range is the
+    // binding envelope (same rule as logsumexp's maxsumexp pair).
+    chunkunits::require_kernel_index_envelope(
+        2 * static_cast<std::size_t>(args->m)
+            * static_cast<std::size_t>(args->n),
+        "nntile_rope_backward");
     // Get interfaces
     auto buf_sin = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_cos = static_cast<::nnhaul::Buffer *>(buffers[1]);
@@ -247,8 +253,8 @@ void RopeBackward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto buf_dx = static_cast<::nnhaul::Buffer *>(buffers[3]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    if((buf_sin->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_cos->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
-        && (buf_dy->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dx->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+    if((buf_sin->chunk_count() == 1) && (buf_cos->chunk_count() == 1)
+        && (buf_dy->chunk_count() == 1) && (buf_dx->chunk_count() == 1)
        )
     {
         // Unchunked fast path: the historical single kernel call, bitwise
@@ -257,24 +263,40 @@ void RopeBackward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
             buf_dy->get_ptr<T>(), buf_dx->get_ptr<T>());
         return;
     }
-    chunkunits::ArenaCuda<T> arena(stream);
-    rope_backward_chunked<T>(
-        args->m,
-        args->n,
-        buf_sin,
-        buf_cos,
-        buf_dy,
-        buf_dx,
-        arena,
-        [stream](Index mm, Index nn, T const *sn, T const *cc, T const *ps,
-            T *pd) {
-            kernel::rope_backward::cuda<T>(stream, mm, nn, sn, cc, ps, pd);
-        });
-    if(!arena.ok_state())
+    chunkunits::ChunkView<T> const cv_sin(buf_sin);
+    chunkunits::ChunkView<T> const cv_cos(buf_cos);
+    chunkunits::ChunkView<T> const cvy(buf_dy);
+    chunkunits::ChunkView<T> const cvx(buf_dx);
+    chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
+    tabs.clear();
+    std::size_t const o_sin = tabs.add(cv_sin);
+    std::size_t const o_cos = tabs.add(cv_cos);
+    std::size_t const o_dy = tabs.add(cvy);
+    std::size_t const o_dx = tabs.add(cvx);
+    chunkunits::ChunkPtrTable &arena = chunkunits::chunk_ptr_table();
+    if(arena.begin(stream))
     {
+        void const *table_base = arena.upload_tables(tabs);
+        if(table_base != nullptr)
+        {
+            kernel::rope_backward::chunked<T>(stream, args->m, args->n,
+                arena.table_view<const T *>(table_base, o_sin),
+                Index(cv_sin.nchunks),
+                arena.table_view<const T *>(table_base, o_cos),
+                Index(cv_cos.nchunks),
+                arena.table_view<const T *>(table_base, o_dy),
+                Index(cvy.nchunks),
+                arena.table_view<T *>(table_base, o_dx),
+                Index(cvx.nchunks),
+                Index(cv_sin.chunk_elems), Index(cv_cos.chunk_elems),
+                Index(cvy.chunk_elems), Index(cvx.chunk_elems));
+            arena.end(stream);
+            return;
+        }
         std::fprintf(stderr,
-            "nntile_rope_backward: chunked CUDA driver aborted after a "
-            "stream error; dx left unwritten\n");
+            "nntile_rope_backward: chunk-ptr table cannot serve this "
+            "launch\n");
+        std::abort();
     }
 }
 
@@ -318,16 +340,16 @@ std::uint64_t RopeBackward<std::tuple<T>>::footprint(void const *cl_args, std::s
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Apply hash over parameters m, and k
     uint32_t hash = 0;
-    hash = ::nntile::haul::fnv1a(&args->m, sizeof(args->m), hash);
-    hash = ::nntile::haul::fnv1a(&args->n, sizeof(args->n), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->m, sizeof(args->m), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->n, sizeof(args->n), hash);
     return hash;
 }
 
 template<typename T>
-void RopeBackward<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, ::nnhaul::Handle & sin, ::nnhaul::Handle & cos, ::nnhaul::Handle & dy, ::nnhaul::Handle & dx)
-//! Insert rope_backward task into StarPU pool of tasks
+void RopeBackward<std::tuple<T>>::submit(int worker_hint, Index m, Index n, ::nnhaul::Handle & sin, ::nnhaul::Handle & cos, ::nnhaul::Handle & dy, ::nnhaul::Handle & dx)
+//! Insert rope_backward task into NNHaul task pool
 /*! No argument checking is performed. All the inputs are packed and passed to
- * nntile_starpu_task_insert() function. If task submission fails, this routines
+ * submit() call. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
@@ -337,8 +359,8 @@ void RopeBackward<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index 
     args->n = n;
     // Submit task: the BODY picks the unchunked fast path or the native
     // chunked column driver; rope_backward never stages.
-    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
-        { { STARPU_R, &sin }, { STARPU_R, &cos }, { STARPU_R, &dy }, { STARPU_W, &dx } }, args, sizeof(*args));
+    ::nntile::nnhaul::insert_task(codelet.raw, worker_hint,
+        { { ACCESS_R, &sin }, { ACCESS_R, &cos }, { ACCESS_R, &dy }, { ACCESS_W, &dx } }, args, sizeof(*args));
     std::free(args);
 
 }
@@ -357,4 +379,4 @@ template class RopeBackward<std::tuple<nntile::bf16_t>>;
 //! Pack of rope_backward operations for different types
 rope_backward_pack_t rope_backward;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

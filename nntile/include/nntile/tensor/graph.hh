@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/tensor/graph.hh
  * TensorGraph - graph operating on tensors. Purely symbolic; lower to
@@ -268,7 +268,7 @@ TensorGraph::collect_dead_data_nodes() const
         {
             continue;
         }
-        // After wait() + empty TileGraph ops, leftover StarPU flags are
+        // After wait() + empty TileGraph ops, leftover NNHaul flags are
         // stale: reclaim already ran (INVALIDATE / UNREGISTER). Keeping
         // those nodes made live IR grow by one staging tensor per step.
         if (referenced.count(t) != 0)

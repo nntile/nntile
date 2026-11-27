@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/copy/cuda.cu
  * Copy operation on buffers on CUDA
@@ -144,10 +144,9 @@ void chunked(cudaStream_t stream, Index nbytes,
     }
     if(nsrc == 1 && ndst == 1)
     {
-        // (piece C13) Both operands are chunk 0 of their device tables:
-        // dispatch by chunk counts only. 128-thread blocks measured best
-        // at both the launch-floor 12 KiB shape and the 3-4 MiB
-        // single-chunk sizes.
+        // Both operands are chunk 0 of their device tables: dispatch by
+        // chunk counts only. A 128-thread block keeps the launch
+        // footprint small for these single-chunk sizes.
         long const units = (long(nbytes) + 15) / 16;
         dim3 blocks(dim3((units + 127) / 128)), threads(128);
         (chunked_single_kernel)<<<blocks, threads, 0, stream>>>(

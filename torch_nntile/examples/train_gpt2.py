@@ -9,12 +9,12 @@
 
 Always uses ``device="nntile"`` (requires ``torch_nntile`` ops such as
 ``SDPA`` / ``gemm``). Init and checkpoints use HuggingFace GPT-2 weight
-layout so losses and weights can be compared against
-``train_gpt2_hf.py --device cuda``.
+layout so losses and weights can be compared against a pure-CUDA PyTorch
+baseline.
 
 Torch cannot use CUDA and the PrivateUse1 ``nntile`` device in one process
-(PyTorch >= 2.8). Train this script and ``train_gpt2_hf.py`` separately,
-then ``compare`` the two HF-format checkpoints.
+(PyTorch >= 2.8). Train this script and a separate pure-CUDA PyTorch
+baseline, then ``compare`` the two HF-format checkpoints.
 
 Before training, all epoch batches (inputs + labels) and the model are moved
 onto ``nntile``; the script prints prefetch time and wall training time.
@@ -51,7 +51,6 @@ Examples::
     python ... compare --checkpoint-a runs/cuda/checkpoint.pt \\
         --checkpoint-b runs/nntile_minimal/checkpoint.pt
 
-Shell driver: ``run_gpt2_cuda_vs_nntile.sh``.
 """
 
 from __future__ import annotations
@@ -66,12 +65,15 @@ from pathlib import Path
 # beside the single GPU issuer. Must be set before ``import torch``.
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("NNTILE_ENABLE_LOCAL_COMPILER", "1")
 
 import torch
-from nntile_iter_phases import (
-    compile_run_wait_iter, compile_wait_run_iter, measure_isolated_nntile_iter,
-    print_nntile_iter_timings, print_nntile_phase_timings,
-    print_nntile_prep_compute, wait_end, wait_then_start_timer)
+from nntile_iter_phases import (compile_run_wait_iter, compile_wait_run_iter,
+                                measure_isolated_nntile_iter,
+                                print_nntile_iter_timings,
+                                print_nntile_phase_timings,
+                                print_nntile_prep_compute, wait_end,
+                                wait_then_start_timer)
 from transformers import GPT2Config, GPT2LMHeadModel
 
 import torch_nntile
@@ -364,7 +366,7 @@ def load_train_state(
 ):
     """Load config / CPU minimal model / metadata for a train run.
 
-    Init matches ``train_gpt2_hf.py``: HF ``GPT2LMHeadModel`` is created with
+    Init matches the pure-CUDA baseline: HF ``GPT2LMHeadModel`` is created with
     ``--seed`` (or loaded from an HF-format checkpoint), then converted into
     NNTile-layout ``GPT2LMHead``.
 
@@ -439,8 +441,8 @@ def save_hf_checkpoint(
     global_step: int,
 ) -> None:
     """Save NNTile model weights as an HF-format ``checkpoint.pt``."""
-    from torch_nntile.nn.model.gpt2_hf_loader import (
-        export_gpt2_lm_head_to_hf_state_dict)
+    from torch_nntile.nn.model.gpt2_hf_loader import \
+        export_gpt2_lm_head_to_hf_state_dict
     from torch_nntile.nn.model.gpt2_minimal import GPT2LMHead
     from torch_nntile.training import clone_model_weights
 
@@ -466,8 +468,6 @@ def save_hf_checkpoint(
 def train_nntile(args: argparse.Namespace) -> int:
     from torch_nntile.training import SGD
 
-    if args.restrict_cuda and args.restrict_cpu:
-        raise SystemExit("Pass only one of --restrict-cuda / --restrict-cpu")
 
     (
         config,
@@ -484,7 +484,7 @@ def train_nntile(args: argparse.Namespace) -> int:
         f"seq_len={args.seq_len}  batch_size={args.batch_size}  "
         f"data_seed={data_seed}"
     )
-    print(f"StarPU workers: ncpu={args.ncpu} ncuda={args.ncuda}")
+    print("NNHaul workers: one CUDA worker")
 
     epoch_batches_cpu = prepare_epoch_batches_cpu(
         sequences,
@@ -502,18 +502,22 @@ def train_nntile(args: argparse.Namespace) -> int:
         verbose=int(args.verbose),
         cpu_fallback=False,
     )
-    if args.restrict_cuda:
-        torch_nntile.restrict_cuda()
-        print("Worker placement: CUDA only (restrict_cuda)")
-    elif args.restrict_cpu:
-        torch_nntile.restrict_cpu()
-        print("Worker placement: CPU only (restrict_cpu)")
 
     try:
         print("Prefetching batches + model to nntile...")
         t_pre0 = time.perf_counter()
         with torch.no_grad():
-            epoch_batches = preload_batches_to_nntile(epoch_batches_cpu)
+            # Short runs prefetch all batches (the historical fast path).
+            # Long runs keep batches on the host: preloading every step
+            # would pin one chunk per tensor and exhaust the device arena
+            # on runs with >~1000 steps. Move such a step's batches just
+            # before record.
+            total_batches = sum(len(e) for e in epoch_batches_cpu)
+            preload_all = total_batches <= 256
+            if preload_all:
+                epoch_batches = preload_batches_to_nntile(epoch_batches_cpu)
+            else:
+                epoch_batches = epoch_batches_cpu
             model = cpu_model.to("nntile")
         prefetch_s = time.perf_counter() - t_pre0
         print(
@@ -588,7 +592,6 @@ def train_nntile(args: argparse.Namespace) -> int:
         last_loss: torch.Tensor | None = None
         last_inputs: torch.Tensor | None = None
         last_labels: torch.Tensor | None = None
-        n_epoch_batches = len(epoch_batches)
         n_steps = sum(len(epoch_data) for epoch_data in epoch_batches)
         record_nntile_s = 0.0
         record_torch_s = 0.0
@@ -627,6 +630,9 @@ def train_nntile(args: argparse.Namespace) -> int:
             labels = None
             for k in range(lo, hi):
                 inputs, labels = flat_batches[k]
+                if inputs.device.type != "nntile":
+                    inputs = inputs.to("nntile")
+                    labels = labels.to("nntile")
                 loss = causal_lm_loss_nntile(model, inputs, labels)
                 loss.backward()
                 step_loss = loss.detach()
@@ -832,23 +838,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--ncpu",
         type=int,
         default=-1,
-        help="StarPU CPU workers",
+        help="Accepted for compatibility; NNHaul creates no CPU workers",
     )
     train.add_argument(
         "--ncuda",
         type=int,
         default=-1,
-        help="StarPU CUDA workers",
-    )
-    train.add_argument(
-        "--restrict-cuda",
-        action="store_true",
-        help="Pin nntile kernels to CUDA workers",
-    )
-    train.add_argument(
-        "--restrict-cpu",
-        action="store_true",
-        help="Pin nntile kernels to CPU workers",
+        help="NNHaul CUDA workers",
     )
     train.add_argument(
         "--wait-after-run",
@@ -871,7 +867,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--verbose",
         action="store_true",
         help=(
-            "Verbose StarPU / NNTile context logging; also print_info() "
+            "Verbose NNTile context logging; also print_info() "
             "after run()+wait()"
         ),
     )
@@ -895,8 +891,6 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "train":
         if not args.checkpoint and args.seed is None:
             raise SystemExit("--seed is required when training from scratch")
-        from hf_tiny_train_common import configure_single_thread_host
-        configure_single_thread_host()
         return train_nntile(args)
     raise SystemExit(f"unknown command: {args.command}")
 

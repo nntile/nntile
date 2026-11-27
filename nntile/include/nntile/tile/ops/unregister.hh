@@ -4,10 +4,10 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/tile/ops/unregister.hh
- * TileGraph async unregister: starpu_data_unregister_submit + drop payload.
+ * TileGraph async unregister: NNHaul_data_unregister_submit + drop payload.
  *
  * @version 1.1.0
  * */
@@ -19,7 +19,7 @@
 namespace nntile::tile
 {
 
-//! Async unregister of a tile handle (StarPU-ordered after last use).
+//! Async unregister of a tile handle (NNHaul-ordered after last use).
 struct TileUnregisterOp : TileGraph::OpNode
 {
     TileGraph::TileNode *x = nullptr;
@@ -28,7 +28,7 @@ struct TileUnregisterOp : TileGraph::OpNode
     explicit TileUnregisterOp(TileGraph::TileNode *x_)
         : x(x_)
     {
-        // Listed as input so StarPU / DCE see the dependence on prior
+        // Listed as input so NNHaul / DCE see the dependence on prior
         // writers and readers; no outputs (side-effect only).
         inputs_ = {x};
         outputs_ = {};

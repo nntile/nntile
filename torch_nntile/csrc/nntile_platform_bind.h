@@ -61,7 +61,7 @@ inline void bind_platform_hooks(py::module_ &m)
     m.def(
         "set_platform_hooks",
         &set_platform_hooks_py,
-        "Install Ingress / Flush hooks (no local StarPU compile)",
+        "Install Ingress / Flush hooks (no local NNHaul compile)",
         py::arg("ingress"),
         py::arg("flush"));
     m.def(

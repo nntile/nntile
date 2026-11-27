@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/kernel/embedding_backward/cuda.hh
  * Backward of embeddings from vocabulary within buffers
@@ -42,8 +42,8 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index k_start,
  * kernel launch as well. The accumulation is atomicAdd exactly as the
  * whole-buffer entry's, so the result is the same unordered sum (and
  * bitwise the whole-buffer call when every token is unique). A launch
- * whose pointer set exceeds the table aborts (rule 11, 2026-10-19: no
- * per-segment fallback exists).
+ * whose pointer set exceeds the table aborts (no per-segment fallback
+ * exists).
  *
  * @param[in] stream: CUDA stream
  * @param[in] m: Size of the first mode of index and embed tensors

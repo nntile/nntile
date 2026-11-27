@@ -5,7 +5,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tile_graph/mask_scalar.cc
  * Test TileGraph mask scalar vs nntile::core (parity).
@@ -49,16 +49,16 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph mask_scalar", "[graph]
     nntile::core::Tile<bool_t> Tm(sh);
     nntile::core::Tile<fp32_t> Ta(sh);
     using Y = typename fp32_t::repr_t;
-    { auto mloc = Tm.acquire(STARPU_W);
+    { auto mloc = Tm.acquire(ACCESS_W);
       for(Index i = 0; i < n; ++i) { mloc[i] = nntile::bool_t(mb[static_cast<size_t>(i)]); }
       mloc.release(); }
-    { auto aloc = Ta.acquire(STARPU_W);
+    { auto aloc = Ta.acquire(ACCESS_W);
       for(Index i = 0; i < n; ++i) { aloc[i] = Y(static_cast<float>(i + 1)); }
       aloc.release(); }
     nntile::core::mask_scalar<fp32_t>(-1, Tm, val, Ta, batch);
-    starpu_task_wait_for_all();
+    task_wait_for_all();
     std::vector<float> tref(n);
-    { auto L = Ta.acquire(STARPU_R);
+    { auto L = Ta.acquire(ACCESS_R);
       for(Index i = 0; i < n; ++i) { tref[static_cast<size_t>(i)] = static_cast<float>(L[i]); }
       L.release(); }
     nntile::test::require_relative_element_error(gout, tref);

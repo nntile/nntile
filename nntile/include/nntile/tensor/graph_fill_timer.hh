@@ -32,7 +32,7 @@ class GraphFillScope
 
 //! ``TORCH_NNTILE_SKIP_KERNELS=1``: do not insert TensorGraph compute
 //! ops. TensorNode / TensorRef construction still runs. Last-drop
-//! ``UNREGISTER`` is still inserted (StarPU unregister task).
+//! ``UNREGISTER`` is still inserted (NNHaul unregister task).
 bool skip_tensor_graph_ops();
 
 } // namespace nntile

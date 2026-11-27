@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * @file src/tensor/ops/gemm_shape.cc
- * Shape helper for GEMM (shared by classic and torch-native builds).
+ * Shape helper for GEMM.
  *
  * @version 1.1.0
  */

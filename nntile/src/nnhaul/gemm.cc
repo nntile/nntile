@@ -4,10 +4,10 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file src/starpu/gemm.cc
- * GEMM operation for StarPU buffers
+ * @file src/nnhaul/gemm.cc
+ * GEMM operation for NNHaul buffers
  *
  * @version 1.2.0
  * */
@@ -25,7 +25,6 @@
 // Third-party headers
 
 // Other NNTile headers
-#include "nntile/kernel/cblas.hh"
 #include "nntile/kernel/cublas.hh"
 #include "nntile/kernel/copy/cuda.hh"
 #include "nntile/nnhaul/chunk_units.hh"
@@ -36,7 +35,7 @@
 
 #include <string>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Constructor
@@ -44,11 +43,7 @@ template<typename T>
 Gemm<std::tuple<T>>::Gemm():
     codelet(
         "nntile_gemm",
-#ifdef NNTILE_USE_CBLAS
-        &Gemm<std::tuple<T>>::cpu,
-#else
         nullptr,
-#endif
 #ifdef NNTILE_USE_CUDA
         &Gemm<std::tuple<T>>::cuda,
 #else
@@ -237,7 +232,7 @@ void gemm_workspace_staged(cublasHandle_t handle, TransOp transA,
             }
         }
     }
-    // (gemm critic C1, 2026-10-19) The scatter rewrites C's WHOLE flat
+    // The scatter rewrites C's WHOLE flat
     // byte range with the gemm's logical output; a staged C larger than
     // m*n*batch elements would have its excess bytes overwritten with
     // uninitialized workspace bytes (the classic leaves them untouched).
@@ -331,8 +326,7 @@ void gemm_workspace_staged(cublasHandle_t handle, TransOp transA,
     if(!table.begin(stream))
     {
         std::fprintf(stderr,
-            "nntile_gemm: chunk-ptr table init failed (rule 11 -- no "
-            "fallback exists)\n");
+            "nntile_gemm: chunk-ptr table init failed (no fallback exists)\n");
         std::abort();
     }
     // The workspace side of each staged operand is its whole virtual
@@ -364,8 +358,8 @@ void gemm_workspace_staged(cublasHandle_t handle, TransOp transA,
     if(table_base == nullptr)
     {
         std::fprintf(stderr,
-            "nntile_gemm: chunk-ptr table cannot serve the launch (rule "
-            "11 -- no fallback exists)\n");
+            "nntile_gemm: chunk-ptr table cannot serve the launch "
+            "(no fallback exists)\n");
         std::abort();
     }
     // ONE gather call for ALL staged input operands: the segments ride
@@ -488,170 +482,8 @@ GemmStagingStats gemm_staging_stats() noexcept
     return s;
 }
 
-#ifdef NNTILE_USE_CBLAS // CPU implementation requires CBLAS
-//! GEMM for contiguous matrices without padding through StarPU buffers
-template<typename T>
-void Gemm<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
-    noexcept
-{
-    // Get arguments
-    auto args = reinterpret_cast<args_t const *>(cl_args);
-    // Get interfaces
-    auto buf_a = static_cast<::nnhaul::Buffer *>(buffers[0]);
-    auto buf_b = static_cast<::nnhaul::Buffer *>(buffers[1]);
-    auto buf_c = static_cast<::nnhaul::Buffer *>(buffers[2]);
-    // Launch kernel
-    if constexpr (kernel::cblas::gemm_is_supported<T>)
-    {
-        auto const one_chunk =
-            buf_a->chunk_count() == 1 && buf_b->chunk_count() == 1
-            && buf_c->chunk_count() == 1;
-        auto run = [&](T const *A, T const *B, T *C) {
-            kernel::cblas::gemm<T>(
-                args->transA,
-                args->transB,
-                args->m,
-                args->n,
-                args->k,
-                args->batch,
-                args->alpha,
-                A,
-                B,
-                args->beta,
-                C,
-                args->broadcast_a,
-                args->broadcast_b
-            );
-        };
-        gemm_meters().calls.fetch_add(1, std::memory_order_relaxed);
-        if(one_chunk && !chunkunits::force_chunked_kernels())
-        {
-            // Classic contiguous dispatch: illegal under the force flag
-            // (the tripwire proves it never happens in a flag-on run).
-            chunkunits::classic_dispatch_tripwire("nntile_gemm", false);
-            gemm_meters().contiguous.fetch_add(1,
-                std::memory_order_relaxed);
-            run(buf_a->get_ptr<T>(), buf_b->get_ptr<T>(),
-                buf_c->get_ptr<T>());
-            return;
-        }
-        if(chain_contiguous<T>(buf_a) && chain_contiguous<T>(buf_b)
-            && chain_contiguous<T>(buf_c))
-        {
-            gemm_meters().contiguous.fetch_add(1,
-                std::memory_order_relaxed);
-            run(buf_a->get_chunk_ptr<T>(0), buf_b->get_chunk_ptr<T>(0),
-                buf_c->get_chunk_ptr<T>(0));
-            log_direct(args->transA, args->transB, args->m, args->n,
-                args->k, args->batch, buf_a->chunk_count(),
-                buf_b->chunk_count(), buf_c->chunk_count());
-            return;
-        }
-        try
-        {
-            // CPU mirror of the staging path: scattered operands go
-            // through host scratch, one classic-shaped call, C copied
-            // back.
-            chunkunits::ChunkView<T> const cv_a(buf_a);
-            chunkunits::ChunkView<T> const cv_b(buf_b);
-            chunkunits::ChunkView<T> const cv_c(buf_c);
-            bool const stage_a = !chain_contiguous<T>(buf_a);
-            bool const stage_b = !chain_contiguous<T>(buf_b);
-            bool const stage_c = !chain_contiguous<T>(buf_c);
-            GemmStagingMeters &m = gemm_meters();
-            m.staged.fetch_add(1, std::memory_order_relaxed);
-            if(stage_a)
-            {
-                m.staged_a.fetch_add(1, std::memory_order_relaxed);
-                m.c2w_chunks.fetch_add(cv_a.nchunks,
-                    std::memory_order_relaxed);
-                m.c2w_bytes.fetch_add(buf_a->nbytes(),
-                    std::memory_order_relaxed);
-            }
-            if(stage_b)
-            {
-                m.staged_b.fetch_add(1, std::memory_order_relaxed);
-                m.c2w_chunks.fetch_add(cv_b.nchunks,
-                    std::memory_order_relaxed);
-                m.c2w_bytes.fetch_add(buf_b->nbytes(),
-                    std::memory_order_relaxed);
-            }
-            if(stage_c)
-            {
-                m.staged_c.fetch_add(1, std::memory_order_relaxed);
-                m.w2c_chunks.fetch_add(cv_c.nchunks,
-                    std::memory_order_relaxed);
-                m.w2c_bytes.fetch_add(buf_c->nbytes(),
-                    std::memory_order_relaxed);
-                if(args->beta != Scalar{0})
-                {
-                    m.c2w_chunks.fetch_add(cv_c.nchunks,
-                        std::memory_order_relaxed);
-                    m.c2w_bytes.fetch_add(buf_c->nbytes(),
-                        std::memory_order_relaxed);
-                }
-            }
-            chunkunits::ArenaCpu<T> arena;
-            T *pa = stage_a ? arena.alloc(cv_a.total_elems) : nullptr;
-            T *pb = stage_b ? arena.alloc(cv_b.total_elems) : nullptr;
-            T *pc = stage_c ? arena.alloc(cv_c.total_elems) : nullptr;
-            auto gather_whole =
-                [&arena](chunkunits::ChunkView<T> const &cv, T *dst) {
-                    for(std::size_t c = 0; c < cv.nchunks; ++c)
-                    {
-                        std::size_t const len =
-                            cv.chunk_end(c) - cv.chunk_begin(c);
-                        if(len > 0)
-                        {
-                            arena.copy(dst + cv.chunk_begin(c),
-                                cv.ptr(c, 0), len);
-                        }
-                    }
-                };
-            if(stage_a)
-            {
-                gather_whole(cv_a, pa);
-            }
-            if(stage_b)
-            {
-                gather_whole(cv_b, pb);
-            }
-            if(stage_c && args->beta != Scalar{0})
-            {
-                gather_whole(cv_c, pc);
-            }
-            run(stage_a ? pa : buf_a->get_chunk_ptr<T>(0),
-                stage_b ? pb : buf_b->get_chunk_ptr<T>(0),
-                stage_c ? pc : buf_c->get_chunk_ptr<T>(0));
-            if(stage_c)
-            {
-                for(std::size_t c = 0; c < cv_c.nchunks; ++c)
-                {
-                    std::size_t const len =
-                        cv_c.chunk_end(c) - cv_c.chunk_begin(c);
-                    if(len > 0)
-                    {
-                        arena.copy(cv_c.ptr(c, 0),
-                            pc + cv_c.chunk_begin(c), len);
-                    }
-                }
-            }
-        }
-        catch(...)
-        {
-            // A noexcept body must not throw; a failed scratch allocation
-            // leaves the result unwritten (same failure class as a failed
-            // kernel launch).
-            std::fprintf(stderr,
-                    "nntile_gemm: cpu chunked driver aborted after an "
-                    "allocation failure; C left unwritten\n");
-        }
-    }
-}
-#endif // NNTILE_USE_CBLAS
-
 #ifdef NNTILE_USE_CUDA // CUDA implementation requires cuBLAS
-//! GEMM for contiguous matrices without padding through StarPU buffers
+//! GEMM for contiguous matrices without padding through NNHaul buffers
 template<typename T>
 void Gemm<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
@@ -669,12 +501,9 @@ void Gemm<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // alpha and beta parameters of GEMM operation are on CPU host
     cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_HOST);
     gemm_meters().calls.fetch_add(1, std::memory_order_relaxed);
-    if((buf_a->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_b->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
-        && (buf_c->chunk_count() == 1 && !chunkunits::force_chunked_kernels()))
+    if((buf_a->chunk_count() == 1) && (buf_b->chunk_count() == 1)
+        && (buf_c->chunk_count() == 1))
     {
-        // Classic contiguous dispatch: illegal under the force flag
-        // (the tripwire proves it never happens in a flag-on run).
-        chunkunits::classic_dispatch_tripwire("nntile_gemm", false);
         gemm_meters().contiguous.fetch_add(1, std::memory_order_relaxed);
         const T *A = buf_a->get_ptr<T>();
         const T *B = buf_b->get_ptr<T>();
@@ -742,20 +571,20 @@ std::uint64_t Gemm<std::tuple<T>>::footprint(void const *cl_args, std::size_t) n
     // give it a different footprint since gemm time will be totally different
     uint32_t hash = args->alpha == Scalar{0} ? -1 : 0;
     // Single codelet is used for all combinations of transA and transB
-    hash = ::nntile::haul::fnv1a(&args->transA, sizeof(args->transA), hash);
-    hash = ::nntile::haul::fnv1a(&args->transB, sizeof(args->transB), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->transA, sizeof(args->transA), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->transB, sizeof(args->transB), hash);
     // Apply hash over parameters M, N and K. This way if we swap values of M,
     // N and K total size of buffers will remain the same, but the footprint
     // will be different
-    hash = ::nntile::haul::fnv1a(&args->m, sizeof(args->m), hash);
-    hash = ::nntile::haul::fnv1a(&args->n, sizeof(args->n), hash);
-    hash = ::nntile::haul::fnv1a(&args->k, sizeof(args->k), hash);
-    hash = ::nntile::haul::fnv1a(&args->batch, sizeof(args->batch), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->m, sizeof(args->m), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->n, sizeof(args->n), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->k, sizeof(args->k), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->batch, sizeof(args->batch), hash);
     return hash;
 }
 
 template<typename T>
-void Gemm<std::tuple<T>>::submit(int starpu_worker_hint, const TransOp &transA, const TransOp &transB, Index m, Index n,
+void Gemm<std::tuple<T>>::submit(int worker_hint, const TransOp &transA, const TransOp &transB, Index m, Index n,
         Index k, Index batch, Scalar alpha, ::nnhaul::Handle & A, ::nnhaul::Handle & B, Scalar beta,
         ::nnhaul::Handle & C, int redux, bool broadcast_a, bool broadcast_b)
 {
@@ -763,42 +592,22 @@ void Gemm<std::tuple<T>>::submit(int starpu_worker_hint, const TransOp &transA, 
     {
         throw std::runtime_error("redux != 0 is not supported");
     }
-    // Check that matrix sizes fit proper types for underlying CBLAS
-#ifdef NNTILE_USE_CBLAS
-    if(static_cast<CBLAS_INT>(m) != m)
-    {
-        throw std::runtime_error("GEMM size M does not fit CBLAS_INT");
-    }
-    if(static_cast<CBLAS_INT>(n) != n)
-    {
-        throw std::runtime_error("GEMM size N does not fit CBLAS_INT");
-    }
-    if(static_cast<CBLAS_INT>(k) != k)
-    {
-        throw std::runtime_error("GEMM size K does not fit CBLAS_INT");
-    }
-#endif // NNTILE_USE_CBLAS
+    // Check that matrix sizes fit proper types for the underlying cuBLAS call
     constexpr Scalar zero = 0, one = 1;
-    enum starpu_data_access_mode C_mode;
+    enum data_access_mode C_mode;
     if(beta == zero)
     {
-        C_mode = STARPU_W;
+        C_mode = ACCESS_W;
     }
     else if(beta == one)
     {
-        if(redux != 0)
-        {
-            C_mode = STARPU_REDUX;
-        }
-        else
-        {
-            C_mode = static_cast<starpu_data_access_mode>(
-                STARPU_RW | STARPU_COMMUTE);
-        }
+        (void)redux;
+        C_mode = static_cast<data_access_mode>(
+                ACCESS_RW | ACCESS_COMMUTE);
     }
     else
     {
-        C_mode = STARPU_RW;
+        C_mode = ACCESS_RW;
     }
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
@@ -817,8 +626,8 @@ void Gemm<std::tuple<T>>::submit(int starpu_worker_hint, const TransOp &transA, 
     // Submit task: the body decides per operand between direct cuBLAS
     // and a workspace copy.
     (void)nflops;
-    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
-        { { STARPU_R, &A }, { STARPU_R, &B }, { C_mode, &C } }, args, sizeof(*args));
+    ::nntile::nnhaul::insert_task(codelet.raw, worker_hint,
+        { { ACCESS_R, &A }, { ACCESS_R, &B }, { C_mode, &C } }, args, sizeof(*args));
     std::free(args);
 
 }
@@ -837,4 +646,4 @@ template class Gemm<std::tuple<nntile::fp16_t>>;
 //! Pack of gemm operations for different types
 gemm_pack_t gemm;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

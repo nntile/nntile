@@ -9,11 +9,13 @@
 from __future__ import annotations
 
 import torch
-from transformers import BertConfig as HfBertConfig, BertForMaskedLM
+from transformers import BertConfig as HfBertConfig
+from transformers import BertForMaskedLM
 
-from torch_nntile.nn.linear import (
-    linear_to_output_weight, linear_to_qkv_bias, linear_to_qkv_weight,
-    output_to_linear_weight, qkv_to_linear_bias, qkv_to_linear_weight)
+from torch_nntile.nn.linear import (linear_to_output_weight,
+                                    linear_to_qkv_bias, linear_to_qkv_weight,
+                                    output_to_linear_weight,
+                                    qkv_to_linear_bias, qkv_to_linear_weight)
 from torch_nntile.nn.model.bert import BertConfig, BertMlm
 from torch_nntile.nn.model.hf_rope_layout import copy_linear
 

@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/src/tensor/phase_record.cc
  * Reconstruct TensorGraph ops from Flush PhaseIR JSON.
@@ -16,9 +16,6 @@
 
 #include <nntile/defs.h>
 #include <nntile/tensor.hh>
-#ifdef NNTILE_TORCH_NATIVE_OPS
-#include <nntile/tensor/ops/torch_dispatch.hh>
-#endif
 
 #include <array>
 #include <cstdint>
@@ -1401,148 +1398,6 @@ void record_phase_op(
         log_scalar(attr_string(a, "name", ""), rec.in_at(0));
         return;
     }
-#ifdef NNTILE_USE_FLASH_SDPA
-    if (name == "FLASH_SDPA_FWD_CUDNN")
-    {
-        flash_sdpa_fwd_cudnn(
-            rec.in_at(0),
-            rec.in_at(1),
-            rec.in_at(2),
-            rec.ensure(rec.inputs.size() > 3
-                ? rec.inputs[3]
-                : rec.out_id(0)),
-            rec.in_at(rec.inputs.size() > 4 ? 4 : 3),
-            rec.ensure_out(rec.outputs.size() > 1 ? 1 : 0));
-        return;
-    }
-    if (name == "FLASH_SDPA_BWD_CUDNN")
-    {
-        flash_sdpa_bwd_cudnn(
-            rec.in_at(0),
-            rec.in_at(1),
-            rec.in_at(2),
-            rec.in_at(3),
-            rec.in_at(4),
-            rec.in_at(5),
-            rec.in_at(6),
-            rec.ensure(rec.inputs.size() > 7
-                ? rec.inputs[7]
-                : rec.out_id(0)),
-            rec.ensure(rec.inputs.size() > 8
-                ? rec.inputs[8]
-                : rec.out_id(1)),
-            rec.ensure(rec.inputs.size() > 9
-                ? rec.inputs[9]
-                : rec.out_id(2)));
-        return;
-    }
-#else
-    if (name == "FLASH_SDPA_FWD_CUDNN" ||
-        name == "FLASH_SDPA_BWD_CUDNN")
-    {
-        throw_unknown_op(name);
-    }
-#endif
-#ifdef NNTILE_TORCH_NATIVE_OPS
-    if (name == "TORCH_UNARY" || name == "TORCH_BINARY" ||
-        name == "TORCH_TERNARY")
-    {
-        using nntile::starpu::TorchKind;
-        auto const kind = static_cast<TorchKind>(attr_int(a, "kind", 0));
-        if (name == "TORCH_UNARY")
-        {
-            std::vector<Index> shape = rec.in_at(0)->shape();
-            auto spec = specs.find(rec.out_id(0));
-            if (spec != specs.end() && !spec->second.shape.empty())
-            {
-                shape = spec->second.shape;
-            }
-            auto const extra = decode_torch_dispatch_attrs(a);
-            if (rec.has_out(0))
-            {
-                torch_unary(
-                    kind,
-                    rec.in_at(0),
-                    rec.need(rec.outputs[0]),
-                    extra);
-            }
-            else
-            {
-                rec.set_out(
-                    0,
-                    torch_unary(kind, rec.in_at(0), shape, extra));
-            }
-            return;
-        }
-        if (name == "TORCH_BINARY")
-        {
-            std::vector<Index> shape = rec.in_at(0)->shape();
-            auto spec = specs.find(rec.out_id(0));
-            if (spec != specs.end() && !spec->second.shape.empty())
-            {
-                shape = spec->second.shape;
-            }
-            auto const extra = decode_torch_dispatch_attrs(a);
-            if (rec.has_out(0))
-            {
-                torch_binary(
-                    kind,
-                    rec.in_at(0),
-                    rec.in_at(1),
-                    rec.need(rec.outputs[0]),
-                    extra);
-            }
-            else
-            {
-                rec.set_out(
-                    0,
-                    torch_binary(
-                        kind,
-                        rec.in_at(0),
-                        rec.in_at(1),
-                        shape,
-                        extra));
-            }
-            return;
-        }
-        std::vector<Index> shape = rec.in_at(0)->shape();
-        auto spec = specs.find(rec.out_id(0));
-        if (spec != specs.end() && !spec->second.shape.empty())
-        {
-            shape = spec->second.shape;
-        }
-        auto const extra = decode_torch_dispatch_attrs(a);
-        if (rec.has_out(0))
-        {
-            torch_ternary(
-                kind,
-                rec.in_at(0),
-                rec.in_at(1),
-                rec.in_at(2),
-                rec.need(rec.outputs[0]),
-                extra);
-        }
-        else
-        {
-            rec.set_out(
-                0,
-                torch_ternary(
-                    kind,
-                    rec.in_at(0),
-                    rec.in_at(1),
-                    rec.in_at(2),
-                    shape,
-                    extra));
-        }
-        return;
-    }
-#else
-    if (name == "TORCH_UNARY" || name == "TORCH_BINARY" ||
-        name == "TORCH_TERNARY")
-    {
-        throw_unknown_op(name);
-    }
-#endif
     throw_unknown_op(name);
 }
 

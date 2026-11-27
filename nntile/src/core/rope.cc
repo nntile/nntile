@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/core/rope.cc
  * Tile wrappers for the Rotary Positional Embedding
@@ -13,22 +13,14 @@
  * */
 
 #include "nntile/core/rope.hh"
-#ifdef NNTILE_USE_NNHAUL
 #include "nntile/nnhaul/ops/rope.hh"
-#else
-#include "nntile/starpu/rope.hh"
-#endif
-#ifdef NNTILE_USE_NNHAUL
 #include "nntile/nnhaul/sync_defer.hh"
-#else
-#include "nntile/starpu/config.hh"
-#endif
 
 namespace nntile::core
 {
 
 template<typename T>
-void rope_async(int starpu_worker_hint, const Tile<T> &sin, const Tile<T> &cos, const Tile<T> &src,
+void rope_async(int worker_hint, const Tile<T> &sin, const Tile<T> &cos, const Tile<T> &src,
         const Tile<T> &dst, Index sin_pair0)
 //! Tile<T> Rotary Positional Embedding
 /*! Reshapes input tensor and slice into 3-dimensional and 2-dimensional arrays
@@ -94,44 +86,16 @@ void rope_async(int starpu_worker_hint, const Tile<T> &sin, const Tile<T> &cos, 
         nrows *= src.shape[i];
     }
     const Index ncols = sin.nelems;
-    #ifdef NNTILE_USE_NNHAUL
-    int mpi_rank = 0;
-    #else
-    int mpi_rank = starpu_mpi_world_rank();
-    #endif
-    #ifdef NNTILE_USE_NNHAUL
-    int dst_rank = 0;
-    #else
-    int dst_rank = dst.mpi_get_rank();
-    #endif
-    #ifndef NNTILE_USE_NNHAUL
-    sin.mpi_transfer(dst_rank, mpi_rank);
-    #endif
-    #ifndef NNTILE_USE_NNHAUL
-    cos.mpi_transfer(dst_rank, mpi_rank);
-    #endif
-    #ifndef NNTILE_USE_NNHAUL
-    src.mpi_transfer(dst_rank, mpi_rank);
-    #endif
-    if(mpi_rank == dst_rank)
+    if(sin_pair0 != 0)
     {
-        if(sin_pair0 != 0)
-        {
-            throw std::runtime_error("rope: sin_pair0 != 0 is not supported");
-        }
-        #ifdef NNTILE_USE_NNHAUL
-        haul::rope.submit<std::tuple<T>>(starpu_worker_hint, ncols, nrows,
-            sin, cos, src, dst);
-        #else
-        starpu::rope.submit<std::tuple<T>>(starpu_worker_hint, ncols, nrows,
-            sin, cos, src, dst);
-        #endif
-
+        throw std::runtime_error("rope: sin_pair0 != 0 is not supported");
     }
+    nnhaul::rope.submit<std::tuple<T>>(worker_hint, ncols, nrows,
+        sin, cos, src, dst);
 }
 
 template<typename T>
-void rope(int starpu_worker_hint, const Tile<T> &sin, const Tile<T> &cos, const Tile<T> &src,
+void rope(int worker_hint, const Tile<T> &sin, const Tile<T> &cos, const Tile<T> &src,
         const Tile<T> &dst, Index sin_pair0)
 //! Tile<T> addition of a tensor and a broadcasted slice
 /*! Blocking version of rope_async<T>.
@@ -142,82 +106,78 @@ void rope(int starpu_worker_hint, const Tile<T> &sin, const Tile<T> &cos, const 
  * @param[out] dst: Output embedding tensor with applied RoPE
  * */
 {
-    rope_async<T>(starpu_worker_hint, sin, cos, src, dst, sin_pair0);
-    #ifdef NNTILE_USE_NNHAUL
+    rope_async<T>(worker_hint, sin, cos, src, dst, sin_pair0);
     nntile::nnhaul_task_wait_for_all_unless_deferred();
-#else
-    nntile::starpu_task_wait_for_all_unless_deferred();
-#endif
 }
 
 // Explicit instantiation of template
 template
-void rope_async<fp32_t>(int starpu_worker_hint, const Tile<fp32_t> &sin, const Tile<fp32_t> &cos,
+void rope_async<fp32_t>(int worker_hint, const Tile<fp32_t> &sin, const Tile<fp32_t> &cos,
         const Tile<fp32_t> &src, const Tile<fp32_t> &dst, Index sin_pair0);
 
 template
-void rope_async<fp64_t>(int starpu_worker_hint, const Tile<fp64_t> &sin, const Tile<fp64_t> &cos,
+void rope_async<fp64_t>(int worker_hint, const Tile<fp64_t> &sin, const Tile<fp64_t> &cos,
         const Tile<fp64_t> &src, const Tile<fp64_t> &dst, Index sin_pair0);
 
 template
-void rope_async<fp32_fast_tf32_t>(int starpu_worker_hint, const Tile<fp32_fast_tf32_t> &sin,
+void rope_async<fp32_fast_tf32_t>(int worker_hint, const Tile<fp32_fast_tf32_t> &sin,
         const Tile<fp32_fast_tf32_t> &cos,
         const Tile<fp32_fast_tf32_t> &src,
         const Tile<fp32_fast_tf32_t> &dst, Index sin_pair0);
 
 template
-void rope_async<fp32_fast_fp16_t>(int starpu_worker_hint, const Tile<fp32_fast_fp16_t> &sin,
+void rope_async<fp32_fast_fp16_t>(int worker_hint, const Tile<fp32_fast_fp16_t> &sin,
         const Tile<fp32_fast_fp16_t> &cos,
         const Tile<fp32_fast_fp16_t> &src,
         const Tile<fp32_fast_fp16_t> &dst, Index sin_pair0);
 
 template
-void rope_async<fp32_fast_bf16_t>(int starpu_worker_hint, const Tile<fp32_fast_bf16_t> &sin,
+void rope_async<fp32_fast_bf16_t>(int worker_hint, const Tile<fp32_fast_bf16_t> &sin,
         const Tile<fp32_fast_bf16_t> &cos,
         const Tile<fp32_fast_bf16_t> &src,
         const Tile<fp32_fast_bf16_t> &dst, Index sin_pair0);
 
 template
-void rope_async<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &sin, const Tile<bf16_t> &cos,
+void rope_async<bf16_t>(int worker_hint, const Tile<bf16_t> &sin, const Tile<bf16_t> &cos,
         const Tile<bf16_t> &src, const Tile<bf16_t> &dst, Index sin_pair0);
 
 template
-void rope_async<fp16_t>(int starpu_worker_hint, const Tile<fp16_t> &sin, const Tile<fp16_t> &cos,
+void rope_async<fp16_t>(int worker_hint, const Tile<fp16_t> &sin, const Tile<fp16_t> &cos,
         const Tile<fp16_t> &src, const Tile<fp16_t> &dst, Index sin_pair0);
 
 // Explicit instantiation of template
 template
-void rope<fp32_t>(int starpu_worker_hint, const Tile<fp32_t> &sin, const Tile<fp32_t> &cos,
+void rope<fp32_t>(int worker_hint, const Tile<fp32_t> &sin, const Tile<fp32_t> &cos,
         const Tile<fp32_t> &src, const Tile<fp32_t> &dst, Index sin_pair0);
 
 template
-void rope<fp64_t>(int starpu_worker_hint, const Tile<fp64_t> &sin, const Tile<fp64_t> &cos,
+void rope<fp64_t>(int worker_hint, const Tile<fp64_t> &sin, const Tile<fp64_t> &cos,
         const Tile<fp64_t> &src, const Tile<fp64_t> &dst, Index sin_pair0);
 
 template
-void rope<fp32_fast_tf32_t>(int starpu_worker_hint, const Tile<fp32_fast_tf32_t> &sin,
+void rope<fp32_fast_tf32_t>(int worker_hint, const Tile<fp32_fast_tf32_t> &sin,
         const Tile<fp32_fast_tf32_t> &cos,
         const Tile<fp32_fast_tf32_t> &src,
         const Tile<fp32_fast_tf32_t> &dst, Index sin_pair0);
 
 template
-void rope<fp32_fast_fp16_t>(int starpu_worker_hint, const Tile<fp32_fast_fp16_t> &sin,
+void rope<fp32_fast_fp16_t>(int worker_hint, const Tile<fp32_fast_fp16_t> &sin,
         const Tile<fp32_fast_fp16_t> &cos,
         const Tile<fp32_fast_fp16_t> &src,
         const Tile<fp32_fast_fp16_t> &dst, Index sin_pair0);
 
 template
-void rope<fp32_fast_bf16_t>(int starpu_worker_hint, const Tile<fp32_fast_bf16_t> &sin,
+void rope<fp32_fast_bf16_t>(int worker_hint, const Tile<fp32_fast_bf16_t> &sin,
         const Tile<fp32_fast_bf16_t> &cos,
         const Tile<fp32_fast_bf16_t> &src,
         const Tile<fp32_fast_bf16_t> &dst, Index sin_pair0);
 
 template
-void rope<fp16_t>(int starpu_worker_hint, const Tile<fp16_t> &sin, const Tile<fp16_t> &cos,
+void rope<fp16_t>(int worker_hint, const Tile<fp16_t> &sin, const Tile<fp16_t> &cos,
         const Tile<fp16_t> &src, const Tile<fp16_t> &dst, Index sin_pair0);
 
 template
-void rope<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &sin, const Tile<bf16_t> &cos,
+void rope<bf16_t>(int worker_hint, const Tile<bf16_t> &sin, const Tile<bf16_t> &cos,
         const Tile<bf16_t> &src, const Tile<bf16_t> &dst, Index sin_pair0);
 
 } // namespace nntile::core

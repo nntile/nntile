@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/src/tile_graph/clear.cc
  * TileGraph clear operation implementation.
@@ -35,7 +35,7 @@ void run_clear(
     TileGraph::TileNode* x)
 {
     auto& x_t = runtime.get_tile<T>(x);
-    nntile::core::clear<T>(runtime.starpu_worker_hint(), x_t);
+    nntile::core::clear<T>(runtime.worker_hint(), x_t);
 }
 
 } // namespace

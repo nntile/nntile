@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/core/norm_slice_inplace.hh
  * Euclidean norms of fibers into a slice of a Tile<T>
@@ -20,11 +20,11 @@ namespace nntile::core
 {
 
 template<typename T>
-void norm_slice_inplace_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
+void norm_slice_inplace_async(int worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
         Index axis, int redux=0);
 
 template<typename T>
-void norm_slice_inplace(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
+void norm_slice_inplace(int worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
         Index axis, int redux=0);
 
 } // namespace nntile::core

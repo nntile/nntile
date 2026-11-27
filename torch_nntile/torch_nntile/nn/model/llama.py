@@ -28,26 +28,7 @@ from torch_nntile.nn.linear import NntileLinear, prepare_sdpa_mask
 from torch_nntile.nn.model.gpt2_minimal import make_causal_sdpa_mask
 from torch_nntile.nn.sdpa import nntile_model_transpose, sdpa_kernel
 from torch_nntile.normalization import rms_norm
-
-try:
-    from torch_nntile.rope import rope, rope_sin_cos_from_position_ids
-except ImportError:  # pragma: no cover - stub if rope.py missing
-    def rope(sin: Tensor, cos: Tensor, x: Tensor) -> Tensor:
-        return x
-
-    def rope_sin_cos_from_position_ids(
-        position_ids: Tensor,
-        head_dim: int,
-        *,
-        rope_theta: float = 10000.0,
-    ) -> tuple[Tensor, Tensor]:
-        del rope_theta
-        b, s = position_ids.shape
-        half = head_dim // 2
-        z = torch.zeros(
-            b, s, half, dtype=torch.float32, device=position_ids.device
-        )
-        return z, torch.ones_like(z)
+from torch_nntile.rope import rope, rope_sin_cos_from_position_ids
 
 
 def _repeat_kv(x: Tensor, n_rep: int) -> Tensor:
@@ -295,7 +276,7 @@ class LlamaModel(nn.Module):
         cached = self._position_ids_cache.get(key)
         if cached is not None and cached.device == input_ids.device:
             return cached
-        # Host arange + upload once (cache); nntile aten::arange exists.
+        # Host arange + upload once (cache).
         position_ids = (
             torch.arange(seq, dtype=torch.long, device="cpu")
             .unsqueeze(0)

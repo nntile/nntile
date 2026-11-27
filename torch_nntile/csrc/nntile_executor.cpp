@@ -14,6 +14,7 @@
 
 #include <nntile/defs.h>
 
+#include <ATen/ATen.h>
 #include <ATen/Tensor.h>
 #include <ATen/ops/arange.h>
 #include <ATen/ops/le.h>
@@ -87,6 +88,7 @@
 
 namespace torch_nntile
 {
+
 
 namespace
 {
@@ -628,7 +630,7 @@ void classic_tensor_relu_backward_fp32(
         nntile::DataType::FP32,
         mark_as_input_for_operand(dx));
 
-    // alpha=1, beta=0: overwrite dx (STARPU_W), no separate clear().
+    // alpha=1, beta=0: overwrite dx (ACCESS_W), no separate clear().
     nntile::tensor::relu_backward(
         nntile::Scalar{1.0}, x_node, dy_node, nntile::Scalar{0.0}, dx_node);
     register_data_node(dx, dx_node);
@@ -688,7 +690,7 @@ void classic_tensor_silu_backward_fp32(
         nntile::DataType::FP32,
         mark_as_input_for_operand(dx));
 
-    // alpha=1, beta=0: overwrite dx (STARPU_W), no separate clear().
+    // alpha=1, beta=0: overwrite dx (ACCESS_W), no separate clear().
     nntile::tensor::silu_backward(
         nntile::Scalar{1.0}, x_node, dy_node, nntile::Scalar{0.0}, dx_node);
     register_data_node(dx, dx_node);
@@ -767,7 +769,7 @@ void classic_tensor_gelu_backward_fp32(
         nntile::DataType::FP32,
         mark_as_input_for_operand(dx));
 
-    // alpha=1, beta=0: overwrite dx (STARPU_W), no separate clear().
+    // alpha=1, beta=0: overwrite dx (ACCESS_W), no separate clear().
     if (approximate_tanh)
     {
         nntile::tensor::gelutanh_backward(
@@ -921,7 +923,7 @@ void classic_tensor_linear_grad_bias_fp32(
         {out_features},
         nntile::DataType::FP32,
         mark_as_input_for_operand(grad_bias));
-    // beta=0: overwrite grad_bias (STARPU_W), no separate clear().
+    // beta=0: overwrite grad_bias (ACCESS_W), no separate clear().
     nntile::tensor::sum_fiber(
         grad_out_node,
         grad_bias_node,
@@ -1000,7 +1002,7 @@ void classic_tensor_sum_fiber_fp32(
         dst_graph,
         nntile::DataType::FP32,
         mark_as_input_for_operand(dst));
-    // beta=0: overwrite dst (STARPU_W), no separate clear().
+    // beta=0: overwrite dst (ACCESS_W), no separate clear().
     nntile::tensor::sum_fiber(
         src_node,
         dst_node,
@@ -1104,7 +1106,7 @@ void classic_tensor_cross_entropy_forward_fp32(
     auto *logsumexp_node =
         graph.emplace_data(labels_graph, nntile::DataType::FP32)->set_name("logsumexp");
 
-    // beta=0: overwrite maxsumexp (STARPU_W), no separate clear().
+    // beta=0: overwrite maxsumexp (ACCESS_W), no separate clear().
     nntile::tensor::maxsumexp(
         logits_node,
         maxsumexp_node,
@@ -1186,7 +1188,7 @@ void classic_tensor_cross_entropy_backward_fp32(
         : 1.0f;
     const float effective_scale = ce_scale * grad_scale;
 
-    // softmax writes grad_logits with STARPU_W; no separate clear().
+    // softmax writes grad_logits with ACCESS_W; no separate clear().
     nntile::tensor::softmax(
         maxsumexp_node,
         logits_node,
@@ -1265,7 +1267,7 @@ void classic_tensor_softmax_fp32(
         graph.emplace_data(maxsumexp_graph, nntile::DataType::FP32)
             ->set_name("maxsumexp");
 
-    // beta=0: overwrite maxsumexp (STARPU_W), no separate clear().
+    // beta=0: overwrite maxsumexp (ACCESS_W), no separate clear().
     nntile::tensor::maxsumexp(
         src_node,
         maxsumexp_node,
@@ -1369,7 +1371,7 @@ void broadcast_slice_to_keepdim(
     nntile::TensorGraph::TensorNode *keepdim_node,
     nntile::Index axis)
 {
-    // scale_slice writes keepdim with STARPU_W; no separate clear().
+    // scale_slice writes keepdim with ACCESS_W; no separate clear().
     nntile::tensor::scale_slice(
         static_cast<nntile::Scalar>(1.0),
         slice_node,
@@ -1642,7 +1644,7 @@ void classic_tensor_layer_norm_backward_fp32(
             {norm_len},
             nntile::DataType::FP32,
             mark_as_input_for_operand(*grad_bias));
-        // beta=0: overwrite grad_bias (STARPU_W), no separate clear().
+        // beta=0: overwrite grad_bias (ACCESS_W), no separate clear().
         nntile::tensor::sum_fiber(
             grad_out_node,
             grad_bias_node,
@@ -1676,7 +1678,7 @@ void classic_tensor_layer_norm_backward_fp32(
             {norm_len},
             nntile::DataType::FP32,
             mark_as_input_for_operand(*grad_weight));
-        // beta=0: overwrite grad_weight (STARPU_W), no separate clear().
+        // beta=0: overwrite grad_weight (ACCESS_W), no separate clear().
         nntile::tensor::sumprod_fiber(
             grad_out_node,
             x_hat,
@@ -1881,7 +1883,7 @@ void classic_tensor_rms_norm_backward_fp32(
             {norm_len},
             nntile::DataType::FP32,
             mark_as_input_for_operand(*grad_weight));
-        // beta=0: overwrite grad_weight (STARPU_W), no separate clear().
+        // beta=0: overwrite grad_weight (ACCESS_W), no separate clear().
         nntile::tensor::sumprod_fiber(
             grad_out_node,
             normalized,
@@ -2059,7 +2061,7 @@ void classic_tensor_mse_loss_fp32(
 
     nntile::TensorGraph &graph = *x_node->graph();
     auto *norm_node = make_graph_tensor(graph, {}, "mse_norm");
-    // beta=0: overwrite norm (STARPU_W), no separate clear().
+    // beta=0: overwrite norm (ACCESS_W), no separate clear().
     nntile::tensor::norm(
         x_node,
         norm_node,
@@ -2212,7 +2214,7 @@ void classic_tensor_norm_fp32(
         nntile::DataType::FP32,
         mark_as_input_for_operand(out));
 
-    // beta=0: overwrite out (STARPU_W), no separate clear().
+    // beta=0: overwrite out (ACCESS_W), no separate clear().
     nntile::tensor::norm(
         x_node,
         out_node,
@@ -2251,7 +2253,7 @@ void classic_tensor_norm_slice_fp32(
         nntile::TensorGraph &graph = *x_node->graph();
         auto *reduced = make_graph_tensor(graph, reduced_graph, "norm_red");
         auto *base = make_graph_tensor(graph, reduced_graph, "norm_base");
-        // Dummy src2 for hypot(beta*src2, ...); still STARPU_R even when beta=0.
+        // Dummy src2 for hypot(beta*src2, ...); still ACCESS_R even when beta=0.
         nntile::tensor::clear(base);
         nntile::tensor::norm_slice(
             static_cast<nntile::Scalar>(1.0),
@@ -2273,7 +2275,7 @@ void classic_tensor_norm_slice_fp32(
             mark_as_input_for_operand(out));
         nntile::TensorGraph &graph = *x_node->graph();
         auto *base = make_graph_tensor(graph, reduced_graph, "norm_base");
-        // Dummy src2 for hypot(beta*src2, ...); still STARPU_R even when beta=0.
+        // Dummy src2 for hypot(beta*src2, ...); still ACCESS_R even when beta=0.
         nntile::tensor::clear(base);
         nntile::tensor::norm_slice(
             static_cast<nntile::Scalar>(1.0),
@@ -2447,7 +2449,7 @@ void classic_tensor_sum_dimlist_fp32(
                     mark_as_input_for_operand(out));
                 auto *reduced_node =
                     make_graph_tensor(graph, reduced, "sum_red");
-                // beta=0: overwrite reduced (STARPU_W), no separate clear().
+                // beta=0: overwrite reduced (ACCESS_W), no separate clear().
                 nntile::tensor::sum_slice(
                     cur_node,
                     reduced_node,
@@ -2468,7 +2470,7 @@ void classic_tensor_sum_dimlist_fp32(
                     reduced,
                     nntile::DataType::FP32,
                     mark_as_input_for_operand(out));
-                // beta=0: overwrite out (STARPU_W), no separate clear().
+                // beta=0: overwrite out (ACCESS_W), no separate clear().
                 nntile::tensor::sum_slice(
                     cur_node,
                     out_node,
@@ -2489,7 +2491,7 @@ void classic_tensor_sum_dimlist_fp32(
                 make_graph_tensor(graph, keepdim_shape, "sum_tmp");
             auto *reduced_node =
                 make_graph_tensor(graph, reduced, "sum_red");
-            // beta=0: overwrite reduced (STARPU_W), no separate clear().
+            // beta=0: overwrite reduced (ACCESS_W), no separate clear().
             nntile::tensor::sum_slice(
                 cur_node,
                 reduced_node,
@@ -2507,7 +2509,7 @@ void classic_tensor_sum_dimlist_fp32(
         }
 
         auto *next = make_graph_tensor(graph, reduced, "sum_tmp");
-        // beta=0: overwrite next (STARPU_W), no separate clear().
+        // beta=0: overwrite next (ACCESS_W), no separate clear().
         nntile::tensor::sum_slice(
             cur_node,
             next,
@@ -2877,7 +2879,7 @@ nntile::TensorRef compute_sdpa_attn(
         nntile::TensorRef maxsumexp = make_sdpa_temp_tensor(
             graph, maxsumexp_shape, "sdpa_maxsumexp");
         const nntile::Index attn_axis = q_ndim - 1;
-        // beta=0: overwrite maxsumexp (STARPU_W), no separate clear().
+        // beta=0: overwrite maxsumexp (ACCESS_W), no separate clear().
         nntile::tensor::maxsumexp(
             attn,
             maxsumexp,
@@ -3155,7 +3157,6 @@ void classic_tensor_sdpa_backward_fp32(
     register_grad_alias_for_host_copy(grad_v_alias, grad_v_node);
 }
 
-#ifndef NNTILE_TORCH_NATIVE_OPS
 
 namespace
 {
@@ -3181,13 +3182,13 @@ void classic_copy_same_shape(
     register_data_node(dst, out_node);
 }
 
-[[noreturn]] void torch_native_required(char const *op)
+[[noreturn]] void unsupported_classic_op(char const *op)
 {
     TORCH_CHECK(
         false,
-        "classic-only build (NNTILE_TORCH_NATIVE_OPS=OFF) has no ",
+        "torch_dispatch op ",
         op,
-        "; this path needs torch-native StarPU kernels");
+        " is not implemented by the classic nntile kernel stack");
 }
 
 } // namespace
@@ -3207,62 +3208,9 @@ void tensor_copy_i64(const at::Tensor &src, at::Tensor &dst)
     classic_copy_same_shape(src, dst, nntile::DataType::INT64);
 }
 
-void tensor_copy_into_view_fp32(
-    const at::Tensor &src,
-    at::Tensor &dst)
+void tensor_copy_bool(const at::Tensor &src, at::Tensor &dst)
 {
-    (void)src;
-    (void)dst;
-    torch_native_required("copy-into-view fp32");
-}
-
-void tensor_copy_into_view_i64(
-    const at::Tensor &src,
-    at::Tensor &dst)
-{
-    (void)src;
-    (void)dst;
-    torch_native_required("copy-into-view i64");
-}
-
-void tensor_fill_i64(at::Tensor &self, int64_t value)
-{
-    (void)self;
-    (void)value;
-    torch_native_required("fill i64");
-}
-
-void tensor_fill_bool(at::Tensor &self, bool value)
-{
-    (void)self;
-    (void)value;
-    torch_native_required("fill bool");
-}
-
-void tensor_arange_fp32(
-    at::Tensor &out,
-    float start,
-    float end,
-    float step)
-{
-    (void)out;
-    (void)start;
-    (void)end;
-    (void)step;
-    torch_native_required("arange fp32");
-}
-
-void tensor_arange_i64(
-    at::Tensor &out,
-    int64_t start,
-    int64_t end,
-    int64_t step)
-{
-    (void)out;
-    (void)start;
-    (void)end;
-    (void)step;
-    torch_native_required("arange i64");
+    classic_copy_same_shape(src, dst, nntile::DataType::BOOL);
 }
 
 void tensor_norm_fp32(const at::Tensor &x, at::Tensor &out)
@@ -3279,7 +3227,5 @@ void tensor_norm_slice_fp32(
     classic_tensor_norm_slice_fp32(x, out, axis, keepdim);
 }
 
-#endif // !NNTILE_TORCH_NATIVE_OPS
 
 } // namespace torch_nntile
-

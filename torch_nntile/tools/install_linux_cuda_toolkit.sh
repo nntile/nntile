@@ -3,7 +3,7 @@
 #
 # Provides only what pip nvidia-*-cu12 cannot:
 #   - nvcc (+ CRT enough to compile .cu)
-#   - lib64/stubs/libcuda.so (StarPU CUDA link)
+#   - lib64/stubs/libcuda.so (CUDA link)
 #
 # Math/runtime libraries (cudart, cublas, cudnn, …) must come from pip
 # packages installed alongside torch (see setup_torch_cuda_env.sh). Do not

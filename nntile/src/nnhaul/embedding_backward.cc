@@ -4,10 +4,10 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file src/starpu/embedding_backward.cc
- * Embeddings from vocabulary within StarPU buffers
+ * @file src/nnhaul/embedding_backward.cc
+ * Embeddings from vocabulary within NNHaul buffers
  *
  * @version 1.2.0
  * */
@@ -28,7 +28,7 @@
 #include "nntile/kernel/embedding_backward.hh"
 #include "nntile/nnhaul/chunk_units.hh"
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 // ---------------------------------------------------------------------------
@@ -101,7 +101,7 @@ struct EmbBwdChunkView
             {
                 std::fprintf(stderr,
                     "nntile embedding_backward: multi-chunk buffer %zu-byte full chunk "
-                    "!= the compile-time %zu-byte class (rule 7)\n",
+                    "!= the compile-time %zu-byte class \n",
                     b->chunk_bytes(0),
                     chunkunits::chunk_class_bytes());
                 std::abort();
@@ -175,7 +175,7 @@ struct EmbBwdArenaCpu
 //! cudaMallocAsync'd on the compute stream and freed (cudaFreeAsync) at
 //! scope end, so all gather/kernel/scatter work enqueued in between is
 //! stream-ordered before the release.
-// (rule 11, critic C4 2026-10-19) EmbBwdArenaCuda deleted: the
+// EmbBwdArenaCuda deleted: the
 // per-piece staging fallback it served no longer exists.
 #endif // NNTILE_USE_CUDA
 
@@ -189,9 +189,6 @@ std::vector<int64_t> index_to_host(::nnhaul::Buffer *buf, Index m, Index n,
     std::vector<int64_t> out(nelems == 0 ? 1 : nelems);
     if(buf->chunk_count() == 1)
     {
-        // (review 540 #1) Under the force flag an UNCHUNKED buffer also
-        // takes this path -- a 1-chunk buffer IS its chunk (rule-3
-        // degenerate; chunk_bytes(0) == nbytes, never the class).
         host_copy(out.data(), buf->get_ptr<int64_t>(), nelems * sizeof(int64_t));
         return out;
     }
@@ -199,7 +196,7 @@ std::vector<int64_t> index_to_host(::nnhaul::Buffer *buf, Index m, Index n,
     {
         std::fprintf(stderr,
             "nntile embedding_backward: multi-chunk buffer %zu-byte full chunk != the "
-            "compile-time %zu-byte class (rule 7)\n",
+            "compile-time %zu-byte class \n",
             buf->chunk_bytes(0), chunkunits::chunk_class_bytes());
         std::abort();
     }
@@ -305,7 +302,7 @@ EmbeddingBackward<std::tuple<T>>::EmbeddingBackward():
     // Modes are not fixed, they are decided during runtime by default
 }
 
-//! Apply embedding backward on StarPU buffer on CPU
+//! Apply embedding backward on NNHaul buffer on CPU
 template<typename T>
 void EmbeddingBackward<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
@@ -316,13 +313,9 @@ void EmbeddingBackward<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     auto buf_index = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_embed = static_cast<::nnhaul::Buffer *>(buffers[1]);
     auto buf_vocab = static_cast<::nnhaul::Buffer *>(buffers[2]);
-    if((buf_index->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_embed->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
-        && (buf_vocab->chunk_count() == 1 && !chunkunits::force_chunked_kernels()))
+    if((buf_index->chunk_count() == 1) && (buf_embed->chunk_count() == 1)
+        && (buf_vocab->chunk_count() == 1))
     {
-        // Classic contiguous dispatch: illegal under the force flag
-        // (the tripwire proves it never happens in a flag-on run).
-        chunkunits::classic_dispatch_tripwire("nntile_embedding_backward", false);
-        // Unchunked fast path: the historical single kernel call, bitwise
         kernel::embedding_backward::cpu<T>(
             args->m,
             args->n,
@@ -470,7 +463,7 @@ void EmbeddingBackward<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void 
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Apply embedding backward on StarPU buffer on CUDA
+//! Apply embedding backward on NNHaul buffer on CUDA
 template<typename T>
 void EmbeddingBackward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
@@ -483,13 +476,9 @@ void EmbeddingBackward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto buf_vocab = static_cast<::nnhaul::Buffer *>(buffers[2]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    if((buf_index->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_embed->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
-        && (buf_vocab->chunk_count() == 1 && !chunkunits::force_chunked_kernels()))
+    if((buf_index->chunk_count() == 1) && (buf_embed->chunk_count() == 1)
+        && (buf_vocab->chunk_count() == 1))
     {
-        // Classic contiguous dispatch: illegal under the force flag
-        // (the tripwire proves it never happens in a flag-on run).
-        chunkunits::classic_dispatch_tripwire("nntile_embedding_backward", false);
-        // Unchunked fast path: the historical single kernel call, bitwise
         kernel::embedding_backward::cuda<T>(
             stream,
             args->m,
@@ -512,10 +501,10 @@ void EmbeddingBackward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // read from the device chunk-ptr table, no chunk-count cap; each
     // element's chunk from its own flat offset by divmod) and the beta==0
     // zeroing as ONE chunk-aware kernel launch, instead of the per-chunk
-    // arena driver below (which copied the whole 147 MiB GPT-2 table out and
-    // back and ran 37 full kernel launches). The accumulation is atomicAdd
+    // arena driver below, which copied the table out and back and ran one
+    // launch per chunk. The accumulation is atomicAdd
     // exactly as the whole-buffer entry's.  A launch whose pointer
-    // set exceeds the table ABORTS (rule 11 -- no fallback exists).
+    // set exceeds the table ABORTS.
     {
         EmbBwdChunkView<int64_t> const cv_index(buf_index);
         EmbBwdChunkView<T> const cv_embed(buf_embed);
@@ -526,12 +515,9 @@ void EmbeddingBackward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
             // Piece 7: every operand is single-chunk, so the chunked
             // operation degenerates to the classic kernel on the
             // resolved chunk bases -- the piece-4/6 degenerate-launch
-            // pattern (bitwise by construction; table untouched). Covers
-            // the GPT-2 position-embedding-backward call (3 MiB dy, 3
-            // MiB wpe grad, 8 KiB index -- all 1-chunk at the class;
-            // pair-4 informational med 1.167 on that group). The
-            // chunked kernel stays the multi-chunk path (the 147 MiB
-            // wte grad).
+            // pattern (bitwise by construction; table untouched). This covers the
+            // single-chunk case; the chunked kernel stays the multi-chunk
+            // path.
             kernel::embedding_backward::cuda<T>(
                 stream,
                 args->m,
@@ -590,14 +576,14 @@ void EmbeddingBackward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
             }
         }
     }
-    // (rule 11, user directive 2026-10-19) There is no per-piece
+    // There is no per-piece
     // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot table
     // serve any launch up to a 16 TiB operand, so a failed upload is an
     // invariant violation, not a mode to stage around.
     std::fprintf(stderr,
         "nntile_embedding_backward: chunk-ptr table cannot serve this launch "
-        "(invariant violation; the per-piece staging fallback was deleted "
-        "by rule 11)\n");
+        "(invariant violation; the per-piece staging fallback has been "
+        "deleted)\n");
     std::abort();
 }
 
@@ -641,48 +627,42 @@ std::uint64_t EmbeddingBackward<std::tuple<T>>::footprint(void const *cl_args, s
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Apply hash over parameters m, n, k and k_size.
     uint32_t hash = 0;
-    hash = ::nntile::haul::fnv1a(&args->m, sizeof(args->m), hash);
-    hash = ::nntile::haul::fnv1a(&args->n, sizeof(args->n), hash);
-    hash = ::nntile::haul::fnv1a(&args->k, sizeof(args->k), hash);
-    hash = ::nntile::haul::fnv1a(&args->k_size, sizeof(args->k_size), hash);
-    hash = ::nntile::haul::fnv1a(&args->index_range, sizeof(args->index_range), hash);
-    hash = ::nntile::haul::fnv1a(&args->vocab_nelems, sizeof(args->vocab_nelems),
+    hash = ::nntile::nnhaul::fnv1a(&args->m, sizeof(args->m), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->n, sizeof(args->n), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->k, sizeof(args->k), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->k_size, sizeof(args->k_size), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->index_range, sizeof(args->index_range), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->vocab_nelems, sizeof(args->vocab_nelems),
             hash);
-    hash = ::nntile::haul::fnv1a(&args->alpha, sizeof(args->alpha), hash);
-    hash = ::nntile::haul::fnv1a(&args->beta, sizeof(args->beta), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->alpha, sizeof(args->alpha), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->beta, sizeof(args->beta), hash);
     return hash;
 }
 
 template<typename T>
-void EmbeddingBackward<std::tuple<T>>::submit(int starpu_worker_hint, Index m,
+void EmbeddingBackward<std::tuple<T>>::submit(int worker_hint, Index m,
         Index n, Index k, Index k_start, Index k_size, Index index_range,
         Index vocab_nelems,
         Scalar alpha, Scalar beta, ::nnhaul::Handle & index, ::nnhaul::Handle & embed, ::nnhaul::Handle & vocab,
         int redux)
-//! Insert embedding_backward task into StarPU pool of tasks
+//! Insert embedding_backward task into NNHaul task pool
 /*! No argument checking is performed. All the inputs are packed and passed to
- * nntile_starpu_task_insert() function. If task submission fails, this routines
+ * submit() call. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
     constexpr Scalar zero = 0, one = 1;
     // Access mode for the output vocab handle
-    enum starpu_data_access_mode vocab_mode;
+    enum data_access_mode vocab_mode;
     if(beta == zero)
     {
-        vocab_mode = STARPU_W;
+        vocab_mode = ACCESS_W;
     }
     else if(beta == one)
     {
-        if(redux != 0)
-        {
-            vocab_mode = STARPU_REDUX;
-        }
-        else
-        {
-            vocab_mode = static_cast<starpu_data_access_mode>(
-                    STARPU_RW | STARPU_COMMUTE);
-        }
+        (void)redux;
+        vocab_mode = static_cast<data_access_mode>(
+                    ACCESS_RW | ACCESS_COMMUTE);
     }
     else
     {
@@ -703,8 +683,8 @@ void EmbeddingBackward<std::tuple<T>>::submit(int starpu_worker_hint, Index m,
     // Submit task: the BODY picks the unchunked fast path or the native
     // chunked arena driver; embedding_backward never stages.
     (void)nflops;
-    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
-        { { STARPU_R, &index }, { STARPU_R, &embed }, { vocab_mode, &vocab } }, args, sizeof(*args));
+    ::nntile::nnhaul::insert_task(codelet.raw, worker_hint,
+        { { ACCESS_R, &index }, { ACCESS_R, &embed }, { vocab_mode, &vocab } }, args, sizeof(*args));
     std::free(args);
 
 }
@@ -723,4 +703,4 @@ template class EmbeddingBackward<std::tuple<nntile::fp16_t>>;
 //! Pack of embedding backward operations for different types
 embedding_backward_pack_t embedding_backward;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

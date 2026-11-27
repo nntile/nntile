@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/gelu/cuda.cu
  * GeLU operation on a buffer on CUDA
@@ -51,6 +51,73 @@ void cuda(cudaStream_t stream, Index nelems, const T *src, T *dst)
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, src, dst);
 }
 
+
+//! Chunk descriptors for the one-launch chunked gelu.
+template<typename T>
+struct GeluChunkTables
+{
+    const T* const* src;
+    Index nsrc;
+    T* const* dst;
+    Index ndst;
+    Index elems_src;
+    Index elems_dst;
+    int shift_src;
+    int shift_dst;
+    long mask_src;
+    long mask_dst;
+    long nelems;
+};
+
+template<typename T>
+static __global__
+void chunked_cuda_kernel(GeluChunkTables<T> t)
+{
+    long const i = long(blockIdx.x)*blockDim.x + threadIdx.x;
+    using Y = typename T::repr_t;
+    if(i < t.nelems)
+    {
+        long const sc = i >> t.shift_src;
+        long const dc = i >> t.shift_dst;
+        const T *src = t.src[sc] + (i & t.mask_src);
+        T *dst = t.dst[dc] + (i & t.mask_dst);
+        Y z = Y{*src};
+        constexpr Y mone = -1, pt5 = 0.5;
+        Y const f1 = mone / sqrt(Y{2.0});
+        Y y = ::erfc(f1 * z);
+        *dst = T{pt5 * z * y};
+    }
+}
+
+template<typename T>
+void chunked(cudaStream_t stream, Index nelems,
+        const T* const* src_chunks, Index nsrc,
+        T* const* dst_chunks, Index ndst,
+        Index elems_src, Index elems_dst,
+        ChunkClass cls)
+    noexcept
+{
+    if(nelems <= 0 || nsrc <= 0 || ndst <= 0)
+    {
+        return;
+    }
+    GeluChunkTables<T> t;
+    t.src = src_chunks;
+    t.nsrc = nsrc;
+    t.dst = dst_chunks;
+    t.ndst = ndst;
+    t.elems_src = elems_src;
+    t.elems_dst = elems_dst;
+    t.shift_src = chunk_shift_of<T>(t.nsrc, elems_src, cls, "nntile_gelu");
+    t.shift_dst = chunk_shift_of<T>(t.ndst, elems_dst, cls, "nntile_gelu");
+    t.mask_src = static_cast<long>(chunk_mask_of<T>(t.nsrc, cls));
+    t.mask_dst = static_cast<long>(chunk_mask_of<T>(t.ndst, cls));
+    t.nelems = long(nelems);
+    dim3 threads(256);
+    dim3 blocks((nelems+255)/256);
+    (chunked_cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(t);
+}
+
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index nelems, const fp32_t *src, fp32_t *dst)
@@ -66,6 +133,34 @@ void cuda<bf16_t>(cudaStream_t stream, Index nelems, const bf16_t *src, bf16_t *
 
 template
 void cuda<fp16_t>(cudaStream_t stream, Index nelems, const fp16_t *src, fp16_t *dst)
+    noexcept;
+
+template
+void chunked<fp32_t>(cudaStream_t stream, Index nelems,
+        const fp32_t* const* src_chunks, Index nsrc,
+        fp32_t* const* dst_chunks, Index ndst,
+        Index elems_src, Index elems_dst, ChunkClass cls)
+    noexcept;
+
+template
+void chunked<fp64_t>(cudaStream_t stream, Index nelems,
+        const fp64_t* const* src_chunks, Index nsrc,
+        fp64_t* const* dst_chunks, Index ndst,
+        Index elems_src, Index elems_dst, ChunkClass cls)
+    noexcept;
+
+template
+void chunked<bf16_t>(cudaStream_t stream, Index nelems,
+        const bf16_t* const* src_chunks, Index nsrc,
+        bf16_t* const* dst_chunks, Index ndst,
+        Index elems_src, Index elems_dst, ChunkClass cls)
+    noexcept;
+
+template
+void chunked<fp16_t>(cudaStream_t stream, Index nelems,
+        const fp16_t* const* src_chunks, Index nsrc,
+        fp16_t* const* dst_chunks, Index ndst,
+        Index elems_src, Index elems_dst, ChunkClass cls)
     noexcept;
 
 } // namespace nntile::kernel::gelu

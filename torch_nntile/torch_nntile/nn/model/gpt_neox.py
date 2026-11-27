@@ -25,26 +25,7 @@ from torch_nntile.nn.functional import add
 from torch_nntile.nn.linear import NntileLinear, prepare_sdpa_mask
 from torch_nntile.nn.model.gpt2_minimal import make_causal_sdpa_mask
 from torch_nntile.nn.sdpa import nntile_model_transpose, sdpa_kernel
-
-try:
-    from torch_nntile.rope import rope, rope_sin_cos_from_position_ids
-except ImportError:  # pragma: no cover
-    def rope(sin: Tensor, cos: Tensor, x: Tensor) -> Tensor:
-        return x
-
-    def rope_sin_cos_from_position_ids(
-        position_ids: Tensor,
-        head_dim: int,
-        *,
-        rope_theta: float = 10000.0,
-    ) -> tuple[Tensor, Tensor]:
-        del rope_theta
-        b, s = position_ids.shape
-        half = head_dim // 2
-        z = torch.zeros(
-            b, s, half, dtype=torch.float32, device=position_ids.device
-        )
-        return z, torch.ones_like(z)
+from torch_nntile.rope import rope, rope_sin_cos_from_position_ids
 
 
 @dataclass

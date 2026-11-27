@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/core/log_scalar.hh
  * Log scalar value from Tile<T>
@@ -21,9 +21,9 @@ namespace nntile::core
 {
 
 template<typename T>
-void log_scalar_async(int starpu_worker_hint, const std::string &name, const Tile<T> &value);
+void log_scalar_async(int worker_hint, const std::string &name, const Tile<T> &value);
 
 template<typename T>
-void log_scalar(int starpu_worker_hint, const std::string &name, const Tile<T> &value);
+void log_scalar(int worker_hint, const std::string &name, const Tile<T> &value);
 
 } // namespace nntile::core

@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/softmax/cuda.cu
  * Softmax operation on CUDA
@@ -321,7 +321,7 @@ void chunked_cuda_kernel_staged(SoftmaxChunkTables<T> t, long total,
 //! then address it exactly like the classic kernel's src_fiber/dst_fiber)
 //! or the block falls to the per-element chunk-resolved path (in practice
 //! only the one block per row whose run actually contains a chunk
-//! boundary). Rule 10: no chunk-TABLE staging, no pointer ever transits
+//! boundary). No chunk-TABLE staging, no pointer ever transits
 //! shared memory -- the shared arrays are the classic kernel's own
 //! algorithmic (max, sum) row staging and dst_block value staging. The
 //! dst walk is computed between the two phases, so its chunk-table reads
@@ -519,12 +519,10 @@ void chunked(cudaStream_t stream, Index m, Index n, Index k,
     {
         // cuda()'s own m==1 geometry with the per-thread segment walk:
         // BLOCK_ROW threads along the middle axis, BLOCK_COL rows per
-        // block, no per-element divmod (the 392.64 MiB GPT-2 logits
-        // shape's classic counterpart is cuda_kernel_m1; the generic
-        // staged body below kept a per-element 64-bit f/(m*k) division
-        // here and cost 22% under the pinned clocks). No dynamic smem
-        // (rule 10: no table/pointer staging at all -- the walk bases
-        // live in registers).
+        // block, no per-element divmod (the generic staged body below
+        // keeps a per-element 64-bit f/(m*k) division here). No
+        // dynamic smem (no table/pointer staging at all -- the walk
+        // bases live in registers).
         constexpr int BLOCK_ROW = 256, BLOCK_COL = 8, BLOCK_LOOP = 8;
         dim3 threads(256);
         dim3 blocks(((k+BLOCK_ROW-1)/BLOCK_ROW)

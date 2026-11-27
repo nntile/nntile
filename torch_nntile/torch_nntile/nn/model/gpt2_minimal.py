@@ -22,8 +22,8 @@ from torch_nntile.add_fiber import add_fiber
 from torch_nntile.gemm import gemm
 from torch_nntile.nn import GELU, Embedding, LayerNorm
 from torch_nntile.nn.functional import add
-from torch_nntile.nn.sdpa import (
-    make_causal_sdpa_mask, nntile_model_transpose, sdpa_kernel)
+from torch_nntile.nn.sdpa import (make_causal_sdpa_mask,
+                                  nntile_model_transpose, sdpa_kernel)
 
 
 class NntileConv1D(nn.Module):

@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/src/tensor/phase_codec.cc
  * TensorGraph phase codec for Flush PhaseIR JSON.
@@ -18,9 +18,6 @@
 #include <nntile/dtype.hh>
 #include <nntile/tensor.hh>
 #include <nntile/tensor/graph.hh>
-#ifdef NNTILE_TORCH_NATIVE_OPS
-#include <nntile/tensor/ops/torch_dispatch.hh>
-#endif
 
 #include <algorithm>
 #include <array>
@@ -104,167 +101,6 @@ nlohmann::json encode_index_pair(std::array<Index, 2> const &v)
 
 } // namespace
 
-#ifdef NNTILE_TORCH_NATIVE_OPS
-nlohmann::json encode_torch_dispatch_attrs(
-    starpu::TorchDispatchArgs const &extra)
-{
-    nlohmann::json attrs = nlohmann::json::object();
-    bool any_scalar = false;
-    nlohmann::json scalars = nlohmann::json::array();
-    for (Index i = 0; i < 4; ++i)
-    {
-        scalars.push_back(extra.scalars[i]);
-        any_scalar = any_scalar || extra.scalars[i] != Scalar(0);
-    }
-    if (any_scalar)
-    {
-        attrs["scalars"] = std::move(scalars);
-    }
-    bool any_iarg = false;
-    nlohmann::json iargs = nlohmann::json::array();
-    for (Index i = 0; i < 16; ++i)
-    {
-        iargs.push_back(extra.iargs[i]);
-        any_iarg = any_iarg || extra.iargs[i] != 0;
-    }
-    if (any_iarg)
-    {
-        attrs["iargs"] = std::move(iargs);
-    }
-    nlohmann::json layouts = nlohmann::json::array();
-    auto encode_slot_layouts = [&layouts](
-        char const *dir,
-        Index const *layout_set,
-        Index const *ndims,
-        Index const (*sizes)[starpu::torch_dispatch_max_ndim],
-        Index const (*strides)[starpu::torch_dispatch_max_ndim],
-        Index const *offsets)
-    {
-        for (Index slot = 0; slot < starpu::torch_dispatch_max_tensors;
-            ++slot)
-        {
-            if (layout_set[slot] == 0)
-            {
-                continue;
-            }
-            nlohmann::json sizes_json = nlohmann::json::array();
-            nlohmann::json strides_json = nlohmann::json::array();
-            for (Index dim = 0; dim < ndims[slot]; ++dim)
-            {
-                sizes_json.push_back(sizes[slot][dim]);
-                strides_json.push_back(strides[slot][dim]);
-            }
-            layouts.push_back({
-                {"arg", dir},
-                {"slot", slot},
-                {"sizes", std::move(sizes_json)},
-                {"strides", std::move(strides_json)},
-                {"offset", offsets[slot]},
-            });
-        }
-    };
-    encode_slot_layouts(
-        "in",
-        extra.in_layout_set,
-        extra.in_ndim,
-        extra.in_sizes,
-        extra.in_strides,
-        extra.in_offset);
-    encode_slot_layouts(
-        "out",
-        extra.out_layout_set,
-        extra.out_ndim,
-        extra.out_sizes,
-        extra.out_strides,
-        extra.out_offset);
-    if (!layouts.empty())
-    {
-        attrs["layouts"] = std::move(layouts);
-    }
-    return attrs;
-}
-
-starpu::TorchDispatchArgs decode_torch_dispatch_attrs(
-    nlohmann::json const &attrs)
-{
-    using starpu::torch_dispatch_max_ndim;
-    using starpu::torch_dispatch_max_tensors;
-
-    starpu::TorchDispatchArgs extra{};
-    if (attrs.contains("scalars"))
-    {
-        nlohmann::json const &scalars = attrs.at("scalars");
-        if (!scalars.is_array() || scalars.size() > 4)
-        {
-            throw std::runtime_error(
-                "TORCH_* attrs scalars must be an array of at most 4");
-        }
-        for (std::size_t i = 0; i < scalars.size(); ++i)
-        {
-            extra.scalars[i] = scalars.at(i).get<Scalar>();
-        }
-    }
-    if (attrs.contains("iargs"))
-    {
-        nlohmann::json const &iargs = attrs.at("iargs");
-        if (!iargs.is_array() || iargs.size() > 16)
-        {
-            throw std::runtime_error(
-                "TORCH_* attrs iargs must be an array of at most 16");
-        }
-        for (std::size_t i = 0; i < iargs.size(); ++i)
-        {
-            extra.iargs[i] = iargs.at(i).get<Index>();
-        }
-    }
-    if (attrs.contains("layouts"))
-    {
-        nlohmann::json const &layouts = attrs.at("layouts");
-        if (!layouts.is_array())
-        {
-            throw std::runtime_error(
-                "TORCH_* attrs layouts must be an array");
-        }
-        for (auto const &item : layouts)
-        {
-            std::string const dir = item.at("arg").get<std::string>();
-            Index const slot = item.at("slot").get<Index>();
-            nlohmann::json const &sizes = item.at("sizes");
-            nlohmann::json const &strides = item.at("strides");
-            if (slot < 0 || slot >= torch_dispatch_max_tensors ||
-                !sizes.is_array() || sizes.size() != strides.size() ||
-                sizes.size() > torch_dispatch_max_ndim)
-            {
-                throw std::runtime_error(
-                    "TORCH_* attrs layout slot/ndim out of range");
-            }
-            if (dir != "in" && dir != "out")
-            {
-                throw std::runtime_error(
-                    "TORCH_* attrs layout arg must be 'in' or 'out'");
-            }
-            Index *ndims = dir == "in" ? extra.in_ndim : extra.out_ndim;
-            Index *offset = dir == "in" ? extra.in_offset
-                                        : extra.out_offset;
-            Index *layout_set = dir == "in" ? extra.in_layout_set
-                                            : extra.out_layout_set;
-            Index (*sizes_raw)[torch_dispatch_max_ndim] =
-                dir == "in" ? extra.in_sizes : extra.out_sizes;
-            Index (*strides_raw)[torch_dispatch_max_ndim] =
-                dir == "in" ? extra.in_strides : extra.out_strides;
-            ndims[slot] = static_cast<Index>(sizes.size());
-            for (std::size_t dim = 0; dim < sizes.size(); ++dim)
-            {
-                sizes_raw[slot][dim] = sizes.at(dim).get<Index>();
-                strides_raw[slot][dim] = strides.at(dim).get<Index>();
-            }
-            offset[slot] = item.at("offset").get<Index>();
-            layout_set[slot] = 1;
-        }
-    }
-    return extra;
-}
-#endif
 
 namespace
 {
@@ -273,26 +109,6 @@ nlohmann::json encode_op_attrs(
     [[maybe_unused]] TensorGraph::OpNode const &op)
 {
     nlohmann::json attrs = nlohmann::json::object();
-#ifdef NNTILE_TORCH_NATIVE_OPS
-    if (auto const *u = dynamic_cast<TensorTorchUnaryOp const *>(&op))
-    {
-        attrs["kind"] = static_cast<std::int32_t>(u->kind);
-        attrs.update(encode_torch_dispatch_attrs(u->extra));
-        return attrs;
-    }
-    if (auto const *b = dynamic_cast<TensorTorchBinaryOp const *>(&op))
-    {
-        attrs["kind"] = static_cast<std::int32_t>(b->kind);
-        attrs.update(encode_torch_dispatch_attrs(b->extra));
-        return attrs;
-    }
-    if (auto const *t = dynamic_cast<TensorTorchTernaryOp const *>(&op))
-    {
-        attrs["kind"] = static_cast<std::int32_t>(t->kind);
-        attrs.update(encode_torch_dispatch_attrs(t->extra));
-        return attrs;
-    }
-#endif
     if (auto const *o = dynamic_cast<TensorAddOp const *>(&op))
     {
         attrs["alpha"] = o->alpha;

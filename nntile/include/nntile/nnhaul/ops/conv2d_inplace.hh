@@ -4,15 +4,20 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file include/nntile/starpu/conv2d_inplace.hh
+ * @file include/nntile/nnhaul/ops/conv2d_inplace.hh
  * Forward 2D-Convolution of two tensors in WHCN format
  * Due to Fortran ordering, WHCN of NNTile is equal to NCHF format of PyTorch
  *
  * @version 1.1.0
  * */
-
+/*!
+ * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.
+ * Kept in-tree for future re-enablement. No product path calls this code;
+ * its tests are not registered while the family is in
+ * NNTILE_DISABLED_KERNELS.
+ */
 #pragma once
 
 // Compile-time definitions
@@ -24,7 +29,7 @@
 // NNTile headers
 #include <nntile/nnhaul/codelet.hh>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Generic wrapper class for conv2d_inplace operation is not defined
@@ -82,7 +87,7 @@ public:
 
     //! Submit conv2d_inplace task
     void submit(
-        int starpu_worker_hint,
+        int worker_hint,
         Index src1_m,
         Index src1_n,
         Index src1_channels,
@@ -120,4 +125,4 @@ using conv2d_inplace_pack_t = OperationPack<
 //! Pack of conv2d_inplace operations for different types
 extern conv2d_inplace_pack_t conv2d_inplace;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

@@ -4,20 +4,26 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/src/tile_graph/sqrt.cc
  * TileGraph sqrt operation implementation.
  *
  * @version 1.1.0
  * */
-
+/*!
+ * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.
+ * Kept in-tree for future re-enablement. No product path calls this code;
+ * its tests are not registered while the family is in
+ * NNTILE_DISABLED_KERNELS.
+ */
 #include "nntile/tile/ops/sqrt.hh"
 
 #include <stdexcept>
 
 #include <nntile/base_types.hh>
 #include <nntile/dtype.hh>
+#include <nntile/kernel_scope.hh>
 #include <nntile/core.hh>
 #include <nntile/core/sqrt.hh>
 
@@ -37,13 +43,14 @@ void run_sqrt(
 {
     auto& s = runtime.get_tile<T>(src);
     auto& d = runtime.get_tile<T>(dst);
-    nntile::core::sqrt<T>(runtime.starpu_worker_hint(), s, d);
+    nntile::core::sqrt<T>(runtime.worker_hint(), s, d);
 }
 
 } // namespace
 
 void sqrt(TileGraph::TileNode* src, TileGraph::TileNode* dst)
 {
+    nntile::require_kernel_family("sqrt");
     if(src == nullptr || dst == nullptr)
     {
         throw std::invalid_argument("tile sqrt: src and dst must be non-null");

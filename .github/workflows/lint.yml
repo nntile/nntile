@@ -1,8 +1,9 @@
 name: Lint
 
-# Disabled on the torch_nntile branch until lint targets are updated.
-# Re-enable push, pull_request, and schedule when lint targets are updated.
 on:
+  pull_request:
+  push:
+    branches: [torch_nntile, main, nntile-2.0]
   workflow_dispatch:
 
 permissions:
@@ -41,3 +42,6 @@ jobs:
       - name: Run pre-commit on merge
         uses: pre-commit/action@v3.0.0
         if: github.event_name != 'pull_request'
+      - name: Check public include layout
+        if: matrix.python-version == '3.12'
+        run: bash .github/scripts/check-nntile-includes.sh .

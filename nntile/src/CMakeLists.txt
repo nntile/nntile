@@ -7,7 +7,7 @@
 #                              (AIRI), Russia. All rights reserved.
 #
 # NNTile is software framework for fast training of big neural networks on
-# distributed-memory heterogeneous systems based on StarPU runtime system.
+# distributed-memory heterogeneous systems with GPU acceleration.
 #
 # @file src/CMakeLists.txt
 # Set NNTile sources to compile
@@ -15,88 +15,82 @@
 # @version 1.1.0
 
 # Base of the NNTile sources
-set(BASE_SRC "context.cc" "context_nnhaul.cc")
+set(BASE_SRC "context.cc" "kernel_scope.cc")
 
-# Ignore low-level kernel functions in case of SimGrid simulation
-if(NOT HAVE_STARPU_SIMGRID)
-    # Generic low-level CPU kernels
-    set(KERNEL_CPU_SRC
-        "kernel/accumulate_maxsumexp/cpu.cc"
-        "kernel/accumulate_attn_output/cpu.cc"
-        "kernel/adam_step/cpu.cc"
-        "kernel/adamw_step/cpu.cc"
-        "kernel/sgd_step/cpu.cc"
-        "kernel/add/cpu.cc"
-        "kernel/add_fiber/cpu.cc"
-        "kernel/add_fiber_inplace/cpu.cc"
-        "kernel/scale_fiber/cpu.cc"
-        "kernel/add_inplace/cpu.cc"
-        "kernel/add_slice/cpu.cc"
-        "kernel/add_slice_inplace/cpu.cc"
-        "kernel/cblas.cc"
-        "kernel/conv2d_bwd_input_inplace/cpu.cc"
-        "kernel/conv2d_bwd_weight_inplace/cpu.cc"
-        "kernel/conv2d_inplace/cpu.cc"
-        "kernel/embedding/cpu.cc"
-        "kernel/embedding_backward/cpu.cc"
-        "kernel/fill/cpu.cc"
-        "kernel/gelu/cpu.cc"
-        "kernel/gelu_inplace/cpu.cc"
-        "kernel/gelu_backward/cpu.cc"
-        "kernel/gelutanh/cpu.cc"
-        "kernel/gelutanh_backward/cpu.cc"
-        "kernel/gelutanh_inplace/cpu.cc"
-        "kernel/hypot_inplace/cpu.cc"
-        "kernel/hypot/cpu.cc"
-        "kernel/hypot_scalar_inverse/cpu.cc"
-        "kernel/logsumexp/cpu.cc"
-        "kernel/mask_scalar/cpu.cc"
-        "kernel/maxsumexp/cpu.cc"
-        "kernel/norm/cpu.cc"
-        "kernel/norm_fiber/cpu.cc"
-        "kernel/norm_fiber_inplace/cpu.cc"
-        "kernel/norm_slice_inplace/cpu.cc"
-        "kernel/norm_slice/cpu.cc"
-        "kernel/pow/cpu.cc"
-        "kernel/multiply/cpu.cc"
-        "kernel/multiply_fiber_inplace/cpu.cc"
-        "kernel/multiply_fiber/cpu.cc"
-        "kernel/multiply_inplace/cpu.cc"
-        "kernel/multiply_slice/cpu.cc"
-        "kernel/randn/cpu.cc"
-        "kernel/relu_inplace/cpu.cc"
-        "kernel/relu_backward/cpu.cc"
-        "kernel/relu/cpu.cc"
-        "kernel/rope/cpu.cc"
-        "kernel/rope_backward/cpu.cc"
-        "kernel/scale/cpu.cc"
-        "kernel/scale_inplace/cpu.cc"
-        "kernel/scale_slice/cpu.cc"
-        "kernel/silu_backward/cpu.cc"
-        "kernel/silu/cpu.cc"
-        "kernel/silu_inplace/cpu.cc"
-        "kernel/softmax/cpu.cc"
-        "kernel/softmax_inplace/cpu.cc"
-        "kernel/sqrt/cpu.cc"
-        "kernel/sqrt_inplace/cpu.cc"
-        "kernel/subcopy/cpu.cc"
-        "kernel/subtract_indexed_outputs/cpu.cc"
-        "kernel/sum_fiber/cpu.cc"
-        "kernel/sum_slice/cpu.cc"
-        "kernel/sum/cpu.cc"
-        "kernel/sumprod_fiber/cpu.cc"
-        "kernel/sumprod_slice/cpu.cc"
-        "kernel/total_sum_accum/cpu.cc"
-        "kernel/transpose/cpu.cc"
-        "kernel/swap_two_axes/cpu.cc"
-        "kernel/isfinite/cpu.cc"
-    )
+# Generic low-level CPU kernels (contiguous test/reference implementations;
+# the product runtime schedules CUDA codelets only)
+set(KERNEL_CPU_SRC
+    "kernel/adam_step/cpu.cc"
+    "kernel/adamw_step/cpu.cc"
+    "kernel/sgd_step/cpu.cc"
+    "kernel/add/cpu.cc"
+    "kernel/add_fiber/cpu.cc"
+    "kernel/add_fiber_inplace/cpu.cc"
+    "kernel/scale_fiber/cpu.cc"
+    "kernel/add_inplace/cpu.cc"
+    "kernel/add_slice/cpu.cc"
+    "kernel/add_slice_inplace/cpu.cc"
+    "kernel/conv2d_bwd_input_inplace/cpu.cc"
+    "kernel/conv2d_bwd_weight_inplace/cpu.cc"
+    "kernel/conv2d_inplace/cpu.cc"
+    "kernel/embedding/cpu.cc"
+    "kernel/embedding_backward/cpu.cc"
+    "kernel/fill/cpu.cc"
+    "kernel/gelu/cpu.cc"
+    "kernel/gelu_inplace/cpu.cc"
+    "kernel/gelu_backward/cpu.cc"
+    "kernel/gelutanh/cpu.cc"
+    "kernel/gelutanh_backward/cpu.cc"
+    "kernel/gelutanh_inplace/cpu.cc"
+    "kernel/hypot_inplace/cpu.cc"
+    "kernel/hypot/cpu.cc"
+    "kernel/hypot_scalar_inverse/cpu.cc"
+    "kernel/logsumexp/cpu.cc"
+    "kernel/mask_scalar/cpu.cc"
+    "kernel/maxsumexp/cpu.cc"
+    "kernel/norm/cpu.cc"
+    "kernel/norm_fiber/cpu.cc"
+    "kernel/norm_fiber_inplace/cpu.cc"
+    "kernel/norm_slice_inplace/cpu.cc"
+    "kernel/norm_slice/cpu.cc"
+    "kernel/pow/cpu.cc"
+    "kernel/multiply/cpu.cc"
+    "kernel/multiply_fiber_inplace/cpu.cc"
+    "kernel/multiply_fiber/cpu.cc"
+    "kernel/multiply_inplace/cpu.cc"
+    "kernel/multiply_slice/cpu.cc"
+    "kernel/randn/cpu.cc"
+    "kernel/relu_inplace/cpu.cc"
+    "kernel/relu_backward/cpu.cc"
+    "kernel/relu/cpu.cc"
+    "kernel/rope/cpu.cc"
+    "kernel/rope_backward/cpu.cc"
+    "kernel/scale/cpu.cc"
+    "kernel/scale_inplace/cpu.cc"
+    "kernel/scale_slice/cpu.cc"
+    "kernel/silu_backward/cpu.cc"
+    "kernel/silu/cpu.cc"
+    "kernel/silu_inplace/cpu.cc"
+    "kernel/softmax/cpu.cc"
+    "kernel/softmax_inplace/cpu.cc"
+    "kernel/sqrt/cpu.cc"
+    "kernel/sqrt_inplace/cpu.cc"
+    "kernel/subcopy/cpu.cc"
+    "kernel/subtract_indexed_outputs/cpu.cc"
+    "kernel/sum_fiber/cpu.cc"
+    "kernel/sum_slice/cpu.cc"
+    "kernel/sum/cpu.cc"
+    "kernel/sumprod_fiber/cpu.cc"
+    "kernel/sumprod_slice/cpu.cc"
+    "kernel/total_sum_accum/cpu.cc"
+    "kernel/transpose/cpu.cc"
+    "kernel/swap_two_axes/cpu.cc"
+    "kernel/isfinite/cpu.cc"
+)
 
     # CUDA-specific low-level kernels
     if(NNTILE_USE_CUDA)
         set(KERNEL_CUDA_SRC
-            "kernel/accumulate_maxsumexp/cuda.cu"
-            "kernel/accumulate_attn_output/cuda.cu"
             "kernel/adam_step/cuda.cu"
             "kernel/adamw_step/cuda.cu"
             "kernel/sgd_step/cuda.cu"
@@ -168,98 +162,7 @@ if(NOT HAVE_STARPU_SIMGRID)
             "kernel/swap_two_axes/cuda.cu"
             "kernel/isfinite/cuda.cu"
         )
-        if(NNTILE_USE_FLASH_SDPA)
-            list(APPEND KERNEL_CUDA_SRC
-                "kernel/flash_sdpa_fwd_cudnn/cuda.cc"
-                "kernel/flash_sdpa_bwd_cudnn/cuda.cc"
-            )
-        endif()
-    endif(NNTILE_USE_CUDA)
-endif(NOT HAVE_STARPU_SIMGRID)
-
-# Basic StarPU-related sources
-set(STARPU_BASE_SRC
-    "starpu/handle.cc"
-    "starpu/sync_defer.cc"
-    "starpu/codelet.cc"
-)
-
-# StarPU-related wrappers (codelets) for low-level kernels
-set(STARPU_CODELET_SRC
-    "starpu/accumulate.cc"
-    "starpu/accumulate_hypot.cc"
-    "starpu/hypot.cc"
-    "starpu/accumulate_maxsumexp.cc"
-    "starpu/adam_step.cc"
-    "starpu/adamw_step.cc"
-    "starpu/sgd_step.cc"
-    "starpu/add.cc"
-    "starpu/add_fiber.cc"
-    "starpu/add_fiber_inplace.cc"
-    "starpu/scale_fiber.cc"
-    "starpu/add_inplace.cc"
-    "starpu/add_slice.cc"
-    "starpu/add_slice_inplace.cc"
-    "starpu/clear.cc"
-    "starpu/conv2d_bwd_input_inplace.cc"
-    "starpu/conv2d_bwd_weight_inplace.cc"
-    "starpu/conv2d_inplace.cc"
-    "starpu/copy.cc"
-    "starpu/embedding.cc"
-    "starpu/embedding_backward.cc"
-    "starpu/fill.cc"
-    "starpu/gelu.cc"
-    "starpu/gelu_inplace.cc"
-    "starpu/gelu_backward.cc"
-    "starpu/gelutanh.cc"
-    "starpu/gelutanh_backward.cc"
-    "starpu/gelutanh_inplace.cc"
-    "starpu/gemm.cc"
-    "starpu/hypot_inplace.cc"
-    "starpu/hypot_scalar_inverse.cc"
-    "starpu/log_scalar.cc"
-    "starpu/logsumexp.cc"
-    "starpu/mask_scalar.cc"
-    "starpu/maxsumexp.cc"
-    "starpu/norm.cc"
-    "starpu/norm_fiber.cc"
-    "starpu/norm_fiber_inplace.cc"
-    "starpu/norm_slice_inplace.cc"
-    "starpu/norm_slice.cc"
-    "starpu/pow.cc"
-    "starpu/multiply.cc"
-    "starpu/multiply_fiber_inplace.cc"
-    "starpu/multiply_fiber.cc"
-    "starpu/multiply_inplace.cc"
-    "starpu/multiply_slice.cc"
-    "starpu/randn.cc"
-    "starpu/relu_inplace.cc"
-    "starpu/relu_backward.cc"
-    "starpu/relu.cc"
-    "starpu/rope.cc"
-    "starpu/rope_backward.cc"
-    "starpu/scale.cc"
-    "starpu/scale_inplace.cc"
-    "starpu/scale_slice.cc"
-    "starpu/silu_backward.cc"
-    "starpu/silu.cc"
-    "starpu/silu_inplace.cc"
-    "starpu/softmax.cc"
-    "starpu/softmax_inplace.cc"
-    "starpu/sqrt.cc"
-    "starpu/sqrt_inplace.cc"
-    "starpu/subcopy.cc"
-    "starpu/subtract_indexed_outputs.cc"
-    "starpu/sum_fiber.cc"
-    "starpu/sum_slice.cc"
-    "starpu/sum.cc"
-    "starpu/sumprod_fiber.cc"
-    "starpu/sumprod_slice.cc"
-    "starpu/total_sum_accum.cc"
-    "starpu/transpose.cc"
-    "starpu/swap_two_axes.cc"
-    "starpu/isfinite.cc"
-)
+            endif(NNTILE_USE_CUDA)
 
 # Basic Tile-related sources
 set(CORE_BASE_SRC "core/traits.cc")
@@ -526,73 +429,11 @@ set(NNTILE_GRAPH_STACK_SRC
     ${GRAPH_TILE_LAYER_SRC}
 )
 
-if(NNTILE_USE_FLASH_SDPA)
-    list(APPEND STARPU_CODELET_SRC
-        "starpu/flash_sdpa_fwd_cudnn.cc"
-        "starpu/flash_sdpa_bwd_cudnn.cc"
-    )
-    list(APPEND CORE_OPERATION_SRC
-        "core/flash_sdpa_fwd_cudnn.cc"
-        "core/flash_sdpa_bwd_cudnn.cc"
-    )
-    list(APPEND GRAPH_TENSOR_LAYER_SRC
-        "tensor/ops/flash_sdpa_bwd_cudnn.cc"
-        "tensor/ops/flash_sdpa_fwd_cudnn.cc"
-    )
-    list(APPEND GRAPH_TILE_LAYER_SRC
-        "tile/ops/flash_sdpa_bwd_cudnn.cc"
-        "tile/ops/flash_sdpa_fwd_cudnn.cc"
-    )
-    set(NNTILE_GRAPH_STACK_SRC
-        ${GRAPH_TENSOR_LAYER_SRC}
-        ${GRAPH_RUNTIME_SRC}
-        ${GRAPH_TILE_LAYER_SRC}
-    )
-endif()
+# Classic nntile::kernel / core / tensor / tile ops are the default lists
+# above: a classic kernel is in libnntile iff it is listed here.
 
-
-# Classic nntile::kernel / StarPU / core / tensor / tile ops are the
-# default lists above. That is the libnntile native-op gate: a classic
-# kernel is in libnntile iff it is listed here. NNTILE_NNTILE_NATIVE_OPS
-# does not strip these lists (it only gates torch_nntile wrappers).
-# NNTILE_TORCH_NATIVE_OPS appends torch-native dispatch below.
-if(NNTILE_TORCH_NATIVE_OPS)
-    message(STATUS
-        "NNTILE_TORCH_NATIVE_OPS: add torch-native dispatch")
-    list(APPEND STARPU_CODELET_SRC "starpu/torch_dispatch.cc")
-    list(APPEND CORE_OPERATION_SRC
-        "core/torch_meta.cc"
-        "core/torch_dispatch.cc")
-    list(APPEND GRAPH_TENSOR_LAYER_SRC "tensor/ops/torch_dispatch.cc")
-    list(APPEND GRAPH_TILE_LAYER_SRC "tile/ops/torch_dispatch.cc")
-    set(NNTILE_GRAPH_STACK_SRC
-        ${GRAPH_TENSOR_LAYER_SRC}
-        ${GRAPH_RUNTIME_SRC}
-        ${GRAPH_TILE_LAYER_SRC}
-    )
-endif()
-
-if(NNTILE_USE_NNHAUL)
-    include("${CMAKE_CURRENT_SOURCE_DIR}/nnhaul/sources.cmake")
-    set(BACKEND_SRC ${NNHAUL_CODELET_SRC})
-    if(NNTILE_TORCH_NATIVE_OPS)
-        # The haul substrate for the torch-native codelet families.
-        list(APPEND BACKEND_SRC "nnhaul/torch_dispatch.cc")
-    endif()
-else()
-    set(BACKEND_SRC ${STARPU_BASE_SRC} ${STARPU_CODELET_SRC})
-endif()
-
-set(NNTILE_CORE_SRC
-    ${BASE_SRC}
-    ${KERNEL_CUDA_SRC}
-    ${BACKEND_SRC}
-    ${CORE_BASE_SRC}
-    ${CORE_OPERATION_SRC}
-    ${LOGGER_SRC}
-)
-
-set(NNTILE_ALL_SRC ${NNTILE_CORE_SRC} ${NNTILE_GRAPH_STACK_SRC})
+include("${CMAKE_CURRENT_SOURCE_DIR}/nnhaul/sources.cmake")
+set(NNHAUL_SRC ${NNHAUL_CODELET_SRC})
 
 # nntile_add_objs(<obj_target> <parent_lib> sources...)
 function(nntile_add_objs name parent_lib)
@@ -603,7 +444,6 @@ function(nntile_add_objs name parent_lib)
     add_library(${name} OBJECT ${_sources})
     nntile_apply_common_includes(${name})
     nntile_apply_cuda(${name})
-    nntile_apply_cblas(${name})
     if(name MATCHES "nntile_objs_(tensor|runtime)$")
         target_link_libraries(${name} PUBLIC nlohmann_json::nlohmann_json)
     endif()
@@ -611,12 +451,12 @@ function(nntile_add_objs name parent_lib)
 endfunction()
 
 # libnntile: kernel .. tensor (+ runtime, context, logger).
-if(KERNEL_CPU_SRC)
+if(KERNEL_CPU_SRC OR KERNEL_CUDA_SRC)
     nntile_add_objs(nntile_objs_kernel nntile
         ${KERNEL_CPU_SRC} ${KERNEL_CUDA_SRC})
 endif()
-nntile_add_objs(nntile_objs_starpu nntile
-    ${BACKEND_SRC})
+nntile_add_objs(nntile_objs_nnhaul nntile
+    ${NNHAUL_SRC})
 nntile_add_objs(nntile_objs_core nntile
     ${CORE_BASE_SRC} ${CORE_OPERATION_SRC})
 nntile_add_objs(nntile_objs_graph_base nntile dtype.cc)
@@ -626,29 +466,5 @@ nntile_add_objs(nntile_objs_tensor nntile
     ${GRAPH_TENSOR_LAYER_SRC})
 nntile_add_objs(nntile_objs_runtime nntile
     ${GRAPH_RUNTIME_SRC})
-if(NNTILE_TORCH_NATIVE_OPS)
-    # OBJECT libs need Torch headers for torch-native codelets / core.
-    foreach(_torch_obj IN ITEMS
-            nntile_objs_starpu nntile_objs_core
-            nntile_objs_tile nntile_objs_tensor)
-        if(TARGET ${_torch_obj})
-            target_link_libraries(${_torch_obj} PUBLIC ${TORCH_LIBRARIES})
-            if(TORCH_CXX_FLAGS)
-                target_compile_options(${_torch_obj} PRIVATE
-                    ${TORCH_CXX_FLAGS})
-            endif()
-            # Match libtorch DispatchStub ABI (get_call_ptr extras).
-            target_compile_definitions(
-                ${_torch_obj}
-                PRIVATE
-                HAVE_AVX2_CPU_DEFINITION
-                HAVE_AVX512_CPU_DEFINITION)
-
-        endif()
-    endforeach()
-endif()
 target_sources(nntile PRIVATE ${LOGGER_SRC})
-target_sources(nntile PRIVATE context.cc context_nnhaul.cc)
-if(NOT NNTILE_USE_NNHAUL)
-    target_sources(nntile PRIVATE starpu_disk_register.c)
-endif()
+target_sources(nntile PRIVATE context.cc kernel_scope.cc)

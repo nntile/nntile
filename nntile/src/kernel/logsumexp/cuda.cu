@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/logsumexp/cuda.cu
  * Logsumexp after computed maxsumexp result of a buffer on CUDA
@@ -77,7 +77,7 @@ static __device__ __forceinline__ long lse_chunk_index(long f, Index elems,
 //! maxsumexp PAIR at mse-flat offsets 2i and 2i+1 -- the two halves may
 //! live in different maxsumexp chunks -- and writes logsumexp[i]; every
 //! address is resolved through its operand's chunk table read straight
-//! from the device table (piece 9 / rule 10: no staging). The result is bitwise cuda()'s.
+//! from the device table . The result is bitwise cuda()'s.
 template<typename T>
 static __global__
 void chunked_cuda_kernel(Index nelems, ChunkTables<T> t)

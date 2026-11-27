@@ -4,14 +4,19 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file src/starpu/sqrt.cc
- * Sqrt operation on a StarPU buffer
+ * @file src/nnhaul/sqrt.cc
+ * Sqrt operation on a NNHaul buffer
  *
  * @version 1.1.0
  * */
-
+/*!
+ * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.
+ * Kept in-tree for future re-enablement. No product path calls this code;
+ * its tests are not registered while the family is in
+ * NNTILE_DISABLED_KERNELS.
+ */
 // Corresponding header
 #include "nntile/nnhaul/ops/sqrt.hh"
 
@@ -22,8 +27,9 @@
 
 // Other NNTile headers
 #include "nntile/kernel/sqrt.hh"
+#include <nntile/kernel_scope.hh>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Constructor
@@ -42,7 +48,7 @@ Sqrt<std::tuple<T>>::Sqrt():
     // Modes are not fixed, they are decided during runtime by default
 }
 
-//! Apply sqrt to StarPU buffer on CPU
+//! Apply sqrt to NNHaul buffer on CPU
 template<typename T>
 void Sqrt<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
@@ -50,10 +56,10 @@ void Sqrt<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    auto src = ::nntile::haul::buf_chunks<T>(buffers, 0);
-    auto dst = ::nntile::haul::buf_chunks<T>(buffers, 1);
+    auto src = ::nntile::nnhaul::buf_chunks<T>(buffers, 0);
+    auto dst = ::nntile::nnhaul::buf_chunks<T>(buffers, 1);
     // Launch kernel per flat chunk piece (single piece if unchunked)
-    ::nntile::haul::for_each_flat_piece(
+    ::nntile::nnhaul::for_each_flat_piece(
         args->nelems,
         [&](std::size_t n, const T *s, T *d) {
             kernel::sqrt::cpu<T>(n, s, d);
@@ -88,7 +94,7 @@ void Sqrt<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Apply sqrt to StarPU buffer on CUDA
+//! Apply sqrt to NNHaul buffer on CUDA
 template<typename T>
 void Sqrt<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
@@ -96,12 +102,12 @@ void Sqrt<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    auto src = ::nntile::haul::buf_chunks<T>(buffers, 0);
-    auto dst = ::nntile::haul::buf_chunks<T>(buffers, 1);
+    auto src = ::nntile::nnhaul::buf_chunks<T>(buffers, 0);
+    auto dst = ::nntile::nnhaul::buf_chunks<T>(buffers, 1);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
     // Launch kernel per flat chunk piece (single piece if unchunked)
-    ::nntile::haul::for_each_flat_piece(
+    ::nntile::nnhaul::for_each_flat_piece(
         args->nelems,
         [&](std::size_t n, const T *s, T *d) {
             kernel::sqrt::cuda<T>(stream, n, s, d);
@@ -143,20 +149,21 @@ std::uint64_t Sqrt<std::tuple<T>>::footprint(void const *cl_args, std::size_t) n
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     uint32_t hash = 0;
-    hash = ::nntile::haul::fnv1a(&args->nelems, sizeof(args->nelems), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->nelems, sizeof(args->nelems), hash);
     return hash;
 }
 
 template<typename T>
-void Sqrt<std::tuple<T>>::submit(int starpu_worker_hint, Index nelems, ::nnhaul::Handle & src, ::nnhaul::Handle & dst)
+void Sqrt<std::tuple<T>>::submit(int worker_hint, Index nelems, ::nnhaul::Handle & src, ::nnhaul::Handle & dst)
 {
+    ::nntile::require_kernel_family("sqrt");
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->nelems = nelems;
     //double nflops = 5 * nelems;
     // Submit task
-    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
-        { { STARPU_R, &src }, { STARPU_W, &dst } }, args, sizeof(*args));
+    ::nntile::nnhaul::insert_task(codelet.raw, worker_hint,
+        { { ACCESS_R, &src }, { ACCESS_W, &dst } }, args, sizeof(*args));
     std::free(args);
 
 }
@@ -174,4 +181,4 @@ template class Sqrt<std::tuple<nntile::bf16_t>>;
 //! Pack of sqrt operations for different types
 sqrt_pack_t sqrt;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

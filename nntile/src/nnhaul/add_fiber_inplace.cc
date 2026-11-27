@@ -4,10 +4,10 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file src/starpu/add_fiber_inplace.cc
- * StarPU wrappers for addition of a tensor and a broadcasted fiber
+ * @file src/nnhaul/add_fiber_inplace.cc
+ * NNHaul wrappers for addition of a tensor and a broadcasted fiber
  *
  * @version 1.2.0
  * */
@@ -27,7 +27,7 @@
 #include "nntile/nnhaul/ops/scale_inplace.hh"
 #include "nntile/nnhaul/ops/scale_fiber.hh"
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 // ---------------------------------------------------------------------------
@@ -133,7 +133,7 @@ AddFiberInplace<std::tuple<T>>::AddFiberInplace():
     // Modes are not fixed, they are decided during runtime by default
 }
 
-//! Apply add_fiber_inplace operation on StarPU buffers on CPU
+//! Apply add_fiber_inplace operation on NNHaul buffers on CPU
 template<typename T>
 void AddFiberInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
@@ -143,13 +143,9 @@ void AddFiberInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get interfaces
     auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
-    if((buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+    if((buf_src->chunk_count() == 1) && (buf_dst->chunk_count() == 1)
        )
     {
-        // Classic contiguous dispatch: illegal under the force flag
-        // (the tripwire proves it never happens in a flag-on run).
-        chunkunits::classic_dispatch_tripwire("nntile_add_fiber_inplace", false);
-        // Unchunked fast path: the historical single kernel call, bitwise
         kernel::add_fiber_inplace::cpu<T>(args->m, args->n, args->k,
             args->batch, args->alpha, buf_src->get_ptr<T>(), args->beta,
             buf_dst->get_ptr<T>());
@@ -211,7 +207,7 @@ void AddFiberInplace<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *c
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Apply add_fiber_inplace operation on StarPU buffer on CUDA
+//! Apply add_fiber_inplace operation on NNHaul buffer on CUDA
 template<typename T>
 void AddFiberInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
@@ -223,33 +219,14 @@ void AddFiberInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    if((buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+    if((buf_src->chunk_count() == 1) && (buf_dst->chunk_count() == 1)
        )
     {
-        // Classic contiguous dispatch: illegal under the force flag
-        // (the tripwire proves it never happens in a flag-on run).
-        chunkunits::classic_dispatch_tripwire("nntile_add_fiber_inplace", false);
-        // Unchunked fast path: the historical single kernel call, bitwise
         kernel::add_fiber_inplace::cuda<T>(stream, args->m, args->n, args->k,
             args->batch, args->alpha, buf_src->get_ptr<T>(), args->beta,
             buf_dst->get_ptr<T>());
         return;
     }
-    // Chunked single-launch path: ONE chunk-aware kernel over the whole
-    // (m, n, k, batch) range instead of the per-piece driver's launches. The
-    // chunk base-pointer tables are built on the host and parked in the
-    // shared device chunk-ptr table (no chunk-count
-    // cap); the kernel reads the table per-thread by shift/mask (rule 10: no smem staging). Elements are
-    // independent and the expression is identical, so the result is cuda()'s
-    // bitwise. The piece driver below stays as the fallback for the
-    // failed table allocation.
-    // Piece C (2026-10-18c): the all-1-chunk degenerate launch is
-    // the FIRST thing the chunked block does -- the chunk counts are
-    // read straight off the buffers, before any
-    // ChunkView/UnitSpan/LaunchTables work exists, so the degenerate
-    // host path is as lean as the classic dispatch above (gemm
-    // path-F precedent; launch pointer-identical, bitwise by
-    // construction, table untouched).
     if(args->m > 0 && args->n > 0 && args->k > 0 && args->batch > 0
         && buf_src->chunk_count() == 1
         && buf_dst->chunk_count() == 1)
@@ -259,6 +236,9 @@ void AddFiberInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
             args->beta, buf_dst->get_ptr<T>());
         return;
     }
+    // Chunked single-launch path: the whole multi-chunk range is
+    // issued as ONE chunk-aware kernel reading the shared device
+    // chunk-pointer table; the per-element math matches cuda().
     chunkunits::ChunkView<T> const cv_src(buf_src);
     chunkunits::ChunkView<T> const cv_dst(buf_dst);
     if(args->m > 0 && args->n > 0 && args->k > 0 && args->batch > 0)
@@ -295,17 +275,15 @@ void AddFiberInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
             }
         }
     }
-        // (rule 11, user directive 2026-10-19) There is no per-piece
+        // There is no per-piece
     // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot table
     // serve any launch up to a 16 TiB operand, so a failed upload is an
     // invariant violation, not a mode to stage around.
     std::fprintf(stderr,
         "nntile_add_fiber_inplace: chunk-ptr table cannot serve this launch (invariant "
-        "violation; the per-piece staging fallback was deleted by rule "
-        "11)\n");
+        "violation; no per-piece staging fallback exists)\n");
     std::abort();
 }
-
 
 // Specializations of CUDA wrapper for accelerated types
 template<>
@@ -346,16 +324,16 @@ std::uint64_t AddFiberInplace<std::tuple<T>>::footprint(void const *cl_args, std
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     uint32_t hash = 0;
-    hash = ::nntile::haul::fnv1a(&args->m, sizeof(args->m), hash);
-    hash = ::nntile::haul::fnv1a(&args->n, sizeof(args->n), hash);
-    hash = ::nntile::haul::fnv1a(&args->k, sizeof(args->k), hash);
-    hash = ::nntile::haul::fnv1a(&args->batch, sizeof(args->batch), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->m, sizeof(args->m), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->n, sizeof(args->n), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->k, sizeof(args->k), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->batch, sizeof(args->batch), hash);
     return hash;
 }
 
 //! Submit add_fiber_inplace task
 template<typename T>
-void AddFiberInplace<std::tuple<T>>::submit(int starpu_worker_hint,
+void AddFiberInplace<std::tuple<T>>::submit(int worker_hint,
     Index m,
     Index n,
     Index k,
@@ -369,24 +347,24 @@ void AddFiberInplace<std::tuple<T>>::submit(int starpu_worker_hint,
     // If alpha is zero, then this operation reduces to scale_inplace
     if(alpha == 0.0)
     {
-        scale_inplace.submit<std::tuple<T>>(starpu_worker_hint, m*n*k*batch, beta, dst);
+        scale_inplace.submit<std::tuple<T>>(worker_hint, m*n*k*batch, beta, dst);
         return;
     }
     // If beta is zero, then this operation reduces to scale_fiber
     if(beta == 0.0)
     {
-        scale_fiber.submit<std::tuple<T>>(starpu_worker_hint, m, n, k, batch, alpha, src, dst);
+        scale_fiber.submit<std::tuple<T>>(worker_hint, m, n, k, batch, alpha, src, dst);
         return;
     }
     // Access mode for the dst handle
-    enum starpu_data_access_mode dst_mode;
+    enum data_access_mode dst_mode;
     if(beta == 1.0)
     {
-        dst_mode = static_cast<starpu_data_access_mode>(STARPU_RW | STARPU_COMMUTE);
+        dst_mode = static_cast<data_access_mode>(ACCESS_RW | ACCESS_COMMUTE);
     }
     else
     {
-        dst_mode = STARPU_RW;
+        dst_mode = ACCESS_RW;
     }
     // Codelet arguments
     args_t* args = (args_t*)std::malloc(sizeof(*args));
@@ -401,8 +379,8 @@ void AddFiberInplace<std::tuple<T>>::submit(int starpu_worker_hint,
     // Submit task: the BODY picks the unchunked fast path or the native
     // chunked fiber driver; add_fiber_inplace never stages.
     (void)nflops;
-    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
-        { { STARPU_R, &src }, { dst_mode, &dst } }, args, sizeof(*args));
+    ::nntile::nnhaul::insert_task(codelet.raw, worker_hint,
+        { { ACCESS_R, &src }, { dst_mode, &dst } }, args, sizeof(*args));
     std::free(args);
 
 }
@@ -421,4 +399,4 @@ template class AddFiberInplace<std::tuple<nntile::fp16_t>>;
 //! Pack of add_fiber_inplace operations for different types
 add_fiber_inplace_pack_t add_fiber_inplace;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

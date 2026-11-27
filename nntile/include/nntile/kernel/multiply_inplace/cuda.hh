@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/kernel/multiply_inplace/cuda.hh
  * Per-element product of two buffers on CPU
@@ -25,19 +25,16 @@ template<typename T>
 void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *src, T *dst)
     noexcept;
 
-//! Per-element product of two chunked buffers on CUDA
+//! Per-element product of two chunked buffers on CUDA in ONE launch.
 /*! Same operation as cuda() above (dst[i] = alpha * src[i] * dst[i] for
  * every flat element i in [0, nelems)), but both operands' flat element
  * ranges are backed by a chain of equal-size chunk allocations (a shorter
  * tail on the last chunk). The WHOLE nelems range is issued as ONE kernel
- * launch: the two chunk base-pointer tables are host arrays in pinned,
- * device-mapped memory (built by the driver through the shared
- * ChunkPtrTable) whose device-table views travel as `src_chunks`/`dst_chunks`,
- * and each block stages them into shared memory once. Each element resolves
- * its src chunk from its flat offset via i / elems_src, i % elems_src and its
- * dst chunk via i / elems_dst, i % elems_dst (shift/mask on the compile-time
- * chunk class). The per-element arithmetic is exactly cuda()'s, so the
- * result is BITWISE the whole-buffer cuda() call. There is no chunk-count cap.
+ * launch: the two chunk base-pointer tables are device-table views built by
+ * the driver through the shared ChunkPtrTable, and every element resolves
+ * its chunk from its flat offset with the runtime class shift/mask. The
+ * per-element arithmetic is exactly cuda()'s, so the result is BITWISE the
+ * whole-buffer cuda() call.
  *
  * @param[in] stream: CUDA stream
  * @param[in] nelems: Number of elements in both buffers

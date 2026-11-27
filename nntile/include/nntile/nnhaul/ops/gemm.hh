@@ -4,10 +4,10 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file include/nntile/starpu/gemm.hh
- * GEMM operation for StarPU buffers
+ * @file include/nntile/nnhaul/ops/gemm.hh
+ * GEMM operation for NNHaul buffers
  *
  * @version 1.1.0
  * */
@@ -23,7 +23,7 @@
 
 #include <cstdint>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! GEMM staging statistics for the current process.
@@ -85,15 +85,7 @@ public:
     //! Footprint function for the current operation
     static std::uint64_t footprint(void const *cl_args, std::size_t cl_arg_size) noexcept;
 
-#ifdef NNTILE_USE_CBLAS
-    //! Wrapper for a generic CPU implementation
-    static void cpu(void *buffers[], void *cl_args)
-        noexcept;
-
     //! Array of all wrappers for CPU implementations
-#else // NNTILE_USE_CBLAS
-    //! Array of all wrappers for CPU implementations
-#endif // NNTILE_USE_CBLAS
 
 
 #ifdef NNTILE_USE_CUDA
@@ -104,7 +96,7 @@ public:
 
     //! Submit gemm task
     void submit(
-        int starpu_worker_hint,
+        int worker_hint,
         const TransOp &transA,
         const TransOp &transB,
         Index m,
@@ -137,4 +129,4 @@ using gemm_pack_t = OperationPack<
 //! Pack of gemm operations for different types
 extern gemm_pack_t gemm;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

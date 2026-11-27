@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tensor_graph/conv2d_bwd_input_inplace.cc
  * Test TensorGraph conv2d_bwd_input_inplace operation against
@@ -12,7 +12,12 @@
  *
  * @version 1.1.0
  * */
-
+/*!
+ * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.
+ * Kept in-tree for future re-enablement. No product path calls this code;
+ * its tests are not registered while the family is in
+ * NNTILE_DISABLED_KERNELS.
+ */
 #include "nntile/tensor/ops/conv2d_bwd_input_inplace.hh"
 
 #include "context_fixture.hh"
@@ -55,7 +60,7 @@ std::vector<Index> conv2d_output_shape(const std::vector<Index> &x_shape,
     return {W_out, H_out, c_shape[3], x_shape[3]};
 }
 
-} 
+}
 
 TEST_CASE("TensorGraph conv2d_bwd_input_inplace structure", "[graph][tensor]")
 {
@@ -100,4 +105,3 @@ TEST_CASE("TensorGraph conv2d_bwd_input_inplace rejects null tensors",
                           1.0, dy, nullptr, 0.0, dx, {0, 0}, {1, 1}, {1, 1}),
         std::invalid_argument);
 }
-

@@ -115,7 +115,8 @@ def _torch_or_toolkit_layout_ok() -> bool:
 def ensure_linux_cuda_deps(*, required: bool | None = None) -> None:
     """Raise ImportError when CUDA libraries are not discoverable.
 
-    CPU-only builds skip this check. Pass ``required=True/False`` to
+    The check is a no-op when the install is not CUDA-backed. Pass
+    ``required=True/False`` to
     override; ``None`` reads ``_build_info.BUILT_WITH_CUDA``.
     """
     if required is None:

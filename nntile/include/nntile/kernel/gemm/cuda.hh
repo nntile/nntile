@@ -4,10 +4,10 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/kernel/gemm/cuda.hh
- * GEMM workspace staging (user directive, GEMM POLICY 2026-10-19): the
+ * GEMM workspace staging: the
  * dedicated device workspace whole-multi-chunk-operand staging copies
  * through, and the fused ONE-LAUNCH gather/scatter kernels.
  *
@@ -42,7 +42,7 @@ struct Workspace
     std::size_t bytes = 0; //!< capacity: 1 GiB default, env hook may shrink
     int device = -1; //!< the ONE GPU the block was allocated on
     /*! True when the block is the NNHaul engine's preallocated
-     * workspace (borrowed under NNTILE_USE_NNHAUL), not a second
+     * workspace (borrowed under NNHaul), not a second
      * cudaMalloc: one reservation serves both. */
     bool borrowed = false;
     /*! High-water of the staged bytes this workspace actually held. */
@@ -58,14 +58,14 @@ struct Workspace
  * the table's hooks; default exactly 1 GiB); a cudaMalloc failure is a
  * LOUD error (stderr + abort -- there is no fallback); a later call on
  * a different CUDA device throws (the workspace is per-GPU; this is a
- * single-GPU campaign). Never throws for any other reason. */
+ * single-GPU design). Never throws for any other reason. */
 Workspace &workspace();
 
 //! One staged operand of the fused gather/scatter: the WHOLE flat byte
 //! space of a multi-chunk buffer (equal 16 MiB-class chunks plus a
 //! shorter tail), its chunk-pointer table (a device chunk-ptr-table
 //! view) and its contiguous slot in the gemm workspace.
-/*! (user directive, 2026-10-19: reuse the scalable table-driven kernel)
+/*!
  * The staging IS kernel::copy::chunked (see src/nnhaul/gemm.cc): each
  * staged operand is a chunked->workspace (or workspace->chunked) copy
  * whose workspace side rides the table as a 1-entry table. The

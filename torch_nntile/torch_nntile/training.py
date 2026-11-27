@@ -125,14 +125,20 @@ def cross_entropy(
     target: torch.Tensor,
     *,
     reduction: str = "mean",
-    ignore_index: int = -100,
+    ignore_index: int | None = None,
 ) -> torch.Tensor:
     """Cross-entropy on ``device='nntile'`` via libnntile tensor ops.
 
     ``logits`` and ``target`` must both be on ``device='nntile'``.
     ``logits`` shape ``[..., C]`` (class dim last). ``target`` is int64 with
     shape matching logits without ``C``. Supports ``reduction='mean'`` or
-    ``'sum'`` and ``ignore_index`` (default ``-100``).
+    ``'sum'``.
+
+    ``ignore_index`` is opt-in. ``reduction='mean'`` with an explicit
+    ``ignore_index`` is rejected: the mean denominator must count targets
+    that are not ignored. Use ``reduction='sum'`` for that case.
+    With ``reduction='mean'`` and no explicit ``ignore_index``, targets
+    must not contain ``-100``.
 
     Under ``torch.no_grad()`` (or when ``logits`` does not require grad),
     skips the autograd ``Function`` and drops ``maxsumexp`` immediately.
@@ -142,9 +148,17 @@ def cross_entropy(
     if logits.device.type != "nntile":
         raise ValueError("cross_entropy expects nntile logits")
     if reduction == "mean":
+        if ignore_index is not None:
+            raise ValueError(
+                "nntile cross_entropy: reduction='mean' with ignore_index "
+                "is unsupported; use reduction='sum'"
+            )
         reduction_enum = _REDUCTION_MEAN
+        ignore_index = -100
     elif reduction == "sum":
         reduction_enum = _REDUCTION_SUM
+        if ignore_index is None:
+            ignore_index = -100
     else:
         raise ValueError("nntile cross_entropy supports reduction 'mean' or 'sum'")
     if target.device.type != "nntile":

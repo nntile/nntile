@@ -24,8 +24,8 @@ from torch import Tensor
 
 from torch_nntile.nn import GELU, Embedding, LayerNorm, SiLU
 from torch_nntile.nn.functional import add, mul, scale_slice
-from torch_nntile.nn.linear import (
-    NntileAttentionOutput, NntileLinear, NntileQKVProjection)
+from torch_nntile.nn.linear import (NntileAttentionOutput, NntileLinear,
+                                    NntileQKVProjection)
 from torch_nntile.nn.sdpa import sdpa_kernel
 
 _TIMESTEP_FREQ_DIM = 256

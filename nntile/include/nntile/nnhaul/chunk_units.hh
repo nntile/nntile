@@ -4,11 +4,11 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
  * @file include/nntile/nnhaul/chunk_units.hh
  * Shared building blocks for NATIVE chunked drivers of unit-structured
- * classic ops (docs/chunked-tiles.md §4 item 3): the chunk segmentation
+ * classic ops: the chunk segmentation
  * walker, the unit-run enumerator and the straddle staging arenas, in the
  * host+device discipline established by src/nnhaul/gemm.cc and
  * src/nnhaul/embedding_backward.cc.
@@ -17,8 +17,6 @@
  * */
 
 #pragma once
-
-#ifdef NNTILE_USE_NNHAUL
 
 #include <nntile/base_types.hh>
 #include <nntile/defs.h>
@@ -36,23 +34,36 @@
 #include <cuda_runtime.h>
 #endif
 
-namespace nntile::haul::chunkunits
+namespace nntile::nnhaul::chunkunits
 {
 
-//! Compile-time switch (NNTILE_FORCE_CHUNKED_KERNELS): every op dispatches
-//! through its chunked kernel even when the operands are contiguous. An
-//! unchunked buffer is the one-chunk degenerate case, so the chunked kernel
-//! runs with nchunks=1 and the result is bitwise the classic kernel's.
-inline constexpr bool force_chunked_kernels() noexcept
+//! Kernel-index envelope: the chunked CUDA entry points derive their flat
+//! element index in 32-bit `int` (threadIdx.x + blockIdx.x * blockDim.x)
+//! and compare it with an `Index` nelems. Above INT_MAX the index wraps
+//! and a negative value can pass `i < nelems`, indexing the chunk table
+//! out of bounds. There is no 64-bit index form, so refuse the launch
+//! loudly instead of corrupting memory. The public docs state the same
+//! 2^31-1 element envelope.
+inline void require_kernel_index_envelope(std::size_t nelems,
+    char const *op) noexcept
 {
-#ifdef NNTILE_FORCE_CHUNKED_KERNELS
-    return true;
-#else
-    return false;
-#endif
+    // Leave room for the launch's rounding term (nelems + block - 1) and
+    // for the last block's threadIdx before it is compared with nelems.
+    constexpr std::size_t kGridSlack = 4096;
+    std::size_t const limit =
+        static_cast<std::size_t>(std::numeric_limits<int>::max());
+    if(nelems > limit || nelems > limit - kGridSlack)
+    {
+        std::fprintf(stderr,
+            "nntile %s: operand of %zu elements exceeds the 32-bit "
+            "kernel-index envelope (%d, with launch slack); refusing "
+            "the launch\n",
+            op, nelems, std::numeric_limits<int>::max());
+        std::abort();
+    }
 }
 
-//! The ONE runtime chunk class (rule 7): the process-wide size nnhaul
+//! The ONE runtime chunk class: the process-wide size nnhaul
 //! initialized from NNHAUL_CHUNK_SIZE_MB, a power of two. A multi-chunk
 //! buffer's full chunk is exactly this class -- the nnhaul policy
 //! cannot create anything else -- and ChunkView aborts loudly on a
@@ -63,36 +74,11 @@ inline std::size_t chunk_class_bytes() noexcept
     return ::nnhaul::chunk_class_bytes();
 }
 
-//! Classic-dispatch tripwire (NNTILE_FORCE_CHUNKED_KERNELS): under the
-//! flag, dispatching a classic contiguous kernel is a wiring bug -- every
-//! op must go through its chunked kernel, and the flag-on training run
-//! itself then proves zero classic dispatches by surviving. (rule 11,
-//! 2026-10-19: the structural-overflow table fallthrough no longer exists
-//! -- a structurally oversized launch aborts; every wrapper passes false.)
-//! Unconditional: no env gate. Compiles to nothing when the flag is off.
-inline void classic_dispatch_tripwire(char const *op, bool table_overflow)
-    noexcept
-{
-#ifdef NNTILE_FORCE_CHUNKED_KERNELS
-    if(!table_overflow)
-    {
-        std::fprintf(stderr,
-            "nntile %s: classic kernel dispatch under "
-            "NNTILE_FORCE_CHUNKED_KERNELS\n",
-            op);
-        std::abort();
-    }
-#else
-    (void)op;
-    (void)table_overflow;
-#endif
-}
-
 //! Chunk residency of one buffer's flat element space: equal-size chunks
 //! with a shorter tail; an unchunked buffer is the 1-chunk degenerate case
 //! (same arithmetic as the anonymous ChunkView of src/nnhaul/gemm.cc,
 //! published here so the unit-structured families share one walker).
-//! Rule 7: a MULTI-CHUNK buffer's full chunk is exactly the compile-time
+//! A MULTI-CHUNK buffer's full chunk is exactly the compile-time
 //! runtime class (a power of two) — anything else is an
 //! invariant violation and aborts loudly (the nnhaul policy cannot
 //! create it; only a hand-built Handle could). A 1-chunk buffer keeps
@@ -122,7 +108,7 @@ struct ChunkView
             {
                 std::fprintf(stderr,
                     "nntile ChunkView: multi-chunk buffer %zu-byte full "
-                    "chunk != the runtime %zu-byte class (rule 7)\n",
+                    "chunk does not match the runtime %zu-byte class\n",
                     b->chunk_bytes(0),
                     chunk_class_bytes());
                 std::abort();
@@ -314,7 +300,7 @@ struct ArenaCuda
 };
 
 //! Linear DEVICE table of chunk base-pointer slots for the coarse-chunk
-//! transport (docs/chunked-tiles.md §2/§4). This replaces the earlier
+//! transport. This replaces the earlier
 //! host-mapped arena, which was a correctness hazard: a kernel read the
 //! pinned host array AT EXECUTION TIME, and with the driver running ahead
 //! on the in-order compute stream a queued-but-unexecuted kernel could
@@ -352,11 +338,11 @@ struct ArenaCuda
 //! the cursor restarts from slot 0 of the same array. The one structural
 //! case the table refuses is a single launch whose pointer set exceeds
 //! kChunkPtrTableSlots even when empty: LaunchTables::reserve_more
-//! throws while that launch's table is being built, before anything is
-//! uploaded (rule 11, 2026-10-19) -- no fallback driver is taken for an
+//! aborts with a diagnostic while that launch's table is being built, before anything is
+//! uploaded  -- no fallback driver is taken for an
 //! oversized launch, and the noexcept codelet body terminates on the
 //! throw. upload_tables guards the same condition by returning nullptr.
-//! (piece E, user directives 2026-10-19) The table is ONE table on each
+//!  The table is ONE table on each
 //! side of the bus: the device table (kChunkPtrTableSlots pow2 slots, the
 //! historical transport) and a PINNED HOST MIRROR with the SAME slot
 //! indexing, sharing ONE cursor, ONE rewind event and ONE rewind. A
@@ -368,23 +354,23 @@ struct ArenaCuda
 //! append-only until a rewind too, and the rewind
 //! synchronizes the compute-stream event recorded after the latest
 //! table-reading kernel (end()) first -- so the full 2^20-slot depth of
-//! the table is planning room for in-flight launches (kernel 66, or
-//! kernel 100066, launches whenever total not-yet-copied table slots
-//! fit the table; no per-launch or 64-launch buffering exists, and every
-//! launch uploads its table -- 8 bytes per 16 MB chunk is noise).
+//! the table is planning room for in-flight launches: any number of
+//! launches whose total not-yet-copied table slots still fit; no
+//! per-launch buffering exists, and every launch uploads its table --
+//! eight bytes per class-sized chunk is negligible).
 //!
-//! The malloc doctrine (user directive): the mirror is one real
+//! The mirror is one real
 //! cudaHostAlloc of the table's slot bytes; if it fails, the transport
 //! cannot exist and the error is loud -- there is no constant-derived
 //! bound anywhere. A single launch whose table exceeds the whole table
 //! (more chunk slots than the pow2 table holds) is an invariant
-//! violation (rule 11): the wrapper aborts.
+//! violation: the wrapper aborts.
 struct LaunchTables;
 
 struct ChunkPtrTable
 {
     /*! Table capacity in pointer slots (8 MiB at 8 bytes per slot).
-     * INVARIANT (user directive, 2026-10-18): the slot capacity is a
+     * INVARIANT: the slot capacity is a
      * COMPILE-TIME POWER OF TWO, and every effective capacity (the test
      * hook below may only shrink it to another power of two) stays a
      * power of two. This is the table's slot capacity only; per-tile
@@ -396,13 +382,13 @@ struct ChunkPtrTable
         kChunkPtrTableSlots * kChunkPtrBytes;
 
     char *dev = nullptr;
+    int device = -1; //!< the one CUDA device this table lives on
     void **host = nullptr; //!< pinned mirror, same slot indexing as dev
     std::size_t cursor = 0; //!< next free slot (host and dev in lockstep)
     std::size_t capacity = kChunkPtrTableSlots; //!< slots (test hook may shrink)
     std::size_t rewinds = 0; //!< reclamations performed (diagnostic)
     cudaStream_t stream = nullptr; //!< the kernel execution (compute) stream
-    /*! (user directives 2026-10-19; event-ordered revision after the
-     * pair-1 measurement) The CONTROL stream: chunk-pointer H2D rides
+    /*! The CONTROL stream: chunk-pointer H2D rides
      * its own stream so a table copy never queues behind the previous
      * kernel's EXECUTION on the compute stream, and the kernel's
      * device timeline carries no CE gap in front of it. Completion is
@@ -410,10 +396,7 @@ struct ChunkPtrTable
      * `ready_ev` is recorded behind it on the control stream, and the
      * compute stream waits on that event before the kernel launch --
      * the kernel still cannot start before its table is resident, but
-     * the worker thread never stalls (pair-1 measured the blocking
-     * form serializing the launch-ahead pipeline: idle-before-multi-
-     * chunk gaps 689 us vs 354-501 in every prior traced run, ~0.7 s
-     * per traced loop). Host-side table building also proceeds into
+     * the worker thread never stalls The blocking form serializes the launch-ahead pipeline. Host-side table building also proceeds into
      * the append-only mirror while prior kernels fly; only the rare
      * build-time rewind still synchronizes. */
     cudaStream_t control = nullptr;
@@ -425,9 +408,12 @@ struct ChunkPtrTable
      * rewind/reclaim path can be exercised on hardware whose VRAM
      * cannot fill the default 2^20-slot table. POW2 ONLY (the capacity
      * invariant above): a non-power-of-two value warns once and is
-     * ignored, so the invariant cannot be violated even under test.
-     * Default stays kChunkPtrTableSlots. Read ONCE per process
-     * (piece 3): the stress checks set it at main() start. */
+     * ignored, so the capacity invariant cannot be violated even under test.
+     * Values above kChunkPtrTableSlots are clamped: the device table is
+     * always allocated at exactly kChunkPtrTableBytes, so a larger
+     * effective capacity would let the cursor run past that allocation.
+     * Default stays kChunkPtrTableSlots. Read ONCE per process:
+     * the stress checks set it at main() start. */
     std::size_t table_capacity() const noexcept
     {
         static std::size_t const cached = [] {
@@ -440,7 +426,17 @@ struct ChunkPtrTable
                             & (static_cast<std::size_t>(v) - 1))
                         == 0)
                 {
-                    return static_cast<std::size_t>(v);
+                    std::size_t const want = static_cast<std::size_t>(v);
+                    if(want > kChunkPtrTableSlots)
+                    {
+                        std::fprintf(stderr,
+                            "nntile chunk_units: "
+                            "NNHAUL_CHUNK_TABLE_SLOTS=%s exceeds the %zu-slot "
+                            "device table; clamping\n",
+                            e, kChunkPtrTableSlots);
+                        return kChunkPtrTableSlots;
+                    }
+                    return want;
                 }
                 std::fprintf(stderr,
                     "nntile chunk_units: NNHAUL_CHUNK_TABLE_SLOTS=%s is not "
@@ -478,10 +474,33 @@ struct ChunkPtrTable
     }
 
     //! Ensure the table exists and remember this instance's compute
-    //! stream. Returns false on allocation failure (the caller aborts:
-    //! rule 11).
+    //! stream. Every failure below is unrecoverable for this process
+    //! (single-device transport, fixed-size table), so it aborts with a
+    //! diagnostic instead of returning false: a caller that ignored the
+    //! result would silently skip the kernel and return wrong data.
     bool begin(cudaStream_t s)
     {
+        // The device table, the pinned mirror, the control stream and
+        // the rewind event form ONE per-process transport, allocated on
+        // one device. A second device would need its own table and its
+        // own rewind certificate; refuse it loudly instead of letting a
+        // kernel on another device read this table (or a rewind race
+        // another device's in-flight kernel).
+        int current_device = -1;
+        (void)cudaGetDevice(&current_device);
+        if(device == -1)
+        {
+            device = current_device;
+        }
+        else if(device != current_device)
+        {
+            std::fprintf(stderr,
+                "nntile chunk_units: the chunk-ptr table is bound to CUDA "
+                "device %d but a launch on device %d was attempted; the "
+                "NNHaul chunked transport is single-device\n",
+                device, current_device);
+            std::abort();
+        }
         stream = s;
         capacity = table_capacity();
         if(dev == nullptr)
@@ -491,12 +510,12 @@ struct ChunkPtrTable
             {
                 std::fprintf(stderr, "nntile chunk_units: chunk-ptr table "
                     "cudaMalloc(%zu) failed\n", kChunkPtrTableBytes);
-                return false;
+                std::abort();
             }
         }
         if(rewind_ev == nullptr)
         {
-            // (critic C6, 2026-10-19) FATAL: rewind_now() restarts the
+            // FATAL: rewind_now() restarts the
             // cursor under the assumption this event exists -- without
             // it a rewind would silently overwrite slots a queued kernel
             // may still read.
@@ -506,7 +525,7 @@ struct ChunkPtrTable
                 std::fprintf(stderr, "nntile chunk_units: rewind event "
                     "create failed; refusing to run without rewind "
                     "safety\n");
-                return false;
+                std::abort();
             }
         }
         if(control == nullptr &&
@@ -515,7 +534,7 @@ struct ChunkPtrTable
             control = nullptr;
             std::fprintf(stderr, "nntile chunk_units: control stream "
                 "create failed\n");
-            return false;
+            std::abort();
         }
         if(ready_ev == nullptr &&
             cudaEventCreateWithFlags(&ready_ev, cudaEventDisableTiming)
@@ -524,7 +543,7 @@ struct ChunkPtrTable
             ready_ev = nullptr;
             std::fprintf(stderr, "nntile chunk_units: ready event "
                 "create failed\n");
-            return false;
+            std::abort();
         }
         return true;
     }
@@ -631,7 +650,7 @@ inline ChunkPtrTable &chunk_ptr_table() noexcept
     return a;
 }
 
-/*! (piece 3, restructured piece E) Launch-scope builder of ONE merged
+/*! Launch-scope builder of ONE merged
  * table upload: each operand's chunk-pointer table is appended into the
  * SHARED host mirror at the shared cursor (base + n), the whole
  * concatenation rides one cudaMemcpyAsync, and the kernel-visible bytes
@@ -667,18 +686,19 @@ struct LaunchTables
     //! Room for k more slots of THIS launch, rewinding at build time when
     //! the table would cross the table's physical end. A table larger
     //! than the WHOLE table (more chunk slots than the pow2 table holds)
-    //! is an invariant violation (rule 11) and throws.
+    //! is an invariant violation and aborts with a diagnostic.
     void reserve_more(std::size_t k)
     {
         ChunkPtrTable &t = chunk_ptr_table();
         if(n + k > t.capacity)
         {
-            throw ::nnhaul::Error(
-                "nntile chunk_units: launch table of "
-                + std::to_string(n + k)
-                + " slots exceeds the whole chunk-ptr table ("
-                + std::to_string(t.capacity)
-                + " slots; rule 11 -- no fallback exists)");
+            // Wrapper bodies are noexcept: a throw here would terminate
+            // without diagnostics. Abort with the same loud census.
+            std::fprintf(stderr,
+                "nntile chunk_units: launch table of %zu slots exceeds "
+                "the whole chunk-ptr table (%zu slots; no fallback "
+                "exists)\n", n + k, t.capacity);
+            std::abort();
         }
         if(base + n + k <= t.capacity)
         {
@@ -739,20 +759,21 @@ struct LaunchTables
 };
 
 /*! The per-thread launch builder (the words base/n are per-launch; the
- * bytes live in the one shared host mirror). SINGLE-CUDA-WORKER
- * INVARIANT (critic C5, 2026-10-19): the runtime runs exactly one CUDA
- * worker and one compute stream (nnhaul.hh: "it always runs one CUDA
- * worker"), so this thread-local builder and the shared mirror+cursor
- * cannot interleave. Two CUDA workers would build at the same base and
- * corrupt each other's tables -- the runtime forbids that today; this
- * is the transport's load-bearing assumption, stated here. */
+ * bytes live in the one shared host mirror). The transport assumes ONE
+ * issuing engine thread per process and one CUDA device (the table and
+ * its rewind certificate are per-device; begin() refuses a second
+ * device). NNTile's sessions issue from one thread on one device, so
+ * this thread-local builder and the shared mirror+cursor cannot
+ * interleave. Two concurrent issuers would build at the same base and
+ * corrupt each other's tables; that is the transport's load-bearing
+ * assumption, stated here. */
 inline LaunchTables &launch_tables() noexcept
 {
     thread_local LaunchTables t;
     return t;
 }
 
-/*! (piece E final form, user directive 2026-10-19: NO cache) The
+/*!  The
  * merged upload: ONE cudaMemcpyAsync of the launch's table from the
  * pinned host mirror into the same offset of the device table, ON THE
  * CONTROL STREAM, ordered ahead of the kernel by cudaEventRecord +
@@ -763,8 +784,8 @@ inline LaunchTables &launch_tables() noexcept
  * chunk is noise -- and the 2^20-slot table is the planning depth:
  * device slots are append-only until the (rare) build-time rewind
  * synchronizes end()'s compute-stream event (the last table-reading
- * kernel). A launch larger than the whole table throws at build time
- * (rule 11). */
+ * kernel). A launch larger than the whole table aborts with a diagnostic at build time
+ */
 inline void const *ChunkPtrTable::upload_tables(LaunchTables &t)
 {
     std::size_t const n = t.size();
@@ -985,7 +1006,7 @@ void walk_unit_runs(Index n_panels, Index panel_rows, Emit &&emit,
 }
 
 /*! Split one piece of the fiber-class row space into kernel-expressible
- * sub-pieces (the family-2 fiber promotion, cf. the slice-class walker
+ * sub-pieces (the fiber promotion, cf. the slice-class walker
  * above).
  *
  * Fiber index map (derived from kernel/{add,scale,multiply,sum,norm,
@@ -1156,6 +1177,4 @@ struct SliceStage
     }
 };
 
-} // namespace nntile::haul::chunkunits
-
-#endif // NNTILE_USE_NNHAUL
+} // namespace nntile::nnhaul::chunkunits

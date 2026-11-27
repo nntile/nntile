@@ -5,7 +5,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/src/tile_graph/embedding_backward.cc
  * TileGraph embedding backward operation implementation.
@@ -31,7 +31,7 @@ void run(
     Scalar alpha, Scalar beta, TileGraph::TileNode* i, TileGraph::TileNode* e,
     TileGraph::TileNode* v, int r)
 {
-    nntile::core::embedding_backward<T>(runtime.starpu_worker_hint(), a, b, c,
+    nntile::core::embedding_backward<T>(runtime.worker_hint(), a, b, c,
             ks, kz, ir, alpha, beta, runtime.get_tile<nntile::int64_t>(i),
             runtime.get_tile<T>(e), runtime.get_tile<T>(v), r);
 }

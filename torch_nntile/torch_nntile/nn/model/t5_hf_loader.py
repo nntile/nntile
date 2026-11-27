@@ -14,13 +14,14 @@ FF weights; callers should disable HF relative bias before comparing forwards
 from __future__ import annotations
 
 import torch
-from transformers import (
-    T5Config as HfT5Config,
-    T5ForConditionalGeneration as HfT5ForConditionalGeneration)
+from transformers import T5Config as HfT5Config
+from transformers import \
+    T5ForConditionalGeneration as HfT5ForConditionalGeneration
 
-from torch_nntile.nn.linear import (
-    linear_to_output_weight, linear_to_qkv_weight, output_to_linear_weight,
-    qkv_to_linear_weight)
+from torch_nntile.nn.linear import (linear_to_output_weight,
+                                    linear_to_qkv_weight,
+                                    output_to_linear_weight,
+                                    qkv_to_linear_weight)
 from torch_nntile.nn.model.hf_rope_layout import copy_linear
 from torch_nntile.nn.model.t5 import T5Config, T5ForConditionalGeneration
 

@@ -4,9 +4,9 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file include/nntile/starpu/hypot_scalar_inverse.hh
+ * @file include/nntile/nnhaul/ops/hypot_scalar_inverse.hh
  * Inverse of a hypot operation of a buffer and a scalar
  *
  * @version 1.1.0
@@ -23,7 +23,7 @@
 // NNTile headers
 #include <nntile/nnhaul/codelet.hh>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Generic wrapper class for hypot_scalar_inverse operation is not defined
@@ -67,7 +67,7 @@ public:
 
     //! Submit hypot_scalar_inverse task
     void submit(
-        int starpu_worker_hint,
+        int worker_hint,
         Index nelems,
         Scalar eps,
         Scalar alpha,
@@ -90,4 +90,4 @@ using hypot_scalar_inverse_pack_t = OperationPack<
 //! Pack of hypot_scalar_inverse operations for different types
 extern hypot_scalar_inverse_pack_t hypot_scalar_inverse;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

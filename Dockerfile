@@ -4,7 +4,7 @@
 #                              (AIRI), Russia. All rights reserved.
 #
 # NNTile is software framework for fast training of big neural networks on
-# distributed-memory heterogeneous systems based on StarPU runtime system.
+# NNTile 2.0: CUDA-only, NNHaul backend.
 #
 # @file Dockerfile
 # Instructions for Docker to build an image for testing with NNTile and Torch
@@ -13,7 +13,7 @@
 # @version 1.1.0
 
 # Set CUDA version
-ARG CUDA_VERSION=12.9.1
+ARG CUDA_VERSION=12.8
 
 # Set base OS
 ARG BASE_OS=ubuntu22.04
@@ -39,13 +39,6 @@ LABEL Maintainer="Aleksandr Mikhalev <al.mikhalev@skoltech.ru>"
 # Inherit global ARGs
 ARG MAKE_JOBS
 ARG CUDA_ARCHS
-
-# FXT tool version
-ARG FXT_VERSION=0.3.15
-
-# StarPU: nntile fork (no release tags here). Snapshot = latest commit on this branch (.zip archive).
-ARG STARPU_GITHUB_REPO=nntile/starpu
-ARG STARPU_GIT_BRANCH=master
 
 # Desired Python version
 ARG PYTHON_VERSION=3.12
@@ -97,18 +90,12 @@ RUN --mount=type=cache,target=/opt/conda/pkgs \
         cuda-toolkit \
         "transformers==4.52.*" \
         nomkl \
-        openblas \
         cmake \
         ninja \
-        pkg-config \
-        autoconf \
-        automake \
-        libtool \
         make \
         gcc_linux-64 \
         gxx_linux-64 \
         gfortran_linux-64 \
-        libhwloc \
         libxml2-devel \
         git \
         gawk \
@@ -123,14 +110,9 @@ RUN --mount=type=cache,target=/opt/conda/pkgs \
         isort \
         ruff \
         mypy \
-        jupyter \
-        tensorflow-cpu \
-        tensorboard \
-        fastapi \
         numpy \
         pydantic \
         scipy \
-        uvicorn \
         tomli \
         sentencepiece \
         datasets \
@@ -149,76 +131,14 @@ ENTRYPOINT ["conda", "run", "--no-capture-output", "-n", "nntile"]
 # Launch bash in the "nntile" environment by default
 CMD ["/bin/bash"]
 
-# Build and install FXT from source into conda environment
-# fxt is required by StarPU but not available in conda-forge
-RUN --mount=type=cache,target=/tmp \
-    set -xe && \
-    cd /tmp && \
-    export NAME=fxt-${FXT_VERSION} && \
-    export URL=https://download-mirror.savannah.gnu.org/releases/fkt && \
-    export URL=${URL}/${NAME}.tar.gz && \
-    wget -q ${URL} -O ${NAME}.tar.gz && \
-    mkdir -p ${NAME} && \
-    tar -xzf ${NAME}.tar.gz -C ${NAME} --strip-components=1 && \
-    cd ${NAME} && \
-    ./configure \
-        --prefix=${CONDA_PREFIX} && \
-    make -j ${MAKE_JOBS} && \
-    make install && \
-    ldconfig
-
-# Build and install StarPU from source into conda environment (not on conda-forge), then build
-# the SGOC graph scheduler from new_sched/ and install libgraph_sgoc_sched.so to /usr/local/lib (system path).
-RUN --mount=type=cache,target=/tmp \
-    set -xe && \
-    cd /tmp && \
-    export NAME="starpu-${STARPU_GIT_BRANCH}" && \
-    export URL=https://github.com/${STARPU_GITHUB_REPO}/archive/refs/heads/${STARPU_GIT_BRANCH}.zip && \
-    rm -rf "${NAME}" "${NAME}.zip" && \
-    wget -q "${URL}" -O "${NAME}.zip" && \
-    unzip -o -q "${NAME}.zip" && \
-    cd "${NAME}" && \
-    ./autogen.sh && \
-    ./configure \
-        --disable-build-doc \
-        --disable-build-examples \
-        --disable-build-tests \
-        --disable-fortran \
-        --disable-opencl \
-        --disable-socl \
-        --disable-starpufft \
-        --disable-starpupy \
-        --enable-blas-lib=none \
-        --enable-maxcudadev=8 \
-        --enable-maxbuffers=16 \
-        --with-fxt \
-        --prefix=${CONDA_PREFIX} && \
-    make -j ${MAKE_JOBS} && \
-    make install && \
-    ldconfig && \
-    cd new_sched && \
-    export PKG_CONFIG_PATH="${CONDA_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}" && \
-    make -j ${MAKE_JOBS} STARPU_BUILD="${CONDA_PREFIX}" EXTRA_CFLAGS=-O2 && \
-    install -D -m 755 libgraph_sgoc_sched.so /usr/local/lib/libgraph_sgoc_sched.so && \
-    ldconfig
-# NNTile graph capture: set STARPU_SCHED=sgoc and STARPU_SCHED_LIB=/usr/local/lib/libgraph_sgoc_sched.so
-
-# Set StarPU-specific environment variables
-ENV STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
-
-# Disable OpenMP parallelism of OpenBLAS and MKL
-ENV OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
+# Keep the host math libraries single-threaded in the container
+ENV OMP_NUM_THREADS=1
 
 # Set default working directory for the NNTile development
 WORKDIR /workspace/nntile
 
-# Define Python path for the development
-ENV PYTHONPATH=/workspace/nntile/build/python
 
-# Open Jupyter Lab and Tensorboard ports
-EXPOSE 8888 6006
-
-# Target "nntile" contains compiled NNTile with set up PYTHONPATH
+# Target "nntile" contains the compiled libraries
 FROM sandbox AS nntile
 
 # Inherit global ARGs
@@ -228,37 +148,13 @@ ARG CUDA_ARCHS
 # Copy all sources
 ADD . /workspace/nntile
 
-# Configure the NNTile
-#
-# CMAKE_DISABLE_FIND_PACKAGE_pybind11=ON forces FetchContent to pull
-# pybind11 v2.11.0 from the in-tree external/pybind11 declaration
-# instead of using whatever pybind11 conda transitively installed.
-# Newer pybind11 versions have stricter type_caster SFINAE that fails
-# to compile TileGraph (which holds vector<unique_ptr<...>>) even
-# though the host build (which also lacks an installed pybind11 and
-# therefore falls back to 2.11.0) succeeds. Matches the host's working
-# CMakeCache.
+# Configure NNTile 2.0 (CUDA-only, NNHaul-only).
 RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCHS} \
+    -DCMAKE_CUDA_ARCHITECTURES="${CUDA_ARCHS}" \
     -DCMAKE_PREFIX_PATH=$CONDA_PREFIX \
-    -DCMAKE_DISABLE_FIND_PACKAGE_pybind11=ON \
     -DBUILD_LIBTORCH_NNTILE=OFF \
     -DBUILD_TORCH_NNTILE=OFF \
     -GNinja
 
 # Finally, build the NNTile inplace without installation
 RUN cmake --build build -j ${MAKE_JOBS}
-
-# Install the inference gateway and Telegram bot service packages in
-# editable mode against the same conda env that already has nntile on
-# PYTHONPATH. With this, the same image can run either
-# `python -m nntile_gateway` (HTTP gateway, needs --gpus) or
-# `python -m nntile_tgbot` (Telegram front-end, no GPU) -- or both in
-# parallel as two containers / two processes. pip pulls in the
-# missing transitive deps (cachetools for the gateway; aiogram, httpx
-# for the bot). See infra/README.md for deployment recipes.
-RUN pip install -e infra/gateway && pip install -e infra/tgbot
-
-# Default port for the gateway's HTTP API. The bot does not listen on
-# any port (it long-polls the Telegram API outbound).
-EXPOSE 8000
