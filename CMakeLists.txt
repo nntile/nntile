@@ -69,6 +69,8 @@ option(BUILD_COVERAGE "Generate code coverage report" OFF)
 # warn and purge it so an incremental reconfigure keeps working.
 foreach(_removed_opt IN ITEMS
         NNTILE_USE_NNHAUL
+        BUILD_NNHAUL
+        NNTILE_BUILD_NNHAUL
         NNTILE_TORCH_NATIVE_OPS
         NNTILE_NNTILE_NATIVE_OPS
         USE_CBLAS

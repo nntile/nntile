@@ -90,6 +90,14 @@ if(NNHAUL_ROOT STREQUAL "")
         message(STATUS
             "nnhaul: using the nnhaul::nnhaul target from the enclosing project")
     else()
+        # NNHaul is the only backend: it is always built. Its own
+        # test/example toggles follow NNTile's BUILD_TESTING instead of
+        # being independent cache switches; keep them INTERNAL so the
+        # configure surface has no way to look like a backend choice.
+        set(NNHAUL_BUILD_TESTS ${BUILD_TESTING} CACHE INTERNAL
+            "embedded nnhaul: follows BUILD_TESTING" FORCE)
+        set(NNHAUL_BUILD_EXAMPLES OFF CACHE INTERNAL
+            "embedded nnhaul: examples are not installed" FORCE)
         add_subdirectory("${PROJECT_SOURCE_DIR}/nnhaul")
         message(STATUS "nnhaul: using the in-tree subproject")
     endif()

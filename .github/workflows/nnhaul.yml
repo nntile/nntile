@@ -95,8 +95,8 @@ jobs:
           cmake -S . -B build-torch -GNinja \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DBUILD_TESTING=OFF \
-            -DNNHAUL_BUILD_TESTS=OFF \
-            -DCMAKE_PREFIX_PATH="$TORCH_PREFIX"
+            -DCMAKE_PREFIX_PATH="$TORCH_PREFIX" \
+            -DPython3_EXECUTABLE="$(command -v python3)"
 
       - name: build product
         run: cmake --build build-torch -j"$(nproc)"
