@@ -4,12 +4,12 @@
  *                 (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file src/starpu/sgd_step.cc
- * Fused SGD with momentum step operation of StarPU buffers
+ * @file src/nnhaul/sgd_step.cc
+ * Fused SGD with momentum step operation of NNHaul buffers
  *
- * @version 1.2.0
+ * @version 2.0.0
  * */
 
 // Corresponding header
@@ -24,8 +24,8 @@
 #include "nntile/kernel/sgd_step.hh"
 #include "nntile/nnhaul/chunk_units.hh"
 
-//! StarPU wrappers for one step of SGD with momentum optimizer
-namespace nntile::haul
+//! NNHaul wrappers for one step of SGD with momentum optimizer
+namespace nntile::nnhaul
 {
 
 //! Constructor
@@ -44,7 +44,7 @@ SGDStep<std::tuple<T>>::SGDStep():
     // Modes are not fixed, they are decided during runtime by default
 }
 
-//! Apply SGD step on StarPU buffers on CPU
+//! Apply SGD step on NNHaul buffers on CPU
 template<typename T>
 void SGDStep<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
@@ -52,11 +52,11 @@ void SGDStep<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    auto grad = ::nntile::haul::buf_chunks<T>(buffers, 0);
-    auto velocity = ::nntile::haul::buf_chunks<T>(buffers, 1);
-    auto p = ::nntile::haul::buf_chunks<T>(buffers, 2);
+    auto grad = ::nntile::nnhaul::buf_chunks<T>(buffers, 0);
+    auto velocity = ::nntile::nnhaul::buf_chunks<T>(buffers, 1);
+    auto p = ::nntile::nnhaul::buf_chunks<T>(buffers, 2);
     // Launch kernel per flat chunk piece (single piece if unchunked)
-    ::nntile::haul::for_each_flat_piece(
+    ::nntile::nnhaul::for_each_flat_piece(
         args->num_elems,
         [&](std::size_t n, const T *g, T *v, T *pp) {
             kernel::sgd_step::cpu<T>(
@@ -103,26 +103,24 @@ void SGDStep<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Apply SGD step operation on StarPU buffer on CUDA
+//! Apply SGD step operation on NNHaul buffer on CUDA
 template<typename T>
 void SGDStep<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
+    chunkunits::require_kernel_index_envelope(
+        static_cast<std::size_t>(args->num_elems), "nntile_sgd_step");
     // Get interfaces
     auto buf_grad = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_vel = static_cast<::nnhaul::Buffer *>(buffers[1]);
     auto buf_p = static_cast<::nnhaul::Buffer *>(buffers[2]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    if((buf_grad->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_vel->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
-        && (buf_p->chunk_count() == 1 && !chunkunits::force_chunked_kernels()))
+    if((buf_grad->chunk_count() == 1) && (buf_vel->chunk_count() == 1)
+        && (buf_p->chunk_count() == 1))
     {
-        // Classic contiguous dispatch: illegal under the force flag (the
-        // tripwire proves it never happens in a flag-on run).
-        chunkunits::classic_dispatch_tripwire("nntile_sgd_step", false);
-        // Unchunked fast path: the historical single kernel call, bitwise
         kernel::sgd_step::cuda<T>(
             stream,
             args->num_iter,
@@ -144,26 +142,7 @@ void SGDStep<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     //
     // Transport: the device chunk-pointer table is the only regime.
     {
-        // Piece C (2026-10-18c): the all-1-chunk degenerate launch is
-        // the FIRST thing the chunked block does -- the chunk counts
-        // are read straight off the buffers, before any ChunkView /
-        // LaunchTables / per-operand work exists, so the degenerate host
-        // path is as lean as the classic dispatch above (gemm path-F
-        // precedent; launch pointer-identical, bitwise by construction,
-        // table untouched).
-        if(args->num_elems > 0
-            && buf_grad->chunk_count() == 1
-            && buf_vel->chunk_count() == 1
-            && buf_p->chunk_count() == 1)
-        {
-            kernel::sgd_step::cuda<T>(stream, args->num_iter,
-                args->num_elems, args->momentum, args->lr,
-                args->weight_decay, args->dampening, args->nesterov,
-                buf_grad->get_ptr<T>(), buf_vel->get_ptr<T>(),
-                buf_p->get_ptr<T>());
-            return;
-        }
-        chunkunits::ChunkView<T> const cv_grad(buf_grad);
+    chunkunits::ChunkView<T> const cv_grad(buf_grad);
         chunkunits::ChunkView<T> const cv_vel(buf_vel);
         chunkunits::ChunkView<T> const cv_p(buf_p);
         if(args->num_elems > 0)
@@ -205,28 +184,22 @@ void SGDStep<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
                     table.end(stream);
                     return;
                 }
-                    // (rule 11, user directive 2026-10-19) There is no per-piece
+                    // There is no per-piece
                     // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot table
                     // serve any launch up to a 16 TiB operand, so a failed upload is an
                     // invariant violation, not a mode to stage around.
                     std::fprintf(stderr,
                         "nntile_sgd_step: chunk-ptr table cannot serve this launch (invariant "
-                        "violation; the per-piece staging fallback was deleted by rule "
-                        "11)\n");
+                        "violation; no per-piece staging fallback exists)\n");
                     std::abort();
             }
         }
     }
-    if(args->num_elems > 0)
-    {
-        chunkunits::classic_dispatch_tripwire("nntile_sgd_step",
-            false);
-    }
     // Launch kernel per flat chunk piece (single piece if unchunked)
-    auto grad = ::nntile::haul::buf_chunks<T>(buffers, 0);
-    auto velocity = ::nntile::haul::buf_chunks<T>(buffers, 1);
-    auto p = ::nntile::haul::buf_chunks<T>(buffers, 2);
-    ::nntile::haul::for_each_flat_piece(
+    auto grad = ::nntile::nnhaul::buf_chunks<T>(buffers, 0);
+    auto velocity = ::nntile::nnhaul::buf_chunks<T>(buffers, 1);
+    auto p = ::nntile::nnhaul::buf_chunks<T>(buffers, 2);
+    ::nntile::nnhaul::for_each_flat_piece(
         args->num_elems,
         [&](std::size_t n, const T *g, T *v, T *pp) {
             kernel::sgd_step::cuda<T>(
@@ -288,18 +261,18 @@ std::uint64_t SGDStep<std::tuple<T>>::footprint(void const *cl_args, std::size_t
     auto args = reinterpret_cast<args_t const *>(cl_args);
     uint32_t hash = 0;
     bool first_iter = args->num_iter == 1;
-    hash = ::nntile::haul::fnv1a(&first_iter, sizeof(bool), hash);
-    hash = ::nntile::haul::fnv1a(&args->num_elems, sizeof(args->num_elems), hash);
-    hash = ::nntile::haul::fnv1a(&args->momentum, sizeof(args->momentum), hash);
-    hash = ::nntile::haul::fnv1a(&args->weight_decay, sizeof(args->weight_decay), hash);
-    hash = ::nntile::haul::fnv1a(&args->dampening, sizeof(args->dampening), hash);
-    hash = ::nntile::haul::fnv1a(&args->nesterov, sizeof(args->nesterov), hash);
+    hash = ::nntile::nnhaul::fnv1a(&first_iter, sizeof(bool), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->num_elems, sizeof(args->num_elems), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->momentum, sizeof(args->momentum), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->weight_decay, sizeof(args->weight_decay), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->dampening, sizeof(args->dampening), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->nesterov, sizeof(args->nesterov), hash);
     return hash;
 }
 
 //! Submit SGD step task
 template<typename T>
-void SGDStep<std::tuple<T>>::submit(int starpu_worker_hint,
+void SGDStep<std::tuple<T>>::submit(int worker_hint,
     Index num_iter,
     Index num_elems,
     Scalar momentum,
@@ -322,8 +295,8 @@ void SGDStep<std::tuple<T>>::submit(int starpu_worker_hint,
     args->dampening = dampening;
     args->nesterov = nesterov;
     // Submit task
-    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
-        { { STARPU_R, &grad }, { STARPU_RW, &velocity }, { STARPU_RW, &param } }, args, sizeof(*args));
+    ::nntile::nnhaul::insert_task(codelet.raw, worker_hint,
+        { { ACCESS_R, &grad }, { ACCESS_RW, &velocity }, { ACCESS_RW, &param } }, args, sizeof(*args));
     std::free(args);
 
 }
@@ -342,4 +315,4 @@ template class SGDStep<std::tuple<nntile::fp16_t>>;
 //! Pack of sgd_step operations for different types
 sgd_step_pack_t sgd_step;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

@@ -5,6 +5,7 @@
  *
  * @file include/nntile/backend_workers.hh
  * Worker counts recorded by ``Context`` for the NNHaul build.
+ * @version 2.0.0
  */
 
 #pragma once
@@ -15,17 +16,8 @@
 namespace nntile
 {
 
-enum class ScheduleKindFilter
-{
-    Any,
-    Cpu,
-    Cuda
-};
-
-extern int g_backend_ncpu;
 extern int g_backend_ncuda;
 extern bool g_backend_ready;
-extern ScheduleKindFilter g_schedule_kind_filter;
 
 struct BackendWorker
 {

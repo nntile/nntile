@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/kernel/gelu_inplace/cpu.hh
  * GeLU inplace operation on a buffer on CPU
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

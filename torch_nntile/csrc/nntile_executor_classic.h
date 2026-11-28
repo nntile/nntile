@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/csrc/nntile_executor_classic.h
  * Classic nntile::kernel TensorGraph executor (torch_nntile.nn path).
+ * @version 2.0.0
  */
 
 #pragma once

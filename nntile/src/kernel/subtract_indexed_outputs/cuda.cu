@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/subtract_indexed_outputs/cuda.cu
  * subtract_indexed_output operation on CUDA
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/subtract_indexed_outputs/cuda.hh"
@@ -30,7 +30,7 @@ void cuda_kernel(Index n_labels, Index n_outputs, Index ignore_index,
     Y val{val_};
     if(i < n_outputs)
     {
-        if (labels[i] == ignore_index) {
+        if (labels[i] == ignore_index || labels[i] < 0 || labels[i] >= n_labels) {
             ::memset(dst + i*n_labels, 0, n_labels * sizeof(T));
             return;
         }
@@ -63,9 +63,8 @@ void cuda(cudaStream_t stream, Index n_labels, Index n_outputs, Index ignore_ind
             val, labels, dst_);
 }
 
-//! Chunk descriptors for the one-launch chunked subtract_indexed_outputs.
-//! (piece 16: the fat struct is gone -- the kernel takes slim scalar
-//! parameters; see chunked_cuda_kernel.)
+//! Chunk support for the one-launch chunked subtract_indexed_outputs:
+//! the kernel takes slim scalar parameters (see chunked_cuda_kernel).
 
 //! Chunk index of a flat element offset (power-of-two shift when possible).
 static __device__ __forceinline__ Index sio_chunk_of(long f, Index elems,
@@ -79,7 +78,7 @@ static __device__ __forceinline__ Index sio_chunk_of(long f, Index elems,
 //! val), through the shared chunk tables, so the result is bitwise cuda()'s
 //! (no atomics, no value freedom).
 //!
-//! (piece 16) Slim scalar parameters replace the fat descriptor struct, and
+//! Slim scalar parameters replace the fat descriptor struct, and
 //! the dst chunk base for the label-free flat offset (i*n_labels) is
 //! SPECULATED at kernel start: the load of dst_t[cg] issues in parallel
 //! with the label fetch instead of chaining behind it, and is used whenever
@@ -116,7 +115,7 @@ void chunked_cuda_kernel(Index n_labels, Index n_outputs, Index ignore_index,
     std::int64_t lab;
     if(labels0 != nullptr)
     {
-        // Piece C: a single-chunk labels operand passed as a resolved
+        // A single-chunk labels operand passed as a resolved
         // base -- one dependent load, no table hop.
         lab = labels0[i].value;
     }
@@ -131,7 +130,7 @@ void chunked_cuda_kernel(Index n_labels, Index n_outputs, Index ignore_index,
         Index const lc = sio_chunk_of(i, elems_lab, shift_lab);
         lab = lab_t[lc][i - long(lc) * long(elems_lab)].value;
     }
-    if(lab == ignore_index)
+    if(lab == ignore_index || lab < 0 || lab >= n_labels)
     {
         // Zero the whole column through its chunk bounds (same result as
         // cuda()'s memset of the contiguous column).

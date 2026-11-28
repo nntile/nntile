@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tile/chunked_staged_probe.cc
  * Adversarial probes for the universal staging fallback on chunked
@@ -25,7 +25,7 @@
  * (default unlimited), PROBE_POLICY (reactive|belady|proactive),
  * PROBE_REPS (default 3).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include <catch2/catch_test_macros.hpp>
@@ -33,7 +33,6 @@
 #include <nntile/constants.hh>
 #include <nntile/context.hh>
 #include <nntile/core/tile.hh>
-#include <nntile/kernel/cblas.hh>
 #include <nntile/kernel/maxsumexp.hh>
 #include <nntile/kernel/softmax_inplace.hh>
 #include <nntile/kernel/swap_two_axes.hh>
@@ -145,20 +144,6 @@ float run_staged_gemm_graph(Index m, Index n, Index k)
     std::vector<fp32_t> bf(b.begin(), b.end());
     std::vector<fp32_t> c_ref(static_cast<std::size_t>(m * n),
         fp32_t(0.0f));
-#ifdef NNTILE_USE_CBLAS
-    nntile::kernel::cblas::gemm<fp32_t>(
-        nntile::TransOp(nntile::TransOp::NoTrans),
-        nntile::TransOp(nntile::TransOp::NoTrans),
-        m,
-        n,
-        k,
-        Index{1},
-        Scalar{1.0},
-        af.data(),
-        bf.data(),
-        Scalar{0.0},
-        c_ref.data());
-#else
     // The CUDA-only NNHaul build links no CBLAS: a naive reference
     // serves the same purpose. Row-major throughout, matching the
     // tile shapes: A is m by k, B is k by n, C is m by n.
@@ -175,7 +160,6 @@ float run_staged_gemm_graph(Index m, Index n, Index k)
             c_ref[static_cast<std::size_t>(i * n + j)] = acc;
         }
     }
-#endif
 
     TileGraph graph("probe_gemm");
     auto *ta = graph.data({m, k}, "a", DataType::FP32);
@@ -198,7 +182,6 @@ float run_staged_gemm_graph(Index m, Index n, Index k)
 
 } // namespace
 
-#ifdef NNTILE_USE_NNHAUL
 
 // (a) Tight-cap chunked gemm through the graph, several reps.
 // Run once per offload policy: PROBE_POLICY=<reactive|belady|proactive>.
@@ -214,9 +197,9 @@ TEST_CASE("probe a: chunked gemm under tight cap", "[chunked][probe]")
     bool const chunking_off =
         false; // one class: every tile is chunked
     std::uint64_t const gemm_before =
-        ::nntile::haul::gemm_staging_stats().calls;
+        ::nntile::nnhaul::gemm_staging_stats().calls;
     std::uint64_t const staged_before =
-        ::nntile::haul::stage::staged_submit_count();
+        ::nntile::nnhaul::stage::staged_submit_count();
     for (int rep = 0; rep < env_reps(); ++rep)
     {
         float const diff = run_staged_gemm_graph(m, n, k);
@@ -228,9 +211,9 @@ TEST_CASE("probe a: chunked gemm under tight cap", "[chunked][probe]")
     {
         // Chunked tiles: gemm runs its own chunk-aware body, never the
         // generic staging fallback.
-        REQUIRE(::nntile::haul::gemm_staging_stats().calls > gemm_before);
+        REQUIRE(::nntile::nnhaul::gemm_staging_stats().calls > gemm_before);
     }
-    REQUIRE(::nntile::haul::stage::staged_submit_count() == staged_before);
+    REQUIRE(::nntile::nnhaul::stage::staged_submit_count() == staged_before);
     std::cout << "probe a OK policy=" << env_policy()
               << " cap_mib=" << (env_cap_bytes() >> 20) << "\n";
 }
@@ -354,7 +337,7 @@ TEST_CASE("probe b: mixed chain bitwise vs contiguous mode",
 // chunked swap_two_axes ops under a tiny cap. swap_two_axes (like
 // transpose and every other op except gemm) is a NATIVE chunk-addressed
 // kernel — the historical V1 staging fallback is gone — so this probe
-// now doubles as the law's enforcement: the whole-buffer staging
+// now doubles as the rule's enforcement: the whole-buffer staging
 // counter must not move (only gemm's workspace staging is sanctioned,
 // and it does not go through stage::staged_insert_task).
 TEST_CASE("probe c: ten chunked ops under scratch pressure",
@@ -365,7 +348,7 @@ TEST_CASE("probe c: ten chunked ops under scratch pressure",
     char const *ce = std::getenv("PROBE_COUNT");
     int const count = ce == nullptr ? 10 : std::max(1, std::atoi(ce));
     std::uint64_t const staged_before =
-        ::nntile::haul::stage::staged_submit_count();
+        ::nntile::nnhaul::stage::staged_submit_count();
     std::vector<std::vector<float>> srcs(static_cast<std::size_t>(count));
     for (int i = 0; i < count; ++i)
     {
@@ -417,12 +400,12 @@ TEST_CASE("probe c: ten chunked ops under scratch pressure",
             std::vector<float>(ref.begin(), ref.end()));
         REQUIRE(diff == 0.0f);
     }
-    // The law (only gemm stages, through its workspace): the stage
+    // The rule (only gemm stages, through its workspace): the stage
     // fallback counter must be exactly where it started.
-    REQUIRE(::nntile::haul::stage::staged_submit_count() ==
+    REQUIRE(::nntile::nnhaul::stage::staged_submit_count() ==
         staged_before);
     std::cout << "probe c OK staged_submits="
-              << ::nntile::haul::stage::staged_submit_count() << "\n";
+              << ::nntile::nnhaul::stage::staged_submit_count() << "\n";
 }
 
 namespace
@@ -527,16 +510,16 @@ TEST_CASE("probe e: gemm-only chain bitwise vs contiguous mode",
         ::setenv("NNHAUL_OFFLOAD_POLICY", policy, 1);
         auto context = make_context();
         std::uint64_t const gemm_before =
-            ::nntile::haul::gemm_staging_stats().calls;
+            ::nntile::nnhaul::gemm_staging_stats().calls;
         std::uint64_t const staged_before =
-            ::nntile::haul::stage::staged_submit_count();
+            ::nntile::nnhaul::stage::staged_submit_count();
         std::uint64_t const hash = run_gemm_chain(false);
         INFO("policy " << policy << " hash " << std::hex << hash << std::dec);
         if (panel_bytes > 0)
         {
-            REQUIRE(::nntile::haul::gemm_staging_stats().calls
+            REQUIRE(::nntile::nnhaul::gemm_staging_stats().calls
                 - gemm_before >= 4);
-            REQUIRE(::nntile::haul::stage::staged_submit_count()
+            REQUIRE(::nntile::nnhaul::stage::staged_submit_count()
                 == staged_before);
         }
         std::string const cmd = "PROBE_POLICY=" + std::string(policy) +
@@ -599,8 +582,8 @@ struct FakeTorchOp : TileGraph::OpNode
 } // namespace
 
 // (d) A graph that lowers a torch_dispatch op while chunked tile
-// handles are alive must fail at COMPILE time with the loud
-// NNHAUL_CHUNK_TILES=0 message.
+// handles are alive must fail at COMPILE time: the NNHaul product has no
+// torch-native ops and never demotes the tile gate at runtime.
 TEST_CASE("probe d: torch op plus chunked tiles throws at compile",
     "[chunked][probe]")
 {
@@ -616,15 +599,7 @@ TEST_CASE("probe d: torch op plus chunked tiles throws at compile",
         Runtime runtime(classic);
         runtime.compile();
     }
-    if (!::nntile::haul::tile_chunking_enabled())
-    {
-        // NNHAUL_CHUNK_TILES=0: chunked tile handles cannot exist, the
-        // forbidden combination is unreachable by construction (the
-        // knob is live again — see nntile/nnhaul/chunk_gate.hh).
-        SUCCEED("chunking disabled: gate combination unreachable");
-        return;
-    }
-    REQUIRE(::nntile::haul::stage::chunked_handle_count() > 0);
+    REQUIRE(::nntile::nnhaul::stage::chunked_handle_count() > 0);
     // The forbidden combination: a torch op in the same session.
     TileGraph torchy("probe_torchy");
     auto *x = torchy.data({4}, "x", DataType::FP32);
@@ -644,16 +619,7 @@ TEST_CASE("probe d: torch op plus chunked tiles throws at compile",
     }
     INFO(message);
     REQUIRE(threw);
-    REQUIRE(message.find("NNHAUL_CHUNK_TILES=0") != std::string::npos);
+    REQUIRE(message.find("torch_dispatch") != std::string::npos);
     // Loud, not silent: nothing was demoted or executed.
     std::cout << "probe d OK: " << message << "\n";
 }
-
-#else
-
-TEST_CASE("chunked staged probes require NNHaul", "[chunked][probe]")
-{
-    SUCCEED("StarPU build: chunked-tile path does not exist");
-}
-
-#endif

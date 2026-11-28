@@ -1,11 +1,24 @@
 #!/usr/bin/env bash
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                 2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems with GPU acceleration.
+#
+# @file torch_nntile/tools/install_linux_cuda_toolkit.sh
+# NNTile 2.0 file.
+#
+# @version 2.0.0
+
 # Install a thin, headless CUDA "compiler kit" in manylinux_2_28 (RHEL8).
 #
 # Provides only what pip nvidia-*-cu12 cannot:
 #   - nvcc (+ CRT enough to compile .cu)
-#   - lib64/stubs/libcuda.so (StarPU CUDA link)
+#   - lib64/stubs/libcuda.so (CUDA link)
 #
-# Math/runtime libraries (cudart, cublas, cudnn, …) must come from pip
+# Math/runtime libraries (cudart, cublas, …) must come from pip
 # packages installed alongside torch (see setup_torch_cuda_env.sh). Do not
 # install cuda-libraries-devel / cuda-nvrtc-devel here — they duplicate
 # multi-GB .so trees already present under site-packages/nvidia/.
@@ -82,9 +95,8 @@ if [ "${TORCH_NNTILE_DISK_LOG:-0}" = "1" ]; then
     echo "[disk] after thin CUDA toolkit:" >&2
     df -h / /tmp 2>/dev/null || df -h /
     if [ -d "${CUDA_HOME}/lib64" ]; then
-        echo "[disk] toolkit lib64 (should lack libcublas/libcudnn):" >&2
+        echo "[disk] toolkit lib64 (should lack libcublas):" >&2
         ls "${CUDA_HOME}/lib64"/libcublas* \
-            "${CUDA_HOME}/lib64"/libcudnn* 2>/dev/null || true
         du -sh "${CUDA_HOME}" "${CUDA_HOME}/lib64" 2>/dev/null || true
     fi
 fi

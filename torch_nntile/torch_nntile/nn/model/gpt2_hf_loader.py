@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/nn/model/gpt2_hf_loader.py
 # Convert weights between HuggingFace GPT-2 and minimal torch_nntile GPT2LMHead.
+# @version 2.0.0
 
 """Bidirectional HF <-> NNTile-layout weight conversion for minimal GPT-2."""
 
@@ -12,9 +13,10 @@ import torch
 from transformers import GPT2Config, GPT2LMHeadModel
 
 from torch_nntile.nn.model.gpt2_minimal import GPT2LMHead
-from torch_nntile.nn.weight_layout import (
-    nntile_to_torch_o_weight, nntile_to_torch_qkv_weight,
-    torch_to_nntile_o_weight, torch_to_nntile_qkv_weight)
+from torch_nntile.nn.weight_layout import (nntile_to_torch_o_weight,
+                                           nntile_to_torch_qkv_weight,
+                                           torch_to_nntile_o_weight,
+                                           torch_to_nntile_qkv_weight)
 
 
 def _conv1d_to_linear_weight(weight: torch.Tensor) -> torch.Tensor:

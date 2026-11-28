@@ -4,11 +4,11 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/core/subtract_indexed_outputs.hh
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -19,11 +19,11 @@ namespace nntile::core
 {
 
 template<typename T>
-void subtract_indexed_outputs_async(int starpu_worker_hint, Scalar val, const Tile<int64_t> &labels,
+void subtract_indexed_outputs_async(int worker_hint, Scalar val, const Tile<int64_t> &labels,
         const Tile<T> &dst, Index ignore_index);
 
 template<typename T>
-void subtract_indexed_outputs(int starpu_worker_hint, Scalar val, const Tile<int64_t> &labels,
+void subtract_indexed_outputs(int worker_hint, Scalar val, const Tile<int64_t> &labels,
         const Tile<T> &dst, Index ignore_index);
 
 } // namespace nntile::core

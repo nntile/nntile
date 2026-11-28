@@ -3,14 +3,16 @@
 #
 # @file torch_nntile/tests/test_mlp_mixer_parity.py
 # MLP-Mixer forward/backward parity: naive CPU torch vs device=nntile.
+# @version 2.0.0
 
 from __future__ import annotations
 
 import torch
 from conftest import nntile_cpu
 
-from torch_nntile.nn.model.mlp_mixer import (
-    MlpMixer, MlpMixerConfig, MlpMixerCpu, copy_cpu_weights_to_nntile)
+from torch_nntile.nn.model.mlp_mixer import (MlpMixer, MlpMixerConfig,
+                                             MlpMixerCpu,
+                                             copy_cpu_weights_to_nntile)
 
 
 def _tiny_config() -> MlpMixerConfig:

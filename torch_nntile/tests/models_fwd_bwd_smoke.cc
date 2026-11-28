@@ -6,6 +6,7 @@
  *
  * No numerical accuracy checks - only that shapes / devices are consistent
  * and autograd completes without raising.
+ * @version 2.0.0
  */
 
 #include "model_smoke_helpers.hh"

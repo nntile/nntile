@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/src/remote_tile_codec.cc
  * Encode / apply classic TILE_* ops on the Unix-socket driver.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include <nntile/remote_tile_codec.hh>
@@ -18,9 +18,6 @@
 #include <nntile/tile/graph_ops.hh>
 #include <nntile/tile/ops/swap_two_axes.hh>
 #include <nntile/tensor/phase_codec.hh>
-#ifdef NNTILE_TORCH_NATIVE_OPS
-#include <nntile/tile/ops/torch_dispatch.hh>
-#endif
 
 #include <cstdint>
 #include <stdexcept>
@@ -88,67 +85,6 @@ TileGraph::TileNode *arg(
         graph, ids.at(i).get<TileGraph::NodeId>());
 }
 
-#ifdef NNTILE_TORCH_NATIVE_OPS
-nlohmann::json encode_torch_extra(
-    starpu::TorchKind kind,
-    starpu::TorchDispatchArgs const &extra)
-{
-    nlohmann::json attrs = nlohmann::json::object();
-    attrs["kind"] = static_cast<std::int32_t>(kind);
-    attrs["n_in"] = extra.n_in;
-    attrs["n_out"] = extra.n_out;
-    nlohmann::json scalars = nlohmann::json::array();
-    for (int i = 0; i < 4; ++i)
-    {
-        scalars.push_back(extra.scalars[i]);
-    }
-    attrs["scalars"] = std::move(scalars);
-    nlohmann::json iargs = nlohmann::json::array();
-    for (int i = 0; i < 16; ++i)
-    {
-        iargs.push_back(extra.iargs[i]);
-    }
-    attrs["iargs"] = std::move(iargs);
-    // Packed view layouts ride in the same shape the PhaseIR codec
-    // uses; without them the receiving side falls back to contiguous
-    // full-tile metas and silently mis-executes transposed views.
-    nlohmann::json layout_attrs =
-        tensor::encode_torch_dispatch_attrs(extra);
-    if (layout_attrs.contains("layouts"))
-    {
-        attrs["layouts"] = layout_attrs.at("layouts");
-    }
-    return attrs;
-}
-
-starpu::TorchDispatchArgs decode_torch_extra(
-    nlohmann::json const &attrs)
-{
-    starpu::TorchDispatchArgs extra =
-        tensor::decode_torch_dispatch_attrs(attrs);
-    extra.kind = static_cast<starpu::TorchKind>(
-        attrs.value("kind", 0));
-    extra.n_in = static_cast<Index>(attrs.value("n_in", 0));
-    extra.n_out = static_cast<Index>(attrs.value("n_out", 1));
-    if (attrs.contains("scalars") && attrs["scalars"].is_array())
-    {
-        auto const &s = attrs["scalars"];
-        for (size_t i = 0; i < s.size() && i < 4; ++i)
-        {
-            extra.scalars[i] = s.at(i).get<Scalar>();
-        }
-    }
-    if (attrs.contains("iargs") && attrs["iargs"].is_array())
-    {
-        auto const &a = attrs["iargs"];
-        for (size_t i = 0; i < a.size() && i < 16; ++i)
-        {
-            extra.iargs[i] = a.at(i).get<Index>();
-        }
-    }
-    return extra;
-}
-#endif
 
 } // namespace
 
@@ -749,34 +685,6 @@ nlohmann::json encode_tile_op_attrs(
         attrs["beta"] = node.beta;
         return attrs;
     }
-#ifdef NNTILE_USE_FLASH_SDPA
-    if (name == "TILE_FLASH_SDPA_FWD_CUDNN" ||
-        name == "TILE_FLASH_SDPA_BWD_CUDNN")
-    {
-        return attrs;
-    }
-#endif
-#ifdef NNTILE_TORCH_NATIVE_OPS
-    if (name == "TILE_TORCH_UNARY")
-    {
-        auto const &u = cast_op<tile::TileTorchUnaryOp>(
-            op, "TILE_TORCH_UNARY");
-        return encode_torch_extra(u.kind, u.extra);
-    }
-    if (name == "TILE_TORCH_BINARY")
-    {
-        auto const &b = cast_op<tile::TileTorchBinaryOp>(
-            op, "TILE_TORCH_BINARY");
-        return encode_torch_extra(b.kind, b.extra);
-    }
-    if (name == "TILE_TORCH_TERNARY")
-    {
-        auto const &t =
-            cast_op<tile::TileTorchTernaryOp>(
-                op, "TILE_TORCH_TERNARY");
-        return encode_torch_extra(t.kind, t.extra);
-    }
-#endif
     throw std::runtime_error("UnknownOp: " + name);
 }
 
@@ -1802,96 +1710,6 @@ void apply_tile_op(TileGraph &graph, nlohmann::json const &op)
         );
         return;
     }
-#ifdef NNTILE_USE_FLASH_SDPA
-    if (name == "TILE_FLASH_SDPA_FWD_CUDNN")
-    {
-        auto *K = arg(graph, inputs, 0, "TILE_FLASH_SDPA_FWD_CUDNN inputs");
-        auto *Q = arg(graph, inputs, 1, "TILE_FLASH_SDPA_FWD_CUDNN inputs");
-        auto *mask = arg(graph, inputs, 2, "TILE_FLASH_SDPA_FWD_CUDNN inputs");
-        auto *lse = arg(graph, inputs, 3, "TILE_FLASH_SDPA_FWD_CUDNN inputs");
-        auto *V = arg(graph, inputs, 4, "TILE_FLASH_SDPA_FWD_CUDNN inputs");
-        auto *A = arg(graph, inputs, 5, "TILE_FLASH_SDPA_FWD_CUDNN inputs");
-        tile::flash_sdpa_fwd_cudnn(
-            K,
-            Q,
-            mask,
-            lse,
-            V,
-            A
-        );
-        return;
-    }
-    if (name == "TILE_FLASH_SDPA_BWD_CUDNN")
-    {
-        auto *K = arg(graph, inputs, 0, "TILE_FLASH_SDPA_BWD_CUDNN inputs");
-        auto *Q = arg(graph, inputs, 1, "TILE_FLASH_SDPA_BWD_CUDNN inputs");
-        auto *V = arg(graph, inputs, 2, "TILE_FLASH_SDPA_BWD_CUDNN inputs");
-        auto *A = arg(graph, inputs, 3, "TILE_FLASH_SDPA_BWD_CUDNN inputs");
-        auto *dA = arg(graph, inputs, 4, "TILE_FLASH_SDPA_BWD_CUDNN inputs");
-        auto *mask = arg(graph, inputs, 5, "TILE_FLASH_SDPA_BWD_CUDNN inputs");
-        auto *lse = arg(graph, inputs, 6, "TILE_FLASH_SDPA_BWD_CUDNN inputs");
-        auto *dK = arg(graph, inputs, 7, "TILE_FLASH_SDPA_BWD_CUDNN inputs");
-        auto *dQ = arg(graph, inputs, 8, "TILE_FLASH_SDPA_BWD_CUDNN inputs");
-        auto *dV = arg(graph, inputs, 9, "TILE_FLASH_SDPA_BWD_CUDNN inputs");
-        tile::flash_sdpa_bwd_cudnn(
-            K,
-            Q,
-            V,
-            A,
-            dA,
-            mask,
-            lse,
-            dK,
-            dQ,
-            dV
-        );
-        return;
-    }
-#endif
-#ifdef NNTILE_TORCH_NATIVE_OPS
-    if (name == "TILE_TORCH_UNARY")
-    {
-        auto extra = decode_torch_extra(attrs);
-        extra.kind = static_cast<starpu::TorchKind>(
-            attrs.value("kind", 0));
-        tile::torch_unary(
-            extra.kind,
-            arg(graph, inputs, 0, "TILE_TORCH_UNARY inputs"),
-            arg(graph, outputs, 0, "TILE_TORCH_UNARY outputs"),
-            extra
-        );
-        return;
-    }
-    if (name == "TILE_TORCH_BINARY")
-    {
-        auto extra = decode_torch_extra(attrs);
-        extra.kind = static_cast<starpu::TorchKind>(
-            attrs.value("kind", 0));
-        tile::torch_binary(
-            extra.kind,
-            arg(graph, inputs, 0, "TILE_TORCH_BINARY inputs"),
-            arg(graph, inputs, 1, "TILE_TORCH_BINARY inputs"),
-            arg(graph, outputs, 0, "TILE_TORCH_BINARY outputs"),
-            extra
-        );
-        return;
-    }
-    if (name == "TILE_TORCH_TERNARY")
-    {
-        auto extra = decode_torch_extra(attrs);
-        extra.kind = static_cast<starpu::TorchKind>(
-            attrs.value("kind", 0));
-        tile::torch_ternary(
-            extra.kind,
-            arg(graph, inputs, 0, "TILE_TORCH_TERNARY inputs"),
-            arg(graph, inputs, 1, "TILE_TORCH_TERNARY inputs"),
-            arg(graph, inputs, 2, "TILE_TORCH_TERNARY inputs"),
-            arg(graph, outputs, 0, "TILE_TORCH_TERNARY outputs"),
-            extra
-        );
-        return;
-    }
-#endif
     throw std::runtime_error("UnknownOp: " + name);
 }
 

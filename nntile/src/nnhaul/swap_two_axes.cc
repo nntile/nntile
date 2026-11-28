@@ -1,10 +1,10 @@
 /*! @copyright (c) 2026-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *
- * @file src/starpu/swap_two_axes.cc
- * swap_two_axes operation for StarPU buffers.
+ * @file src/nnhaul/swap_two_axes.cc
+ * swap_two_axes operation for NNHaul buffers.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/nnhaul/ops/swap_two_axes.hh"
@@ -17,7 +17,7 @@
 #include "nntile/kernel/swap_two_axes.hh"
 #include "nntile/nnhaul/chunk_units.hh"
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 // ---------------------------------------------------------------------------
@@ -77,16 +77,58 @@ void SwapTwoAxes<std::tuple<T>>::cpu(
     void *cl_args) noexcept
 {
     auto args = reinterpret_cast<args_t const *>(cl_args);
-    const T *src = ::nntile::haul::buf_as<T>(buffers, 0);
-    T *dst = ::nntile::haul::buf_as<T>(buffers, 1);
-    kernel::swap_two_axes::cpu<T>(
-        args->d0,
-        args->d1,
-        args->d2,
-        args->d3,
-        args->d4,
-        src,
-        dst);
+    auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[0]);
+    auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
+    if(buf_src->chunk_count() == 1 && buf_dst->chunk_count() == 1)
+    {
+        kernel::swap_two_axes::cpu<T>(
+            args->d0,
+            args->d1,
+            args->d2,
+            args->d3,
+            args->d4,
+            buf_src->get_ptr<T>(),
+            buf_dst->get_ptr<T>());
+        return;
+    }
+    // Chunked buffers: the classic kernel swaps whole axes 1 and 3 of the
+    // view it is handed, which no chunk-local sub-view can express, so
+    // gather both operands, run the classic kernel once, and scatter back.
+    try
+    {
+        chunkunits::ChunkView<T> const cv_src(buf_src);
+        chunkunits::ChunkView<T> const cv_dst(buf_dst);
+        std::size_t const total = cv_src.total_elems;
+        if(cv_dst.total_elems != total)
+        {
+            std::fprintf(stderr,
+                "nntile_swap_two_axes: source and destination sizes "
+                "differ\n");
+            return;
+        }
+        chunkunits::ArenaCpu<T> arena;
+        T *const src = arena.alloc(total);
+        T *const dst = arena.alloc(total);
+        chunkunits::gather_range(cv_src, 0, total, src, arena);
+        kernel::swap_two_axes::cpu<T>(
+            args->d0,
+            args->d1,
+            args->d2,
+            args->d3,
+            args->d4,
+            src,
+            dst);
+        chunkunits::scatter_range(cv_dst, 0, total, dst, arena);
+    }
+    catch(...)
+    {
+        // A noexcept body must not throw; a failed scratch allocation
+        // leaves the result unwritten (same failure class as a failed
+        // kernel launch).
+        std::fprintf(stderr,
+            "nntile_swap_two_axes: cpu chunked driver aborted after an "
+            "allocation failure; dst left unwritten\n");
+    }
 }
 
 template<>
@@ -169,7 +211,7 @@ void SwapTwoAxes<std::tuple<T>>::cuda(
             return;
         }
     }
-    // Rule 11: the 16 MiB pow2 chunk class and the 2^20-slot table serve any
+    // The 16 MiB pow2 chunk class and the 2^20-slot table serve any
     // launch; a failed upload is an invariant violation, not a mode to
     // stage around.
     std::fprintf(stderr,
@@ -208,17 +250,17 @@ std::uint64_t SwapTwoAxes<std::tuple<T>>::footprint(void const *cl_args, std::si
 {
     auto args = reinterpret_cast<args_t const *>(cl_args);
     uint32_t hash = 0;
-    hash = ::nntile::haul::fnv1a(&args->d0, sizeof(args->d0), hash);
-    hash = ::nntile::haul::fnv1a(&args->d1, sizeof(args->d1), hash);
-    hash = ::nntile::haul::fnv1a(&args->d2, sizeof(args->d2), hash);
-    hash = ::nntile::haul::fnv1a(&args->d3, sizeof(args->d3), hash);
-    hash = ::nntile::haul::fnv1a(&args->d4, sizeof(args->d4), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->d0, sizeof(args->d0), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->d1, sizeof(args->d1), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->d2, sizeof(args->d2), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->d3, sizeof(args->d3), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->d4, sizeof(args->d4), hash);
     return hash;
 }
 
 template<typename T>
 void SwapTwoAxes<std::tuple<T>>::submit(
-    int starpu_worker_hint,
+    int worker_hint,
     Index d0,
     Index d1,
     Index d2,
@@ -239,8 +281,8 @@ void SwapTwoAxes<std::tuple<T>>::submit(
         static_cast<double>(d4);
     // The CUDA body picks the unchunked classic call or the native chunked
     // kernel; no staging either way.
-    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
-        { { STARPU_R, &src }, { STARPU_W, &dst } }, args, sizeof(*args));
+    ::nntile::nnhaul::insert_task(codelet.raw, worker_hint,
+        { { ACCESS_R, &src }, { ACCESS_W, &dst } }, args, sizeof(*args));
     std::free(args);
 
 }
@@ -255,4 +297,4 @@ template class SwapTwoAxes<std::tuple<nntile::fp16_t>>;
 
 swap_two_axes_pack_t swap_two_axes;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

@@ -4,13 +4,13 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tensor_graph/subtract_indexed_outputs.cc
  * Test TensorGraph subtract_indexed_outputs against
  * nntile::tensor::subtract_indexed_outputs.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tensor/ops/subtract_indexed_outputs.hh"
@@ -39,7 +39,7 @@ constexpr Index ignore_index = -1;
 constexpr float tolerance = 1e-5f;
 constexpr int distr_rank_single = 0;
 
-} 
+}
 
 TEST_CASE("TensorGraph subtract_indexed_outputs structure", "[graph][tensor]")
 {

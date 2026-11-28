@@ -4,14 +4,19 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file src/starpu/isfinite.cc
+ * @file src/nnhaul/isfinite.cc
  * Accumulate flags for NaN and Inf in a buffer
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
-
+/*!
+ * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.
+ * Kept in-tree for future re-enablement. No product path calls this code;
+ * its tests are not registered while the family is in
+ * NNTILE_DISABLED_KERNELS.
+ */
 // Corresponding header
 #include "nntile/nnhaul/ops/isfinite.hh"
 
@@ -22,8 +27,9 @@
 
 // Other NNTile headers
 #include "nntile/kernel/isfinite.hh"
+#include <nntile/kernel_scope.hh>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Constructor
@@ -42,7 +48,7 @@ Isfinite<std::tuple<T>>::Isfinite():
     // Modes are not fixed, they are decided during runtime by default
 }
 
-//! StarPU wrapper for kernel::isfinite::cpu<T>
+//! NNHaul wrapper for kernel::isfinite::cpu<T>
 template<typename T>
 void Isfinite<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
@@ -50,10 +56,10 @@ void Isfinite<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get arguments
     args_t const *args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    auto data = ::nntile::haul::buf_chunks<T>(buffers, 0);
+    auto data = ::nntile::nnhaul::buf_chunks<T>(buffers, 0);
     // The flag is a single-element tile: element 0 always lives in
     // chunk 0, and each chunk call can only ever clear it.
-    bool_t *flag = ::nntile::haul::buf_chunks<bool_t>(buffers, 1).ptr(0);
+    bool_t *flag = ::nntile::nnhaul::buf_chunks<bool_t>(buffers, 1).ptr(0);
     // Launch kernel per chunk (single chunk if unchunked)
     for (std::size_t i = 0; i < data.count(); ++i)
     {
@@ -87,7 +93,7 @@ void Isfinite<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
 }
 
 #ifdef NNTILE_USE_CUDA
-//! StarPU wrapper for kernel::isfinite::cuda<T>
+//! NNHaul wrapper for kernel::isfinite::cuda<T>
 template<typename T>
 void Isfinite<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
@@ -95,10 +101,10 @@ void Isfinite<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get arguments
     args_t const *args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    auto data = ::nntile::haul::buf_chunks<T>(buffers, 0);
+    auto data = ::nntile::nnhaul::buf_chunks<T>(buffers, 0);
     // The flag is a single-element tile: element 0 always lives in
     // chunk 0, and each chunk call can only ever clear it.
-    bool_t *flag = ::nntile::haul::buf_chunks<bool_t>(buffers, 1).ptr(0);
+    bool_t *flag = ::nntile::nnhaul::buf_chunks<bool_t>(buffers, 1).ptr(0);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
     // Launch kernel per chunk (single chunk if unchunked)
@@ -147,24 +153,25 @@ std::uint64_t Isfinite<std::tuple<T>>::footprint(void const *cl_args, std::size_
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     uint32_t hash = 0;
-    hash = ::nntile::haul::fnv1a(&args->nelems, sizeof(args->nelems), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->nelems, sizeof(args->nelems), hash);
     return hash;
 }
 
 template<typename T>
-void Isfinite<std::tuple<T>>::submit(int starpu_worker_hint, Index nelems, ::nnhaul::Handle & data, ::nnhaul::Handle & flag)
-//! Insert isfinite task into StarPU pool of tasks
+void Isfinite<std::tuple<T>>::submit(int worker_hint, Index nelems, ::nnhaul::Handle & data, ::nnhaul::Handle & flag)
+//! Insert isfinite task into NNHaul task pool
 /*! No argument checking is performed. All the inputs are packed and passed to
- * nntile_starpu_task_insert() function. If task submission fails, this routines
+ * submit() call. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
+    ::nntile::require_kernel_family("isfinite");
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->nelems = nelems;
     // Submit task
-    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
-        { { STARPU_R, &data }, { STARPU_RW, &flag } }, args, sizeof(*args));
+    ::nntile::nnhaul::insert_task(codelet.raw, worker_hint,
+        { { ACCESS_R, &data }, { ACCESS_RW, &flag } }, args, sizeof(*args));
     std::free(args);
 
 }
@@ -183,4 +190,4 @@ template class Isfinite<std::tuple<nntile::fp16_t>>;
 //! Pack of isfinite operations for different types
 isfinite_pack_t isfinite;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

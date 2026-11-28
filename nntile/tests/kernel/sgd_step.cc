@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file tests/kernel/sgd_step.cc
  * Fused SGD with momentum optimizer step
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 // Corresponding header

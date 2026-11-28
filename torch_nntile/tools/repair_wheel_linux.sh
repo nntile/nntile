@@ -1,4 +1,17 @@
 #!/usr/bin/env bash
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                 2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems with GPU acceleration.
+#
+# @file torch_nntile/tools/repair_wheel_linux.sh
+# NNTile 2.0 file.
+#
+# @version 2.0.0
+
 set -euo pipefail
 
 wheel="${1:?wheel path is required}"
@@ -6,9 +19,13 @@ dest_dir="${2:?destination directory is required}"
 package_dir="$(cd "$(dirname "$0")/.." && pwd)"
 repo_root="$(cd "${package_dir}/.." && pwd)"
 build_dir="${NNTILE_BUILD_DIR:-${repo_root}/build/torch_nntile_wheel}"
-starpu_prefix="${STARPU_PREFIX:-/opt/starpu}"
+nntile_prefix="${NNTILE_PREFIX:-${TORCH_NNTILE_PREFIX:-}}"
 
-export LD_LIBRARY_PATH="${build_dir}/nntile:${build_dir}/torch_nntile:${starpu_prefix}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+_ld_paths="${build_dir}/nntile:${build_dir}/nnhaul:${build_dir}/torch_nntile"
+if [ -n "${nntile_prefix}" ]; then
+    _ld_paths="${_ld_paths}:${nntile_prefix}/lib"
+fi
+export LD_LIBRARY_PATH="${_ld_paths}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
 
 mkdir -p "${dest_dir}"
 
@@ -27,8 +44,6 @@ python="${PYTHON:-${Python3_EXECUTABLE:-python3}}"
     --exclude libnvidia-ml.so.1 \
     --exclude "libcublas.so.*" \
     --exclude "libcublasLt.so.*" \
-    --exclude "libcudnn.so.*" \
-    --exclude "libcudnn_*.so.*" \
     --exclude "libcusparse.so.*" \
     --exclude "libcusolver.so.*" \
     --exclude "libnvJitLink.so.*" \
@@ -47,7 +62,6 @@ fi
 # so use $ORIGIN/../nvidia/... (PyTorch uses ../../ from torch/lib/).
 nvidia_rpath=(
     '$ORIGIN/../nvidia/cublas/lib'
-    '$ORIGIN/../nvidia/cudnn/lib'
     '$ORIGIN/../nvidia/cusparse/lib'
     '$ORIGIN/../nvidia/cusolver/lib'
     '$ORIGIN/../nvidia/nvjitlink/lib'
@@ -85,8 +99,9 @@ fi
 shopt -s nullglob
 for sofile in \
     "${tmpdir}"/torch_nntile.libs/libnntile*.so \
+    "${tmpdir}"/torch_nntile.libs/libnnhaul*.so \
     "${tmpdir}"/torch_nntile.libs/libtorch_nntile*.so \
-    "${tmpdir}"/torch_nntile.libs/libstarpu*.so; do
+; do
     patch_so_rpath "${sofile}"
 done
 shopt -u nullglob

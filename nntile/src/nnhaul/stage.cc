@@ -4,23 +4,20 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * @file src/nnhaul/stage.cc
- * State of the universal staging fallback: the chunked-handle registry
- * and the live scratch-handle set (see nnhaul/stage.hh for the lifetime
- * scheme).
+ * State of the chunked-handle bookkeeping: the chunked-handle registry.
+ * The former staged fallback and its scratch queue no longer exist.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/nnhaul/stage.hh"
 
 #include <mutex>
 #include <unordered_map>
-#include <unordered_set>
-#include <utility>
 
 namespace nntile
 {
-namespace haul
+namespace nnhaul
 {
 namespace stage
 {
@@ -32,10 +29,6 @@ std::mutex g_mu;
 // Chunked handles whose producer announced them to NNTile, with the
 // chunk size in bytes when the producer knew it (0 = unknown).
 std::unordered_map<::nnhaul::Handle *, std::size_t> g_chunked;
-// Every scratch handle staged since the last idle drain. Destroyed
-// ONLY by drain_scratches() - when the task queue is known idle (or
-// after nnhaul::shutdown()); see the lifetime scheme in stage.hh.
-std::vector<std::unique_ptr<::nnhaul::Handle>> g_live;
 
 } // namespace
 
@@ -60,13 +53,10 @@ bool handle_is_chunked(::nnhaul::Handle &handle)
             return true;
         }
     }
-    // Unknown producer: Tile::alloc_handle's decision, replayed. Erring
-    // towards staging here is correct (staging also works for unchunked
-    // buffers); Runtime::compile guarantees no chunked tile payload is
-    // alive while the gate is off, so this cannot miss a live tile.
-    // One chunk class (the new nnhaul engine): every tile decomposes
-    // into whole chunk-class chunks, so chunkedness is the gate.
-    return ::nntile::haul::tile_chunking_enabled();
+    // Unknown producer: Tile::alloc_handle's decision, replayed. One
+    // chunk class (the new nnhaul engine): every tile decomposes into
+    // whole chunk-class chunks, so chunkedness is the gate.
+    return ::nntile::nnhaul::tile_chunking_enabled();
 }
 
 std::size_t handle_chunk_bytes(::nnhaul::Handle &handle)
@@ -98,35 +88,6 @@ std::size_t chunked_handle_count()
     return g_chunked.size();
 }
 
-void stash_scratches(
-    std::vector<std::unique_ptr<::nnhaul::Handle>> scratches)
-{
-    // The live set spans every staged submit since the last idle drain
-    // (see the lifetime scheme in stage.hh: handles are destroyed only
-    // when the queue is idle). Appending is enough; the set is
-    // destroyed whole by drain_scratches().
-    std::lock_guard<std::mutex> lock(g_mu);
-    for (auto &h : scratches)
-    {
-        g_live.push_back(std::move(h));
-    }
-}
-
-void drain_scratches()
-{
-    std::vector<std::unique_ptr<::nnhaul::Handle>> old;
-    {
-        std::lock_guard<std::mutex> lock(g_mu);
-        old.swap(g_live);
-    }
-    // The queue is idle (the caller just returned from nnhaul::wait()):
-    // each scratch's invalidate marker sweeps immediately, so these
-    // destructors do not block. After nnhaul::shutdown() (the exit
-    // fallback) no runtime exists and the destructors are trivial
-    // frees. Either way nothing can still reference the handles.
-    old.clear();
-}
-
 } // namespace stage
-} // namespace haul
+} // namespace nnhaul
 } // namespace nntile

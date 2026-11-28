@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/include/torch_nntile/torch_nntile.hh
  * Public C++ umbrella for libtorch_nntile.
+ * @version 2.0.0
  */
 
 #pragma once

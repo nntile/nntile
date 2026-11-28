@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tile/chunked_swap_conv_randn_ab.cc
  * A/B of the chunk-addressed swap_two_axes, conv2d family and non-dense
@@ -18,7 +18,7 @@
  * end to end; conv cases cover several strides/dilations/offsets and
  * beta != 0, randn covers dense and foreign-strided geometries.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include <catch2/catch_test_macros.hpp>
@@ -28,11 +28,11 @@
 #include <nntile/defs.h>
 
 #ifdef NNTILE_USE_CUDA
-#ifdef NNTILE_USE_NNHAUL
 
 #include <nnhaul/nnhaul.hh>
 
 #include <nntile/base_types.hh>
+#include <nntile/kernel_scope.hh>
 #include <nntile/nnhaul/ops/conv2d_bwd_input_inplace.hh>
 #include <nntile/nnhaul/ops/conv2d_bwd_weight_inplace.hh>
 #include <nntile/nnhaul/ops/conv2d_inplace.hh>
@@ -107,6 +107,19 @@ std::vector<fp32_t> ab(std::vector<std::size_t> const &nbytes,
     REQUIRE(legs[0].size() == legs[1].size());
     REQUIRE(std::memcmp(legs[0].data(), legs[1].data(),
         legs[0].size() * sizeof(fp32_t)) == 0);
+    // Both legs are constructed over the same runtime class, so equality
+    // alone would also accept a no-op kernel that leaves the zero fill in
+    // place. Require the body to have written something.
+    bool changed = false;
+    for(std::size_t i = 0; i < legs[1].size(); ++i)
+    {
+        if(legs[1][i].value != zero[i].value)
+        {
+            changed = true;
+            break;
+        }
+    }
+    REQUIRE(changed);
     return legs[1];
 }
 
@@ -157,7 +170,7 @@ void check_swap(Index d0, Index d1, Index d2, Index d3, Index d4)
         {src}, {1}, std::vector<fp32_t>(nelems, 0.0F),
         [&](std::vector<std::unique_ptr<nh::Handle>> &h)
         {
-            haul::swap_two_axes.submit<std::tuple<fp32_t>>(0, d0, d1, d2, d3,
+            nntile::nnhaul::swap_two_axes.submit<std::tuple<fp32_t>>(0, d0, d1, d2, d3,
                 d4, *h[0], *h[1]);
         });
     REQUIRE(std::memcmp(out.data(), ref.data(), bytes_of(nelems)) == 0);
@@ -198,7 +211,7 @@ void check_conv2d_fwd(Index src1_m, Index src1_n, Index src1_channels,
     ab({bytes_of(n1), bytes_of(n2), bytes_of(nd)}, {src1, src2}, {2},
         dst0, [&](std::vector<std::unique_ptr<nh::Handle>> &h)
         {
-            haul::conv2d_inplace.submit<std::tuple<fp32_t>>(0, src1_m, src1_n,
+            nntile::nnhaul::conv2d_inplace.submit<std::tuple<fp32_t>>(0, src1_m, src1_n,
                 src1_channels, batch, src2_m, src2_n, dilation_m,
                 dilation_n, dst_channels, offset_m, offset_n, alpha, *h[0],
                 *h[1], dst_m, dst_n, stride_m, stride_n, beta, *h[2]);
@@ -236,7 +249,7 @@ void check_conv2d_bwd_input(Index src1_m, Index src1_n, Index stride_m,
     ab({bytes_of(n1), bytes_of(n2), bytes_of(nd)}, {src1, src2}, {2},
         dst0, [&](std::vector<std::unique_ptr<nh::Handle>> &h)
         {
-            haul::conv2d_bwd_input_inplace.submit<std::tuple<fp32_t>>(0, src1_m,
+            nntile::nnhaul::conv2d_bwd_input_inplace.submit<std::tuple<fp32_t>>(0, src1_m,
                 src1_n, stride_m, stride_n, src1_channels, batch, src2_m,
                 src2_n, dilation_m, dilation_n, dst_channels, offset_m,
                 offset_n, alpha, *h[0], *h[1], dst_m, dst_n, beta, *h[2]);
@@ -274,7 +287,7 @@ void check_conv2d_bwd_weight(Index src1_m, Index src1_n,
     ab({bytes_of(n1), bytes_of(n2), bytes_of(nd)}, {src1, src2}, {2},
         dst0, [&](std::vector<std::unique_ptr<nh::Handle>> &h)
         {
-            haul::conv2d_bwd_weight_inplace.submit<std::tuple<fp32_t>>(0,
+            nntile::nnhaul::conv2d_bwd_weight_inplace.submit<std::tuple<fp32_t>>(0,
                 src1_m, src1_n, src1_channels, batch, src2_m, src2_n,
                 stride_m, stride_n, src2_channels, offset_m, offset_n, alpha,
                 *h[0], *h[1], dst_m, dst_n, dilation_m, dilation_n, beta,
@@ -300,7 +313,7 @@ void check_randn(std::size_t nbytes, Index ndim,
             {
                 nelems *= s;
             }
-            haul::randn.submit<std::tuple<fp32_t>>(0, ndim, nelems, seed,
+            nntile::nnhaul::randn.submit<std::tuple<fp32_t>>(0, ndim, nelems, seed,
                 0.0F, 1.0F, start, shape, stride, underlying_shape, *h[0]);
         });
 }
@@ -326,6 +339,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "chunked wrapper A/B: conv2d_inplace", "[chunked][conv2d]")
 {
+    if(nntile::kernel_family_disabled("conv2d_inplace"))
+    {
+        SKIP("kernel family conv2d_inplace is disabled in this build");
+    }
     // Dense stride, no padding: src1 17.3 MiB (2 chunks incl. tail),
     // dst 34 MiB (3 chunks).
     check_conv2d_fwd(520, 520, 16, 1, 3, 3, 1, 1, 32, 0, 0, 1.0F,
@@ -338,6 +355,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "chunked wrapper A/B: conv2d_bwd_input_inplace", "[chunked][conv2d]")
 {
+    if(nntile::kernel_family_disabled("conv2d_bwd_input_inplace"))
+    {
+        SKIP("kernel family conv2d_bwd_input_inplace is disabled in this build");
+    }
     check_conv2d_bwd_input(262, 262, 2, 2, 64, 1, 3, 3, 2, 2, 32, 1, 1,
         1.0F, 524, 524, 0.0F);
     check_conv2d_bwd_input(262, 262, 1, 1, 64, 1, 3, 3, 1, 1, 32, 0, 0,
@@ -347,6 +368,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "chunked wrapper A/B: conv2d_bwd_weight_inplace", "[chunked][conv2d]")
 {
+    if(nntile::kernel_family_disabled("conv2d_bwd_weight_inplace"))
+    {
+        SKIP("kernel family conv2d_bwd_weight_inplace is disabled in this build");
+    }
     // src1 17.3 MiB and src2 34 MiB: both multi-chunk.
     check_conv2d_bwd_weight(520, 520, 16, 1, 518, 518, 1, 1, 32, 0, 0,
         1.0F, 3, 3, 1, 1, 0.0F);
@@ -367,5 +392,4 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         {4096, 1024}, {1, 8192}, {4096, 2048});
 }
 
-#endif // NNTILE_USE_NNHAUL
 #endif // NNTILE_USE_CUDA

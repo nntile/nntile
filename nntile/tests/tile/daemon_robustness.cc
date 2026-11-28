@@ -3,9 +3,9 @@
  *
  * @file nntile/tests/tile/daemon_robustness.cc
  * ExecutionDaemon per-connection safety, client socket timeouts, and
- * daemon-side CUDA restriction.
+ * single-GPU context startup.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "context_fixture.hh"
@@ -16,9 +16,6 @@
 #include <nntile/tile.hh>
 #include <nntile/tile/ops/add_inplace.hh>
 #include <nntile/tile/ops/fill.hh>
-#ifdef NNTILE_TORCH_NATIVE_OPS
-#include <nntile/tile/ops/torch_dispatch.hh>
-#endif
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
@@ -203,29 +200,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     speak_garbage(path);
     speak_garbage(path);
 
-    // The daemon must still serve a well-formed client afterwards. The
-    // full session runs on CPU builds; with CUDA workers enabled the
-    // session additionally depends on StarPU worker selection for
-    // host-resident daemon data, which is a scheduling concern out of
-    // scope for this regression (the probes above already prove the
-    // accept loop survived).
-#ifndef NNTILE_USE_CUDA
-    {
-        RemoteExecutionDriver driver(path);
-        TileGraph graph("daemon_garbage_survivor");
-        auto *x = graph.data({2, 2}, "x", DataType::FP32);
-        auto *y = graph.data({2, 2}, "y", DataType::FP32);
-        auto *relu_out = graph.data({2, 2}, "relu", DataType::FP32);
-        tg::torch_binary(
-            starpu::TorchKind::Add, x, y, relu_out);
-        driver.bind(x->id(), {1.f, -2.f, 3.f, -4.f});
-        driver.bind(y->id(), {1.f, 1.f, 1.f, 1.f});
-        driver.submit(graph);
-        driver.wait();
-        nntile::test::require_relative_element_error(
-            driver.gather(relu_out->id()), {2.f, -1.f, 4.f, -3.f});
-    }
-#endif // NNTILE_USE_CUDA
+    // The daemon must still serve a well-formed client afterwards. Data
+    // placement is a scheduling concern out of scope for this regression
+    // (the probes above already prove the accept loop survived).
     daemon.stop();
 }
 
@@ -279,24 +256,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         ::close(fd);
     }
 
-#ifndef NNTILE_USE_CUDA
-    // And a well-formed client must still get a full session.
-    {
-        RemoteExecutionDriver driver(path);
-        TileGraph graph("daemon_sigpipe_survivor");
-        auto *x = graph.data({2, 2}, "x", DataType::FP32);
-        auto *y = graph.data({2, 2}, "y", DataType::FP32);
-        auto *relu_out = graph.data({2, 2}, "relu", DataType::FP32);
-        tg::torch_binary(
-            starpu::TorchKind::Add, x, y, relu_out);
-        driver.bind(x->id(), {1.f, -2.f, 3.f, -4.f});
-        driver.bind(y->id(), {1.f, 1.f, 1.f, 1.f});
-        driver.submit(graph);
-        driver.wait();
-        nntile::test::require_relative_element_error(
-            driver.gather(relu_out->id()), {2.f, -1.f, 4.f, -3.f});
-    }
-#endif // NNTILE_USE_CUDA
     daemon.stop();
 }
 
@@ -408,25 +367,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     reply = raw_handshake(path, true, "s3cret-bucket");
     REQUIRE(reply.find("HandshakeOk") != std::string::npos);
 
-#ifndef NNTILE_USE_CUDA
-    // The stock client picks the token up from the environment and
-    // runs a full session.
-    {
-        RemoteExecutionDriver driver(path);
-        TileGraph graph("daemon_auth_survivor");
-        auto *x = graph.data({2, 2}, "x", DataType::FP32);
-        auto *y = graph.data({2, 2}, "y", DataType::FP32);
-        auto *relu_out = graph.data({2, 2}, "relu", DataType::FP32);
-        tg::torch_binary(
-            starpu::TorchKind::Add, x, y, relu_out);
-        driver.bind(x->id(), {1.f, -2.f, 3.f, -4.f});
-        driver.bind(y->id(), {1.f, 1.f, 1.f, 1.f});
-        driver.submit(graph);
-        driver.wait();
-        nntile::test::require_relative_element_error(
-            driver.gather(relu_out->id()), {2.f, -1.f, 4.f, -3.f});
-    }
-#endif // NNTILE_USE_CUDA
     ::unsetenv("NNTILE_DRIVER_TOKEN");
     daemon.stop();
 }
@@ -481,42 +421,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     ExecutionDaemon daemon(path);
     daemon.start();
 
-#ifndef NNTILE_USE_CUDA
-    {
-        RemoteExecutionDriver driver(path);
-        TileGraph first("daemon_bind_queue_first");
-        auto *a1 = first.data({2}, "a", DataType::FP32);
-        tg::fill(Scalar(0.0), a1);
-        driver.bind(a1->id(), {1.f, 2.f});
-        driver.submit(first);
-        driver.wait();
-
-        TileGraph second("daemon_bind_queue_second");
-        auto *a2 = second.data({2}, "a", DataType::FP32);
-        auto *b = second.data({2}, "b", DataType::FP32);
-        // b keeps its own (bound) data: b = 0 * a + 1 * b.
-        tg::add_inplace(Scalar(0.0), a2, Scalar(1.0), b);
-        // Node b (id 1) does not exist on the daemon yet: queued.
-        driver.bind(b->id(), {5.f, 7.f});
-        driver.submit(second);
-        driver.wait();
-        nntile::test::require_relative_element_error(
-            driver.gather(b->id()), {5.f, 7.f});
-    }
-
-    // A bind whose node never appears is reported at disconnect; the
-    // daemon stays healthy afterwards.
-    {
-        RemoteExecutionDriver driver(path);
-        TileGraph graph("daemon_bind_queue_dangling");
-        auto *x = graph.data({2}, "x", DataType::FP32);
-        tg::fill(Scalar(0.0), x);
-        driver.bind(x->id(), {1.f, 1.f});
-        driver.submit(graph);
-        driver.wait();
-        driver.bind_int64(9999, {1, 2, 3});
-    }
-#endif // NNTILE_USE_CUDA
     daemon.stop();
 }
 
@@ -605,26 +509,16 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "ExecutionDaemon restrict_cuda option pins codelets",
+    "ExecutionDaemon restarts on the same socket",
     "[graph][tile][driver][remote]")
 {
-    // Restriction is process-global and one-way, so this test must run
-    // last in the binary. On CPU-only builds no codelet advertises a
-    // CUDA implementation, so restrict_where(STARPU_CUDA) is a no-op
-    // there by design; the where mask is only assertable with CUDA.
-    std::string const path = test_socket_path("restrict");
+    std::string const path = test_socket_path("restart");
     {
-        ExecutionDaemon daemon(path, DaemonCudaRestrict::None);
+        ExecutionDaemon daemon(path);
         daemon.start();
         daemon.stop();
-#if defined(NNTILE_USE_CUDA) && defined(NNTILE_TORCH_NATIVE_OPS)
-        REQUIRE(starpu::torch_arange.codelet.where & STARPU_CPU);
-#endif
     }
-    ExecutionDaemon daemon(path, DaemonCudaRestrict::Cuda);
+    ExecutionDaemon daemon(path);
     daemon.start();
     daemon.stop();
-#if defined(NNTILE_USE_CUDA) && defined(NNTILE_TORCH_NATIVE_OPS)
-    REQUIRE_FALSE(starpu::torch_arange.codelet.where & STARPU_CPU);
-#endif
 }

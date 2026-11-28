@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/tests/parity_helpers.hh
  * Shared helpers for libtorch_nntile C++ CPU vs PrivateUse1 parity tests.
+ * @version 2.0.0
  */
 
 #pragma once

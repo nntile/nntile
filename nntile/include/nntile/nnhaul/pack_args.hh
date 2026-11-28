@@ -4,14 +4,15 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * @file include/nntile/nnhaul/pack_args.hh
- * Unpack STARPU_VALUE-style cl_args without including starpu.h.
+ * Unpack packed cl_args without including nnhaul/nnhaul.hh.
+ * @version 2.0.0
  */
 
 #pragma once
 
 #include <cstddef>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 inline void unpack_args_ptr_single_arg(void const *, int)
@@ -49,4 +50,4 @@ void unpack_args_ptr(void const *cl_args, Ts const *&...args)
     }
 }
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

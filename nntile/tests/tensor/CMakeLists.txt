@@ -4,12 +4,12 @@
 #                              (AIRI), Russia. All rights reserved.
 #
 # NNTile is software framework for fast training of big neural networks on
-# distributed-memory heterogeneous systems based on StarPU runtime system.
+# distributed-memory heterogeneous systems with GPU acceleration.
 #
 # @file nntile/tests/tensor_graph/CMakeLists.txt
 # Tests for TensorGraph operations
 #
-# @version 1.1.0
+# @version 2.0.0
 
 if(BUILD_COVERAGE)
     setup_target_for_coverage_lcov(NAME coverage_tensor
@@ -100,14 +100,7 @@ set(TESTS_TENSOR_ROOT_CATCH2
     "phase_codec"
 )
 
-# CUDA-only tests (flash_* operations require n_cuda=1)
-set(TESTS_TENSOR_CUDA)
-if(NNTILE_USE_CUDA AND NNTILE_USE_FLASH_SDPA)
-    list(APPEND TESTS_TENSOR_CUDA
-        "flash_sdpa_fwd_cudnn"
-        "flash_sdpa_bwd_cudnn"
-    )
-endif()
+nntile_filter_disabled_kernel_tests(TESTS_TENSOR_CATCH2 TESTS_TENSOR_ROOT_CATCH2)
 
 foreach(test IN LISTS TESTS_TENSOR_CATCH2)
     set(_tg_labels graph)
@@ -137,21 +130,5 @@ foreach(test IN LISTS TESTS_TENSOR_ROOT_CATCH2)
         COV_GLOBAL coverage_tensor coverage
     )
     target_include_directories(tests_tensor_${test} PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/..)
-endforeach()
-
-foreach(test IN LISTS TESTS_TENSOR_CUDA)
-    add_test_set(TARGET_NAME tests_tensor_ops_${test}
-        EXEC_NAME test_${test}
-        SOURCES ops/${test}.cc
-        LINK_LIBRARIES
-            nntile::nntile
-            Catch2::Catch2WithMain
-            $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>
-        COV_ENABLE ${BUILD_COVERAGE}
-        COV_NAME coverage_tensor_ops_${test}
-        COV_GLOBAL coverage_tensor coverage
-    )
-    target_include_directories(tests_tensor_ops_${test} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/..)
 endforeach()

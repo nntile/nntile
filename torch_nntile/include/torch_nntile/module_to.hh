@@ -7,6 +7,7 @@
  * LibTorch ``Module::to`` uses ``Variable::set_data``, which rejects
  * cross-device-type updates. Python ``nn.Module.to`` replaces Parameters
  * instead; this helper rematerializes TensorImpl the same way.
+ * @version 2.0.0
  */
 
 #pragma once

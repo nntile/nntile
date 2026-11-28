@@ -3,16 +3,18 @@
 #
 # @file torch_nntile/torch_nntile/nn/model/roberta_hf_loader.py
 # Convert weights between HuggingFace RoBERTa and torch_nntile RobertaMlm.
+# @version 2.0.0
 
 """Bidirectional HF <-> NNTile weight conversion for RoBERTa MLM."""
 
 from __future__ import annotations
 
 import torch
-from transformers import RobertaConfig as HfRobertaConfig, RobertaForMaskedLM
+from transformers import RobertaConfig as HfRobertaConfig
+from transformers import RobertaForMaskedLM
 
-from torch_nntile.nn.linear import (
-    output_to_linear_weight, qkv_to_linear_bias, qkv_to_linear_weight)
+from torch_nntile.nn.linear import (output_to_linear_weight,
+                                    qkv_to_linear_bias, qkv_to_linear_weight)
 from torch_nntile.nn.model.bert_hf_loader import _load_layer
 from torch_nntile.nn.model.hf_rope_layout import copy_linear
 from torch_nntile.nn.model.roberta import RobertaConfig, RobertaMlm

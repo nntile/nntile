@@ -1,3 +1,16 @@
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                 2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems with GPU acceleration.
+#
+# @file torch_nntile/tools/smoke_test_wheel.py
+# NNTile 2.0 file.
+#
+# @version 2.0.0
+
 import os
 
 import torch
@@ -10,7 +23,7 @@ from torch_nntile.nn.model import DeepReLU
 # Wheel smoke compiles a tiny graph; opt in to the public compiler.
 os.environ.setdefault("NNTILE_ENABLE_LOCAL_COMPILER", "1")
 
-# Smoke runs on CPU CI and CUDA wheels with ncuda=0; flag must be readable.
+# The build-info flag must agree with the loaded extension.
 _ = torch_nntile.built_with_cuda()
 if bool(_C.built_with_cuda()) != bool(torch_nntile.built_with_cuda()):
     raise SystemExit(
@@ -24,28 +37,26 @@ if DeepReLU is not torch_nntile.nn.model.DeepReLU:
     raise SystemExit("expected torch_nntile.nn.model.DeepReLU")
 
 print(
-    f"torch_nntile smoke: TORCH_NATIVE_OPS={torch_nntile.TORCH_NATIVE_OPS} "
+    f"torch_nntile smoke: backend={torch_nntile.backend()} "
     f"BUILT_WITH_CUDA={torch_nntile.built_with_cuda()}"
 )
-if not torch_nntile.TORCH_NATIVE_OPS:
-    raise SystemExit(
-        "expected NNTILE_TORCH_NATIVE_OPS wheel "
-        f"(TORCH_NATIVE_OPS={torch_nntile.TORCH_NATIVE_OPS})"
-    )
 
-torch_nntile.init_context(ncpu=1, ncuda=0, verbose=0, cpu_fallback=False)
-torch_nntile.restrict_cpu()
+# The wheel is the CUDA product: classic torch_nntile.nn ops on one device.
+# A wheel-build runner without a GPU verifies the artifact and skips compute.
+if not torch.cuda.is_available():
+    print("torch_nntile smoke: no CUDA device; skipping compute leg")
+    raise SystemExit(0)
 
+torch_nntile.init_context(ncpu=0, ncuda=1, verbose=0, cpu_fallback=False)
 with torch.no_grad():
-    lhs = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32).to("nntile")
-    rhs = torch.tensor([4.0, 5.0, 6.0], dtype=torch.float32).to("nntile")
-out = lhs + rhs
+    x = torch.tensor([-1.0, 2.0, -3.0], dtype=torch.float32).to("nntile")
+out = functional.relu(x)
 torch_nntile.compile_graph()
 torch_nntile.run()
 with torch.no_grad():
     result = out.cpu()
-
 torch.testing.assert_close(
     result,
-    torch.tensor([5.0, 7.0, 9.0], dtype=torch.float32),
+    torch.tensor([0.0, 2.0, 0.0], dtype=torch.float32),
 )
+print("torch_nntile smoke: NNHaul classic relu OK")

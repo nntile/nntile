@@ -4,14 +4,19 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/tensor/ops/pow.hh
  * TensorGraph pow operation: (alpha, exp, A) in-place
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
-
+/*!
+ * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.
+ * Kept in-tree for future re-enablement. No product path calls this code;
+ * its tests are not registered while the family is in
+ * NNTILE_DISABLED_KERNELS.
+ */
 #pragma once
 
 // NNTile headers

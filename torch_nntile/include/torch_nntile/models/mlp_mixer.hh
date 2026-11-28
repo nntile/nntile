@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/include/torch_nntile/models/mlp_mixer.hh
  * MLP-Mixer matching main ``nntile.torch_models.mlp_mixer``.
+ * @version 2.0.0
  */
 
 #pragma once

@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/tests/CMakeLists.txt
 # C++ tests for libtorch_nntile (PrivateUse1 vs CPU).
+# @version 2.0.0
 
 cmake_minimum_required(VERSION 3.24)
 
@@ -50,11 +51,6 @@ foreach(_tgt IN ITEMS torch_nntile::torch_nntile nntile::nntile)
         endif()
     endif()
 endforeach()
-if(DEFINED ENV{STARPU_PREFIX})
-    list(APPEND _torch_nntile_dl_paths "$ENV{STARPU_PREFIX}/lib")
-elseif(EXISTS "/opt/starpu/lib")
-    list(APPEND _torch_nntile_dl_paths "/opt/starpu/lib")
-endif()
 list(REMOVE_DUPLICATES _torch_nntile_dl_paths)
 
 set(_torch_nntile_ld_path "")
@@ -71,9 +67,6 @@ if(DEFINED ENV{LD_LIBRARY_PATH} AND NOT "$ENV{LD_LIBRARY_PATH}" STREQUAL "")
 endif()
 
 set(_torch_nntile_test_env
-    "STARPU_SILENT=1"
-    "STARPU_FXT_TRACE=0"
-    "STARPU_WORKERS_NOBIND=1"
     "OPENBLAS_NUM_THREADS=1"
     "OMP_NUM_THREADS=1"
     "NNTILE_ENABLE_LOCAL_COMPILER=1"
@@ -106,14 +99,6 @@ function(torch_nntile_add_test name source)
     )
 endfunction()
 
-torch_nntile_add_test(tests_libtorch_nntile_smoke smoke_add.cc)
-if(NNTILE_TORCH_NATIVE_OPS)
-    torch_nntile_add_test(
-        tests_libtorch_nntile_aten_ops
-        aten_ops_parity.cc)
-endif()
-if(NNTILE_NNTILE_NATIVE_OPS)
-    torch_nntile_add_test(
-        tests_libtorch_nntile_models_smoke
-        models_fwd_bwd_smoke.cc)
-endif()
+torch_nntile_add_test(
+    tests_libtorch_nntile_models_smoke
+    models_fwd_bwd_smoke.cc)

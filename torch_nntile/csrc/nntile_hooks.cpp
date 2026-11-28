@@ -4,6 +4,7 @@
  * @file torch_nntile/csrc/nntile_hooks.cpp
  * PrivateUse1 hooks + DeviceGuard so LibTorch autograd can backprop on
  * device=nntile without querying a missing CUDA accelerator.
+ * @version 2.0.0
  */
 
 #include "nntile_allocator.h"

@@ -4,122 +4,91 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/core/hypot_scalar_inverse.cc
  * hypot_scalar_inverse operation for Tile<T>
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/core/hypot_scalar_inverse.hh"
-#ifdef NNTILE_USE_NNHAUL
 #include "nntile/nnhaul/ops/hypot_scalar_inverse.hh"
-#else
-#include "nntile/starpu/hypot_scalar_inverse.hh"
-#endif
-#ifdef NNTILE_USE_NNHAUL
 #include "nntile/nnhaul/sync_defer.hh"
-#else
-#include "nntile/starpu/config.hh"
-#endif
 
 namespace nntile::core
 {
 
 template<typename T>
-void hypot_scalar_inverse_async(int starpu_worker_hint, Scalar eps, Scalar alpha, const Tile<T> &dst)
+void hypot_scalar_inverse_async(int worker_hint, Scalar eps, Scalar alpha, const Tile<T> &dst)
 {
-    #ifdef NNTILE_USE_NNHAUL
-    int mpi_rank = 0;
-    #else
-    int mpi_rank = starpu_mpi_world_rank();
-    #endif
-    #ifdef NNTILE_USE_NNHAUL
-    int dst_rank = 0;
-    #else
-    int dst_rank = dst.mpi_get_rank();
-    #endif
-    if(mpi_rank == dst_rank)
-    {
-        #ifdef NNTILE_USE_NNHAUL
-        haul::hypot_scalar_inverse.submit<std::tuple<T>>(starpu_worker_hint, dst.nelems, eps,
-                alpha, dst);
-        #else
-        starpu::hypot_scalar_inverse.submit<std::tuple<T>>(starpu_worker_hint, dst.nelems, eps,
-                alpha, dst);
-        #endif
-
-    }
+    nnhaul::hypot_scalar_inverse.submit<std::tuple<T>>(worker_hint, dst.nelems, eps,
+            alpha, dst);
 }
 
 template<typename T>
-void hypot_scalar_inverse(int starpu_worker_hint, Scalar eps, Scalar alpha, const Tile<T> &dst)
+void hypot_scalar_inverse(int worker_hint, Scalar eps, Scalar alpha, const Tile<T> &dst)
 {
-    hypot_scalar_inverse_async<T>(starpu_worker_hint, eps, alpha, dst);
-    #ifdef NNTILE_USE_NNHAUL
+    hypot_scalar_inverse_async<T>(worker_hint, eps, alpha, dst);
     nntile::nnhaul_task_wait_for_all_unless_deferred();
-#else
-    nntile::starpu_task_wait_for_all_unless_deferred();
-#endif
 }
 
 // Explicit instantiation of template
 template
-void hypot_scalar_inverse_async<fp32_t>(int starpu_worker_hint, Scalar eps, Scalar alpha,
+void hypot_scalar_inverse_async<fp32_t>(int worker_hint, Scalar eps, Scalar alpha,
         const Tile<fp32_t> &dst);
 
 template
-void hypot_scalar_inverse_async<bf16_t>(int starpu_worker_hint, Scalar eps, Scalar alpha,
+void hypot_scalar_inverse_async<bf16_t>(int worker_hint, Scalar eps, Scalar alpha,
         const Tile<bf16_t> &dst);
 
 template
-void hypot_scalar_inverse_async<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar eps, Scalar alpha,
+void hypot_scalar_inverse_async<fp32_fast_tf32_t>(int worker_hint, Scalar eps, Scalar alpha,
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void hypot_scalar_inverse_async<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar eps, Scalar alpha,
+void hypot_scalar_inverse_async<fp32_fast_fp16_t>(int worker_hint, Scalar eps, Scalar alpha,
         const Tile<fp32_fast_fp16_t> &dst);
 
 template
-void hypot_scalar_inverse_async<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar eps, Scalar alpha,
+void hypot_scalar_inverse_async<fp32_fast_bf16_t>(int worker_hint, Scalar eps, Scalar alpha,
         const Tile<fp32_fast_bf16_t> &dst);
 
 template
-void hypot_scalar_inverse_async<fp64_t>(int starpu_worker_hint, Scalar eps, Scalar alpha,
+void hypot_scalar_inverse_async<fp64_t>(int worker_hint, Scalar eps, Scalar alpha,
         const Tile<fp64_t> &dst);
 
 template
-void hypot_scalar_inverse_async<fp16_t>(int starpu_worker_hint, Scalar eps, Scalar alpha,
+void hypot_scalar_inverse_async<fp16_t>(int worker_hint, Scalar eps, Scalar alpha,
         const Tile<fp16_t> &dst);
 
 // Explicit instantiation of template
 template
-void hypot_scalar_inverse<fp32_t>(int starpu_worker_hint, Scalar eps, Scalar alpha,
+void hypot_scalar_inverse<fp32_t>(int worker_hint, Scalar eps, Scalar alpha,
         const Tile<fp32_t> &dst);
 
 template
-void hypot_scalar_inverse<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar eps, Scalar alpha,
+void hypot_scalar_inverse<fp32_fast_tf32_t>(int worker_hint, Scalar eps, Scalar alpha,
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void hypot_scalar_inverse<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar eps, Scalar alpha,
+void hypot_scalar_inverse<fp32_fast_fp16_t>(int worker_hint, Scalar eps, Scalar alpha,
         const Tile<fp32_fast_fp16_t> &dst);
 
 template
-void hypot_scalar_inverse<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar eps, Scalar alpha,
+void hypot_scalar_inverse<fp32_fast_bf16_t>(int worker_hint, Scalar eps, Scalar alpha,
         const Tile<fp32_fast_bf16_t> &dst);
 
 template
-void hypot_scalar_inverse<fp64_t>(int starpu_worker_hint, Scalar eps, Scalar alpha,
+void hypot_scalar_inverse<fp64_t>(int worker_hint, Scalar eps, Scalar alpha,
         const Tile<fp64_t> &dst);
 
 template
-void hypot_scalar_inverse<bf16_t>(int starpu_worker_hint, Scalar eps, Scalar alpha,
+void hypot_scalar_inverse<bf16_t>(int worker_hint, Scalar eps, Scalar alpha,
         const Tile<bf16_t> &dst);
 
 template
-void hypot_scalar_inverse<fp16_t>(int starpu_worker_hint, Scalar eps, Scalar alpha,
+void hypot_scalar_inverse<fp16_t>(int worker_hint, Scalar eps, Scalar alpha,
         const Tile<fp16_t> &dst);
 
 } // namespace nntile::core

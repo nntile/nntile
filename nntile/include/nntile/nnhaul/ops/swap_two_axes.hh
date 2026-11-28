@@ -1,10 +1,10 @@
 /*! @copyright (c) 2026-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *
- * @file include/nntile/starpu/swap_two_axes.hh
- * swap_two_axes operation on StarPU buffers (5D, swap axes 1 and 3).
+ * @file include/nntile/nnhaul/ops/swap_two_axes.hh
+ * swap_two_axes operation on NNHaul buffers (5D, swap axes 1 and 3).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -15,7 +15,7 @@
 
 #include <nntile/nnhaul/codelet.hh>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 template<typename T>
@@ -50,7 +50,7 @@ public:
 #endif // NNTILE_USE_CUDA
 
     void submit(
-        int starpu_worker_hint,
+        int worker_hint,
         Index d0,
         Index d1,
         Index d2,
@@ -73,4 +73,4 @@ using swap_two_axes_pack_t = OperationPack<
 
 extern swap_two_axes_pack_t swap_two_axes;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

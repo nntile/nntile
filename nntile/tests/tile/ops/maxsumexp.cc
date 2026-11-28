@@ -5,12 +5,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tile_graph/maxsumexp.cc
  * Test TileGraph maxsumexp vs nntile::core (parity).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include <catch2/catch_test_macros.hpp>
@@ -41,14 +41,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph maxsumexp axis0", "[gr
     const auto gout = r.get_output<float>(d);
     nntile::core::Tile<fp32_t> S(sh), D(dh);
     using Y = typename fp32_t::repr_t;
-    { auto p=S.acquire(STARPU_W), q=D.acquire(STARPU_W);
+    { auto p=S.acquire(ACCESS_W), q=D.acquire(ACCESS_W);
       for(Index i=0;i<n1;++i) p[i]=Y(a[static_cast<size_t>(i)]);
       for(Index j=0;j<n2;++j) q[j]=Y(0);
       p.release(); q.release(); }
     nntile::core::maxsumexp<fp32_t>(-1, S, D, axis, Scalar{0.0}, redux);
-    starpu_task_wait_for_all();
+    task_wait_for_all();
     std::vector<float> tr(n2);
-    { auto L=D.acquire(STARPU_R);
+    { auto L=D.acquire(ACCESS_R);
       for(Index j=0;j<n2;++j) tr[static_cast<size_t>(j)]=static_cast<float>(L[j]);
       L.release(); }
     nntile::test::require_relative_element_error(gout, tr);

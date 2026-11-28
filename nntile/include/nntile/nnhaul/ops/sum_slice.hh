@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file include/nntile/starpu/sum_slice.hh
- * Sum over fibers into a slice of a StarPU buffer
+ * @file include/nntile/nnhaul/ops/sum_slice.hh
+ * Sum over fibers into a slice of a NNHaul buffer
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -23,7 +23,7 @@
 // NNTile headers
 #include <nntile/nnhaul/codelet.hh>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Generic wrapper class for sum_slice operation is not defined
@@ -69,7 +69,7 @@ public:
 
     //! Submit sum_slice task
     void submit(
-        int starpu_worker_hint,
+        int worker_hint,
         Index m,
         Index n,
         Index k,
@@ -96,4 +96,4 @@ using sum_slice_pack_t = OperationPack<
 //! Pack of sum_slice operations for different types
 extern sum_slice_pack_t sum_slice;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

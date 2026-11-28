@@ -4,6 +4,7 @@
 #                              (AIRI), Russia. All rights reserved.
 #
 # CTest script: run cmake --install and verify the install tree layout.
+# @version 2.0.0
 
 if(NOT DEFINED BUILD_DIR)
     message(FATAL_ERROR "BUILD_DIR is required")
@@ -57,12 +58,33 @@ if(NOT EXISTS "${_lib_path}")
     message(FATAL_ERROR "Missing installed library: ${_lib_path}")
 endif()
 
+if(NOT NNTILE_NNHAUL_EXTERNAL)
+    foreach(_h IN ITEMS nnhaul/nnhaul.hh nnhaul/planner.hh
+            nnhaul/defs.h)
+        if(NOT EXISTS "${_include_root}/${_h}")
+            message(FATAL_ERROR "Missing installed nnhaul header: "
+                "${_include_root}/${_h}")
+        endif()
+    endforeach()
+    foreach(_f IN ITEMS nnhaulConfig.cmake nnhaulConfigVersion.cmake
+            nnhaulTargets.cmake)
+        if(NOT EXISTS "${_lib_dir}/cmake/nnhaul/${_f}")
+            message(FATAL_ERROR "Missing installed nnhaul package file: "
+                "${_lib_dir}/cmake/nnhaul/${_f}")
+        endif()
+    endforeach()
+    file(GLOB _nnhaul_libs "${_lib_dir}/*nnhaul*")
+    if(NOT _nnhaul_libs)
+        message(FATAL_ERROR "Missing installed nnhaul library under "
+            "${_lib_dir}")
+    endif()
+endif()
+
 set(_nntile_cmake_dir "${_lib_dir}/cmake/nntile")
 foreach(_cmake_file IN ITEMS
         nntileConfig.cmake
         nntileConfigVersion.cmake
-        nntileTargets.cmake
-        NNTileFindStarPU.cmake)
+        nntileTargets.cmake)
     set(_path "${_nntile_cmake_dir}/${_cmake_file}")
     if(NOT EXISTS "${_path}")
         message(FATAL_ERROR "Missing installed CMake package file: ${_path}")

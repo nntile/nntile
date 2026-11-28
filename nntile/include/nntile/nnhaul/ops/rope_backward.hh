@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file include/nntile/starpu/rope_backward.hh
+ * @file include/nntile/nnhaul/ops/rope_backward.hh
  * Rotary positional embedding
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -17,11 +17,11 @@
 // Compile-time definitions
 #include <nntile/defs.h>
 
-//! StarPU headers
+//! NNHaul headers
 // NNTile headers
 #include <nntile/nnhaul/codelet.hh>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Generic wrapper class for rope_backward operation is not defined
@@ -64,7 +64,7 @@ public:
 
     //! Submit rope_backward task
     void submit(
-        int starpu_worker_hint,
+        int worker_hint,
         Index m,
         Index n,
         ::nnhaul::Handle & sin,
@@ -89,4 +89,4 @@ using rope_backward_pack_t = OperationPack<
 //! Pack of rope_backward operations for different types
 extern rope_backward_pack_t rope_backward;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

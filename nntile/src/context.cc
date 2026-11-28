@@ -3,662 +3,238 @@
  *                 2023-present Artificial Intelligence Research Institute
  *                              (AIRI), Russia. All rights reserved.
  *
- * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
- *
  * @file src/context.cc
- * NNTile context
- *
- * @version 1.1.0
- * */
+ * Context init and shutdown on the NNHaul runtime.
+ * @version 2.0.0
+ */
 
-// Related header
 #include "nntile/context.hh"
-
-// Compile-time NNTile definitions
 #include "nntile/defs.h"
 
-// Standard library headers
-#include <iostream>
-#include <sstream>
-#include <stdexcept>
 
-#ifndef NNTILE_USE_NNHAUL
-// Third-party headers
-#ifdef NNTILE_USE_CUDA
-#   include <cudnn_frontend.h>
-#endif // NNTILE_USE_CUDA
-
-// Other NNTile headers
+#include "nntile/backend_workers.hh"
 #include "nntile/logger.hh"
-#include "nntile/starpu/handle.hh"
-#include "nntile/starpu.hh"
-#include "nntile/starpu/norm.hh"
-#include "nntile/starpu/sgd_step.hh"
-#include "nntile/starpu/swap_two_axes.hh"
-extern "C" int nntile_starpu_disk_register(
-    struct starpu_disk_ops *ops,
-    void *parameter,
-    starpu_ssize_t size);
 
-#ifdef NNTILE_TORCH_NATIVE_OPS
-#   include "nntile/starpu/torch_dispatch.hh"
-#endif
+#include <cstdio>
+#include <dlfcn.h>
+#include <link.h>
+#include <string>
+#include <nnhaul/nnhaul.hh>
+
+#include <cstdlib>
+#include <iostream>
+#include <stdexcept>
+#include <thread>
 
 namespace nntile
 {
 
+int g_backend_ncuda = 0;
+bool g_backend_ready = false;
+
+std::vector<BackendWorker> backend_worker_list()
+{
+    // libnnhaul is GPU-only: it creates exactly one CUDA worker and no
+    // CPU workers. Never advertise a CPU worker here -- the scheduler
+    // would assign tiles to it and the hint would then be remapped,
+    // which is exactly the phantom-CPU-worker bug this list prevents.
+    std::vector<BackendWorker> workers;
+    int const n = g_backend_ready ? g_backend_ncuda : 0;
+    if (n <= 0)
+    {
+        workers.push_back(BackendWorker{0, "cuda", 0});
+        return workers;
+    }
+    for (int i = 0; i < n; ++i)
+    {
+        workers.push_back(BackendWorker{i, "cuda", i});
+    }
+    return workers;
+}
+
 #ifdef NNTILE_USE_CUDA
-//! Global variable for cuDNN handles
-static cudnnHandle_t cudnn_handles[STARPU_NMAXWORKERS] = {nullptr};
-
-//! Specific function to initialize cuDNN per CUDA worker
-static void cudnn_init(void *args [[maybe_unused]])
-{
-    // Get current worker ID and initialize cuDNN handle
-    int worker_id = starpu_worker_get_id();
-    cudnnStatus_t status = cudnnCreate(&cudnn_handles[worker_id]);
-    if (status != CUDNN_STATUS_SUCCESS) {
-        return;
-    }
-    // Get CUDA stream for the current worker and set it to the cuDNN handle
-    auto stream = starpu_cuda_get_local_stream();
-    status = cudnnSetStream(cudnn_handles[worker_id], stream);
-    if (status != CUDNN_STATUS_SUCCESS) {
-        cudnnDestroy(cudnn_handles[worker_id]);
-        cudnn_handles[worker_id] = nullptr;
-    }
-}
-
-//! Specific function to shut down cuDNN per CUDA worker
-static void cudnn_shutdown(void *args [[maybe_unused]])
-{
-    // Get current worker ID and initialize cuDNN handle
-    int worker_id = starpu_worker_get_id();
-    cudnnDestroy(cudnn_handles[worker_id]);
-}
-
-//! Get cuDNN handle for the current CUDA worker
-cudnnHandle_t cudnn_get_local_handle()
-{
-    int worker_id = starpu_worker_get_id();
-
-    // Check if worker_id is valid
-    if (worker_id < 0 || worker_id >= STARPU_NMAXWORKERS) {
-        return nullptr;
-    }
-
-    return cudnn_handles[worker_id];
-}
 #endif // NNTILE_USE_CUDA
 
-// Constructor of the singleton context
 Context::Context(
     int ncpu,
     int ncuda,
     int ooc,
-    const char *ooc_path,
-    size_t ooc_size,
+    char const *ooc_path,
+    std::size_t ooc_size,
     int logger,
-    const char *logger_addr,
+    char const *logger_addr,
     int logger_port,
     int verbose,
-    std::size_t cpu_cap_bytes [[maybe_unused]],
-    std::size_t cuda_cap_bytes_each [[maybe_unused]]
-):
+    std::size_t cpu_cap_bytes,
+    std::size_t cuda_cap_bytes_each):
     initialized(0),
-    ooc_disk_node_id(-1),
     verbose(verbose)
 {
-    // Throw an error if StarPU is already initialized
-    if(starpu_is_initialized())
+    (void)ooc_path;
+    (void)ooc_size;
+    if (ooc != 0)
     {
-        throw std::runtime_error("StarPU is already initialized");
+        throw std::runtime_error(
+            "NNTile 2.0 does not support disk out-of-core");
     }
-
-    // Override env variable STARPU_WORKERS_NOBIND to disable binding of
-    // workers to cores to avoid performance degradation on shared systems
-    setenv("STARPU_WORKERS_NOBIND", "1", 1);
-    if(verbose > 0)
+    if (std::getenv("NNHAUL_DEVICES") != nullptr)
     {
-        std::cout << "Set STARPU_WORKERS_NOBIND to 1\n";
+        throw std::runtime_error(
+            "NNTile 2.0 runs on one CUDA device selected by "
+            "CUDA_VISIBLE_DEVICES; NNHAUL_DEVICES is not supported");
     }
-
-    // Disable automatic start of FXT trace by default
-    starpu_fxt_autostart_profiling(0);
-    if(verbose > 0)
+    if (g_backend_ready)
     {
-        std::cout << "Disabled automatic start of FXT trace\n";
+        throw std::runtime_error("NNHaul is already initialized");
     }
-
-    // Init StarPU configuration with default values at first
-    int ret = starpu_conf_init(&starpu_config);
-    if(ret != 0)
+    // libnnhaul is GPU-only: it creates one CUDA worker and no CPU
+    // workers. ``ncpu`` is accepted for source compatibility but is NOT
+    // recorded as a live worker -- advertising it would make the
+    // scheduler split tiles onto a CPU worker that does not exist.
+    // Worker 0 is the default CUDA worker. Callers that pass ncuda <= 0
+    // still get that worker, otherwise a CUDA codelet with no hint throws.
+    (void) ncpu;
+    ncpu = 0;
+    if (ncuda < 1)
     {
-        throw std::runtime_error("starpu_conf_init error");
+        ncuda = 1;
     }
-    if(verbose > 0)
+    if (ncuda > 1)
     {
-        std::cout << "Initialized StarPU configuration object\n";
+        throw std::runtime_error(
+            "NNTile on NNHaul supports one CUDA worker: the chunked tile "
+            "transport is single-device. Run one process per GPU (ncuda=1).");
     }
-
-    // Unset env variable for number of CPU workers if specified
-    if(ncpu != -1)
+    if (cuda_cap_bytes_each == 0
+        && std::getenv("NNHAUL_LIMIT_CUDA_MEM") == nullptr)
     {
-        if(getenv("STARPU_NCPU") != nullptr)
+        cudaError_t const dev_err = cudaSetDevice(0);
+        if (dev_err != cudaSuccess)
         {
-            unsetenv("STARPU_NCPU");
-            if(verbose > 0)
+            throw std::runtime_error(
+                "NNTile: cudaSetDevice(0) failed; select the GPU with "
+                "CUDA_VISIBLE_DEVICES");
+        }
+        std::size_t free_bytes = 0;
+        std::size_t total_bytes = 0;
+        cudaError_t const err =
+            cudaMemGetInfo(&free_bytes, &total_bytes);
+        if (err != cudaSuccess || free_bytes == 0)
+        {
+            throw std::runtime_error("cudaMemGetInfo failed");
+        }
+        // The chunks live in the arena; the fixed per-device
+        // workspaces (the GEMM gather/scatter workspace, the cuBLAS
+        // workspace, the copy-descriptor scratch) live BESIDE it and
+        // are claimed after it. The default chunk budget is therefore
+        // 90% of the free VRAM MINUS the workspace size, so the arena
+        // can never starve those cudaMallocs (before this, the 90%
+        // arena left an uncapped init failing on its own workspace or
+        // on nntile's 8-MiB chunk-pointer table).
+        std::size_t workspace_bytes = std::size_t{1024} << 20;
+        if (char const *ws = std::getenv("NNHAUL_WORKSPACE_MB"))
+        {
+            long const mib = std::strtol(ws, nullptr, 10);
+            if (mib > 0)
             {
-                std::cout << "Unset STARPU_NCPU due to specified number "
-                    "of CPU workers in the NNTile configuration\n";
+                workspace_bytes = static_cast<std::size_t>(mib) << 20;
             }
         }
-        starpu_config.ncpus = ncpu;
-        if(verbose > 0)
+        std::size_t const ninety = free_bytes - free_bytes / 10;
+        cuda_cap_bytes_each =
+            ninety > workspace_bytes ? ninety - workspace_bytes : 0;
+        if (cuda_cap_bytes_each == 0)
         {
-            std::cout << "Set STARPU_NCPU to " << ncpu << "\n";
+            throw std::runtime_error("NNHaul CUDA cap is zero");
         }
     }
-
+    // Leave cpu_cap_bytes == 0 when the caller named none: nnhaul reads
+    // 0 as "unlimited", i.e. the host pool grows only on demand and has
+    // no soft wall to seek. Do NOT substitute a fraction of physical RAM
+    // here -- nnhaul's planning-time growth fills a finite limit to the
+    // wall and faults in every page, which on a large host turns the
+    // first host-pool acquire into an allocation of half the machine.
+    // A caller that wants a ceiling passes cpu_cap_bytes explicitly or
+    // sets NNHAUL_LIMIT_CPU_MEM.
+#if defined(__unix__) || defined(__APPLE__)
+    {
+        // A preloaded copy of nnhaul (e.g. a plugin linked against the
+        // static archive with RTLD_GLOBAL) could satisfy these symbols
+        // with a second engine. Require the DSO that actually defines
+        // nnhaul::init to be an nnhaul shared library; packaged names
+        // such as libnnhaul-<hash>.so (auditwheel) are accepted. A
+        // deliberately renamed preload is outside this guarantee.
+        Dl_info info{};
+        if(dladdr(reinterpret_cast<void *>(&::nnhaul::init), &info) == 0
+            || info.dli_fname == nullptr)
+        {
+            throw std::runtime_error(
+                "nntile: cannot identify the DSO providing NNHaul");
+        }
+        std::string const dso(info.dli_fname);
+        std::string const base = dso.substr(dso.find_last_of('/') + 1);
+        if(base.rfind("libnnhaul", 0) != 0)
+        {
+            throw std::runtime_error(
+                "nntile: NNHaul symbols resolve to '" + dso
+                + "', not an nnhaul shared library; a preloaded copy of "
+                  "the engine would run a second instance");
+        }
+    }
+#endif
+    ::nnhaul::init(
+        ncpu,
+        ncuda,
+        cpu_cap_bytes,
+        cuda_cap_bytes_each);
 #ifdef NNTILE_USE_CUDA
-    // Unset env variable for number of CUDA workers if specified
-    if(ncuda != -1)
-    {
-        if(getenv("STARPU_NCUDA") != nullptr)
-        {
-            unsetenv("STARPU_NCUDA");
-            if(verbose > 0)
-            {
-                std::cout << "Unset STARPU_NCUDA due to specified number "
-                    "of CUDA workers in the NNTile configuration\n";
-            }
-        }
-        starpu_config.ncuda = ncuda;
-        if(verbose > 0)
-        {
-            std::cout << "Set STARPU_NCUDA to " << ncuda << "\n";
-        }
-    }
-#else
-    // CPU-only libnntile: StarPU may still be CUDA-enabled (conda).
-    // Never start CUDA workers.
-    if(ncuda > 0)
-    {
-        // A CUDA build would have honored this request: say loudly
-        // that it silently became a no-op, instead of a verbose-only
-        // note buried in the log.
-        std::cerr << "WARNING: libnntile was built without CUDA, so "
-            "the requested " << ncuda << " CUDA worker(s) will not be "
-            "created" << std::endl;
-    }
-    if(getenv("STARPU_NCUDA") != nullptr)
-    {
-        unsetenv("STARPU_NCUDA");
-        if(verbose > 0)
-        {
-            std::cout << "Unset STARPU_NCUDA (CPU-only libnntile)\n";
-        }
-    }
-    starpu_config.ncuda = 0;
-    if(verbose > 0)
-    {
-        std::cout << "Set STARPU_NCUDA to 0 (CPU-only libnntile)\n";
-    }
-#endif // NNTILE_USE_CUDA
-
-    // Set history-based scheduler to utilize performance models in case
-    // it was not specified by the user
-    if(getenv("STARPU_SCHED") == nullptr)
-    {
-        starpu_config.sched_policy_name = "dmdasd";
-        if(verbose > 0)
-        {
-            std::cout << "Set STARPU_SCHED to " <<
-                starpu_config.sched_policy_name << "\n";
-        }
-    }
-
-    // Init StarPU now
-    ret = starpu_init(&starpu_config);
-    if(ret != 0)
-    {
-        throw std::runtime_error("Error in starpu_initialize()");
-    }
-    if(verbose > 0)
-    {
-        // Read number of CPU and CUDA workers from StarPU
-        ncpu = starpu_worker_get_count_by_type(STARPU_CPU_WORKER);
-        ncuda = starpu_worker_get_count_by_type(STARPU_CUDA_WORKER);
-        std::cout << "Initialized StarPU with NCPU=" << ncpu <<
-            " NCUDA=" << ncuda << "\n";
-    }
-
-#ifdef NNTILE_USE_CUDA
-    // Initialize cuBLAS
-    starpu_cublas_init();
-    if(verbose > 0)
-    {
-        std::cout << "Initialized cuBLAS on all CUDA workers\n";
-    }
-
-    // Initialize cuDNN
-    starpu_execute_on_each_worker(cudnn_init, nullptr, STARPU_CUDA);
-    if(verbose > 0)
-    {
-        std::cout << "Initialized cuDNN on all CUDA workers\n";
-    }
-#endif // NNTILE_USE_CUDA
-
-    // Initialize Out-of-Core if enabled
-    if(ooc != 0)
-    {
-        // Ubuntu StarPU 1.4.3 includes starpu_disk.h before extern "C",
-        // so a direct call mangles. The C wrapper binds the C symbol.
-        ooc_disk_node_id = nntile_starpu_disk_register(
-            &starpu_disk_unistd_ops,
-            reinterpret_cast<void *>(const_cast<char *>(ooc_path)),
-            ooc_size
-        );
-        if(verbose > 0)
-        {
-            std::cout << "Initialized Out-of-Core disk\n";
-        }
-    }
-
-    // Initialize logger if enabled
-    if(logger != 0)
+    // CUDA codelets take this worker when insert has no worker hint.
+    ::nnhaul::set_default_cuda_worker(0);
+#endif
+    // No CPU worker exists in the runtime, so none may appear in the
+    // backend list or the schedule (see backend_worker_list above).
+    g_backend_ncuda = ncuda;
+    g_backend_ready = true;
+    if (logger != 0)
     {
         logger::logger_init(logger_addr, logger_port);
-        if(verbose > 0)
+        if (verbose > 0)
         {
             std::cout << "Initialized logger\n";
         }
     }
-
-    // Finally, tell the user that the context is initialized
     initialized = 1;
-    if(verbose > 0)
+    if (verbose > 0)
     {
-        std::cout << "NNTile context is initialized\n";
+        std::cout << "NNTile context is initialized (NNHaul: ncuda="
+                  << g_backend_ncuda << ")\n";
     }
 }
 
-//! Shut down the context on demand
 void Context::shutdown()
 {
-    // Check if the context is initialized
-    if(initialized == 0)
+    if (initialized == 0)
     {
         return;
     }
-
-    // StarPU must be still initialized
-    // Because we only support a single active context for now and the current
-    // context is still active
-    if(!starpu_is_initialized())
+    try
     {
-        throw std::runtime_error("StarPU must be still initialized");
+        ::nnhaul::wait();
     }
-
-    // Wait for all tasks to finish
-    starpu_task_wait_for_all();
-
-    // Shutdown logger if it is running
-    if(logger::logger_running)
+    catch (std::exception const &e)
+    {
+        // Teardown must not rethrow from a destructor path; the fault
+        // was already latched by the engine and is reported here.
+        std::fprintf(stderr, "nntile: NNHaul teardown: %s\n", e.what());
+    }
+    if (logger::logger_running)
     {
         logger::logger_shutdown();
-        if(verbose > 0)
-        {
-            std::cout << "Shutdown logger\n";
-        }
     }
-
-    // Unregister only handles still in the registered set. Graph
-    // UNREGISTER already popped collected tiles; leftover are live
-    // weights / not-yet-collected temps.
-    starpu::data_handle_unregister_all();
-
-#ifdef NNTILE_USE_CUDA
-    // Shutdown cuBLAS if enabled
-    starpu_cublas_shutdown();
-    if(verbose > 0)
-    {
-        std::cout << "Shutdown cuBLAS on all CUDA workers\n";
-    }
-
-    // Shutdown cuDNN if enabled
-    starpu_execute_on_each_worker(cudnn_shutdown, nullptr, STARPU_CUDA);
-    if(verbose > 0)
-    {
-        std::cout << "Shutdown cuDNN on all CUDA workers\n";
-    }
-#endif // NNTILE_USE_CUDA
-
-    // Shutdown StarPU
-    starpu_shutdown();
-    if(verbose > 0)
-    {
-        std::cout << "Shutdown StarPU\n";
-    };
-
-    // Tell the user that the shutdown is finished
+    ::nnhaul::shutdown();
+    g_backend_ready = false;
+    g_backend_ncuda = 0;
     initialized = 0;
-    if(verbose > 0)
-    {
-        std::cout << "Finished shutdown of NNTile\n";
-    }
-}
-
-//! Restrict computation to CPU
-void Context::restrict_cpu()
-{
-    using namespace nntile::starpu;
-    accumulate.restrict_where(STARPU_CPU);
-    accumulate_hypot.restrict_where(STARPU_CPU);
-    accumulate_maxsumexp.restrict_where(STARPU_CPU);
-    adam_step.restrict_where(STARPU_CPU);
-    adamw_step.restrict_where(STARPU_CPU);
-    add.restrict_where(STARPU_CPU);
-    add_fiber.restrict_where(STARPU_CPU);
-    add_fiber_inplace.restrict_where(STARPU_CPU);
-    add_inplace.restrict_where(STARPU_CPU);
-    add_slice.restrict_where(STARPU_CPU);
-    add_slice_inplace.restrict_where(STARPU_CPU);
-    clear.codelet.restrict_where(STARPU_CPU);
-    conv2d_bwd_input_inplace.restrict_where(STARPU_CPU);
-    conv2d_bwd_weight_inplace.restrict_where(STARPU_CPU);
-    conv2d_inplace.restrict_where(STARPU_CPU);
-    copy.codelet.restrict_where(STARPU_CPU);
-    embedding.restrict_where(STARPU_CPU);
-    embedding_backward.restrict_where(STARPU_CPU);
-    fill.restrict_where(STARPU_CPU);
-    gelu_inplace.restrict_where(STARPU_CPU);
-    gelu_backward.restrict_where(STARPU_CPU);
-    gelutanh.restrict_where(STARPU_CPU);
-    gelutanh_backward.restrict_where(STARPU_CPU);
-    gelutanh_inplace.restrict_where(STARPU_CPU);
-    gemm.restrict_where(STARPU_CPU);
-    hypot_inplace.restrict_where(STARPU_CPU);
-    hypot_scalar_inverse.restrict_where(STARPU_CPU);
-    log_scalar.restrict_where(STARPU_CPU);
-    logsumexp.restrict_where(STARPU_CPU);
-    mask_scalar.restrict_where(STARPU_CPU);
-    maxsumexp.restrict_where(STARPU_CPU);
-    norm_fiber.restrict_where(STARPU_CPU);
-    norm_slice_inplace.restrict_where(STARPU_CPU);
-    pow.restrict_where(STARPU_CPU);
-    multiply.restrict_where(STARPU_CPU);
-    multiply_fiber_inplace.restrict_where(STARPU_CPU);
-    multiply_fiber.restrict_where(STARPU_CPU);
-    multiply_inplace.restrict_where(STARPU_CPU);
-    multiply_slice.restrict_where(STARPU_CPU);
-    randn.restrict_where(STARPU_CPU);
-    relu_inplace.restrict_where(STARPU_CPU);
-    relu_backward.restrict_where(STARPU_CPU);
-    relu.restrict_where(STARPU_CPU);
-    rope.restrict_where(STARPU_CPU);
-    rope_backward.restrict_where(STARPU_CPU);
-    scale.restrict_where(STARPU_CPU);
-    scale_inplace.restrict_where(STARPU_CPU);
-    silu_backward.restrict_where(STARPU_CPU);
-    silu.restrict_where(STARPU_CPU);
-    silu_inplace.restrict_where(STARPU_CPU);
-    softmax.restrict_where(STARPU_CPU);
-    softmax_inplace.restrict_where(STARPU_CPU);
-    sqrt.restrict_where(STARPU_CPU);
-    sqrt_inplace.restrict_where(STARPU_CPU);
-    subcopy.restrict_where(STARPU_CPU);
-    subtract_indexed_outputs.restrict_where(STARPU_CPU);
-    sum_fiber.restrict_where(STARPU_CPU);
-    sum_slice.restrict_where(STARPU_CPU);
-    sumprod_fiber.restrict_where(STARPU_CPU);
-    sumprod_slice.restrict_where(STARPU_CPU);
-    total_sum_accum.restrict_where(STARPU_CPU);
-    transpose.restrict_where(STARPU_CPU);
-    isfinite.restrict_where(STARPU_CPU);
-    gelu.restrict_where(STARPU_CPU);
-    hypot.restrict_where(STARPU_CPU);
-    scale_fiber.restrict_where(STARPU_CPU);
-    scale_slice.restrict_where(STARPU_CPU);
-    sum.restrict_where(STARPU_CPU);
-    norm.restrict_where(STARPU_CPU);
-    norm_fiber_inplace.restrict_where(STARPU_CPU);
-    norm_slice.restrict_where(STARPU_CPU);
-    sgd_step.restrict_where(STARPU_CPU);
-    swap_two_axes.restrict_where(STARPU_CPU);
-#ifdef NNTILE_TORCH_NATIVE_OPS
-    torch_unary.restrict_where(STARPU_CPU);
-    torch_binary.restrict_where(STARPU_CPU);
-    torch_ternary.restrict_where(STARPU_CPU);
-    torch_embedding.codelet.restrict_where(STARPU_CPU);
-    torch_embedding_dense_backward.codelet.restrict_where(STARPU_CPU);
-    torch_convolution.codelet.restrict_where(STARPU_CPU);
-    torch_convolution_backward.codelet.restrict_where(STARPU_CPU);
-    torch_max_pool2d_with_indices.codelet.restrict_where(STARPU_CPU);
-    torch_max_pool2d_with_indices_backward.codelet.restrict_where(STARPU_CPU);
-    torch_native_batch_norm.codelet.restrict_where(STARPU_CPU);
-    torch_native_batch_norm_backward.codelet.restrict_where(STARPU_CPU);
-    torch_sdpa_backward.codelet.restrict_where(STARPU_CPU);
-    torch_nll_loss_forward.codelet.restrict_where(STARPU_CPU);
-    torch_nll_loss_backward.codelet.restrict_where(STARPU_CPU);
-    torch_cat.codelet.restrict_where(STARPU_CPU);
-    torch_where.codelet.restrict_where(STARPU_CPU);
-    torch_arange.codelet.restrict_where(STARPU_CPU);
-    torch_gt.codelet.restrict_where(STARPU_CPU);
-    torch_i64_unary.codelet.restrict_where(STARPU_CPU);
-    torch_cast.codelet.restrict_where(STARPU_CPU);
-#endif
-}
-
-//! Restrict every codelet to CUDA workers without constructing a
-//! Context (ExecutionDaemon self-configuration).
-void restrict_codelets_to_cuda()
-{
-    using namespace nntile::starpu;
-    accumulate.restrict_where(STARPU_CUDA);
-    accumulate_hypot.restrict_where(STARPU_CUDA);
-    accumulate_maxsumexp.restrict_where(STARPU_CUDA);
-    adam_step.restrict_where(STARPU_CUDA);
-    adamw_step.restrict_where(STARPU_CUDA);
-    add.restrict_where(STARPU_CUDA);
-    add_fiber.restrict_where(STARPU_CUDA);
-    add_fiber_inplace.restrict_where(STARPU_CUDA);
-    add_inplace.restrict_where(STARPU_CUDA);
-    add_slice.restrict_where(STARPU_CUDA);
-    add_slice_inplace.restrict_where(STARPU_CUDA);
-    clear.codelet.restrict_where(STARPU_CUDA);
-    conv2d_bwd_input_inplace.restrict_where(STARPU_CUDA);
-    conv2d_bwd_weight_inplace.restrict_where(STARPU_CUDA);
-    conv2d_inplace.restrict_where(STARPU_CUDA);
-    copy.codelet.restrict_where(STARPU_CUDA);
-    embedding.restrict_where(STARPU_CUDA);
-    embedding_backward.restrict_where(STARPU_CUDA);
-    fill.restrict_where(STARPU_CUDA);
-    gelu_inplace.restrict_where(STARPU_CUDA);
-    gelu_backward.restrict_where(STARPU_CUDA);
-    gelutanh.restrict_where(STARPU_CUDA);
-    gelutanh_backward.restrict_where(STARPU_CUDA);
-    gelutanh_inplace.restrict_where(STARPU_CUDA);
-    gemm.restrict_where(STARPU_CUDA);
-    hypot_inplace.restrict_where(STARPU_CUDA);
-    hypot_scalar_inverse.restrict_where(STARPU_CUDA);
-    log_scalar.restrict_where(STARPU_CUDA);
-    logsumexp.restrict_where(STARPU_CUDA);
-    mask_scalar.restrict_where(STARPU_CUDA);
-    maxsumexp.restrict_where(STARPU_CUDA);
-    norm_fiber.restrict_where(STARPU_CUDA);
-    norm_slice_inplace.restrict_where(STARPU_CUDA);
-    pow.restrict_where(STARPU_CUDA);
-    multiply.restrict_where(STARPU_CUDA);
-    multiply_fiber_inplace.restrict_where(STARPU_CUDA);
-    multiply_fiber.restrict_where(STARPU_CUDA);
-    multiply_inplace.restrict_where(STARPU_CUDA);
-    multiply_slice.restrict_where(STARPU_CUDA);
-    randn.restrict_where(STARPU_CUDA);
-    relu_inplace.restrict_where(STARPU_CUDA);
-    relu_backward.restrict_where(STARPU_CUDA);
-    relu.restrict_where(STARPU_CUDA);
-    rope.restrict_where(STARPU_CUDA);
-    rope_backward.restrict_where(STARPU_CUDA);
-    scale.restrict_where(STARPU_CUDA);
-    scale_inplace.restrict_where(STARPU_CUDA);
-    silu_backward.restrict_where(STARPU_CUDA);
-    silu.restrict_where(STARPU_CUDA);
-    silu_inplace.restrict_where(STARPU_CUDA);
-    softmax.restrict_where(STARPU_CUDA);
-    softmax_inplace.restrict_where(STARPU_CUDA);
-    sqrt.restrict_where(STARPU_CUDA);
-    sqrt_inplace.restrict_where(STARPU_CUDA);
-    subcopy.restrict_where(STARPU_CUDA);
-    subtract_indexed_outputs.restrict_where(STARPU_CUDA);
-    sum_fiber.restrict_where(STARPU_CUDA);
-    sum_slice.restrict_where(STARPU_CUDA);
-    sumprod_fiber.restrict_where(STARPU_CUDA);
-    sumprod_slice.restrict_where(STARPU_CUDA);
-    total_sum_accum.restrict_where(STARPU_CUDA);
-    transpose.restrict_where(STARPU_CUDA);
-    isfinite.restrict_where(STARPU_CUDA);
-    gelu.restrict_where(STARPU_CUDA);
-    hypot.restrict_where(STARPU_CUDA);
-    scale_fiber.restrict_where(STARPU_CUDA);
-    scale_slice.restrict_where(STARPU_CUDA);
-    sum.restrict_where(STARPU_CUDA);
-    norm.restrict_where(STARPU_CUDA);
-    norm_fiber_inplace.restrict_where(STARPU_CUDA);
-    norm_slice.restrict_where(STARPU_CUDA);
-    sgd_step.restrict_where(STARPU_CUDA);
-    swap_two_axes.restrict_where(STARPU_CUDA);
-#ifdef NNTILE_TORCH_NATIVE_OPS
-    torch_unary.restrict_where(STARPU_CUDA);
-    torch_binary.restrict_where(STARPU_CUDA);
-    torch_ternary.restrict_where(STARPU_CUDA);
-    torch_embedding.codelet.restrict_where(STARPU_CUDA);
-    torch_embedding_dense_backward.codelet.restrict_where(STARPU_CUDA);
-    torch_convolution.codelet.restrict_where(STARPU_CUDA);
-    torch_convolution_backward.codelet.restrict_where(STARPU_CUDA);
-    torch_max_pool2d_with_indices.codelet.restrict_where(STARPU_CUDA);
-    torch_max_pool2d_with_indices_backward.codelet.restrict_where(STARPU_CUDA);
-    torch_native_batch_norm.codelet.restrict_where(STARPU_CUDA);
-    torch_native_batch_norm_backward.codelet.restrict_where(STARPU_CUDA);
-    torch_sdpa_backward.codelet.restrict_where(STARPU_CUDA);
-    torch_nll_loss_forward.codelet.restrict_where(STARPU_CUDA);
-    torch_nll_loss_backward.codelet.restrict_where(STARPU_CUDA);
-    torch_cat.codelet.restrict_where(STARPU_CUDA);
-    torch_where.codelet.restrict_where(STARPU_CUDA);
-    torch_arange.codelet.restrict_where(STARPU_CUDA);
-    torch_gt.codelet.restrict_where(STARPU_CUDA);
-    torch_i64_unary.codelet.restrict_where(STARPU_CUDA);
-    torch_cast.codelet.restrict_where(STARPU_CUDA);
-#endif
-}
-
-//! Restrict computation to CUDA
-void Context::restrict_cuda()
-{
-    restrict_codelets_to_cuda();
-}
-
-//! Restore computation to all devices
-void Context::restore_where()
-{
-    using namespace nntile::starpu;
-    accumulate.restore_where();
-    accumulate_hypot.restore_where();
-    accumulate_maxsumexp.restore_where();
-    adam_step.restore_where();
-    adamw_step.restore_where();
-    add.restore_where();
-    add_fiber.restore_where();
-    add_fiber_inplace.restore_where();
-    add_inplace.restore_where();
-    add_slice.restore_where();
-    add_slice_inplace.restore_where();
-    clear.codelet.restore_where();
-    conv2d_bwd_input_inplace.restore_where();
-    conv2d_bwd_weight_inplace.restore_where();
-    conv2d_inplace.restore_where();
-    copy.codelet.restore_where();
-    embedding.restore_where();
-    embedding_backward.restore_where();
-    fill.restore_where();
-    gelu_inplace.restore_where();
-    gelu_backward.restore_where();
-    gelutanh.restore_where();
-    gelutanh_backward.restore_where();
-    gelutanh_inplace.restore_where();
-    gemm.restore_where();
-    hypot_inplace.restore_where();
-    hypot_scalar_inverse.restore_where();
-    log_scalar.restore_where();
-    logsumexp.restore_where();
-    mask_scalar.restore_where();
-    maxsumexp.restore_where();
-    norm_fiber.restore_where();
-    norm_slice_inplace.restore_where();
-    pow.restore_where();
-    multiply.restore_where();
-    multiply_fiber_inplace.restore_where();
-    multiply_fiber.restore_where();
-    multiply_inplace.restore_where();
-    multiply_slice.restore_where();
-    randn.restore_where();
-    relu_inplace.restore_where();
-    relu_backward.restore_where();
-    relu.restore_where();
-    rope.restore_where();
-    rope_backward.restore_where();
-    scale.restore_where();
-    scale_inplace.restore_where();
-    silu_backward.restore_where();
-    silu.restore_where();
-    silu_inplace.restore_where();
-    softmax.restore_where();
-    softmax_inplace.restore_where();
-    sqrt.restore_where();
-    sqrt_inplace.restore_where();
-    subcopy.restore_where();
-    subtract_indexed_outputs.restore_where();
-    sum_fiber.restore_where();
-    sum_slice.restore_where();
-    sumprod_fiber.restore_where();
-    sumprod_slice.restore_where();
-    total_sum_accum.restore_where();
-    transpose.restore_where();
-    isfinite.restore_where();
-    gelu.restore_where();
-    hypot.restore_where();
-    scale_fiber.restore_where();
-    scale_slice.restore_where();
-    sum.restore_where();
-    norm.restore_where();
-    norm_fiber_inplace.restore_where();
-    norm_slice.restore_where();
-    sgd_step.restore_where();
-    swap_two_axes.restore_where();
-#ifdef NNTILE_TORCH_NATIVE_OPS
-    torch_unary.restore_where();
-    torch_binary.restore_where();
-    torch_ternary.restore_where();
-    torch_embedding.codelet.restore_where();
-    torch_embedding_dense_backward.codelet.restore_where();
-    torch_convolution.codelet.restore_where();
-    torch_convolution_backward.codelet.restore_where();
-    torch_max_pool2d_with_indices.codelet.restore_where();
-    torch_max_pool2d_with_indices_backward.codelet.restore_where();
-    torch_native_batch_norm.codelet.restore_where();
-    torch_native_batch_norm_backward.codelet.restore_where();
-    torch_sdpa_backward.codelet.restore_where();
-    torch_nll_loss_forward.codelet.restore_where();
-    torch_nll_loss_backward.codelet.restore_where();
-    torch_cat.codelet.restore_where();
-    torch_where.codelet.restore_where();
-    torch_arange.codelet.restore_where();
-    torch_gt.codelet.restore_where();
-    torch_i64_unary.codelet.restore_where();
-    torch_cast.codelet.restore_where();
-#endif
 }
 
 } // namespace nntile
-#endif // NNTILE_USE_NNHAUL

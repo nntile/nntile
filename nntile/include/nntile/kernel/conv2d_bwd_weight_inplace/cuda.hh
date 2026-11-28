@@ -4,15 +4,20 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/kernel/conv2d_bwd_weight_inplace/cuda.hh
  * Backward 2D-Convolution of two tensors in WHCN format to get grad of weight
  * Due to Fortran ordering, WHCN of NNTile is equal to NCHF format of PyTorch
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
-
+/*!
+ * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.
+ * Kept in-tree for future re-enablement. No product path calls this code;
+ * its tests are not registered while the family is in
+ * NNTILE_DISABLED_KERNELS.
+ */
 #pragma once
 
 #include <nntile/base_types.hh>

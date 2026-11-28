@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/core/scale_fiber.hh
  * Tile wrappers for scaling of a tensor with a broadcasted fiber
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -21,12 +21,12 @@ namespace nntile::core
 
 // Tile<T> scaling of a tensor with a broadcasted fiber
 template<typename T>
-void scale_fiber_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
+void scale_fiber_async(int worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
         Index axis, Index batch_ndim);
 
 // Tile<T> scaling of a tensor with a broadcasted fiber
 template<typename T>
-void scale_fiber(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
+void scale_fiber(int worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
         Index axis, Index batch_ndim);
 
 } // namespace nntile::core

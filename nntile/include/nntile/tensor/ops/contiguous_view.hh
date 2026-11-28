@@ -6,7 +6,7 @@
  * @file include/nntile/tensor/ops/contiguous_view.hh
  * TensorGraph contiguous_view: dst is a storage alias of src.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

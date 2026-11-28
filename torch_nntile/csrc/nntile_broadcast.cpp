@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/csrc/nntile_broadcast.cpp
  * Broadcast and repeat via chained ``scale_slice`` (one axis per op).
+ * @version 2.0.0
  */
 
 #include "nntile_broadcast.h"
@@ -63,7 +64,6 @@ void insert_axis_size(
 
 } // namespace
 
-#ifndef NNTILE_TORCH_NATIVE_OPS
 nntile::TensorGraph::TensorNode *broadcast_scale_slice_chain(
     nntile::TensorGraph::TensorNode *src,
     nntile::TensorGraph::TensorNode *dst,
@@ -102,7 +102,6 @@ nntile::TensorGraph::TensorNode *broadcast_scale_slice_chain(
     return src_node;
 }
 
-#endif // !NNTILE_TORCH_NATIVE_OPS
 
 nntile::TensorGraph::TensorNode *repeat_scale_slice_chain(
     nntile::TensorGraph::TensorNode *src,
@@ -239,7 +238,6 @@ void classic_tensor_repeat_fp32(
     register_data_node(out, out_node);
 }
 
-#ifndef NNTILE_TORCH_NATIVE_OPS
 void tensor_repeat_fp32(
     const at::Tensor &input,
     at::Tensor &out,
@@ -281,7 +279,7 @@ void tensor_broadcast_scalar_fp32(
         dst_graph,
         nntile::DataType::FP32,
         false);
-    // scale_slice writes dst with STARPU_W; no separate clear().
+    // scale_slice writes dst with ACCESS_W; no separate clear().
     broadcast_scale_slice_chain(
         src_node,
         dst_node,
@@ -290,7 +288,5 @@ void tensor_broadcast_scalar_fp32(
     register_data_node(out, dst_node);
 }
 
-#endif // !NNTILE_TORCH_NATIVE_OPS
 
 } // namespace torch_nntile
-

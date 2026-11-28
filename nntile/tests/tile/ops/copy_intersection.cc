@@ -5,12 +5,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tile_graph/copy_intersection.cc
  * Test TileGraph copy intersection vs nntile::core (parity).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include <catch2/catch_test_macros.hpp>
@@ -47,13 +47,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph copy_intersection", "[
     nntile::core::Tile<fp32_t> S(sh), D(sh);
     nntile::core::Tile<nntile::int64_t> Sc(sc);
     using Y = typename fp32_t::repr_t;
-    { auto a=S.acquire(STARPU_W), b=D.acquire(STARPU_W);
+    { auto a=S.acquire(ACCESS_W), b=D.acquire(ACCESS_W);
       for(Index i=0;i<n;++i) { a[i]=Y(sv[static_cast<size_t>(i)]); b[i]=Y(0);} a.release(); b.release(); }
-    { auto L=Sc.acquire(STARPU_W); for(Index j=0;j<6;++j) L[j]=0; L.release(); }
+    { auto L=Sc.acquire(ACCESS_W); for(Index j=0;j<6;++j) L[j]=0; L.release(); }
     nntile::core::copy_intersection<fp32_t>(-1, S, {0, 0, 0}, D, {0, 0, 0}, Sc);
-    starpu_task_wait_for_all();
+    task_wait_for_all();
     std::vector<float> tr(n);
-    { auto L=D.acquire(STARPU_R);
+    { auto L=D.acquire(ACCESS_R);
       for(Index i=0;i<n;++i) tr[static_cast<size_t>(i)]=static_cast<float>(L[i]);
       L.release(); }
     nntile::test::require_relative_element_error(gout, tr);
@@ -91,7 +91,7 @@ TEST_CASE_METHOD(
     nntile::core::Tile<nntile::int64_t> S(sh), D(sh);
     nntile::core::Tile<nntile::int64_t> Sc(sc);
     {
-        auto a = S.acquire(STARPU_W), b = D.acquire(STARPU_W);
+        auto a = S.acquire(ACCESS_W), b = D.acquire(ACCESS_W);
         for (Index i = 0; i < n; ++i)
         {
             a[i] = sv[static_cast<size_t>(i)];
@@ -101,7 +101,7 @@ TEST_CASE_METHOD(
         b.release();
     }
     {
-        auto L = Sc.acquire(STARPU_W);
+        auto L = Sc.acquire(ACCESS_W);
         for (Index j = 0; j < 4; ++j)
         {
             L[j] = 0;
@@ -110,10 +110,10 @@ TEST_CASE_METHOD(
     }
     nntile::core::copy_intersection<nntile::int64_t>(
         -1, S, {1, 0}, D, {0, 0}, Sc);
-    starpu_task_wait_for_all();
+    task_wait_for_all();
     std::vector<std::int64_t> tr(n);
     {
-        auto L = D.acquire(STARPU_R);
+        auto L = D.acquire(ACCESS_R);
         for (Index i = 0; i < n; ++i)
         {
             tr[static_cast<size_t>(i)] =
@@ -163,7 +163,7 @@ TEST_CASE_METHOD(
     nntile::core::Tile<nntile::bool_t> S(sh), D(sh);
     nntile::core::Tile<nntile::int64_t> Sc(sc);
     {
-        auto a = S.acquire(STARPU_W), b = D.acquire(STARPU_W);
+        auto a = S.acquire(ACCESS_W), b = D.acquire(ACCESS_W);
         for (Index i = 0; i < n; ++i)
         {
             a[i] = nntile::bool_t(sv[static_cast<size_t>(i)]);
@@ -173,7 +173,7 @@ TEST_CASE_METHOD(
         b.release();
     }
     {
-        auto L = Sc.acquire(STARPU_W);
+        auto L = Sc.acquire(ACCESS_W);
         for (Index j = 0; j < 4; ++j)
         {
             L[j] = 0;
@@ -182,10 +182,10 @@ TEST_CASE_METHOD(
     }
     nntile::core::copy_intersection<nntile::bool_t>(
         -1, S, {1, 0}, D, {0, 0}, Sc);
-    starpu_task_wait_for_all();
+    task_wait_for_all();
     std::vector<bool> tr(static_cast<size_t>(n));
     {
-        auto L = D.acquire(STARPU_R);
+        auto L = D.acquire(ACCESS_R);
         for (Index i = 0; i < n; ++i)
         {
             tr[static_cast<size_t>(i)] = static_cast<bool>(L[i]);

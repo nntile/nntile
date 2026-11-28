@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file include/nntile/starpu/adam_step.hh
- * Adam step with StarPU buffers
+ * @file include/nntile/nnhaul/ops/adam_step.hh
+ * Adam step with NNHaul buffers
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -23,7 +23,7 @@
 // NNTile headers
 #include <nntile/nnhaul/codelet.hh>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Generic wrapper class for adam_step operation is not defined
@@ -71,7 +71,7 @@ public:
 
     //! Submit adam_step task
     void submit(
-        int starpu_worker_hint,
+        int worker_hint,
         Index num_iter,
         Index num_elems,
         Scalar beta_1,
@@ -101,4 +101,4 @@ using adam_step_pack_t = OperationPack<
 //! Pack of adam_step operations for different types
 extern adam_step_pack_t adam_step;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

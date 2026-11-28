@@ -5,12 +5,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/src/tile_graph/maxsumexp.cc
  * TileGraph maxsumexp operation implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tile/ops/maxsumexp.hh"
@@ -30,7 +30,7 @@ void run_me(
     Runtime& runtime, TileGraph::TileNode* s, TileGraph::TileNode* d, Index ax,
     Scalar beta, int r)
 {
-    nntile::core::maxsumexp<T>(runtime.starpu_worker_hint(),
+    nntile::core::maxsumexp<T>(runtime.worker_hint(),
             runtime.get_tile<T>(s), runtime.get_tile<T>(d), ax, beta, r);
 }
 } // namespace

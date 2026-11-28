@@ -4,14 +4,19 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/core/conv2d_bwd_input_inplace.hh
  * Backward 2D-Convolution of two tiles in WHCN format to get input grad
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
-
+/*!
+ * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.
+ * Kept in-tree for future re-enablement. No product path calls this code;
+ * its tests are not registered while the family is in
+ * NNTILE_DISABLED_KERNELS.
+ */
 #pragma once
 
 #include <nntile/core/tile.hh>
@@ -20,7 +25,7 @@ namespace nntile::core
 {
 
 template<typename T>
-void conv2d_bwd_input_inplace_async(int starpu_worker_hint, Index src1_m, Index src1_n, Index stride_m,
+void conv2d_bwd_input_inplace_async(int worker_hint, Index src1_m, Index src1_n, Index stride_m,
         Index stride_n, Index src1_channels, Index batch, Index src2_m,
         Index src2_n, Index dilation_m, Index dilation_n, Index dst_channels,
         Index offset_m, Index offset_n, Scalar alpha, const Tile<T> &src1,
@@ -28,7 +33,7 @@ void conv2d_bwd_input_inplace_async(int starpu_worker_hint, Index src1_m, Index 
         const Tile<T> &dst);
 
 template<typename T>
-void conv2d_bwd_input_inplace(int starpu_worker_hint, Index src1_m, Index src1_n, Index stride_m,
+void conv2d_bwd_input_inplace(int worker_hint, Index src1_m, Index src1_n, Index stride_m,
         Index stride_n, Index src1_channels, Index batch, Index src2_m,
         Index src2_n, Index dilation_m, Index dilation_n, Index dst_channels,
         Index offset_m, Index offset_n, Scalar alpha, const Tile<T> &src1,

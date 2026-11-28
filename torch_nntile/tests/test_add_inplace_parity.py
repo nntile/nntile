@@ -3,11 +3,10 @@
 #
 # @file torch_nntile/tests/test_add_inplace_parity.py
 # Parity tests for nntile add_ via TensorGraph (libnntile).
+# @version 2.0.0
 
 import torch
 from conftest import nntile_cpu
-
-import torch_nntile
 
 
 def test_add_inplace_matches_cpu():

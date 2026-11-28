@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/kernel/maxsumexp/cuda.hh
  * Max and sum of exponents of a buffer on CUDA
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -32,8 +32,8 @@ namespace nntile::kernel::maxsumexp
  *      maxsumexp[1,i,j] = old[1,i,j]*exp(old[0,i,j]-maxsumexp[0,i,j])
  *          + sum(exp(src[i,:,j]-maxsumexp[0,i,j])))
  *
- * With beta=0, old is ignored and maxsumexp is overwritten (STARPU_W).
- * With beta=1, results accumulate into maxsumexp (STARPU_RW).
+ * With beta=0, old is ignored and maxsumexp is overwritten (ACCESS_W).
+ * With beta=1, results accumulate into maxsumexp (ACCESS_RW).
  *
  * @param[in] m: Size of the first mode of src and the second mode of maxsumexp
  * arrays.

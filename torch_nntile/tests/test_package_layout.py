@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/tests/test_package_layout.py
 # Public torch_nntile.nn.functional / module / model import layout.
+# @version 2.0.0
 
 from __future__ import annotations
 

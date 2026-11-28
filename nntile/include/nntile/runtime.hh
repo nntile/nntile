@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/runtime.hh
  * ``nntile::Runtime`` - compile/execute a ``TileGraph`` (IR only).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -25,11 +25,7 @@
 #include <vector>
 
 // Third-party headers
-#ifdef NNTILE_USE_NNHAUL
 #include <nntile/data_access.hh>
-#else
-#include <starpu.h>
-#endif
 
 // NNTile headers
 #include <nntile/base_types.hh>
@@ -47,7 +43,7 @@
 namespace nntile
 {
 
-//! StarPU-backed executor for a TileGraph (IR is separate).
+//! NNHaul-backed executor for a TileGraph (IR is separate).
 class Runtime
 {
   public:
@@ -70,11 +66,11 @@ class Runtime
         return last_compile_alloc_s_;
     }
 
-    //! Submit ops [op_begin, op_end) asynchronously (no StarPU drain).
+    //! Submit ops [op_begin, op_end) asynchronously (no NNHaul drain).
     //! Unmarked-temp reclaim is ordinary ``TILE_INVALIDATE`` ops already in
     //! ``execution_order_`` (appended at compile from phase-touched unmarked
-    //! logicals). Call ``wait()`` to join StarPU before host readout.
-    //! If ``submit_tasks`` is false, skip ``OpNode::execute`` (no StarPU
+    //! logicals). Call ``wait()`` to join NNHaul before host readout.
+    //! If ``submit_tasks`` is false, skip ``OpNode::execute`` (no NNHaul
     //! inserts) but still advance the executed watermark and last-consumer
     //! reclaim - required so incremental ``compile()`` stays O(pending)
     //! under dry-run profiling.
@@ -105,22 +101,23 @@ class Runtime
     template <typename T>
     void bind_data(TileNode const *tile, const std::vector<T> &data);
 
-    //! Submit all compiled ops asynchronously (no StarPU drain).
+    //! Submit all compiled ops asynchronously (no NNHaul drain).
     //! Last-consumer ``invalidate_submit`` runs during submit (see
-    //! ``execute_range``). Call ``wait()`` to join StarPU. Same submit
+    //! ``execute_range``). Call ``wait()`` to join NNHaul. Same submit
     //! contract as ``execute_range(0, execution_op_count())``.
     void execute();
 
-    //! StarPU worker for ``STARPU_EXECUTE_ON_WORKER`` during tile op execution,
-    //! or -1 for default StarPU placement. Set by ``execute()`` /
-    //! ``execute_range()`` from the static execution schedule when one is
-    //! installed.
-    int starpu_worker_hint() const noexcept { return starpu_worker_hint_; }
+    //! Worker hint for tile op execution, or -1 for default placement.
+    //! Set by ``execute()`` / ``execute_range()`` from the static execution
+    //! schedule when one is installed.
+    int worker_hint() const noexcept { return worker_hint_; }
 
     //! Block until all tasks submitted by ``execute()`` / ``execute_range()``
     //! have finished. Last-consumer tile invalidation already ran during
-    //! submit; this only drains StarPU.
+    //! submit; this only drains NNHaul.
     void wait();
+
+
 
     //! When every compiled op has already run (``executed_op_end_ ==
     //! execution_order_.size()``), clear ``execution_order_`` and reset
@@ -153,24 +150,21 @@ class Runtime
     bool is_initialized(TensorGraph::TensorNode const *tensor) const;
 
 
-    //! Clear initialized flag after staging readout (tile handle stays live).
-    void invalidate_initialized(TensorGraph::TensorNode const *tensor);
 
-
-    //! Drop StarPU buffers for a logical tensor that is no longer marked
+    //! Drop NNHaul buffers for a logical tensor that is no longer marked
     //! input/output. Uses ``invalidate_submit`` / async unregister only -
-    //! safe while earlier submitted tasks still reference the handle; StarPU
+    //! safe while earlier submitted tasks still reference the handle; NNHaul
     //! defers free until last use. No-op if still marked, unknown, or never
     //! allocated.
     void invalidate_logical_tiles(
         TensorGraph::TensorNode const *logical);
 
     //! Async invalidate one tile payload (``invalidate_submit`` + clear).
-    //! Used by ``TileInvalidateOp``; StarPU orders free after last use.
+    //! Used by ``TileInvalidateOp``; NNHaul orders free after last use.
     void invalidate_tile(TileGraph::TileNode *tile);
 
     //! Async unregister one tile handle (``unregister_submit`` + clear).
-    //! No-op if the tile is already unregistered. StarPU orders the free
+    //! No-op if the tile is already unregistered. NNHaul orders the free
     //! after last use. Context shutdown only walks leftover handles.
     void unregister_tile(TileGraph::TileNode *tile);
 
@@ -211,8 +205,8 @@ class Runtime
         return !execution_schedule_.ops.empty();
     }
 
-    //! After ``compile()``: install affinity-batch when any CUDA worker
-    //! exists, otherwise round-robin. An explicit schedule already set wins.
+    //! After ``compile()``: install the affinity-batch schedule. An
+    //! explicit schedule already set wins.
     void install_default_execution_schedule_if_missing();
 
     //! After ``compile()``: build round-robin schedule from DCE order (does not
@@ -223,20 +217,11 @@ class Runtime
     ExecutionSchedule generate_affinity_batch_execution_schedule() const;
 
     //! Optional: pin workers during ``execute()`` (from generator or
-    //! ``load_execution_schedule_json``). Without a schedule, StarPU chooses
+    //! ``load_execution_schedule_json``). Without a schedule, NNHaul chooses
     //! workers at runtime.
     void set_execution_schedule(ExecutionSchedule schedule);
 
     void load_execution_schedule(std::string const &path);
-
-    //! Load ``execution.json`` once (per path), then ``set_execution_schedule``.
-    //! Re-reads only when ``path`` changes. Clears cache if apply fails.
-    void apply_execution_schedule_from_file(std::string const &path);
-
-    void clear_execution_schedule_file_cache();
-
-    //! ``compile()`` then round-robin schedule in memory (convenience for tests).
-    void compile_with_round_robin_schedule();
 
     void write_execution_schedule_json(std::string const &path) const;
 
@@ -244,10 +229,6 @@ class Runtime
 
     void allocate_missing_tiles();
     void eliminate_dead_ops();
-    void build_tile_last_consumer_map();
-    void release_dead_tiles_after_op(size_t op_idx);
-    void queue_dead_tiles_after_op(size_t op_idx);
-    void flush_queued_dead_tiles();
     void invalidate_tile_buffer(
         const TileNode *node,
         const std::shared_ptr<void> &tile_ptr);
@@ -268,25 +249,14 @@ class Runtime
     //! Payloads live on ``TileNode::payload_`` (O(1) field access).
     std::vector<std::shared_ptr<OpNode>> execution_order_;
     ExecutionSchedule execution_schedule_;
-    std::optional<ExecutionSchedule> execution_schedule_file_cache_;
-    std::string execution_schedule_file_cache_path_;
     bool compiled_ = false;
-    int starpu_worker_hint_ = -1;
+    int worker_hint_ = -1;
     std::unordered_map<TensorGraph::TensorNode const *, bool> init_state_;
     std::unordered_map<const TileNode *, std::shared_ptr<void>> tile_adoption_;
     std::unordered_set<const TileNode *> live_tile_nodes_;
-    //! ``tiles_dying_after_op_[i]`` = tiles whose last consumer is
-    //! absolute op index ``tiles_dying_op_base_ + i`` (pending window only).
-    std::vector<std::vector<const TileNode *>> tiles_dying_after_op_;
-    size_t tiles_dying_op_base_ = 0;
-    //! Scratch for last-consumer tiles; flushed via invalidate_submit during
-    //! ``execute_range`` (not deferred to ``wait()``).
-    std::vector<const TileNode *> queued_dead_tiles_;
-#ifdef NNTILE_USE_NNHAUL
     //! Payloads whose handles have an async invalidate in flight.
     //! ``nnhaul::Handle`` must stay alive until ``wait()`` joins that task.
     std::vector<std::shared_ptr<void>> nnhaul_retained_payloads_;
-#endif
     //! Highest exclusive op index already run via execute / execute_range.
     size_t executed_op_end_ = 0;
     //! How many ``graph_.ops()`` entries have been appended into
@@ -298,9 +268,8 @@ class Runtime
     //! those nodes must still be allocated without scanning full history.
     size_t compiled_tile_node_count_ = 0;
     //! True once any lowered op of this graph is a torch_dispatch
-    //! (TILE_TORCH_*) op. NNHaul builds use it to switch tile allocation
-    //! to contiguous handles (torch-native ops cannot consume chunked
-    //! tiles); StarPU builds never read it.
+    //! (TILE_TORCH_*) op. NNTile 2.0 has no such op family, so compile
+    //! fails closed instead of reading a chunk chain as contiguous data.
     bool graph_has_torch_ops_ = false;
     double last_compile_dce_s_ = 0.0;
     double last_compile_alloc_s_ = 0.0;
@@ -496,7 +465,7 @@ void scatter_logical_tensor(const TensorAxisLayout &lay,
         }
         TileGraph::TileNode *tn = tiles[static_cast<size_t>(lin)];
         auto &tile = rt.template get_tile<NntileT>(tn);
-        auto tile_local = tile.acquire(STARPU_W);
+        auto tile_local = tile.acquire(ACCESS_W);
         for (Index lf = 0; lf < tne; ++lf)
         {
             tile_linear_to_index(lf, ts, local);
@@ -537,7 +506,7 @@ void gather_logical_tensor(const TensorAxisLayout &lay,
         }
         TileGraph::TileNode *tn = tiles[static_cast<size_t>(lin)];
         const auto &tile = rt.template get_tile<NntileT>(tn);
-        auto tile_local = tile.acquire(STARPU_R);
+        auto tile_local = tile.acquire(ACCESS_R);
         for (Index lf = 0; lf < tne; ++lf)
         {
             tile_linear_to_index(lf, ts, local);
@@ -779,7 +748,7 @@ void Runtime::bind_data_impl(
         throw std::runtime_error(
             "Data size mismatch for tile '" + node->name() + "'");
     }
-    auto tile_local = tile.acquire(STARPU_W);
+    auto tile_local = tile.acquire(ACCESS_W);
     for (size_t i = 0; i < count; ++i)
     {
         tile_local[i] = NntileT(static_cast<CastT>(data[i]));
@@ -985,7 +954,7 @@ void Runtime::get_output_impl(
 {
     auto &tile_buf = get_tile<NntileT>(node);
     result.resize(tile_buf.nelems);
-    auto tile_local = tile_buf.acquire(STARPU_R);
+    auto tile_local = tile_buf.acquire(ACCESS_R);
     for (Index i = 0; i < tile_buf.nelems; ++i)
     {
         result[i] = static_cast<T>(static_cast<CastT>(tile_local[i]));
@@ -1003,18 +972,6 @@ inline bool Runtime::is_initialized(
     }
     auto it = init_state_.find(tensor);
     return it != init_state_.end() && it->second;
-}
-
-
-inline void Runtime::invalidate_initialized(
-    TensorGraph::TensorNode const *tensor)
-{
-    if (tensor == nullptr)
-    {
-        throw std::invalid_argument(
-            "Runtime::invalidate_initialized: tensor must be non-null");
-    }
-    init_state_[tensor] = false;
 }
 
 

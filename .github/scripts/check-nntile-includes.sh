@@ -5,13 +5,13 @@
 #                              (AIRI), Russia. All rights reserved.
 #
 # NNTile is software framework for fast training of big neural networks on
-# distributed-memory heterogeneous systems based on StarPU runtime system.
+# distributed-memory heterogeneous systems with GPU acceleration.
 #
 # @file .github/scripts/check-nntile-includes.sh
 #
 # Enforce flat public includes: no nntile/core/ or nntile/graph/ path segments.
 #
-# @version 1.1.0
+# @version 2.0.0
 set -euo pipefail
 
 root="${1:-.}"
@@ -25,15 +25,17 @@ git grep -E '#include[[:space:]]*[<"]nntile/(core|graph)/' -- \
     ':(exclude)build' \
     ':(exclude).git' \
     ':(exclude)nntile/' \
+    ':(exclude)torch_nntile/' \
     ':(exclude)*.md' \
     >>"$bad" 2>/dev/null || true
 
-legacy='#include[[:space:]]*[<"]nntile/(kernel|starpu|tile|tensor)/'
+legacy='#include[[:space:]]*[<"]nntile/(kernel|tile|tensor)/'
 git grep -E "$legacy" -- \
     ':(exclude)external' \
     ':(exclude)build' \
     ':(exclude).git' \
     ':(exclude)nntile/' \
+    ':(exclude)torch_nntile/' \
     >>"$bad" 2>/dev/null || true
 
 # Documentation may show legacy include examples.

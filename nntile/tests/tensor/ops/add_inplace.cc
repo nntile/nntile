@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tensor_graph/add_inplace.cc
  * Test TensorGraph add_inplace operation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tensor/ops/add_inplace.hh"
@@ -35,7 +35,7 @@ namespace
 constexpr Scalar alpha = 1.0;
 constexpr Scalar beta = 1.0;
 
-} 
+}
 
 TEST_CASE("TensorGraph add_inplace structure", "[graph][tensor]")
 {

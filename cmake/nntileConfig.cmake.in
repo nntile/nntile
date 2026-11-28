@@ -3,11 +3,15 @@
 #
 # @file cmake/nntileConfig.cmake.in
 # find_package(nntile) config for installed libnntile.
+# @version 2.0.0
 
 @PACKAGE_INIT@
 
 # Re-entrant find_package / find_dependency must not re-announce or
 # re-import targets.
+set(NNTILE_BUILT_WITH_CUDA "@NNTILE_LINK_CUDA@")
+set(NNTILE_BUILT_WITH_DISABLED_KERNELS "@NNTILE_DISABLED_KERNELS@")
+
 if(TARGET nntile::nntile)
     check_required_components(nntile)
     return()
@@ -15,34 +19,28 @@ endif()
 
 include(CMakeFindDependencyMacro)
 
-set(NNTILE_BUILT_WITH_NNHAUL "@NNTILE_USE_NNHAUL@")
-set(NNTILE_BUILT_WITH_CUDA "@NNTILE_LINK_CUDA@")
-set(NNTILE_BUILT_WITH_CBLAS "@NNTILE_LINK_CBLAS@")
-set(NNTILE_BUILT_WITH_TORCH_NATIVE_OPS "@NNTILE_TORCH_NATIVE_OPS@")
-set(NNTILE_BUILT_WITH_NNTILE_NATIVE_OPS "@NNTILE_NNTILE_NATIVE_OPS@")
-
-if(NNTILE_BUILT_WITH_NNHAUL)
-    # Consumers of an NNHaul build must supply libnnhaul themselves.
-else()
-# StarPU (same helper used at build time).
-include("${CMAKE_CURRENT_LIST_DIR}/NNTileFindStarPU.cmake")
+# The public nntile headers include <nnhaul/nnhaul.hh>, and the link
+# interface names nnhaul::nnhaul, so the nnhaul package must be found.
+# find_dependency resets PACKAGE_PREFIX_DIR; keep ours for the rest of
+# this config.
+set(_nntile_saved_prefix "${PACKAGE_PREFIX_DIR}")
+find_dependency(nnhaul CONFIG)
+set(PACKAGE_PREFIX_DIR "${_nntile_saved_prefix}")
+if(TARGET nnhaul::nnhaul)
+    get_target_property(_nnhaul_type nnhaul::nnhaul TYPE)
+    if(_nnhaul_type STREQUAL "STATIC_LIBRARY")
+        message(FATAL_ERROR
+            "nntile was built against a shared nnhaul, but "
+            "nnhaul::nnhaul here is a static archive: two engine "
+            "instances would result. Point CMAKE_PREFIX_PATH at the "
+            "nnhaul shared package used to build nntile.")
+    endif()
 endif()
 
 find_dependency(nlohmann_json)
 
 if(NNTILE_BUILT_WITH_CUDA)
-    find_dependency(CUDAToolkit 11.0)
-    # CUDNN::cudnn_all is provided by the build's cuDNN helper; consumers that
-    # need CUDA must supply an equivalent imported target or link flags.
-endif()
-
-if(NNTILE_BUILT_WITH_CBLAS)
-    find_dependency(BLAS)
-endif()
-
-# Torch-native libnntile PUBLIC-links LibTorch; consumers need Torch too.
-if(NNTILE_BUILT_WITH_TORCH_NATIVE_OPS)
-    find_dependency(Torch)
+    find_dependency(CUDAToolkit 12.0)
 endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/nntileTargets.cmake")
@@ -53,14 +51,6 @@ endif()
 
 if(NOT nntile_FIND_QUIETLY)
     message(STATUS "libnntile found: ${PACKAGE_PREFIX_DIR}")
-    if(NNTILE_BUILT_WITH_TORCH_NATIVE_OPS)
-        message(STATUS
-            "libnntile: NNTILE_TORCH_NATIVE_OPS=ON")
-    endif()
-    if(NNTILE_BUILT_WITH_NNTILE_NATIVE_OPS)
-        message(STATUS
-            "libnntile: NNTILE_NNTILE_NATIVE_OPS=ON")
-    endif()
 endif()
 
 check_required_components(nntile)

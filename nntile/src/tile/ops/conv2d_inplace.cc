@@ -1,22 +1,28 @@
-#include <nntile/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/src/tile_graph/conv2d_inplace.cc
  * TileGraph conv2d inplace operation implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
-
+/*!
+ * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.
+ * Kept in-tree for future re-enablement. No product path calls this code;
+ * its tests are not registered while the family is in
+ * NNTILE_DISABLED_KERNELS.
+ */
+#include <nntile/common.hh>
 #include "nntile/tile/ops/conv2d_inplace.hh"
 #include <stdexcept>
 #include <nntile/base_types.hh>
 #include <nntile/dtype.hh>
+#include <nntile/kernel_scope.hh>
 #include <nntile/core.hh>
 #include <nntile/core/conv2d_inplace.hh>
 
@@ -28,12 +34,13 @@ namespace
 template<typename T>
 void run(const TileConv2dInplaceOp& o, Runtime& runtime)
 {
-    nntile::core::conv2d_inplace<T>(runtime.starpu_worker_hint(), o.src1_m, o.src1_n, o.src1_channels, o.batch, o.src2_m, o.src2_n, o.dilation_m, o.dilation_n, o.dst_channels, o.offset_m, o.offset_n, o.alpha, runtime.get_tile<T>(o.s1), runtime.get_tile<T>(o.s2), o.dst_m, o.dst_n, o.stride_m, o.stride_n, o.beta, runtime.get_tile<T>(o.dst));
+    nntile::core::conv2d_inplace<T>(runtime.worker_hint(), o.src1_m, o.src1_n, o.src1_channels, o.batch, o.src2_m, o.src2_n, o.dilation_m, o.dilation_n, o.dst_channels, o.offset_m, o.offset_n, o.alpha, runtime.get_tile<T>(o.s1), runtime.get_tile<T>(o.s2), o.dst_m, o.dst_n, o.stride_m, o.stride_n, o.beta, runtime.get_tile<T>(o.dst));
 }
 } // namespace
 void conv2d_inplace(
     Index src1_m, Index src1_n, Index src1_channels, Index batch, Index src2_m, Index src2_n, Index dilation_m, Index dilation_n, Index dst_channels, Index offset_m, Index offset_n, Scalar alpha, TileGraph::TileNode* src1, TileGraph::TileNode* src2, Index dst_m, Index dst_n, Index stride_m, Index stride_n, Scalar beta, TileGraph::TileNode* dst)
 {
+    nntile::require_kernel_family("conv2d_inplace");
     if(!src1 || !src2 || !dst)
         throw std::invalid_argument("conv2d_inplace");
     if(src1->graph() != src2->graph() || src1->graph() != dst->graph() || src1->dtype() != src2->dtype() || src1->dtype() != dst->dtype())

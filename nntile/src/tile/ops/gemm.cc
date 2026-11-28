@@ -5,12 +5,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/src/tile_graph/gemm.cc
  * TileGraph GEMM implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tile/ops/gemm.hh"
@@ -53,7 +53,7 @@ void run_gemm(
     const auto trans_b_op = trans_b ? nntile::TransOp(nntile::TransOp::Trans)
                                     : nntile::TransOp(nntile::TransOp::NoTrans);
 
-    nntile::core::gemm<T>(runtime.starpu_worker_hint(), 
+    nntile::core::gemm<T>(runtime.worker_hint(),
         alpha, trans_a_op, a_t, trans_b_op, b_t, beta, c_t, ndim, batch_ndim,
         0);
 }
@@ -83,6 +83,11 @@ void gemm(
     if(a->dtype() != b->dtype() || a->dtype() != c->dtype())
     {
         throw std::invalid_argument("tile gemm: dtype mismatch");
+    }
+    if(a == b || a == c || b == c)
+    {
+        throw std::invalid_argument(
+            "tile gemm: the NNHaul backend needs three distinct tiles");
     }
 
     auto op = std::make_shared<TileGemmOp>(

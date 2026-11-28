@@ -5,12 +5,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/src/tile_graph/embedding.cc
  * TileGraph embedding operation implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tile/ops/embedding.hh"
@@ -29,7 +29,7 @@ template<typename T>
 void run(
     Runtime& runtime, Index a, Index b, Index c, Index ks, Index kz, Index ir, TileGraph::TileNode* ix, TileGraph::TileNode* v, TileGraph::TileNode* e)
 {
-    nntile::core::embedding<T>(runtime.starpu_worker_hint(), a, b, c, ks, kz, ir, runtime.get_tile<nntile::int64_t>(ix), runtime.get_tile<T>(v), runtime.get_tile<T>(e));
+    nntile::core::embedding<T>(runtime.worker_hint(), a, b, c, ks, kz, ir, runtime.get_tile<nntile::int64_t>(ix), runtime.get_tile<T>(v), runtime.get_tile<T>(e));
 }
 } // namespace
 void embedding(

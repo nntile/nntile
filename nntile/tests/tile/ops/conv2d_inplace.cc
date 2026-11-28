@@ -5,14 +5,19 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tile_graph/conv2d_inplace.cc
  * Test TileGraph conv2d inplace vs nntile::core (parity).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
-
+/*!
+ * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.
+ * Kept in-tree for future re-enablement. No product path calls this code;
+ * its tests are not registered while the family is in
+ * NNTILE_DISABLED_KERNELS.
+ */
 #include <catch2/catch_test_macros.hpp>
 #include "context_fixture.hh"
 #include "test_frobenius.hh"
@@ -41,15 +46,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph conv2d_inplace", "[gra
     const auto gout = r.get_output<float>(Y);
     nntile::core::Tile<fp32_t> TX(xh), TC(ch), TY(yh);
     using Yf = typename fp32_t::repr_t;
-    { auto a=TX.acquire(STARPU_W),b=TC.acquire(STARPU_W),c=TY.acquire(STARPU_W);
+    { auto a=TX.acquire(ACCESS_W),b=TC.acquire(ACCESS_W),c=TY.acquire(ACCESS_W);
       for(Index i=0;i<nx;++i) a[i]=Yf(xv[static_cast<size_t>(i)]);
       for(Index i=0;i<nc;++i) b[i]=Yf(cv[static_cast<size_t>(i)]);
       for(Index i=0;i<ny;++i) c[i]=Yf(0.0f);
       a.release();b.release();c.release(); }
     nntile::core::conv2d_inplace<fp32_t>(-1, 3,3,1,1,2,2,1,1,1,0,0,1.0,TX,TC,2,2,1,1,0.0,TY);
-    starpu_task_wait_for_all();
+    task_wait_for_all();
     std::vector<float> tr(4);
-    { auto L=TY.acquire(STARPU_R);
+    { auto L=TY.acquire(ACCESS_R);
       for(Index i=0;i<4;++i) tr[static_cast<size_t>(i)]=static_cast<float>(L[i]);
       L.release(); }
     nntile::test::require_relative_element_error(gout, tr);

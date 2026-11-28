@@ -5,6 +5,7 @@
  *
  * @file nntile/tests/tensor/ops/invalidate.cc
  * Test TensorGraph invalidate structure and unmarked-phase helper.
+ * @version 2.0.0
  */
 
 #include "nntile/tensor/ops/invalidate.hh"

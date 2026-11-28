@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/kernel/transpose/cuda.hh
  * Transpose operation on buffers on CUDA
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -40,8 +40,7 @@ void panel(cudaStream_t stream, Index m, Index n, Index nr, Index nc,
  * chunk-pointer table (no per-tile or handle cap), and each element's chunk
  * index is derived from its flat offset. Elementwise and deterministic, so
  * the result is bitwise the whole-buffer cuda() call. A launch whose
- * pointer set exceeds the table aborts (rule 11, 2026-10-19: no
- * per-panel fallback exists).
+ * pointer set exceeds the table aborts (no per-panel fallback exists).
  *
  * @param[in] stream: CUDA stream
  * @param[in] m: Number of rows of src (columns of dst)

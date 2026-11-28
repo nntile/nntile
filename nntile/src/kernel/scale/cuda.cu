@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/scale/cuda.cu
  * Scale operation on buffers on CUDA
  *
- * @version 1.3.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/scale/cuda.hh"
@@ -86,7 +86,7 @@ static __device__ __forceinline__ long scale_chunk_index(long f, Index elems,
 //! and the SAME per-element expression (a single multiply, so there is
 //! no FMA-contraction freedom) as cuda_kernel, with every operand address
 //! resolved through its chunk table read straight from the device table
-//! (piece 9 / rule 10: no shared-memory staging, no table __syncthreads;
+//! (no shared-memory staging, no table __syncthreads;
 //! the table is a handful of L1-resident entries). The result is bitwise
 //! cuda()'s.
 template<typename T>

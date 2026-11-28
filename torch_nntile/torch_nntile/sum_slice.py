@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/sum_slice.py
 # sum_slice matching ``nntile::tensor::sum_slice`` / old ``layer.gap.GAP``.
+# @version 2.0.0
 
 """Sum over an axis into a slice (NNTile ``sum_slice``).
 

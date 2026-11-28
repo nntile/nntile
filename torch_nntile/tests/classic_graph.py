@@ -2,6 +2,7 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/tests/classic_graph.py
+# @version 2.0.0
 """Helpers: pending TensorGraph must be classic kernels, not TORCH_*."""
 
 from __future__ import annotations
@@ -26,18 +27,5 @@ def assert_classic_graph() -> None:
         extra = "" if len(torch_ops) <= 12 else f" (+{len(torch_ops) - 12})"
         raise AssertionError(
             "pending TensorGraph has torch-native compute ops: "
-            f"{preview}{extra}"
-        )
-
-
-def assert_torch_native_graph() -> None:
-    """Fail if the pending TensorGraph has no torch-native ``TORCH_*`` ops."""
-    names = pending_op_names()
-    torch_ops = [name for name in names if name.startswith("TORCH_")]
-    if not torch_ops:
-        preview = ", ".join(names[:12]) if names else "<empty>"
-        extra = "" if len(names) <= 12 else f" (+{len(names) - 12})"
-        raise AssertionError(
-            "pending TensorGraph has no torch-native TORCH_* ops: "
             f"{preview}{extra}"
         )

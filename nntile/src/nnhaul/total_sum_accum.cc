@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file src/starpu/total_sum_accum.cc
- * Total sum accumulating for StarPU buffer
+ * @file src/nnhaul/total_sum_accum.cc
+ * Total sum accumulating for NNHaul buffer
  *
- * @version 1.2.0
+ * @version 2.0.0
  * */
 
 // Corresponding header
@@ -25,13 +25,12 @@
 #include "nntile/kernel/total_sum_accum.hh"
 #include "nntile/nnhaul/chunk_units.hh"
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
-
 
 // ---------------------------------------------------------------------------
 // Native chunked total_sum_accum driver (chunk_units.hh scheme; the
-// family-1 sum chaining algebra combined with the indexed-column
+// sum chaining algebra combined with the indexed-column
 // decomposition of subtract_indexed_outputs).
 //
 // Kernel index map (derived from kernel::total_sum_accum::cpu/cuda, NOT
@@ -47,12 +46,11 @@ namespace nntile::haul
 // logsumexp/labels chunk boundaries, and a src column straddling a
 // chunk boundary is READ-staged through a bounded n_labels temp (no
 // scatter - src is pure input). The pieces chain through the kernel's
-// OWN accumulate contract (*val = *val - alpha*c + alpha*sum): each
+// OWN accumulate contract (val += alpha*(logsumexp - src)): each
 // sub-call takes the caller's alpha and folds its Kahan partial into
-// val in flat column order - algebraically exact, equal to the plain
-// call up to the rounding of the piecewise merge (the CUDA kernel adds
-// atomicAdd nondeterminism, which the plain call already has). Zero new
-// kernels; all-unchunked buffers keep the single classic call.
+// val in flat column order - additive, so equal to the plain call up to
+// the rounding of the piecewise merge. Zero new kernels; all-unchunked
+// buffers keep the single classic call.
 // ---------------------------------------------------------------------------
 
 namespace
@@ -173,14 +171,10 @@ void TotalSumAccum<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[1]);
     auto buf_labels = static_cast<::nnhaul::Buffer *>(buffers[2]);
     auto buf_val = static_cast<::nnhaul::Buffer *>(buffers[3]);
-    if((buf_logsumexp->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
-        && (buf_labels->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_val->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+    if((buf_logsumexp->chunk_count() == 1) && (buf_src->chunk_count() == 1)
+        && (buf_labels->chunk_count() == 1) && (buf_val->chunk_count() == 1)
        )
     {
-        // Classic contiguous dispatch: illegal under the force flag
-        // (the tripwire proves it never happens in a flag-on run).
-        chunkunits::classic_dispatch_tripwire("nntile_total_sum_accum", false);
-        // Unchunked fast path: the historical single kernel call, bitwise
         kernel::total_sum_accum::cpu<T>(alpha, n_labels, n_outputs,
             ignore_index, buf_logsumexp->get_ptr<T>(), buf_src->get_ptr<T>(),
             buf_labels->get_ptr<nntile::int64_t>(), buf_val->get_ptr<float>());
@@ -249,6 +243,9 @@ void TotalSumAccum<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
+    chunkunits::require_kernel_index_envelope(
+        static_cast<std::size_t>(args->n_outputs),
+        "nntile_total_sum_accum");
     Scalar alpha = args->alpha;
     Index n_labels = args->n_labels;
     Index n_outputs = args->n_outputs;
@@ -260,14 +257,10 @@ void TotalSumAccum<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto buf_val = static_cast<::nnhaul::Buffer *>(buffers[3]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    if((buf_logsumexp->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
-        && (buf_labels->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_val->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+    if((buf_logsumexp->chunk_count() == 1) && (buf_src->chunk_count() == 1)
+        && (buf_labels->chunk_count() == 1) && (buf_val->chunk_count() == 1)
        )
     {
-        // Classic contiguous dispatch: illegal under the force flag
-        // (the tripwire proves it never happens in a flag-on run).
-        chunkunits::classic_dispatch_tripwire("nntile_total_sum_accum", false);
-        // Unchunked fast path: the historical single kernel call, bitwise
         kernel::total_sum_accum::cuda<T>(stream, alpha, n_labels, n_outputs,
             ignore_index, buf_logsumexp->get_ptr<T>(), buf_src->get_ptr<T>(),
             buf_labels->get_ptr<nntile::int64_t>(), buf_val->get_ptr<float>());
@@ -280,20 +273,19 @@ void TotalSumAccum<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // thread's per-column reads and the block-shared float atomicAdd
     // grouping are identical to cuda()'s, so the result is cuda()'s up
     // to the same float-atomic ordering nondeterminism. (The historical
-    // piecewise fallback is DELETED -- rule 11.)
+    // piecewise fallback has been deleted.)
     chunkunits::ChunkView<T> const cv_lse(buf_logsumexp);
     chunkunits::ChunkView<T> const cv_src(buf_src);
     chunkunits::ChunkView<nntile::int64_t> const cv_lab(buf_labels);
     chunkunits::ChunkView<float> const cv_val(buf_val);
-    // Piece C (2026-10-18c) smalls-direct fast path: when lse, labels
+    // smalls-direct fast path: when lse, labels
     // and val are all SINGLE-CHUNK (the graph shape beside the
     // multi-chunk src), their resolved bases travel as plain kernel
     // parameters -- so ONLY the src table is built, uploaded and read
     // through the table. This halves the host table work and the upload
     // payload of the latency-bound 4-block launch, and removes one
     // dependent table-slot load per operand per thread from the serial
-    // chain. The general four-table form below (and the piecewise
-    // fallback) keeps every other shape.
+    // chain. The general four-table form below keeps every other shape.
     if(cv_lse.nchunks == 1 && cv_lab.nchunks == 1 && cv_val.nchunks == 1)
     {
         chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
@@ -358,17 +350,15 @@ void TotalSumAccum<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
             }
         }
     }
-        // (rule 11, user directive 2026-10-19) There is no per-piece
+        // There is no per-piece
     // fallback: the 16 MiB pow2 chunk class and the pow2 2^20-slot table
     // serve any launch up to a 16 TiB operand, so a failed upload is an
     // invariant violation, not a mode to stage around.
     std::fprintf(stderr,
         "nntile_total_sum_accum: chunk-ptr table cannot serve this launch (invariant "
-        "violation; the per-piece staging fallback was deleted by rule "
-        "11)\n");
+        "violation; no per-piece staging fallback exists)\n");
     std::abort();
 }
-
 
 // Specializations of CUDA wrapper for accelerated types
 template<>
@@ -409,15 +399,15 @@ std::uint64_t TotalSumAccum<std::tuple<T>>::footprint(void const *cl_args, std::
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     uint32_t hash = 0;
-    hash = ::nntile::haul::fnv1a(&args->n_labels, sizeof(args->n_labels),
+    hash = ::nntile::nnhaul::fnv1a(&args->n_labels, sizeof(args->n_labels),
             hash);
-    hash = ::nntile::haul::fnv1a(&args->n_outputs, sizeof(args->n_outputs),
+    hash = ::nntile::nnhaul::fnv1a(&args->n_outputs, sizeof(args->n_outputs),
             hash);
     return hash;
 }
 
 template<typename T>
-void TotalSumAccum<std::tuple<T>>::submit(int starpu_worker_hint, Scalar alpha, Index n_labels,
+void TotalSumAccum<std::tuple<T>>::submit(int worker_hint, Scalar alpha, Index n_labels,
         Index n_outputs, Index ignore_index,
             ::nnhaul::Handle & logsumexp, ::nnhaul::Handle & src, ::nnhaul::Handle & class_labels, ::nnhaul::Handle & val)
 {
@@ -429,8 +419,8 @@ void TotalSumAccum<std::tuple<T>>::submit(int starpu_worker_hint, Scalar alpha, 
     args->ignore_index = ignore_index;
     // Submit task: the BODY picks the unchunked fast path or the native
     // chunked column driver; total_sum_accum never stages.
-    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
-        { { STARPU_R, &logsumexp }, { STARPU_R, &src }, { STARPU_R, &class_labels }, { STARPU_RW | STARPU_COMMUTE, &val } }, args, sizeof(*args));
+    ::nntile::nnhaul::insert_task(codelet.raw, worker_hint,
+        { { ACCESS_R, &logsumexp }, { ACCESS_R, &src }, { ACCESS_R, &class_labels }, { ACCESS_RW | ACCESS_COMMUTE, &val } }, args, sizeof(*args));
     std::free(args);
 
 }
@@ -449,4 +439,4 @@ template class TotalSumAccum<std::tuple<nntile::fp16_t>>;
 //! Pack of total_sum_accum operations for different types
 total_sum_accum_pack_t total_sum_accum;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

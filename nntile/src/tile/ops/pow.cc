@@ -4,20 +4,26 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/src/tile_graph/pow.cc
  * TileGraph pow operation implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
-
+/*!
+ * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.
+ * Kept in-tree for future re-enablement. No product path calls this code;
+ * its tests are not registered while the family is in
+ * NNTILE_DISABLED_KERNELS.
+ */
 #include "nntile/tile/ops/pow.hh"
 
 #include <stdexcept>
 
 #include <nntile/base_types.hh>
 #include <nntile/dtype.hh>
+#include <nntile/kernel_scope.hh>
 #include <nntile/core.hh>
 #include <nntile/core/pow.hh>
 
@@ -37,13 +43,14 @@ void run_pow(
     TileGraph::TileNode* A)
 {
     auto& t = runtime.get_tile<T>(A);
-    nntile::core::pow<T>(runtime.starpu_worker_hint(), alpha, exp, t);
+    nntile::core::pow<T>(runtime.worker_hint(), alpha, exp, t);
 }
 
 } // namespace
 
 void pow(Scalar alpha, Scalar exp, TileGraph::TileNode* A)
 {
+    nntile::require_kernel_family("pow");
     if(A == nullptr)
     {
         throw std::invalid_argument("tile pow: A must be non-null");

@@ -2,6 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/nntile_module.cpp
+ * @version 2.0.0
  */
 
 #include <torch/extension.h>
@@ -205,7 +206,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def(
         "init_context",
         &torch_nntile::init_context_py,
-        "Configure StarPU workers before the first nntile op",
+        "Configure NNHaul workers before the first nntile op",
         py::arg("ncpu") = -1,
         py::arg("ncuda") = -1,
         py::arg("ooc_enabled") = 0,
@@ -217,35 +218,20 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def(
         "is_cpu_fallback_enabled",
         &torch_nntile::is_cpu_fallback_enabled,
-        "Whether unsupported ops may fall back to CPU");
+        "Always false: CPU fallback was removed in 2.0; unregistered ops "
+        "raise");
     m.def(
         "is_context_initialized",
         &torch_nntile::is_context_initialized,
         "Whether the libnntile context has been created");
     m.def(
-        "uses_nnhaul",
-        &torch_nntile::uses_nnhaul,
-        "True when libnntile runs on the NNHaul runtime backend");
-    m.def(
-        "restrict_cpu",
-        &torch_nntile::restrict_cpu,
-        "Pin codelets to CPU workers (StarPU only; raises on NNHaul, which has none)");
-    m.def(
-        "restrict_cuda",
-        &torch_nntile::restrict_cuda,
-        "Pin codelets to CUDA workers");
-    m.def(
-        "restore_where",
-        &torch_nntile::restore_where,
-        "Restore default StarPU codelet worker placement");
-    m.def(
         "wait_for_all",
         &torch_nntile::wait_for_all,
-        "Block until all submitted StarPU tasks finish");
+        "Block until all submitted tasks finish");
     m.def(
         "shutdown_context",
         &torch_nntile::shutdown_context,
-        "Shut down libnntile / StarPU (safe to call repeatedly)");
+        "Shut down libnntile (safe to call repeatedly)");
     m.def(
         "execute",
         &torch_nntile::execute_pending_graph,
@@ -261,7 +247,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def(
         "run",
         &torch_nntile::run_graph,
-        "Submit the compiled graph to StarPU (asynchronous; does not wait)");
+        "Submit the compiled graph to NNHaul (asynchronous; does not wait)");
     m.def(
         "reset_graph_session",
         &torch_nntile::reset_graph_session,

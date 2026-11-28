@@ -5,12 +5,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tile_graph/subtract_indexed_outputs.cc
  * Test TileGraph subtract indexed outputs vs nntile::core (parity).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include <catch2/catch_test_macros.hpp>
@@ -46,15 +46,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph subtract_indexed_outpu
     nntile::core::Tile<nntile::int64_t> L(lh);
     nntile::core::Tile<fp32_t> D(dh);
     using Y = typename fp32_t::repr_t;
-    { auto a=L.acquire(STARPU_W);
+    { auto a=L.acquire(ACCESS_W);
       a[0]=0; a[1]=1; a[2]=2; a[3]=0; a.release(); }
-    { auto b=D.acquire(STARPU_W);
+    { auto b=D.acquire(ACCESS_W);
       for(Index i=0;i<nd;++i) b[i]=Y(1.0f+0.1f*static_cast<float>(i));
       b.release(); }
     nntile::core::subtract_indexed_outputs<fp32_t>(-1, v, L, D, ign);
-    starpu_task_wait_for_all();
+    task_wait_for_all();
     std::vector<float> tr(nd);
-    { auto L2=D.acquire(STARPU_R);
+    { auto L2=D.acquire(ACCESS_R);
       for(Index i=0;i<nd;++i) tr[static_cast<size_t>(i)]=static_cast<float>(L2[i]);
       L2.release(); }
     nntile::test::require_relative_element_error(gout, tr);

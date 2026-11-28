@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file include/nntile/starpu/multiply_slice.hh
- * StarPU wrappers for multiplication of a tensor and a broadcasted slice
+ * @file include/nntile/nnhaul/ops/multiply_slice.hh
+ * NNHaul wrappers for multiplication of a tensor and a broadcasted slice
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -23,7 +23,7 @@
 // NNTile headers
 #include <nntile/nnhaul/codelet.hh>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Generic wrapper class for multiply_slice operation is not defined
@@ -68,7 +68,7 @@ public:
 
     //! Submit multiply_slice task
     void submit(
-        int starpu_worker_hint,
+        int worker_hint,
         Index m,
         Index n,
         Index k,
@@ -93,4 +93,4 @@ using multiply_slice_pack_t = OperationPack<
 //! Pack of multiply_slice operations for different types
 extern multiply_slice_pack_t multiply_slice;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

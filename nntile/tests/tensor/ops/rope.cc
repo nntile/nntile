@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tensor_graph/rope.cc
  * Test TensorGraph rope operation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tensor/ops/rope.hh"
@@ -74,7 +74,7 @@ void tile_rope_sin_cos_src(TensorGraph::TensorNode *sin,
     }
 }
 
-} 
+}
 
 TEST_CASE("TensorGraph rope structure", "[graph][tensor]")
 {

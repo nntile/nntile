@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file include/nntile/starpu/embedding_backward.hh
- * Backward embeddings from vocabulary within StarPU buffers
+ * @file include/nntile/nnhaul/ops/embedding_backward.hh
+ * Backward embeddings from vocabulary within NNHaul buffers
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -23,7 +23,7 @@
 // NNTile headers
 #include <nntile/nnhaul/codelet.hh>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Generic wrapper class for embedding backward operation is not defined
@@ -74,7 +74,7 @@ public:
 
     //! Submit embedding backward: vocab = beta*vocab + alpha*scatter(embed)
     void submit(
-        int starpu_worker_hint,
+        int worker_hint,
         Index m,
         Index n,
         Index k,
@@ -106,4 +106,4 @@ using embedding_backward_pack_t = OperationPack<
 //! Pack of embedding backward operations for different types
 extern embedding_backward_pack_t embedding_backward;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

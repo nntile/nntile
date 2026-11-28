@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/embedding/cuda.cu
  * Embeddings from vocabulary within buffers
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/embedding/cuda.hh"
@@ -131,7 +131,7 @@ static __device__ __forceinline__ Index chunk_of(long f, Index elems,
 
 //! Chunk-aware embedding gather: the same (i0, i1, i2) thread geometry as
 //! cuda_kernel above, but each of the three operands is addressed through
-//! its chunk table. Piece 9 (rule 10): NO shared-memory staging -- every
+//! its chunk table. Piece 9 : NO shared-memory staging -- every
 //! thread reads its chunk pointer straight from the device table (the
 //! tables are a handful of L1-resident entries); the piece-7 staging
 //! predates the rule-7 compile-time shifts and was a workaround for
@@ -158,7 +158,7 @@ void chunked_cuda_kernel(EmbChunkTables<T> t)
         {
             // 32-bit flat offsets with compile-time shifts; 1-chunk
             // operands resolve to their table slot-0 pointer with no
-            // chunk arithmetic, read directly from the table (rule 10).
+            // chunk arithmetic, read directly from the table .
             unsigned const u_i0 = unsigned(i0), u_i1 = unsigned(i1),
                 u_i2 = unsigned(i2);
             unsigned const u_m = unsigned(t.m),
@@ -245,7 +245,7 @@ void chunked_cuda_kernel(EmbChunkTables<T> t)
     }
 }
 
-//! Run-form chunk-aware embedding gather (piece B, 2026-10-18c). Each
+//! Run-form chunk-aware embedding gather . Each
 //! thread owns ONE token and NVEC consecutive 16-byte vocab vectors
 //! along the k axis (a vocab row is contiguous along k, so the random
 //! row read becomes one wide load per 16/sizeof(T) elements instead of

@@ -5,12 +5,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tile_graph/multiply_fiber.cc
  * Test TileGraph multiply fiber vs nntile::core (parity).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include <catch2/catch_test_macros.hpp>
@@ -52,9 +52,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph multiply_fiber matches
     nntile::core::Tile<fp32_t> t1(fib), t2(full), dst(full);
     using Y = typename nntile::fp32_t::repr_t;
     {
-        auto a = t1.acquire(STARPU_W);
-        auto b = t2.acquire(STARPU_W);
-        auto c = dst.acquire(STARPU_W);
+        auto a = t1.acquire(ACCESS_W);
+        auto b = t2.acquire(ACCESS_W);
+        auto c = dst.acquire(ACCESS_W);
         for(Index i = 0; i < nfib; ++i) { a[i] = Y(f1[static_cast<size_t>(i)]); }
         for(Index i = 0; i < nfull; ++i)
         {
@@ -66,10 +66,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph multiply_fiber matches
         c.release();
     }
     nntile::core::multiply_fiber<fp32_t>(-1, alpha, t1, t2, dst, axis);
-    starpu_task_wait_for_all();
+    task_wait_for_all();
     std::vector<float> tref(nfull);
     {
-        auto l2 = dst.acquire(STARPU_R);
+        auto l2 = dst.acquire(ACCESS_R);
         for(Index i = 0; i < nfull; ++i) { tref[static_cast<size_t>(i)] = static_cast<float>(l2[i]); }
         l2.release();
     }

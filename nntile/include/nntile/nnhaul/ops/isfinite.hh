@@ -4,14 +4,19 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file include/nntile/starpu/isfinite.hh
- * Check NaN or Inf for data in a StarPU buffer
+ * @file include/nntile/nnhaul/ops/isfinite.hh
+ * Check NaN or Inf for data in a NNHaul buffer
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
-
+/*!
+ * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.
+ * Kept in-tree for future re-enablement. No product path calls this code;
+ * its tests are not registered while the family is in
+ * NNTILE_DISABLED_KERNELS.
+ */
 #pragma once
 
 // Compile-time definitions
@@ -23,7 +28,7 @@
 // NNTile headers
 #include <nntile/nnhaul/codelet.hh>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Generic wrapper class for checking NaN/Inf operation is not defined
@@ -65,7 +70,7 @@ public:
 
     //! Submit isfinite task
     void submit(
-        int starpu_worker_hint,
+        int worker_hint,
         Index nelems,
         ::nnhaul::Handle & data,
         ::nnhaul::Handle & flag
@@ -87,4 +92,4 @@ using isfinite_pack_t = OperationPack<
 //! Pack of isfinite operations for different types
 extern isfinite_pack_t isfinite;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

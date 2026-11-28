@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/tests/test_nn_classic.py
 # Classic torch_nntile.nn ops vs CPU formulas.
+# @version 2.0.0
 
 from __future__ import annotations
 
@@ -185,4 +186,3 @@ def test_add_nonleaf_backward():
     assert torch.allclose(nntile_cpu(gx_n), gx_cpu, rtol=1e-4, atol=1e-4)
     assert torch.allclose(nntile_cpu(gy_n), gy_cpu, rtol=1e-4, atol=1e-4)
     assert_classic_graph()
-

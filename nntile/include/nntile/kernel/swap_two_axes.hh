@@ -4,7 +4,7 @@
  * @file include/nntile/kernel/swap_two_axes.hh
  * swap_two_axes low-level kernel umbrella header.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

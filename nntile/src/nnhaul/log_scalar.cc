@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file src/starpu/log_scalar.cc
- * StarPU wrapper to log scalar value
+ * @file src/nnhaul/log_scalar.cc
+ * NNHaul wrapper to log scalar value
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 // Corresponding header
@@ -23,7 +23,7 @@
 // Other NNTile headers
 #include "nntile/logger/logger_thread.hh"
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Constructor
@@ -34,7 +34,7 @@ LogScalar<std::tuple<T>>::LogScalar():
     // Modes are not fixed, they are decided during runtime by default
 }
 
-//! Apply log_scalar operation for StarPU buffers in CPU
+//! Apply log_scalar operation for NNHaul buffers in CPU
 template<typename T>
 void LogScalar<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
@@ -43,7 +43,7 @@ void LogScalar<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces: single-element tile, element 0 always lives in
     // chunk 0 of the (never-chunked, one-element) handle.
-    const T *value = ::nntile::haul::buf_chunks<T>(buffers, 0).ptr(0);
+    const T *value = ::nntile::nnhaul::buf_chunks<T>(buffers, 0).ptr(0);
     // Launch logger
     using Y = typename T::repr_t;
     logger::log_scalar(args->name, static_cast<Y>(*value));
@@ -77,10 +77,10 @@ void LogScalar<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args
 
 //! Submit log_scalar task
 template<typename T>
-void LogScalar<std::tuple<T>>::submit(int starpu_worker_hint, const std::string &name, ::nnhaul::Handle & value)
-//! Insert log_scalar task into StarPU pool of tasks
+void LogScalar<std::tuple<T>>::submit(int worker_hint, const std::string &name, ::nnhaul::Handle & value)
+//! Insert log_scalar task into NNHaul task pool
 /*! No argument checking is performed. All the inputs are packed and passed to
- * nntile_starpu_task_insert() function. If task submission fails, this routines
+ * submit() call. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
@@ -93,8 +93,8 @@ void LogScalar<std::tuple<T>>::submit(int starpu_worker_hint, const std::string 
     args_t args_local{};
     std::snprintf(args_local.name, sizeof(args_local.name), "%s", name.c_str());
     // Submit task
-    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
-        { { STARPU_R, &value } }, &args_local, sizeof(args_local));
+    ::nntile::nnhaul::insert_task(codelet.raw, worker_hint,
+        { { ACCESS_R, &value } }, &args_local, sizeof(args_local));
 
 }
 
@@ -111,4 +111,4 @@ template class LogScalar<std::tuple<nntile::bf16_t>>;
 //! Pack of log_scalar operations for different types
 log_scalar_pack_t log_scalar;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

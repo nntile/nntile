@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/multiply/cuda.cu
  * Per-element product of two buffers on CUDA
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/multiply/cuda.hh"
@@ -84,6 +84,69 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *src1, const 
             src2, dst);
 }
 
+
+template<typename T, int BLOCK, int LOOP>
+static __global__
+void chunked_cuda_kernel(Index nelems, Scalar alpha, ChunkConst<T> src1,
+        ChunkConst<T> src2, ChunkMut<T> dst)
+{
+    int i = threadIdx.x + blockIdx.x*BLOCK;
+    using Y = typename T::repr_t;
+    __shared__ T src1_block[BLOCK];
+    __shared__ T src2_block[BLOCK];
+    constexpr int BLOCK_STEP = BLOCK / LOOP;
+    if((blockIdx.x+1)*BLOCK <= nelems)
+    {
+        for(int j = 0; j < BLOCK; j += BLOCK_STEP)
+        {
+            src1_block[threadIdx.x+j] = src1.at(i+j)[0];
+            src2_block[threadIdx.x+j] = src2.at(i+j)[0];
+        }
+        for(int j = 0; j < BLOCK; j += BLOCK_STEP)
+        {
+            dst.at(i+j)[0] = static_cast<T>(
+                    alpha * static_cast<Y>(src1_block[threadIdx.x+j]) *
+                    static_cast<Y>(src2_block[threadIdx.x+j]));
+        }
+    }
+    else
+    {
+        int j_max = nelems - i;
+        for(int j = 0; j < j_max; j += BLOCK_STEP)
+        {
+            src1_block[threadIdx.x+j] = src1.at(i+j)[0];
+            src2_block[threadIdx.x+j] = src2.at(i+j)[0];
+        }
+        for(int j = 0; j < j_max; j += BLOCK_STEP)
+        {
+            dst.at(i+j)[0] = static_cast<T>(
+                    alpha * static_cast<Y>(src1_block[threadIdx.x+j]) *
+                    static_cast<Y>(src2_block[threadIdx.x+j]));
+        }
+    }
+}
+
+template<typename T>
+void chunked(cudaStream_t stream, Index nelems, Scalar alpha,
+        const T* const* src1_chunks, Index nsrc1,
+        const T* const* src2_chunks, Index nsrc2,
+        T* const* dst_chunks, Index ndst,
+        Index elems_src1, Index elems_src2, Index elems_dst, ChunkClass cls)
+    noexcept
+{
+    if(nelems <= 0 || nsrc1 <= 0 || nsrc2 <= 0 || ndst <= 0)
+    {
+        return;
+    }
+    dim3 threads(256);
+    dim3 blocks((nelems+1023)/1024);
+    (chunked_cuda_kernel<T, 1024, 4>)<<<blocks, threads, 0, stream>>>(nelems,
+        alpha,
+        chunk_const<T>(src1_chunks, nsrc1, elems_src1, cls, "nntile_multiply"),
+        chunk_const<T>(src2_chunks, nsrc2, elems_src2, cls, "nntile_multiply"),
+        chunk_mut<T>(dst_chunks, ndst, elems_dst, cls, "nntile_multiply"));
+}
+
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index nelems, Scalar alpha, const fp32_t *src1,
@@ -121,6 +184,38 @@ void cuda<bf16_t>(cudaStream_t stream, Index nelems, Scalar alpha, const bf16_t 
 template
 void cuda<fp16_t>(cudaStream_t stream, Index nelems, Scalar alpha, const fp16_t *src1,
         const fp16_t *src2, fp16_t *dst)
+    noexcept;
+
+template
+void chunked<fp32_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        const fp32_t* const* src1_chunks, Index nsrc1,
+        const fp32_t* const* src2_chunks, Index nsrc2,
+        fp32_t* const* dst_chunks, Index ndst,
+        Index elems_src1, Index elems_src2, Index elems_dst, ChunkClass cls)
+    noexcept;
+
+template
+void chunked<fp64_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        const fp64_t* const* src1_chunks, Index nsrc1,
+        const fp64_t* const* src2_chunks, Index nsrc2,
+        fp64_t* const* dst_chunks, Index ndst,
+        Index elems_src1, Index elems_src2, Index elems_dst, ChunkClass cls)
+    noexcept;
+
+template
+void chunked<bf16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        const bf16_t* const* src1_chunks, Index nsrc1,
+        const bf16_t* const* src2_chunks, Index nsrc2,
+        bf16_t* const* dst_chunks, Index ndst,
+        Index elems_src1, Index elems_src2, Index elems_dst, ChunkClass cls)
+    noexcept;
+
+template
+void chunked<fp16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        const fp16_t* const* src1_chunks, Index nsrc1,
+        const fp16_t* const* src2_chunks, Index nsrc2,
+        fp16_t* const* dst_chunks, Index ndst,
+        Index elems_src1, Index elems_src2, Index elems_dst, ChunkClass cls)
     noexcept;
 
 } // namespace nntile::kernel::multiply

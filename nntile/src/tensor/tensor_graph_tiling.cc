@@ -5,11 +5,11 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/src/tensor_graph/tensor_graph_tiling.cc
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tensor/tensor_graph_tiling.hh"
@@ -194,16 +194,6 @@ std::vector<Index> TensorAxisLayout::tile_shape_at(
     return ts;
 }
 
-Index TensorAxisLayout::tile_nelems_at(
-    const std::vector<Index>& grid_coord) const
-{
-    Index n = 1;
-    for(Index v : tile_shape_at(grid_coord))
-    {
-        n *= v;
-    }
-    return n;
-}
 
 void TensorAxisLayout::global_coord(
     const std::vector<Index>& grid_coord,

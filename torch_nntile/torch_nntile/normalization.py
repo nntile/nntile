@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/normalization.py
 # RMSNorm support for device="nntile".
+# @version 2.0.0
 
 """Normalization helpers for the nntile device."""
 

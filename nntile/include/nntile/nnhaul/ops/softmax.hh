@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file include/nntile/starpu/softmax.hh
- * Softmax operation for StarPU buffer
+ * @file include/nntile/nnhaul/ops/softmax.hh
+ * Softmax operation for NNHaul buffer
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -23,7 +23,7 @@
 // NNTile headers
 #include <nntile/nnhaul/codelet.hh>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Generic wrapper class for softmax operation is not defined
@@ -68,7 +68,7 @@ public:
 
     //! Submit softmax task
     void submit(
-        int starpu_worker_hint,
+        int worker_hint,
         Index m,
         Index n,
         Index k,
@@ -94,4 +94,4 @@ using softmax_pack_t = OperationPack<
 //! Pack of softmax operations for different types
 extern softmax_pack_t softmax;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

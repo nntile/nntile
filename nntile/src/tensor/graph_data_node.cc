@@ -5,12 +5,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/src/tensor_graph/graph_data_node.cc
  * Implementation of TensorGraph::TensorNode (include/nntile/tensor/graph_data_node.hh).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tensor/graph.hh"
@@ -231,10 +231,6 @@ size_t TensorGraph::TensorNode::size_bytes() const
     return static_cast<size_t>(nelems()) * dtype_size(dtype_);
 }
 
-bool TensorGraph::TensorNode::is_compatible(const TensorNode* other) const
-{
-    return other != nullptr && dtype_ == other->dtype_;
-}
 
 TensorGraph* TensorGraph::TensorNode::graph()
 {

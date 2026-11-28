@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/base_types.hh
  * Base integer and floating point types.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

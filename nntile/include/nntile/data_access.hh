@@ -4,39 +4,34 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * @file include/nntile/data_access.hh
- * Access-mode names shared with StarPU call sites. NNHaul builds only.
+ * Access-mode names used by NNHaul call sites.
+ * @version 2.0.0
  */
 
 #pragma once
 
-#ifdef NNTILE_USE_NNHAUL
 
 #include <nnhaul/nnhaul.hh>
 
 //! Integer modes used by ``Tile::acquire`` and core submit call sites.
-enum starpu_data_access_mode
+enum data_access_mode
 {
-    STARPU_R = 1,
-    STARPU_W = 2,
-    STARPU_RW = 3,
-    STARPU_REDUX = 4,
-    STARPU_SCRATCH = 8,
-    STARPU_COMMUTE = 0
+    ACCESS_R = 1,
+    ACCESS_W = 2,
+    ACCESS_RW = 3,
+    ACCESS_SCRATCH = 8,
+    ACCESS_COMMUTE = 0
 };
 
-//! Tests call the StarPU drain by this name. On this build it joins
-//! NNHaul through the counted, scratch-draining wait (defined in
-//! nnhaul/sync_defer.cc) so staged scratch handles do not needlessly
-//! survive this path either.
+//! Drain NNHaul through the counted wait (defined in
+//! nnhaul/sync_defer.hh).
 namespace nntile
 {
-//! nnhaul::wait() plus the staged-scratch drain (sync_defer.cc).
+//! nnhaul::wait() through the counted wait (sync_defer.hh).
 void nnhaul_wait_for_all_drained();
 }
 
-inline void starpu_task_wait_for_all()
+inline void task_wait_for_all()
 {
     ::nntile::nnhaul_wait_for_all_drained();
 }
-
-#endif // NNTILE_USE_NNHAUL

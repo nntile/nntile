@@ -6,6 +6,7 @@
  * PrivateUse1 — match CUDA Composite → ``as_strided`` (nntile_kernels.cpp).
  * View backward uses copy-into-view in ``_copy_from`` (host RMW of the
  * parent logical).
+ * @version 2.0.0
  */
 
 #include "nntile_graph_recorder_impl.h"

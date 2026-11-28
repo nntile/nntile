@@ -3,6 +3,7 @@
  *
  * @file nntile/tests/tensor/ops/unregister.cc
  * Test TensorGraph unregister structure and unmarked-phase skip.
+ * @version 2.0.0
  */
 
 #include "nntile/tensor/ops/unregister.hh"

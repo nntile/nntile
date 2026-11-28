@@ -4,6 +4,7 @@
 # @file torch_nntile/tests/test_local_compiler.py
 # Local TensorGraph lower is off unless NNTILE_ENABLE_LOCAL_COMPILER=1.
 # Covers public compile_graph(), legacy execute(), and .to("cpu") auto-flush.
+# @version 2.0.0
 
 from __future__ import annotations
 

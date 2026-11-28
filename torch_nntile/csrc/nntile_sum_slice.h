@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/csrc/nntile_sum_slice.h
  * Differentiable ``sum_slice`` (old wrappers ``nntile.layer.gap.GAP``).
+ * @version 2.0.0
  */
 
 #pragma once

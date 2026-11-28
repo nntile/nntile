@@ -5,12 +5,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tile_graph/clear.cc
  * Test TileGraph clear vs nntile::core (parity).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include <catch2/catch_test_macros.hpp>
@@ -43,15 +43,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph clear matches tile", "
     nntile::core::Tile<fp32_t> tx(sh);
     {
         using Y = typename nntile::fp32_t::repr_t;
-        auto l1 = tx.acquire(STARPU_W);
+        auto l1 = tx.acquire(ACCESS_W);
         for(Index i = 0; i < nelems; ++i) { l1[i] = Y(static_cast<float>(i) + 1.5f); }
         l1.release();
     }
     nntile::core::clear<fp32_t>(-1, tx);
-    starpu_task_wait_for_all();
+    task_wait_for_all();
     std::vector<float> tref(nelems);
     {
-        auto l2 = tx.acquire(STARPU_R);
+        auto l2 = tx.acquire(ACCESS_R);
         for(Index i = 0; i < nelems; ++i) { tref[static_cast<size_t>(i)] = static_cast<float>(l2[i]); }
         l2.release();
     }

@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tensor_graph/randn.cc
  * Test TensorGraph randn operation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tensor/ops/randn.hh"
@@ -37,7 +37,7 @@ constexpr Scalar stddev = 1.0;
 constexpr float tolerance = 1e-5f;
 constexpr int distr_rank_single = 0;
 
-} 
+}
 
 TEST_CASE("TensorGraph randn structure", "[graph][tensor]")
 {
@@ -77,4 +77,3 @@ TEST_CASE("TensorGraph randn rejects mismatched start/underlying_shape",
     REQUIRE_THROWS_AS(gt::randn(dst, {0, 0}, {4}, seed, mean, stddev),
         std::invalid_argument);
 }
-

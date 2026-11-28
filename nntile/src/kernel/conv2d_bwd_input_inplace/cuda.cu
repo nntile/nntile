@@ -4,15 +4,20 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/conv2d_bwd_input_inplace/cuda.cu
  * Backward 2D-Convolution of two tensors in WHCN format to get grad of input
  * Due to Fortran ordering, WHCN of NNTile is equal to NCHF format of PyTorch
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
-
+/*!
+ * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.
+ * Kept in-tree for future re-enablement. No product path calls this code;
+ * its tests are not registered while the family is in
+ * NNTILE_DISABLED_KERNELS.
+ */
 #include "nntile/kernel/conv2d_bwd_input_inplace/cuda.hh"
 #include "nntile/kernel/cuda.hh"
 
@@ -458,7 +463,7 @@ void chunked(cudaStream_t stream, Index src1_m, Index src1_n, Index stride_m,
     {
         std::fprintf(stderr, "nntile_conv2d_bwd_input_inplace: %zu chunk "
             "pointers exceed the %d-slot block table (invariant violation: "
-            "the operand would exceed 64 TiB)\n", total_ptrs,
+            "the operand would exceed 64 GiB)\n", total_ptrs,
             kConvMaxSharedPtrs);
         std::abort();
     }

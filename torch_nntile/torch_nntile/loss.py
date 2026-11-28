@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/loss.py
 # Loss support for device="nntile".
+# @version 2.0.0
 
 """Loss helpers for the nntile device."""
 
@@ -30,19 +31,26 @@ def cross_entropy(
     target: torch.Tensor,
     weight: torch.Tensor | None = None,
     size_average: bool | None = None,
-    ignore_index: int = -100,
+    ignore_index: int | None = None,
     reduce: bool | None = None,
     reduction: str = "mean",
     label_smoothing: float = 0.0,
 ) -> torch.Tensor:
-    """Cross-entropy on ``device='nntile'`` via libnntile tensor ops."""
+    """Cross-entropy on ``device='nntile'`` via libnntile tensor ops.
+
+    ``ignore_index`` is opt-in; ``reduction='mean'`` with an explicit
+    ``ignore_index`` is rejected because the mean denominator must count
+    non-ignored targets. Use ``reduction='sum'`` for that case.
+    With ``reduction='mean'`` and no explicit ``ignore_index``, targets
+    must not contain ``-100``.
+    """
     if input.device.type != "nntile":
         return _ORIGINAL_CROSS_ENTROPY(
             input,
             target,
             weight=weight,
             size_average=size_average,
-            ignore_index=ignore_index,
+            ignore_index=-100 if ignore_index is None else ignore_index,
             reduce=reduce,
             reduction=reduction,
             label_smoothing=label_smoothing,

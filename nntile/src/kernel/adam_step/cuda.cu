@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/adam_step/cuda.cu
  * Adam step with buffers on CUDA
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/adam_step/cuda.hh"
@@ -91,6 +91,83 @@ void cuda(cudaStream_t stream, Index num_iter, Index num_elems, Scalar beta_1,
             Y{beta}, grad_, first_moment_, second_moment_, p_);
 }
 
+template<typename T>
+static __global__
+void chunked_cuda_kernel(Index num_iter, Index num_elems,
+        typename T::repr_t beta_1,
+        typename T::repr_t beta_2, typename T::repr_t eps,
+        typename T::repr_t lr, typename T::repr_t weight_decay,
+        typename T::repr_t alpha, typename T::repr_t beta,
+        ChunkConst<T> grad, ChunkMut<T> first_moment,
+        ChunkMut<T> second_moment, ChunkMut<T> p)
+{
+    int i = threadIdx.x + blockIdx.x*blockDim.x;
+    using Y = typename T::repr_t;
+    if(i < num_elems)
+    {
+        // Read values (param+grad) from RAM only once
+        Y p_val = Y{p.at(i)[0]}, grad_val = Y{grad.at(i)[0]};
+        if (weight_decay != 0)
+        {
+            grad_val += weight_decay * p_val;
+        }
+        // Read values (first+second moments) from RAM no more than once and
+        // update them in the RAM immediately
+        Y f_val, s_val;
+        if(num_iter == 1)
+        {
+            f_val = (1-beta_1) * grad_val;
+            first_moment.at(i)[0] = f_val;
+            s_val = ::sqrt(1-beta_2) * ::fabs(grad_val);
+            second_moment.at(i)[0] = s_val;
+        }
+        else
+        {
+            f_val = Y{first_moment.at(i)[0]};
+            s_val = Y{second_moment.at(i)[0]};
+            f_val = beta_1*f_val + (1-beta_1)*grad_val;
+            first_moment.at(i)[0] = f_val;
+            s_val = ::hypot(::sqrt(beta_2)*s_val, ::sqrt(1-beta_2)*grad_val);
+            second_moment.at(i)[0] = s_val;
+        }
+        // Update parameters using only data in registers
+        Y denom = s_val*beta + eps;
+        p.at(i)[0] = p_val - alpha*f_val/denom;
+    }
+}
+
+template<typename T>
+void chunked(cudaStream_t stream, Index num_iter, Index num_elems,
+        Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr,
+        Scalar weight_decay,
+        const T* const* grad_chunks, Index ngrad,
+        T* const* first_moment_chunks, Index nfirst_moment,
+        T* const* second_moment_chunks, Index nsecond_moment,
+        T* const* p_chunks, Index np,
+        Index elems_grad, Index elems_first_moment,
+        Index elems_second_moment, Index elems_p, ChunkClass cls)
+    noexcept
+{
+    if(num_elems <= 0 || ngrad <= 0 || nfirst_moment <= 0
+            || nsecond_moment <= 0 || np <= 0)
+    {
+        return;
+    }
+    dim3 blocks((num_elems+255)/256), threads(256);
+    using Y = typename T::repr_t;
+    const Scalar alpha = lr / (1.0 - std::pow(beta_1, num_iter));
+    const Scalar beta = 1.0 / std::sqrt(1.0 - std::pow(beta_2, num_iter));
+    (chunked_cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(num_iter,
+        num_elems, Y{beta_1}, Y{beta_2}, Y{eps}, Y{lr}, Y{weight_decay},
+        Y{alpha}, Y{beta},
+        chunk_const<T>(grad_chunks, ngrad, elems_grad, cls, "nntile_adam_step"),
+        chunk_mut<T>(first_moment_chunks, nfirst_moment, elems_first_moment,
+            cls, "nntile_adam_step"),
+        chunk_mut<T>(second_moment_chunks, nsecond_moment, elems_second_moment,
+            cls, "nntile_adam_step"),
+        chunk_mut<T>(p_chunks, np, elems_p, cls, "nntile_adam_step"));
+}
+
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index num_iter, Index num_elems,
@@ -118,6 +195,47 @@ void cuda<fp16_t>(cudaStream_t stream, Index num_iter, Index num_elems,
         Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr,
         Scalar weight_decay, const fp16_t *grad, fp16_t *first_moment,
         fp16_t *second_moment, fp16_t *p)
+    noexcept;
+
+template
+void chunked<fp32_t>(cudaStream_t stream, Index num_iter, Index num_elems,
+        Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr,
+        Scalar weight_decay, const fp32_t* const* grad, Index ngrad,
+        fp32_t* const* first_moment, Index nfirst_moment,
+        fp32_t* const* second_moment, Index nsecond_moment,
+        fp32_t* const* p, Index np, Index elems_grad,
+        Index elems_first_moment, Index elems_second_moment, Index elems_p,
+        ChunkClass cls)
+    noexcept;
+template
+void chunked<fp64_t>(cudaStream_t stream, Index num_iter, Index num_elems,
+        Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr,
+        Scalar weight_decay, const fp64_t* const* grad, Index ngrad,
+        fp64_t* const* first_moment, Index nfirst_moment,
+        fp64_t* const* second_moment, Index nsecond_moment,
+        fp64_t* const* p, Index np, Index elems_grad,
+        Index elems_first_moment, Index elems_second_moment, Index elems_p,
+        ChunkClass cls)
+    noexcept;
+template
+void chunked<bf16_t>(cudaStream_t stream, Index num_iter, Index num_elems,
+        Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr,
+        Scalar weight_decay, const bf16_t* const* grad, Index ngrad,
+        bf16_t* const* first_moment, Index nfirst_moment,
+        bf16_t* const* second_moment, Index nsecond_moment,
+        bf16_t* const* p, Index np, Index elems_grad,
+        Index elems_first_moment, Index elems_second_moment, Index elems_p,
+        ChunkClass cls)
+    noexcept;
+template
+void chunked<fp16_t>(cudaStream_t stream, Index num_iter, Index num_elems,
+        Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr,
+        Scalar weight_decay, const fp16_t* const* grad, Index ngrad,
+        fp16_t* const* first_moment, Index nfirst_moment,
+        fp16_t* const* second_moment, Index nsecond_moment,
+        fp16_t* const* p, Index np, Index elems_grad,
+        Index elems_first_moment, Index elems_second_moment, Index elems_p,
+        ChunkClass cls)
     noexcept;
 
 } // namespace nntile::kernel::adam_step

@@ -5,12 +5,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tile_graph/sumprod_slice.cc
  * Test TileGraph sumprod slice vs nntile::core (parity).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include <catch2/catch_test_macros.hpp>
@@ -55,9 +55,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sumprod_slice (axis=0)
     nntile::core::Tile<fp32_t> t1(sh), t2(sh), td(dh);
     using Y = typename nntile::fp32_t::repr_t;
     {
-        auto A = t1.acquire(STARPU_W);
-        auto B = t2.acquire(STARPU_W);
-        auto C = td.acquire(STARPU_W);
+        auto A = t1.acquire(ACCESS_W);
+        auto B = t2.acquire(ACCESS_W);
+        auto C = td.acquire(ACCESS_W);
         for(Index i = 0; i < n; ++i)
         {
             A[i] = Y(v1[static_cast<size_t>(i)]);
@@ -69,10 +69,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sumprod_slice (axis=0)
         C.release();
     }
     nntile::core::sumprod_slice<fp32_t>(-1, a, t1, t2, b, td, ax, redux);
-    starpu_task_wait_for_all();
+    task_wait_for_all();
     std::vector<float> tref(nd);
     {
-        auto L = td.acquire(STARPU_R);
+        auto L = td.acquire(ACCESS_R);
         for(Index j = 0; j < nd; ++j) { tref[static_cast<size_t>(j)] = static_cast<float>(L[j]); }
         L.release();
     }

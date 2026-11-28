@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/rope.py
 # Rotary position embedding (RoPE) for device="nntile".
+# @version 2.0.0
 
 """RoPE: ``y = rope(sin, cos, x)``.
 
@@ -94,6 +95,11 @@ def rope_sin_cos_from_position_ids(
     """
     if head_dim % 2 != 0:
         raise ValueError("head_dim must be even for RoPE")
+    if position_ids.device.type != "cpu":
+        raise ValueError(
+            "rope_sin_cos_from_position_ids builds its table with CPU "
+            "torch ops; pass position_ids on CPU"
+        )
     device = position_ids.device
     dtype = torch.float32
     half = head_dim // 2

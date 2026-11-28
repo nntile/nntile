@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/include/torch_nntile/models/bert.hh
  * BERT MLM matching deleted ``nntile::model::bert`` (not HF ATen).
+ * @version 2.0.0
  */
 
 #pragma once

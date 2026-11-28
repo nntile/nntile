@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file src/starpu/scale_fiber.cc
- * StarPU wrappers for scaling of a tensor with a broadcasted fiber
+ * @file src/nnhaul/scale_fiber.cc
+ * NNHaul wrappers for scaling of a tensor with a broadcasted fiber
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 // Corresponding header
@@ -26,7 +26,7 @@
 #include "nntile/nnhaul/chunk_units.hh"
 #include "nntile/nnhaul/ops/clear.hh"
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 // ---------------------------------------------------------------------------
@@ -130,7 +130,7 @@ ScaleFiber<std::tuple<T>>::ScaleFiber():
     // Modes are not fixed, they are decided during runtime by default
 }
 
-//! Apply scale_fiber operation on StarPU buffers on CPU
+//! Apply scale_fiber operation on NNHaul buffers on CPU
 template<typename T>
 void ScaleFiber<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
@@ -140,7 +140,7 @@ void ScaleFiber<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get interfaces
     auto buf_src = static_cast<::nnhaul::Buffer *>(buffers[0]);
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
-    if((buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+    if((buf_src->chunk_count() == 1) && (buf_dst->chunk_count() == 1)
        )
     {
         // Unchunked fast path: the historical single kernel call, bitwise
@@ -202,7 +202,7 @@ void ScaleFiber<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_arg
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Apply scale_fiber operation on StarPU buffer on CUDA
+//! Apply scale_fiber operation on NNHaul buffer on CUDA
 template<typename T>
 void ScaleFiber<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
@@ -214,7 +214,7 @@ void ScaleFiber<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto buf_dst = static_cast<::nnhaul::Buffer *>(buffers[1]);
     // Get CUDA stream
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    if((buf_src->chunk_count() == 1 && !chunkunits::force_chunked_kernels()) && (buf_dst->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+    if((buf_src->chunk_count() == 1) && (buf_dst->chunk_count() == 1)
        )
     {
         // Unchunked fast path: the historical single kernel call, bitwise
@@ -223,26 +223,31 @@ void ScaleFiber<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
             buf_dst->get_ptr<T>());
         return;
     }
-    chunkunits::ArenaCuda<T> arena(stream);
-    scale_fiber_chunked<T>(
-        args->m,
-        args->n,
-        args->k,
-        args->batch,
-        args->alpha,
-        buf_src,
-        buf_dst,
-        arena,
-        [stream](Index mm, Index nn, Index kk, Scalar al, T const *p1,
-            T *pd) {
-            kernel::scale_fiber::cuda<T>(stream, mm, nn, kk, Index{1}, al,
-                p1, pd);
-        });
-    if(!arena.ok_state())
+    chunkunits::ChunkView<T> const cvs(buf_src);
+    chunkunits::ChunkView<T> const cvd(buf_dst);
+    chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
+    tabs.clear();
+    std::size_t const o_ps = tabs.add(cvs);
+    std::size_t const o_pd = tabs.add(cvd);
+    chunkunits::ChunkPtrTable &arena = chunkunits::chunk_ptr_table();
+    if(arena.begin(stream))
     {
+        void const *table_base = arena.upload_tables(tabs);
+        if(table_base != nullptr)
+        {
+            kernel::scale_fiber::chunked<T>(stream, args->m, args->n, args->k,
+                args->batch, args->alpha,
+                arena.table_view<const T *>(table_base, o_ps),
+                Index(cvs.nchunks),
+                arena.table_view<T *>(table_base, o_pd),
+                Index(cvd.nchunks),
+                Index(cvs.chunk_elems), Index(cvd.chunk_elems));
+            arena.end(stream);
+            return;
+        }
         std::fprintf(stderr,
-            "nntile_scale_fiber: chunked CUDA driver aborted after a "
-            "stream error; dst left unwritten\n");
+            "nntile_scale_fiber: chunk-ptr table cannot serve this launch\n");
+        std::abort();
     }
 }
 
@@ -285,16 +290,16 @@ std::uint64_t ScaleFiber<std::tuple<T>>::footprint(void const *cl_args, std::siz
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     uint32_t hash = 0;
-    hash = ::nntile::haul::fnv1a(&args->m, sizeof(args->m), hash);
-    hash = ::nntile::haul::fnv1a(&args->n, sizeof(args->n), hash);
-    hash = ::nntile::haul::fnv1a(&args->k, sizeof(args->k), hash);
-    hash = ::nntile::haul::fnv1a(&args->batch, sizeof(args->batch), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->m, sizeof(args->m), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->n, sizeof(args->n), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->k, sizeof(args->k), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->batch, sizeof(args->batch), hash);
     return hash;
 }
 
 //! Submit scale_fiber task
 template<typename T>
-void ScaleFiber<std::tuple<T>>::submit(int starpu_worker_hint,
+void ScaleFiber<std::tuple<T>>::submit(int worker_hint,
     Index m,
     Index n,
     Index k,
@@ -307,7 +312,7 @@ void ScaleFiber<std::tuple<T>>::submit(int starpu_worker_hint,
     // Reduce to clear buffer if alpha is zero
     if(alpha == 0.0)
     {
-        clear.submit(starpu_worker_hint, dst);
+        clear.submit(worker_hint, dst);
         return;
     }
     // Codelet arguments
@@ -322,8 +327,8 @@ void ScaleFiber<std::tuple<T>>::submit(int starpu_worker_hint,
     // Submit task: the BODY picks the unchunked fast path or the native
     // chunked fiber driver; scale_fiber never stages.
     (void)nflops;
-    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
-        { { STARPU_R, &src }, { STARPU_W, &dst } }, args, sizeof(*args));
+    ::nntile::nnhaul::insert_task(codelet.raw, worker_hint,
+        { { ACCESS_R, &src }, { ACCESS_W, &dst } }, args, sizeof(*args));
     std::free(args);
 
 }
@@ -342,4 +347,4 @@ template class ScaleFiber<std::tuple<nntile::fp16_t>>;
 //! Pack of scale_fiber operations for different types
 scale_fiber_pack_t scale_fiber;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

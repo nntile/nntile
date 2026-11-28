@@ -4,13 +4,13 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/execution_driver.hh
  * ExecutionDriver: run an already-lowered TileGraph. Does not compile
  * TensorGraph → TileGraph.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -25,7 +25,7 @@
 namespace nntile
 {
 
-//! Run a TileGraph on StarPU. Does **not** lower a TensorGraph.
+//! Run a TileGraph on NNHaul. Does **not** lower a TensorGraph.
 //! In-process: ``RuntimeExecutionDriver``. Remote daemon:
 //! ``RemoteExecutionDriver`` (``NNTILE_DRIVER_SOCKET``).
 class ExecutionDriver
@@ -36,7 +36,7 @@ class ExecutionDriver
     //! Compile new tile ops (if any) and submit them. Does not wait.
     virtual void submit(const TileGraph &graph) = 0;
 
-    //! Drain StarPU after one or more ``submit`` calls.
+    //! Drain NNHaul after one or more ``submit`` calls.
     virtual void wait() = 0;
 };
 

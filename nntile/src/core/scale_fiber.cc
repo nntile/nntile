@@ -4,32 +4,24 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/core/scale_fiber.cc
  * Tile wrappers for scaling of a tensor with a broadcasted fiber
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/core/scale_fiber.hh"
-#ifdef NNTILE_USE_NNHAUL
 #include "nntile/nnhaul/ops/scale_fiber.hh"
-#else
-#include "nntile/starpu/scale_fiber.hh"
-#endif
-#ifdef NNTILE_USE_NNHAUL
 #include "nntile/nnhaul/sync_defer.hh"
-#else
-#include "nntile/starpu/config.hh"
-#endif
 #include "nntile/core/clear.hh"
 
 namespace nntile::core
 {
 
 template<typename T>
-void scale_fiber_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
+void scale_fiber_async(int worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
         Index axis, Index batch_ndim)
 //! Tile<T> scaling of a tensor with a broadcasted fiber
 /*! Reshapes input tensor and fiber into 3-dimensional and 1-dimensional arrays
@@ -74,7 +66,7 @@ void scale_fiber_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src,
     // Reduce to clear the tile if alpha is zero
     if(alpha == 0.0)
     {
-        clear_async(starpu_worker_hint, dst);
+        clear_async(worker_hint, dst);
         return;
     }
     // Reshape inputs for simplicity: src -> (k,batch), dst -> (m,k,n,batch)
@@ -83,35 +75,13 @@ void scale_fiber_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src,
     m = dst.matrix_shape[axis+1][1];
     n = dst.matrix_shape[axis][0] / batch;
     k = dst.shape[axis];
-    #ifdef NNTILE_USE_NNHAUL
-    int mpi_rank = 0;
-    #else
-    int mpi_rank = starpu_mpi_world_rank();
-    #endif
-    #ifdef NNTILE_USE_NNHAUL
-    int dst_rank = 0;
-    #else
-    int dst_rank = dst.mpi_get_rank();
-    #endif
-    #ifndef NNTILE_USE_NNHAUL
-    src.mpi_transfer(dst_rank, mpi_rank);
-    #endif
-    if(mpi_rank == dst_rank)
-    {
-        // Insert corresponding task
-        #ifdef NNTILE_USE_NNHAUL
-        haul::scale_fiber.submit<std::tuple<T>>(starpu_worker_hint, m, n, k, batch, alpha, src,
-                dst);
-        #else
-        starpu::scale_fiber.submit<std::tuple<T>>(starpu_worker_hint, m, n, k, batch, alpha, src,
-                dst);
-        #endif
-
-    }
+    // Insert corresponding task
+    nnhaul::scale_fiber.submit<std::tuple<T>>(worker_hint, m, n, k, batch, alpha, src,
+            dst);
 }
 
 template<typename T>
-void scale_fiber(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
+void scale_fiber(int worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
         Index axis, Index batch_ndim)
 //! Tile<T> scaling of a tensor with a broadcasted fiber
 /*! Blocking version of scale_fiber_async<T>.
@@ -124,70 +94,66 @@ void scale_fiber(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const
  * @param[out] dst: Resulting tensor, that is reshaped into 3D array
  * */
 {
-    scale_fiber_async<T>(starpu_worker_hint, alpha, src, dst, axis, batch_ndim);
-    #ifdef NNTILE_USE_NNHAUL
+    scale_fiber_async<T>(worker_hint, alpha, src, dst, axis, batch_ndim);
     nntile::nnhaul_task_wait_for_all_unless_deferred();
-#else
-    nntile::starpu_task_wait_for_all_unless_deferred();
-#endif
 }
 
 // Explicit instantiation of template
 template
-void scale_fiber_async<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &src,
+void scale_fiber_async<fp32_t>(int worker_hint, Scalar alpha, const Tile<fp32_t> &src,
         const Tile<fp32_t> &dst, Index axis, Index batch_ndim);
 
 template
-void scale_fiber_async<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
+void scale_fiber_async<fp32_fast_tf32_t>(int worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
         const Tile<fp32_fast_tf32_t> &dst, Index axis, Index batch_ndim);
 
 template
-void scale_fiber_async<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &src,
+void scale_fiber_async<fp32_fast_fp16_t>(int worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &src,
         const Tile<fp32_fast_fp16_t> &dst, Index axis, Index batch_ndim);
 
 template
-void scale_fiber_async<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &src,
+void scale_fiber_async<fp32_fast_bf16_t>(int worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &src,
         const Tile<fp32_fast_bf16_t> &dst, Index axis, Index batch_ndim);
 
 template
-void scale_fiber_async<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &src,
+void scale_fiber_async<fp64_t>(int worker_hint, Scalar alpha, const Tile<fp64_t> &src,
         const Tile<fp64_t> &dst, Index axis, Index batch_ndim);
 
 template
-void scale_fiber_async<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &src,
+void scale_fiber_async<bf16_t>(int worker_hint, Scalar alpha, const Tile<bf16_t> &src,
         const Tile<bf16_t> &dst, Index axis, Index batch_ndim);
 
 template
-void scale_fiber_async<fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp16_t> &src,
+void scale_fiber_async<fp16_t>(int worker_hint, Scalar alpha, const Tile<fp16_t> &src,
         const Tile<fp16_t> &dst, Index axis, Index batch_ndim);
 
 // Explicit instantiation of template
 template
-void scale_fiber<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &src,
+void scale_fiber<fp32_t>(int worker_hint, Scalar alpha, const Tile<fp32_t> &src,
         const Tile<fp32_t> &dst, Index axis, Index batch_ndim);
 
 template
-void scale_fiber<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
+void scale_fiber<fp32_fast_tf32_t>(int worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
         const Tile<fp32_fast_tf32_t> &dst, Index axis, Index batch_ndim);
 
 template
-void scale_fiber<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &src,
+void scale_fiber<fp32_fast_fp16_t>(int worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &src,
         const Tile<fp32_fast_fp16_t> &dst, Index axis, Index batch_ndim);
 
 template
-void scale_fiber<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &src,
+void scale_fiber<fp32_fast_bf16_t>(int worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &src,
         const Tile<fp32_fast_bf16_t> &dst, Index axis, Index batch_ndim);
 
 template
-void scale_fiber<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &src,
+void scale_fiber<fp64_t>(int worker_hint, Scalar alpha, const Tile<fp64_t> &src,
         const Tile<fp64_t> &dst, Index axis, Index batch_ndim);
 
 template
-void scale_fiber<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &src,
+void scale_fiber<bf16_t>(int worker_hint, Scalar alpha, const Tile<bf16_t> &src,
         const Tile<bf16_t> &dst, Index axis, Index batch_ndim);
 
 template
-void scale_fiber<fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp16_t> &src,
+void scale_fiber<fp16_t>(int worker_hint, Scalar alpha, const Tile<fp16_t> &src,
         const Tile<fp16_t> &dst, Index axis, Index batch_ndim);
 
 } // namespace nntile::core

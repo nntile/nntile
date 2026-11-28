@@ -4,32 +4,24 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/core/scale_slice.cc
  * Tile wrappers for scaling of a broadcasted slice
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/core/scale_slice.hh"
-#ifdef NNTILE_USE_NNHAUL
 #include "nntile/nnhaul/ops/scale_slice.hh"
-#else
-#include "nntile/starpu/scale_slice.hh"
-#endif
-#ifdef NNTILE_USE_NNHAUL
 #include "nntile/nnhaul/sync_defer.hh"
-#else
-#include "nntile/starpu/config.hh"
-#endif
 
 namespace nntile::core
 {
 
 //! Asynchronous tile scaling of a broadcasted slice
 template<typename T>
-void scale_slice_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst, Index axis)
+void scale_slice_async(int worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst, Index axis)
 //! Tile<T> scaling of a broadcasted slice
 /*! Reshapes input slice and dst tensor into 2-dimensional and 3-dimensional arrays
  * and performs the following operations:
@@ -84,34 +76,13 @@ void scale_slice_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src,
         n *= dst.shape[i];
     }
     const Index k = dst.shape[axis];
-    #ifdef NNTILE_USE_NNHAUL
-    int mpi_rank = 0;
-    #else
-    int mpi_rank = starpu_mpi_world_rank();
-    #endif
-    #ifdef NNTILE_USE_NNHAUL
-    int dst_rank = 0;
-    #else
-    int dst_rank = dst.mpi_get_rank();
-    #endif
-    #ifndef NNTILE_USE_NNHAUL
-    src.mpi_transfer(dst_rank, mpi_rank);
-    #endif
-    if(mpi_rank == dst_rank)
-    {
-        // Insert corresponding task
-        #ifdef NNTILE_USE_NNHAUL
-        haul::scale_slice.submit<std::tuple<T>>(starpu_worker_hint, m, n, k, alpha, src, dst);
-        #else
-        starpu::scale_slice.submit<std::tuple<T>>(starpu_worker_hint, m, n, k, alpha, src, dst);
-        #endif
-
-    }
+    // Insert corresponding task
+    nnhaul::scale_slice.submit<std::tuple<T>>(worker_hint, m, n, k, alpha, src, dst);
 }
 
 //! Blocking version of tile scaling of a broadcasted slice
 template<typename T>
-void scale_slice(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst, Index axis)
+void scale_slice(int worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst, Index axis)
 //! Tile<T> scaling of a broadcasted slice
 /*! Blocking version of scale_slice_async<T>.
  * Reshapes input slice and dst tensor into 2-dimensional and 3-dimensional arrays
@@ -124,55 +95,51 @@ void scale_slice(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const
  * @param[in] axis: Axis along which the slice is broadcasted
  * */
 {
-    scale_slice_async<T>(starpu_worker_hint, alpha, src, dst, axis);
-    #ifdef NNTILE_USE_NNHAUL
+    scale_slice_async<T>(worker_hint, alpha, src, dst, axis);
     nntile::nnhaul_task_wait_for_all_unless_deferred();
-#else
-    nntile::starpu_task_wait_for_all_unless_deferred();
-#endif
 }
 
 // Explicit instantiation
 template
-void scale_slice_async<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &src, const Tile<fp64_t> &dst, Index axis);
+void scale_slice_async<fp64_t>(int worker_hint, Scalar alpha, const Tile<fp64_t> &src, const Tile<fp64_t> &dst, Index axis);
 
 template
-void scale_slice_async<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &src, const Tile<fp32_t> &dst, Index axis);
+void scale_slice_async<fp32_t>(int worker_hint, Scalar alpha, const Tile<fp32_t> &src, const Tile<fp32_t> &dst, Index axis);
 
 template
-void scale_slice_async<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &src, const Tile<fp32_fast_tf32_t> &dst, Index axis);
+void scale_slice_async<fp32_fast_tf32_t>(int worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &src, const Tile<fp32_fast_tf32_t> &dst, Index axis);
 
 template
-void scale_slice_async<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &src, const Tile<fp32_fast_fp16_t> &dst, Index axis);
+void scale_slice_async<fp32_fast_fp16_t>(int worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &src, const Tile<fp32_fast_fp16_t> &dst, Index axis);
 
 template
-void scale_slice_async<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &src, const Tile<fp32_fast_bf16_t> &dst, Index axis);
+void scale_slice_async<fp32_fast_bf16_t>(int worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &src, const Tile<fp32_fast_bf16_t> &dst, Index axis);
 
 template
-void scale_slice_async<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &src, const Tile<bf16_t> &dst, Index axis);
+void scale_slice_async<bf16_t>(int worker_hint, Scalar alpha, const Tile<bf16_t> &src, const Tile<bf16_t> &dst, Index axis);
 
 template
-void scale_slice_async<fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp16_t> &src, const Tile<fp16_t> &dst, Index axis);
+void scale_slice_async<fp16_t>(int worker_hint, Scalar alpha, const Tile<fp16_t> &src, const Tile<fp16_t> &dst, Index axis);
 
 template
-void scale_slice<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &src, const Tile<fp64_t> &dst, Index axis);
+void scale_slice<fp64_t>(int worker_hint, Scalar alpha, const Tile<fp64_t> &src, const Tile<fp64_t> &dst, Index axis);
 
 template
-void scale_slice<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &src, const Tile<fp32_t> &dst, Index axis);
+void scale_slice<fp32_t>(int worker_hint, Scalar alpha, const Tile<fp32_t> &src, const Tile<fp32_t> &dst, Index axis);
 
 template
-void scale_slice<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &src, const Tile<fp32_fast_tf32_t> &dst, Index axis);
+void scale_slice<fp32_fast_tf32_t>(int worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &src, const Tile<fp32_fast_tf32_t> &dst, Index axis);
 
 template
-void scale_slice<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &src, const Tile<fp32_fast_fp16_t> &dst, Index axis);
+void scale_slice<fp32_fast_fp16_t>(int worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &src, const Tile<fp32_fast_fp16_t> &dst, Index axis);
 
 template
-void scale_slice<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &src, const Tile<fp32_fast_bf16_t> &dst, Index axis);
+void scale_slice<fp32_fast_bf16_t>(int worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &src, const Tile<fp32_fast_bf16_t> &dst, Index axis);
 
 template
-void scale_slice<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &src, const Tile<bf16_t> &dst, Index axis);
+void scale_slice<bf16_t>(int worker_hint, Scalar alpha, const Tile<bf16_t> &src, const Tile<bf16_t> &dst, Index axis);
 
 template
-void scale_slice<fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp16_t> &src, const Tile<fp16_t> &dst, Index axis);
+void scale_slice<fp16_t>(int worker_hint, Scalar alpha, const Tile<fp16_t> &src, const Tile<fp16_t> &dst, Index axis);
 
 } // namespace nntile::core

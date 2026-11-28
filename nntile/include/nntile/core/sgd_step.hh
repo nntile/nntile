@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/core/sgd_step.hh
  * SGD with momentum step for Tile<T>
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -21,13 +21,13 @@ namespace nntile::core
 
 // Asynchronous tile-wise SGD with momentum step operation
 template<typename T>
-void sgd_step_async(int starpu_worker_hint, Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step_async(int worker_hint, Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
                      const Tile<T> &grad, const Tile<T> &velocity,
                      const Tile<T> &p);
 
 // Blocking version of tile-wise SGD with momentum step operation
 template<typename T>
-void sgd_step(int starpu_worker_hint, Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step(int worker_hint, Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
                const Tile<T> &grad, const Tile<T> &velocity,
                const Tile<T> &p);
 

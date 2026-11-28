@@ -4,25 +4,17 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/core/silu_inplace.cc
  * Inplace SiLU operation for Tile<T>
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/core/silu_inplace.hh"
-#ifdef NNTILE_USE_NNHAUL
 #include "nntile/nnhaul/ops/silu_inplace.hh"
-#else
-#include "nntile/starpu/silu_inplace.hh"
-#endif
-#ifdef NNTILE_USE_NNHAUL
 #include "nntile/nnhaul/sync_defer.hh"
-#else
-#include "nntile/starpu/config.hh"
-#endif
 
 namespace nntile::core
 {
@@ -31,86 +23,64 @@ namespace nntile::core
 /*! @param[inout] A: Tile for the element-wise SiLU operation
  * */
 template<typename T>
-void silu_inplace_async(int starpu_worker_hint, const Tile<T> &A)
+void silu_inplace_async(int worker_hint, const Tile<T> &A)
 {
-    #ifdef NNTILE_USE_NNHAUL
-    int mpi_rank = 0;
-    #else
-    int mpi_rank = starpu_mpi_world_rank();
-    #endif
-    #ifdef NNTILE_USE_NNHAUL
-    int a_rank = 0;
-    #else
-    int a_rank = A.mpi_get_rank();
-    #endif
-    if(mpi_rank == a_rank)
-    {
-        // Submit task without any arguments checked
-        #ifdef NNTILE_USE_NNHAUL
-        haul::silu_inplace.submit<std::tuple<T>>(starpu_worker_hint, A.nelems, A);
-        #else
-        starpu::silu_inplace.submit<std::tuple<T>>(starpu_worker_hint, A.nelems, A);
-        #endif
-
-    }
+    // Submit task without any arguments checked
+    nnhaul::silu_inplace.submit<std::tuple<T>>(worker_hint, A.nelems, A);
 }
 
 //! Blocking version of tile-wise SiLU operation
 /*! @param[inout] A: Tile for the element-wise SiLU operation
  * */
 template<typename T>
-void silu_inplace(int starpu_worker_hint, const Tile<T> &A)
+void silu_inplace(int worker_hint, const Tile<T> &A)
 {
-    silu_inplace_async<T>(starpu_worker_hint, A);
-    #ifdef NNTILE_USE_NNHAUL
+    silu_inplace_async<T>(worker_hint, A);
     nntile::nnhaul_task_wait_for_all_unless_deferred();
-#else
-    nntile::starpu_task_wait_for_all_unless_deferred();
-#endif
 }
 
 // Explicit instantiation
 template
-void silu_inplace_async<fp32_t>(int starpu_worker_hint, const Tile<fp32_t> &A);
+void silu_inplace_async<fp32_t>(int worker_hint, const Tile<fp32_t> &A);
 
 template
-void silu_inplace_async<fp32_fast_tf32_t>(int starpu_worker_hint, const Tile<fp32_fast_tf32_t> &A);
+void silu_inplace_async<fp32_fast_tf32_t>(int worker_hint, const Tile<fp32_fast_tf32_t> &A);
 
 template
-void silu_inplace_async<fp32_fast_fp16_t>(int starpu_worker_hint, const Tile<fp32_fast_fp16_t> &A);
+void silu_inplace_async<fp32_fast_fp16_t>(int worker_hint, const Tile<fp32_fast_fp16_t> &A);
 
 template
-void silu_inplace_async<fp32_fast_bf16_t>(int starpu_worker_hint, const Tile<fp32_fast_bf16_t> &A);
+void silu_inplace_async<fp32_fast_bf16_t>(int worker_hint, const Tile<fp32_fast_bf16_t> &A);
 
 template
-void silu_inplace_async<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &A);
+void silu_inplace_async<bf16_t>(int worker_hint, const Tile<bf16_t> &A);
 
 template
-void silu_inplace_async<fp16_t>(int starpu_worker_hint, const Tile<fp16_t> &A);
+void silu_inplace_async<fp16_t>(int worker_hint, const Tile<fp16_t> &A);
 
 template
-void silu_inplace_async<fp64_t>(int starpu_worker_hint, const Tile<fp64_t> &A);
+void silu_inplace_async<fp64_t>(int worker_hint, const Tile<fp64_t> &A);
 
 // Explicit instantiation
 template
-void silu_inplace<fp32_t>(int starpu_worker_hint, const Tile<fp32_t> &A);
+void silu_inplace<fp32_t>(int worker_hint, const Tile<fp32_t> &A);
 
 template
-void silu_inplace<fp32_fast_tf32_t>(int starpu_worker_hint, const Tile<fp32_fast_tf32_t> &A);
+void silu_inplace<fp32_fast_tf32_t>(int worker_hint, const Tile<fp32_fast_tf32_t> &A);
 
 template
-void silu_inplace<fp32_fast_fp16_t>(int starpu_worker_hint, const Tile<fp32_fast_fp16_t> &A);
+void silu_inplace<fp32_fast_fp16_t>(int worker_hint, const Tile<fp32_fast_fp16_t> &A);
 
 template
-void silu_inplace<fp32_fast_bf16_t>(int starpu_worker_hint, const Tile<fp32_fast_bf16_t> &A);
+void silu_inplace<fp32_fast_bf16_t>(int worker_hint, const Tile<fp32_fast_bf16_t> &A);
 
 template
-void silu_inplace<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &A);
+void silu_inplace<bf16_t>(int worker_hint, const Tile<bf16_t> &A);
 
 template
-void silu_inplace<fp16_t>(int starpu_worker_hint, const Tile<fp16_t> &A);
+void silu_inplace<fp16_t>(int worker_hint, const Tile<fp16_t> &A);
 
 template
-void silu_inplace<fp64_t>(int starpu_worker_hint, const Tile<fp64_t> &A);
+void silu_inplace<fp64_t>(int worker_hint, const Tile<fp64_t> &A);
 
 } // namespace nntile::core

@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/subcopy/cpu.cc
  * Copy subarray based on contiguous indices
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/subcopy/cpu.hh"
@@ -29,7 +29,7 @@ void cpu(Index ndim, const Index *src_start, const Index *src_stride,
  * converting between a single contiguous array on a single node (e.g., a
  * Python numpy or torch array) and a distributed allocation on many nodes
  * (e.g., nntile data distribution).
- * A simple memory copy shall be treated with a help of starpu_data_cpy()
+ * A simple memory copy shall be treated with a help of the runtime copy
  * function.
  *
  * @param[in] ndim: Dimensionality of underlying arrays

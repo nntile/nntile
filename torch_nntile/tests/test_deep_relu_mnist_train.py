@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/tests/test_deep_relu_mnist_train.py
 # Full-batch MNIST training: CPU vs nntile loss and weight parity.
+# @version 2.0.0
 
 import pytest
 import torch
@@ -11,8 +12,8 @@ pytest.importorskip("torchvision")
 from torchvision import datasets
 
 from torch_nntile.nn.model import DeepReLU
-from torch_nntile.training import (
-    clone_model_weights, max_weight_delta, train_full_batch_step)
+from torch_nntile.training import (clone_model_weights, max_weight_delta,
+                                   train_full_batch_step)
 
 pytestmark = pytest.mark.slow
 

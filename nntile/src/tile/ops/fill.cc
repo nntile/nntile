@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/src/tile_graph/fill.cc
  * TileGraph fill operation implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tile/ops/fill.hh"
@@ -36,7 +36,7 @@ void run_fill(
     TileGraph::TileNode* x)
 {
     auto& x_t = runtime.get_tile<T>(x);
-    nntile::core::fill<T>(runtime.starpu_worker_hint(), val, x_t);
+    nntile::core::fill<T>(runtime.worker_hint(), val, x_t);
 }
 
 } // namespace

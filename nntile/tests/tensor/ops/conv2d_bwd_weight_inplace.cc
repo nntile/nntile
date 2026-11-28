@@ -4,15 +4,20 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tensor_graph/conv2d_bwd_weight_inplace.cc
  * Test TensorGraph conv2d_bwd_weight_inplace operation against
  * nntile::tensor::conv2d_bwd_weight_inplace.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
-
+/*!
+ * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.
+ * Kept in-tree for future re-enablement. No product path calls this code;
+ * its tests are not registered while the family is in
+ * NNTILE_DISABLED_KERNELS.
+ */
 #include "nntile/tensor/ops/conv2d_bwd_weight_inplace.hh"
 
 #include "context_fixture.hh"
@@ -98,4 +103,3 @@ TEST_CASE("TensorGraph conv2d_bwd_weight_inplace rejects null tensors",
                           1.0, x, nullptr, 0.0, dc, {0, 0}, {1, 1}, {1, 1}),
         std::invalid_argument);
 }
-

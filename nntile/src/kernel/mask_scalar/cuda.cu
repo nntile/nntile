@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/mask_scalar/cuda.cu
  * Mask operation with scalar on CPU
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/mask_scalar/cuda.hh"
@@ -88,11 +88,10 @@ void cuda(cudaStream_t stream, Index nrows, Index ncols, const bool_t *mask_,
 //! mask byte load per thread. The previous chunked kernel READ the
 //! staged byte (mask_block[i]), which kept the staging alive: a
 //! dependent table load -> byte load -> STS chain, the block-wide
-//! barrier, and an LDS on every thread's exit path. On the attention
-//! bench (an all-true 1 MiB mask, so every thread takes the
-//! keep-the-row exit) that live barrier + double-indirect load was the
-//! entire ~13% parity gap: the kernel is latency-bound on the mask
-//! reads, and the chunked form paid table-load latency SERIALLY before
+//! barrier, and an LDS on every thread's exit path. That live barrier
+//! plus double-indirect load is the overhead this kernel removes: the
+//! kernel is latency-bound on the mask reads, and the chunked form paid
+//! table-load latency SERIALLY before
 //! the byte load plus a barrier before any thread could exit. This
 //! kernel mirrors the classic's post-DSE form: NO shared array, NO
 //! barrier, ONE mask byte load per thread.
@@ -111,7 +110,7 @@ void cuda(cudaStream_t stream, Index nrows, Index ncols, const bool_t *mask_,
 //! that chunk's virtual contiguous base (a straight q[f] store, the
 //! classic's own addressing once the base is in a register -- no
 //! per-store table traffic), and a run that would cross a chunk
-//! boundary rebases through the table (rule 7: shift/mask on the
+//! boundary rebases through the table (shift/mask on the
 //! runtime class shift, or the sentinel 62 for a 1-chunk operand,
 //! which the compiler folds to an unconditional single-chunk fast
 //! path). The rebase load for the NEXT store is issued only when that
@@ -132,7 +131,7 @@ void chunked_cuda_kernel(Index nrows, Index ncols, Scalar val_,
     T *const *data_tab, const bool_t *const *mask_tab,
     int SHIFT_DATA, int SHIFT_MASK)
 {
-    // Runtime rule-7 shifts (the class shift for a multi-chunk operand,
+    // Runtime shifts (the class shift for a multi-chunk operand,
     // the sentinel 62 for a 1-chunk operand); chunk paging is pure
     // shift/mask on these values.
     using Y = typename T::repr_t;
@@ -298,8 +297,8 @@ void chunked_cuda_kernel(Index nrows, Index ncols, Scalar val_,
 }
 
 //! Launch the chunk-aware kernel with the whole-buffer entry's geometry.
-//! Rule 10: one instantiation cross on (DATA1, MASK1, U32); U32 is
-//! host-guaranteed by nrows*ncols < 2^32. The rule-7 validation
+//! One instantiation cross on (DATA1, MASK1, U32); U32 is
+//! host-guaranteed by nrows*ncols < 2^32. The validation
 //! (chunk_shift_of) runs host-side and aborts loudly on a non-class
 //! multi-chunk operand.
 template<typename T>

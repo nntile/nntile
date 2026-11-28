@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/tile/graph.hh
  * TileGraph - graph operating on tiles. Purely symbolic; use
@@ -12,7 +12,7 @@
  * (``#include <nntile/execution_driver.hh>``) to run. Does not compile
  * TensorGraph → TileGraph.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -38,23 +38,6 @@ inline TileGraph::TileNode *TileGraph::data(
     return node_ptr;
 }
 
-inline std::vector<std::string> TileGraph::data_names() const
-{
-    std::vector<std::string> names;
-    names.reserve(data_.size());
-    for (const auto &node : data_)
-    {
-        if (!node)
-        {
-            continue;
-        }
-        if (!node->name().empty())
-        {
-            names.push_back(node->name());
-        }
-    }
-    return names;
-}
 
 inline void TileGraph::add_op(
     std::shared_ptr<OpNode> op_node, const std::string &name)

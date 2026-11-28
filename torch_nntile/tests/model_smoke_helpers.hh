@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/tests/model_smoke_helpers.hh
  * Helpers for C++ model forward/backward smoke (shape/device only).
+ * @version 2.0.0
  */
 
 #pragma once
@@ -30,15 +31,14 @@ struct ContextGuard
         if (!torch_nntile::is_context_initialized())
         {
             torch_nntile::init_context(
-                1,
                 0,
+                1,
                 0,
                 "/tmp/nntile_ooc",
                 16ull * 1024ull * 1024ull,
                 0,
                 0);
             REQUIRE_FALSE(torch_nntile::is_cpu_fallback_enabled());
-            torch_nntile::restrict_cpu();
         }
     }
 

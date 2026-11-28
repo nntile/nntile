@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/tensor/axis_descriptor.hh
  * AxisDescriptor - shared descriptor for a dimension group in TensorGraph.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -58,9 +58,6 @@ struct AxisDescriptor
     //! True if tiling has been set.
     bool is_tiled() const { return !tile_sizes.empty(); }
 
-    //! Number of tiles along this axis (1 if not tiled).
-    Index num_tiles() const;
-
     //! Human-readable tile sizes for display: "N" for single/uniform,
     //! "{a,b,c}" for heterogeneous. Returns empty string if not tiled.
     std::string tile_sizes_to_string() const;
@@ -70,5 +67,10 @@ struct AxisDescriptor
 //! to hold `keep`. Throws if extents differ. No-op if already same.
 void merge_axis(std::shared_ptr<AxisDescriptor>& keep,
                 std::shared_ptr<AxisDescriptor>& replace);
+
+//! Apply a single-size or per-tile tiling vector to an axis, validating that
+//! the sizes sum to the axis extent.
+void apply_tiling_to_axis(AxisDescriptor *ad,
+    const std::vector<Index> &sizes);
 
 } // namespace nntile

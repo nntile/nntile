@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/nn/weight_layout.py
 # Attention weight layout conversion between PyTorch/HF and NNTile.
+# @version 2.0.0
 
 """Convert attention projection weights for NNTile GEMM layouts."""
 
@@ -10,7 +11,6 @@ from __future__ import annotations
 
 from typing import Literal
 
-import torch
 from torch import Tensor
 
 _QKV_KEYS = ("q_weight", "k_weight", "v_weight")

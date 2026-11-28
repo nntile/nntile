@@ -4,16 +4,16 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tile/chunked_big.cc
  * Big-tile graph-path chunking test: structured ops on 2 MiB tiles
  * allocated by Runtime::allocate_missing_tiles, exercised in two chunk
- * ladders (the default and a deep 4096-byte one via a child process),
+ * classes (the default and a 1 MiB one via a child process),
  * with a kernel-time chunk_count probe proving the chunked layout was
  * actually live.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include <catch2/catch_test_macros.hpp>
@@ -46,9 +46,6 @@
 #include <string>
 #include <vector>
 
-#ifdef NNTILE_USE_CBLAS
-#include <nntile/kernel/cblas.hh>
-#endif
 
 using namespace nntile;
 namespace tg = nntile::tile;
@@ -107,7 +104,7 @@ float max_rel_diff(std::vector<float> const &got, std::vector<fp32_t> const &ref
 // chunking threshold of every ladder this test runs under.
 //
 // m = 1024, n = 512, k = 512 (fp32): A = 2 MiB, B = 1 MiB, C = 2 MiB,
-// T = 2 MiB. The reference is a plain host computation (cblas gemm plus
+// T = 2 MiB. The reference is a plain host triple loop (plus
 // the cpu kernels) on the same inputs.
 void run_big_tile_chunked_graph()
 {
@@ -124,7 +121,7 @@ void run_big_tile_chunked_graph()
     // NNHAUL_CHUNK_TILES is live again as the tile-handle chunking
     // knob (see nntile/nnhaul/chunk_gate.hh): with =0 the engagement
     // assertions are vacuous (handles are flat by construction).
-    bool const chunking_off = !::nntile::haul::tile_chunking_enabled();
+    bool const chunking_off = !::nntile::nnhaul::tile_chunking_enabled();
     if (chunking_off)
     {
         std::cout << "chunked_big: NNHAUL_CHUNK_TILES=0 - engagement "
@@ -217,9 +214,9 @@ void run_big_tile_chunked_graph()
     tg::norm_slice_inplace(Scalar{1.0}, tt, Scalar{0.0}, td, Index{0}, 0);
 
     std::uint64_t const staged_before =
-        chunking_off ? 0 : ::nntile::haul::stage::staged_submit_count();
+        chunking_off ? 0 : ::nntile::nnhaul::stage::staged_submit_count();
     std::uint64_t const gemm_before =
-        chunking_off ? 0 : ::nntile::haul::gemm_staging_stats().calls;
+        chunking_off ? 0 : ::nntile::nnhaul::gemm_staging_stats().calls;
     Runtime runtime(graph);
     runtime.compile();
     runtime.bind_data(ta, a);
@@ -243,9 +240,9 @@ void run_big_tile_chunked_graph()
         // drivers and the chunked transpose - NO generic staged submit is
         // left in the chain.
         std::uint64_t const staged_after =
-            ::nntile::haul::stage::staged_submit_count();
+            ::nntile::nnhaul::stage::staged_submit_count();
         std::uint64_t const gemm_after =
-            ::nntile::haul::gemm_staging_stats().calls;
+            ::nntile::nnhaul::gemm_staging_stats().calls;
         INFO("staged submits before=" << staged_before << " after="
                                       << staged_after << " gemm calls before="
                                       << gemm_before << " after="
@@ -271,7 +268,6 @@ void run_big_tile_chunked_graph()
 
 } // namespace
 
-#ifdef NNTILE_USE_NNHAUL
 
 namespace
 {
@@ -351,7 +347,7 @@ void run_big_embedding_chunked_graph()
         Scalar{0.0}, tindex, tembed, tgrad, 0);
 
     std::uint64_t const staged_before =
-        chunking_off ? 0 : ::nntile::haul::stage::staged_submit_count();
+        chunking_off ? 0 : ::nntile::nnhaul::stage::staged_submit_count();
     Runtime runtime(graph);
     runtime.compile();
     runtime.bind_data(tindex, idx);
@@ -366,7 +362,7 @@ void run_big_embedding_chunked_graph()
         // Both ops are natively chunked: nothing may take the staging
         // fallback (the bind_data copies are the native copy op).
         std::uint64_t const staged_after =
-            ::nntile::haul::stage::staged_submit_count();
+            ::nntile::nnhaul::stage::staged_submit_count();
         INFO("embedding round-trip staged submits before=" << staged_before
                                                            << " after="
                                                            << staged_after);
@@ -387,15 +383,13 @@ void run_big_embedding_chunked_graph()
 
 } // namespace
 
-#endif // NNTILE_USE_NNHAUL
 
-#ifdef NNTILE_USE_NNHAUL
 
-TEST_CASE("Chunked big-tile graph path (default ladder)",
+TEST_CASE("Chunked big-tile graph path (default class)",
     "[graph][tile][chunked]")
 {
     // Scope the parent memory context: nnhaul sizes the device arena to
-    // 90% of the FREE VRAM, so the re-exec'ed deep-ladder child below
+    // 90% of the FREE VRAM, so the re-exec'ed small-class child below
     // would find no room left and fail on an 11 GiB device if the parent
     // arena were still alive. The parent run must finish and release its
     // arena before the child starts.
@@ -403,11 +397,9 @@ TEST_CASE("Chunked big-tile graph path (default ladder)",
         nntile::test::ContextFixture fixture;
         run_big_tile_chunked_graph();
     }
-    // Second mode: a pristine child process under the deep ladder
-    // (NNHAUL_CHUNK_SIZES=4096 NNHAUL_CHUNK_MIN_COUNT=1 -> 512 chunks
-    // per 2 MiB tile). The knobs are parsed once per process by nnhaul
-    // (function-local statics read at the first chunk_bytes_for call,
-    // which happens after nnhaul::init), so the deep mode must re-exec.
+    // Second mode: a pristine child process under the smallest class
+    // (NNHAUL_CHUNK_SIZE_MB=1 -> 2 chunks per 2 MiB tile). The class is
+    // parsed once per process, so the small-class mode must re-exec.
     // /proc/self/exe inside the system() shell resolves to the shell,
     // so resolve the test binary's own path first.
     char self_buf[4096];
@@ -416,32 +408,35 @@ TEST_CASE("Chunked big-tile graph path (default ladder)",
     REQUIRE(self_len > 0);
     self_buf[self_len] = '\0';
     std::string const self(self_buf);
-    std::string const cmd = "NNHAUL_CHUNK_SIZES=4096 "
-                            "NNHAUL_CHUNK_MIN_COUNT=1 '" +
+    std::string const cmd = "NNHAUL_CHUNK_SIZE_MB=1 '" +
                             self +
-                            "' 'Chunked big-tile graph path (deep "
-                            "chunks)'";
+                            "' 'Chunked big-tile graph path (small class)'";
     int const rc = std::system(cmd.c_str());
-    INFO("deep-mode child exit status " << rc);
+    INFO("small-class child exit status " << rc);
     REQUIRE(rc == 0);
 }
 
-// Hidden tag: only the re-exec'ed child names this case explicitly; a
-// plain run of the binary skips it (the parent process is pinned to the
-// default ladder, where the deep-ladder precondition is false).
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "Chunked big-tile graph path (deep chunks)",
-    "[.][graph][tile][chunked][deep]")
+    "Chunked big-tile graph path (second Context)",
+    "[graph][tile][chunked]")
 {
-    // Reached in the child process (see the default-ladder case). The
-    // ladder knobs were parsed from the environment this process was
-    // exec'd with; the engagement assertions inside the routine verify
-    // the deep chunk counts. Under NNHAUL_CHUNK_TILES=0 chunking is off
-    // and the deep precondition is vacuous - the graph still runs.
-    if ((2u << 20) <= ::nnhaul::chunk_class_bytes())
-    {
-        REQUIRE(::nnhaul::chunk_class_bytes() >= 4096);
-    }
+    // A fresh Context after the previous case tore its runtime down: the
+    // GEMM workspace is borrowed from nnhaul, so a cached pointer from
+    // the dead runtime must not survive into this one.
+    run_big_tile_chunked_graph();
+}
+
+// Hidden tag: only the re-exec'ed child names this case explicitly; a
+// plain run of the binary skips it (the parent process uses the default
+// class, so the small-class precondition is false).
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "Chunked big-tile graph path (small class)",
+    "[.][graph][tile][chunked][small-class]")
+{
+    // Reached in the child process, exec'd with NNHAUL_CHUNK_SIZE_MB=1.
+    // The engagement assertions inside the routine verify the multi-chunk
+    // counts.
+    REQUIRE(::nnhaul::chunk_class_bytes() == (std::size_t{1} << 20));
     run_big_tile_chunked_graph();
 }
 
@@ -451,12 +446,3 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     run_big_embedding_chunked_graph();
 }
-
-#else
-
-TEST_CASE("Chunked big-tile graph path requires NNHaul", "[chunked]")
-{
-    SUCCEED("StarPU build: chunked-tile path does not exist");
-}
-
-#endif

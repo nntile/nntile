@@ -4,7 +4,7 @@
  * @file include/nntile/core/swap_two_axes_decompose.hh
  * N-D to 5D decomposition for swap_two_axes.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

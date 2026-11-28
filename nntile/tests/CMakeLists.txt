@@ -4,18 +4,18 @@
 #                              (AIRI), Russia. All rights reserved.
 #
 # NNTile is software framework for fast training of big neural networks on
-# distributed-memory heterogeneous systems based on StarPU runtime system.
+# distributed-memory heterogeneous systems with GPU acceleration.
 #
 # @file tests/CMakeLists.txt
 # Function to register test sets with CTest
 #
-# @version 1.1.0
+# @version 2.0.0
 
 # Extend set of ctest-controlled tests and enable code coverage if required.
 # All of the tests shall be launched by the same executable but with different
 # arguments. All the arguments are passed by corresponding keyword ARGS. All
 # the supported keywords are: TARGET_NAME, EXEC_NAME, SOURCES, LINK_LIBRARIES,
-# ARGS, COV_ENABLE, COV_NAME, COV_GLOBAL and MPI_NUMPROC. The following
+# ARGS, COV_ENABLE, COV_NAME and COV_GLOBAL. The following
 # example generates a test set of 4 ctest tests:
 # add_test_set(TARGET_NAME target_name
 #              EXEC_NAME executable_name
@@ -24,8 +24,7 @@
 #              ARGS " " "arg1 arg2 arg3" "arg1 arg2" "arg1"
 #              COV_ENABLE ON
 #              COV_NAME coverage_name
-#              COV_GLOBAL coverage
-#              MPI_NUMPROC 4)
+#              COV_GLOBAL coverage)
 # Here, "target_name" is the base name for all generated tests and it shall be
 # unique across entire CMake build. Actual target names will be: "target_name"
 # in a case of a single test and "target_name_${i}" with integer values ${i} in
@@ -49,7 +48,7 @@ function(add_test_set)
     # List of non-value arguments
     set(options)
     # List of single-value arguments
-    set(one_value_args TARGET_NAME EXEC_NAME MPI_NUMPROC COV_ENABLE COV_NAME)
+    set(one_value_args TARGET_NAME EXEC_NAME COV_ENABLE COV_NAME)
     # List of multi-value arguments
     set(multi_value_args SOURCES LINK_LIBRARIES ARGS COV_GLOBAL LABELS)
     # Parse arguments
@@ -91,12 +90,7 @@ function(add_test_set)
     endif()
     # Add test suite to the CTest
     list(LENGTH _args_ARGS ntests)
-    if(DEFINED _args_MPI_NUMPROC)
-        set(exec_cmd ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG}
-            ${_args_MPI_NUMPROC} $<TARGET_FILE:${_args_TARGET_NAME}>)
-    else()
-        set(exec_cmd $<TARGET_FILE:${_args_TARGET_NAME}>)
-    endif()
+    set(exec_cmd $<TARGET_FILE:${_args_TARGET_NAME}>)
     if(ntests EQUAL 0)
         # Test without arguments
         message(STATUS "Adding 1 test ${_args_TARGET_NAME}")
@@ -140,9 +134,6 @@ function(add_test_set)
 endfunction()
 
 if(BUILD_TESTING)
-    if(NNTILE_TORCH_NATIVE_OPS)
-        add_subdirectory(torch_native)
-    endif()
     add_test_set(TARGET_NAME tests_nntile_constants
             EXEC_NAME test_constants
             SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/constants.cc
@@ -152,15 +143,10 @@ if(BUILD_TESTING)
             COV_NAME coverage_nntile_constants
             COV_GLOBAL coverage
         )
-        if(NOT HAVE_STARPU_SIMGRID)
-            add_subdirectory(kernel)
-        endif()
-        if(NOT NNTILE_USE_NNHAUL)
-            add_subdirectory(starpu)
-        endif()
-        add_subdirectory(core)
+        add_subdirectory(kernel)
         add_subdirectory(tile)
         add_subdirectory(tensor)
+        add_subdirectory(nnhaul)
 endif()
 
 if(BUILD_COVERAGE)
@@ -193,6 +179,7 @@ if(BUILD_LIBNNTILE)
             -DCMAKE_INSTALL_PREFIX=${_nntile_install_prefix}
             -DCMAKE_INSTALL_LIBDIR=${_nntile_install_libdir}
             -DNNTILE_INSTALL_LIB_BASENAME=${_nntile_install_lib_basename}
+            -DNNTILE_NNHAUL_EXTERNAL=${NNTILE_NNHAUL_EXTERNAL}
             -P ${CMAKE_CURRENT_SOURCE_DIR}/verify_install.cmake
     )
     set_tests_properties(tests_nntile_install PROPERTIES LABELS "smoke")

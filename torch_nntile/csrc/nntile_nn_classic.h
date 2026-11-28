@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/csrc/nntile_nn_classic.h
  * Python-facing classic NNTile nn ops (torch_nntile.nn path).
+ * @version 2.0.0
  */
 
 #pragma once

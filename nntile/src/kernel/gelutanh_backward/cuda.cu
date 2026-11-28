@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/gelutanh_backward/cuda.cu
  * Backward approximate GeLU operation on CUDA
  *
- * @version 1.3.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/gelutanh_backward/cuda.hh"
@@ -194,8 +194,8 @@ static __device__ __forceinline__ Y gtb_one(Y z, Y dyv, Y dxv, Y alpha_,
 //! verbatim from cuda_kernel, including the per-thread constant
 //! derivation and the beta special cases, so nvcc's contraction decisions
 //! are the classic kernel's) with every operand address resolved through
-//! its chunk table read straight from the device table (piece 9 / rule
-//! 10: no staging, no table __syncthreads). The result is bitwise
+//! its chunk table read straight from the device table (no staging, no
+//! table __syncthreads). The result is bitwise
 //! cuda()'s.
 template<typename T>
 static __global__
@@ -258,8 +258,8 @@ void chunked_cuda_kernel(Index nelems, Scalar alpha, Scalar beta,
 //! multi-chunk elementwise pattern, see add/cuda.cu): a 4-byte type on a
 //! 4-multiple element count walks the flat space in aligned float4
 //! quads, ONE QUAD PER THREAD. Every operand address is resolved through
-//! its chunk table read straight from the device table (piece 9 / rule
-//! 10: no staging, no table __syncthreads), but the resolution -- three
+//! its chunk table read straight from the device table (no staging, no
+//! table __syncthreads), but the resolution -- three
 //! warp-uniform table reads plus the shift/mask offset math -- happens
 //! ONCE PER THREAD and is amortized over the quad's four elements, and
 //! the loads/stores are 16-byte. A quad never straddles a chunk

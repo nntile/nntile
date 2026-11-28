@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/csrc/nntile_allocator.h
  * Host std::vector-backed allocator for PrivateUse1.
+ * @version 2.0.0
  */
 
 #pragma once

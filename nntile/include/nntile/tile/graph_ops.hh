@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/tile/graph_ops.hh
  * TileGraph operations.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -34,10 +34,6 @@
 #include <nntile/tile/ops/embedding.hh>
 #include <nntile/tile/ops/embedding_backward.hh>
 #include <nntile/tile/ops/fill.hh>
-#ifdef NNTILE_USE_FLASH_SDPA
-#include <nntile/tile/ops/flash_sdpa_bwd_cudnn.hh>
-#include <nntile/tile/ops/flash_sdpa_fwd_cudnn.hh>
-#endif
 #include <nntile/tile/ops/gelu.hh>
 #include <nntile/tile/ops/gelu_backward.hh>
 #include <nntile/tile/ops/gelu_inplace.hh>

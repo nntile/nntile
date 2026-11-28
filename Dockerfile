@@ -1,264 +1,73 @@
 # @copyright (c) 2022-present Skolkovo Institute of Science and Technology
 #                              (Skoltech), Russia. All rights reserved.
-#                2023-present Artificial Intelligence Research Institute
+#                 2023-present Artificial Intelligence Research Institute
 #                              (AIRI), Russia. All rights reserved.
 #
 # NNTile is software framework for fast training of big neural networks on
-# distributed-memory heterogeneous systems based on StarPU runtime system.
+# distributed-memory heterogeneous systems with GPU acceleration.
 #
 # @file Dockerfile
-# Instructions for Docker to build an image for testing with NNTile and Torch
-# using conda/miniconda for all dependencies
+# NNTile 2.0 sandbox: CUDA toolkit + uv-managed Python environment
+# with PyTorch. Published as ghcr.io/nntile/nntile-sandbox and reused by CI
+# so every job does not reinstall the toolchain.
 #
-# @version 1.1.0
+# @version 2.0.0
 
-# Set CUDA version
-ARG CUDA_VERSION=12.9.1
+# syntax=docker/dockerfile:1.7
 
-# Set base OS
-ARG BASE_OS=ubuntu22.04
+ARG CUDA_VERSION=12.4.1
+ARG UBUNTU_VERSION=ubuntu22.04
+ARG BASE_IMAGE=nvidia/cuda:${CUDA_VERSION}-devel-${UBUNTU_VERSION}
 
-# Use CUDA base image with CUDA driver
-# Everything else is installed via Conda into "nntile" environment
-ARG BASE_IMAGE=nvidia/cuda:${CUDA_VERSION}-base-${BASE_OS}
-
-# Parallel build (inherited in sandbox and nntile stages)
-ARG MAKE_JOBS=4
-
-# Target CUDA architectures (inherited in sandbox and nntile stages)
-ARG CUDA_ARCHS=70;75;80;86;89;90;100;120
-
-# Read the base image. Target "sandbox" contains all the NNTile prerequisites
-# and is meant for the NNTile development
 FROM ${BASE_IMAGE} AS sandbox
 
-# Image labels
-LABEL org.opencontainers.image.source="https://github.com/nntile/nntile"
-LABEL Maintainer="Aleksandr Mikhalev <al.mikhalev@skoltech.ru>"
-
-# Inherit global ARGs
-ARG MAKE_JOBS
-ARG CUDA_ARCHS
-
-# FXT tool version
-ARG FXT_VERSION=0.3.15
-
-# StarPU: nntile fork (no release tags here). Snapshot = latest commit on this branch (.zip archive).
-ARG STARPU_GITHUB_REPO=nntile/starpu
-ARG STARPU_GIT_BRANCH=master
-
-# Desired Python version
-ARG PYTHON_VERSION=3.12
-
-# Desired Pytorch version
-ARG PYTORCH_VERSION=2.9.1
-
-# No interactions with a user during docker build
-# ARG is not exposed into a container environment
 ARG DEBIAN_FRONTEND=noninteractive
+ARG PYTHON_VERSION=3.12
+ARG TORCH_VERSION=2.9.1
+ARG TORCHVISION_VERSION=0.24.1
+ARG USER_UID=1000
+ARG USER_GID=1000
 
-# Override the default shell to ensure bash is used
-SHELL ["/bin/bash", "--login", "-c"]
+LABEL org.opencontainers.image.source="https://github.com/nntile/nntile" \
+      org.opencontainers.image.title="NNTile 2.0 sandbox" \
+      org.opencontainers.image.description="CUDA-only NNHaul build/test environment" \
+      org.opencontainers.image.licenses="MIT"
 
-# Install only minimal system packages needed for conda installation
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt update && \
-    apt install -y --no-install-recommends \
-        ca-certificates \
-        curl \
-        unzip \
-        wget
+    apt-get update && apt-get install -y --no-install-recommends \
+        build-essential ca-certificates ccache curl git gdb lcov \
+        ninja-build pkg-config python3 unzip wget vim && \
+    rm -rf /var/lib/apt/lists/*
 
-# Set Conda-related environment variables
-ENV CONDA_DIR=/opt/conda
-ENV PATH=${CONDA_DIR}/bin:${PATH}
+# uv installs and owns the Python environment; no conda layer.
+RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh && \
+    uv python install ${PYTHON_VERSION}
 
-# Install Miniforge
-RUN --mount=type=cache,target=/tmp \
-    set -xe && \
-    export URL="https://github.com/conda-forge/miniforge/releases/latest" && \
-    export URL="${URL}/download/Miniforge3-$(uname)-$(uname -m).sh" && \
-    wget ${URL} -O /tmp/miniforge.sh && \
-    bash /tmp/miniforge.sh -b -p ${CONDA_DIR} && \
-    conda init && \
-    source "${CONDA_DIR}/etc/profile.d/conda.sh" && \
-    source "${CONDA_DIR}/etc/profile.d/mamba.sh" && \
-    conda config --set auto_activate_base false
+ENV CUDA_HOME=/usr/local/cuda \
+    PATH=/opt/venv/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    LD_LIBRARY_PATH=/usr/local/cuda/lib64 \
+    CCACHE_DIR=/ccache \
+    CMAKE_CUDA_COMPILER_LAUNCHER=ccache \
+    CMAKE_CXX_COMPILER_LAUNCHER=ccache \
+    CMAKE_CUDA_ARCHITECTURES=70;75;80;86;89;90 \
+    UV_LINK_MODE=copy \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    OMP_NUM_THREADS=1
 
-# Create an environment "nntile" with custom Python and Pytorch versions
-# Also install compilers and libraries, required for the NNTile
-RUN --mount=type=cache,target=/opt/conda/pkgs \
-    set -xe && \
-    CONDA_OVERRIDE_CUDA=${CUDA_VERSION} conda create -n nntile \
-        python=${PYTHON_VERSION} \
-        pytorch-gpu=${PYTORCH_VERSION} \
-        cuda \
-        cuda-toolkit \
-        "transformers==4.52.*" \
-        nomkl \
-        openblas \
-        cmake \
-        ninja \
-        pkg-config \
-        autoconf \
-        automake \
-        libtool \
-        make \
-        gcc_linux-64 \
-        gxx_linux-64 \
-        gfortran_linux-64 \
-        libhwloc \
-        libxml2-devel \
-        git \
-        gawk \
-        curl \
-        vim \
-        gdb \
-        lcov \
-        binutils \
-        time \
-        torchvision \
-        pre-commit \
-        isort \
-        ruff \
-        mypy \
-        jupyter \
-        tensorflow-cpu \
-        tensorboard \
-        fastapi \
-        numpy \
-        pydantic \
-        scipy \
-        uvicorn \
-        tomli \
-        sentencepiece \
-        datasets \
-        pytest \
-        pytest-benchmark \
-        tokenizers \
-        patchelf \
-        auditwheel
+RUN uv venv /opt/venv --python ${PYTHON_VERSION} && \
+    uv pip install --python /opt/venv/bin/python \
+        "torch==${TORCH_VERSION}" "torchvision==${TORCHVISION_VERSION}" \
+        --index-url https://download.pytorch.org/whl/cu128 && \
+    uv pip install --python /opt/venv/bin/python \
+        "transformers==4.52.*" "numpy<3" pytest setuptools wheel ninja cmake
 
-# Make RUN commands use the new environment:
-SHELL ["conda", "run", "-n", "nntile", "/bin/bash", "-c"]
+RUN groupadd -g ${USER_GID} nntile 2>/dev/null || true && \
+    useradd -m -u ${USER_UID} -g ${USER_GID} -s /bin/bash nntile 2>/dev/null || true && \
+    mkdir -p /workspace /ccache && \
+    chown -R ${USER_UID}:${USER_GID} /workspace /ccache /opt/venv
 
-# Make containers use "nntile" environment by default
-ENTRYPOINT ["conda", "run", "--no-capture-output", "-n", "nntile"]
-
-# Launch bash in the "nntile" environment by default
-CMD ["/bin/bash"]
-
-# Build and install FXT from source into conda environment
-# fxt is required by StarPU but not available in conda-forge
-RUN --mount=type=cache,target=/tmp \
-    set -xe && \
-    cd /tmp && \
-    export NAME=fxt-${FXT_VERSION} && \
-    export URL=https://download-mirror.savannah.gnu.org/releases/fkt && \
-    export URL=${URL}/${NAME}.tar.gz && \
-    wget -q ${URL} -O ${NAME}.tar.gz && \
-    mkdir -p ${NAME} && \
-    tar -xzf ${NAME}.tar.gz -C ${NAME} --strip-components=1 && \
-    cd ${NAME} && \
-    ./configure \
-        --prefix=${CONDA_PREFIX} && \
-    make -j ${MAKE_JOBS} && \
-    make install && \
-    ldconfig
-
-# Build and install StarPU from source into conda environment (not on conda-forge), then build
-# the SGOC graph scheduler from new_sched/ and install libgraph_sgoc_sched.so to /usr/local/lib (system path).
-RUN --mount=type=cache,target=/tmp \
-    set -xe && \
-    cd /tmp && \
-    export NAME="starpu-${STARPU_GIT_BRANCH}" && \
-    export URL=https://github.com/${STARPU_GITHUB_REPO}/archive/refs/heads/${STARPU_GIT_BRANCH}.zip && \
-    rm -rf "${NAME}" "${NAME}.zip" && \
-    wget -q "${URL}" -O "${NAME}.zip" && \
-    unzip -o -q "${NAME}.zip" && \
-    cd "${NAME}" && \
-    ./autogen.sh && \
-    ./configure \
-        --disable-build-doc \
-        --disable-build-examples \
-        --disable-build-tests \
-        --disable-fortran \
-        --disable-opencl \
-        --disable-socl \
-        --disable-starpufft \
-        --disable-starpupy \
-        --enable-blas-lib=none \
-        --enable-maxcudadev=8 \
-        --enable-maxbuffers=16 \
-        --with-fxt \
-        --prefix=${CONDA_PREFIX} && \
-    make -j ${MAKE_JOBS} && \
-    make install && \
-    ldconfig && \
-    cd new_sched && \
-    export PKG_CONFIG_PATH="${CONDA_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}" && \
-    make -j ${MAKE_JOBS} STARPU_BUILD="${CONDA_PREFIX}" EXTRA_CFLAGS=-O2 && \
-    install -D -m 755 libgraph_sgoc_sched.so /usr/local/lib/libgraph_sgoc_sched.so && \
-    ldconfig
-# NNTile graph capture: set STARPU_SCHED=sgoc and STARPU_SCHED_LIB=/usr/local/lib/libgraph_sgoc_sched.so
-
-# Set StarPU-specific environment variables
-ENV STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
-
-# Disable OpenMP parallelism of OpenBLAS and MKL
-ENV OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
-
-# Set default working directory for the NNTile development
-WORKDIR /workspace/nntile
-
-# Define Python path for the development
-ENV PYTHONPATH=/workspace/nntile/build/python
-
-# Open Jupyter Lab and Tensorboard ports
-EXPOSE 8888 6006
-
-# Target "nntile" contains compiled NNTile with set up PYTHONPATH
-FROM sandbox AS nntile
-
-# Inherit global ARGs
-ARG MAKE_JOBS
-ARG CUDA_ARCHS
-
-# Copy all sources
-ADD . /workspace/nntile
-
-# Configure the NNTile
-#
-# CMAKE_DISABLE_FIND_PACKAGE_pybind11=ON forces FetchContent to pull
-# pybind11 v2.11.0 from the in-tree external/pybind11 declaration
-# instead of using whatever pybind11 conda transitively installed.
-# Newer pybind11 versions have stricter type_caster SFINAE that fails
-# to compile TileGraph (which holds vector<unique_ptr<...>>) even
-# though the host build (which also lacks an installed pybind11 and
-# therefore falls back to 2.11.0) succeeds. Matches the host's working
-# CMakeCache.
-RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCHS} \
-    -DCMAKE_PREFIX_PATH=$CONDA_PREFIX \
-    -DCMAKE_DISABLE_FIND_PACKAGE_pybind11=ON \
-    -DBUILD_LIBTORCH_NNTILE=OFF \
-    -DBUILD_TORCH_NNTILE=OFF \
-    -GNinja
-
-# Finally, build the NNTile inplace without installation
-RUN cmake --build build -j ${MAKE_JOBS}
-
-# Install the inference gateway and Telegram bot service packages in
-# editable mode against the same conda env that already has nntile on
-# PYTHONPATH. With this, the same image can run either
-# `python -m nntile_gateway` (HTTP gateway, needs --gpus) or
-# `python -m nntile_tgbot` (Telegram front-end, no GPU) -- or both in
-# parallel as two containers / two processes. pip pulls in the
-# missing transitive deps (cachetools for the gateway; aiogram, httpx
-# for the bot). See infra/README.md for deployment recipes.
-RUN pip install -e infra/gateway && pip install -e infra/tgbot
-
-# Default port for the gateway's HTTP API. The bot does not listen on
-# any port (it long-polls the Telegram API outbound).
-EXPOSE 8000
+WORKDIR /workspace
+ENTRYPOINT ["/bin/bash", "-lc"]
+CMD ["bash"]

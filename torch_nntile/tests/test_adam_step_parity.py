@@ -3,20 +3,16 @@
 #
 # @file torch_nntile/tests/test_adam_step_parity.py
 # Fused Adam / AdamW parity: CPU reference vs nntile tensor ops.
+# @version 2.0.0
 
 import pytest
 import torch
 from conftest import nntile_cpu
-from torch_nntile.training import (
-    Adam,
-    AdamW,
-    _AdamBase,
-    fused_adam_step,
-    fused_adamw_step,
-)
 
 import torch_nntile
 from torch_nntile import _C
+from torch_nntile.training import (Adam, AdamW, _AdamBase, fused_adam_step,
+                                   fused_adamw_step)
 
 
 def _reference_adam_values(

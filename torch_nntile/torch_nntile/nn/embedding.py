@@ -2,11 +2,11 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/torch_nntile/nn/embedding.py
+# @version 2.0.0
 """Classic NNTile embedding for ``device=nntile``."""
 
 from __future__ import annotations
 
-import torch
 import torch.nn.functional as F
 from torch import Tensor
 

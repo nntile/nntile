@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/src/tile_graph/gelu_inplace.cc
  * TileGraph gelu inplace operation implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tile/ops/gelu_inplace.hh"
@@ -33,7 +33,7 @@ template<typename T>
 void run_gelu_inplace(Runtime& runtime, TileGraph::TileNode* d)
 {
     auto& t = runtime.get_tile<T>(d);
-    nntile::core::gelu_inplace<T>(runtime.starpu_worker_hint(), t);
+    nntile::core::gelu_inplace<T>(runtime.worker_hint(), t);
 }
 
 } // namespace

@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: MIT
+# @copyright (c) 2026-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#
+# NNHaul is a task-based chunk-graph execution engine: a plan of
+# LINK/UNLINK/COPY/TILE_OP acts is checked and issued on per-device
+# CUDA lanes, backed by per-node chunk pools.
+#
+# @file cmake/nnhaulConfig.cmake.in
+# find_package(nnhaul) config template: re-finds the dependencies the
+# exported nnhaul::nnhaul target needs (Threads, CUDAToolkit)
+# and loads the targets file.
+#
+# @version 2.0.0
+
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+find_dependency(Threads)
+find_dependency(CUDAToolkit)
+
+include("${CMAKE_CURRENT_LIST_DIR}/nnhaulTargets.cmake")
+
+check_required_components(nnhaul)

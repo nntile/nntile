@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tensor_graph/total_sum_accum.cc
  * Test TensorGraph total_sum_accum operation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tensor/ops/total_sum_accum.hh"
@@ -38,7 +38,7 @@ constexpr Index ignore_index = -1;
 constexpr float tolerance = 1e-4f;
 constexpr int distr_rank_single = 0;
 
-} 
+}
 
 TEST_CASE("TensorGraph total_sum_accum structure", "[graph][tensor]")
 {

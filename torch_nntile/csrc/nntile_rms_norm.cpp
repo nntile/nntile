@@ -2,6 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/nntile_rms_norm.cpp
+ * @version 2.0.0
  */
 
 #include "nntile_rms_norm.h"

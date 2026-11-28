@@ -2,6 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/nntile_kernels.cpp
+ * @version 2.0.0
  */
 
 #include "nntile_allocator.h"
@@ -117,20 +118,10 @@ void fill_tensor(at::Tensor &self, const at::Scalar &value)
             tensor_fill_fp32(self, value.to<float>());
             return;
         }
-        if (self.scalar_type() == at::ScalarType::Long)
-        {
-            tensor_fill_i64(self, value.to<int64_t>());
-            return;
-        }
-        if (self.scalar_type() == at::ScalarType::Bool)
-        {
-            tensor_fill_bool(self, value.to<bool>());
-            return;
-        }
         TORCH_CHECK(
             false,
-            "fill_: nntile metadata fill supports "
-            "float32, int64, and bool");
+            "fill_: nntile metadata fill supports float32 only; "
+            "create int64/bool tensors on CPU and move them with .to");
     }
     switch (self.scalar_type())
     {
@@ -264,9 +255,9 @@ at::Tensor ones_like(
             dtype,
             options.device());
         // Always FILL (including autograd ones_like(loss) unit scalars).
-        // A constant-without-FILL shortcut leaves the StarPU handle
-        // uninitialized; torch-native readers (e.g. nll_loss_backward)
-        // take STARPU_R and assert. tensor::fill still sets constant_value
+        // A constant-without-FILL shortcut leaves the NNHaul handle
+        // uninitialized; classic readers (e.g. nll_loss_backward) take
+        // ACCESS_R and assert. tensor::fill still sets constant_value
         // so classic CE can fold the scale.
         fill_scalar(result, 1);
         return result;
@@ -353,8 +344,8 @@ at::Tensor as_strided(
     auto *result_impl = result.unsafeGetTensorImpl();
     result_impl->set_storage_offset(storage_offset_value);
     result_impl->set_sizes_and_strides(size, stride);
-    // Untiled torch-native path: non-contiguous views are allowed.
-    // StarPU codelets receive sizes/strides/offset via TorchDispatchArgs.
+    // Non-contiguous views are allowed; the view alias and layout are
+    // recorded so classic codelets gather through the parent storage.
     record_view_alias(self, result);
     return result;
 }
@@ -478,8 +469,13 @@ at::Tensor contiguous(
 //! already-contiguous views (including offset/partial covers).
 bool needs_densify_for_host_io(const at::Tensor &self)
 {
-    if (!is_nntile_device(self.device()) ||
-        self.scalar_type() != at::ScalarType::Float)
+    if (!is_nntile_device(self.device()))
+    {
+        return false;
+    }
+    at::ScalarType const st = self.scalar_type();
+    if (st != at::ScalarType::Float && st != at::ScalarType::Long &&
+        st != at::ScalarType::Bool)
     {
         return false;
     }
@@ -503,7 +499,20 @@ at::Tensor densify_for_host_io(const at::Tensor &self)
         self.options()
             .memory_format(at::MemoryFormat::Contiguous)
             .requires_grad(false));
-    tensor_copy_fp32(self, result);
+    switch (self.scalar_type())
+    {
+        case at::ScalarType::Float:
+            tensor_copy_fp32(self, result);
+            break;
+        case at::ScalarType::Long:
+            tensor_copy_i64(self, result);
+            break;
+        case at::ScalarType::Bool:
+            tensor_copy_bool(self, result);
+            break;
+        default:
+            TORCH_CHECK(false, "densify_for_host_io: unsupported dtype");
+    }
     return result;
 }
 
@@ -545,17 +554,7 @@ void copy_into_nntile_view(
                 .requires_grad(false));
         init_nntile_input_from_cpu(src.contiguous(), src_nt);
     }
-    if (src_nt.scalar_type() == at::kFloat)
-    {
-        tensor_copy_into_view_fp32(src_nt, dst);
-        return;
-    }
-    if (src_nt.scalar_type() == at::kLong)
-    {
-        tensor_copy_into_view_i64(src_nt, dst);
-        return;
-    }
-    // Bool / other dtypes: host RMW until a graph-native path exists.
+    // Views: host read-modify-write until a graph-native view copy exists.
     at::Tensor src_cpu = src_nt.is_cpu()
         ? src_nt.contiguous()
         : gather_nntile_view_to_cpu(src_nt);
@@ -636,19 +635,32 @@ at::Tensor copy_from(
             copy_into_nntile_view(src, mutable_dst);
             return dst;
         }
-        nntile::TensorRef src_binding = tensor_ref(src);
-        if (src_binding != nullptr &&
-            src.sizes() == mutable_dst.sizes() &&
+        if (src.sizes() == mutable_dst.sizes() &&
             src.scalar_type() == mutable_dst.scalar_type())
         {
-            // Dense full-cover SSA rebind (unchanged).
-            attach_tensor_ref(mutable_dst, src_binding);
-            return dst;
+            // Same-device copy must copy: to(copy=True), clone(), copy_
+            // all require an independent destination.
+            switch (src.scalar_type())
+            {
+                case at::ScalarType::Float:
+                    tensor_copy_fp32(src, mutable_dst);
+                    return dst;
+                case at::ScalarType::Long:
+                    tensor_copy_i64(src, mutable_dst);
+                    return dst;
+                case at::ScalarType::Bool:
+                    tensor_copy_bool(src, mutable_dst);
+                    return dst;
+                default:
+                    TORCH_CHECK(
+                        false,
+                        "nntile-to-nntile copy supports float32, int64 "
+                        "and bool");
+            }
         }
         TORCH_CHECK(
             false,
-            "nntile-to-nntile copy between distinct metadata-only tensors "
-            "is unsupported");
+            "nntile-to-nntile copy requires matching shape and dtype");
     }
     return dst;
 }
@@ -665,198 +677,7 @@ at::Tensor copy_from_and_resize(const at::Tensor &self, const at::Tensor &dst)
 
 namespace
 {
-
-at::Tensor &arange_fill_out(
-    at::Tensor &out,
-    const at::Scalar &start,
-    const at::Scalar &end,
-    const at::Scalar &step)
-{
-    TORCH_CHECK(
-        is_nntile_device(out.device()),
-        "arange: expected nntile out");
-    if (out.scalar_type() == at::kFloat)
-    {
-        at::Tensor meta = at::arange(
-            start,
-            end,
-            step,
-            at::TensorOptions().dtype(at::kFloat).device(at::kMeta));
-        if (meta.sizes() != out.sizes())
-        {
-            resize_(
-                out,
-                c10::SymIntArrayRef(meta.sym_sizes()),
-                std::nullopt);
-        }
-        tensor_arange_fp32(
-            out,
-            static_cast<float>(start.toDouble()),
-            static_cast<float>(end.toDouble()),
-            static_cast<float>(step.toDouble()));
-        return out;
-    }
-    TORCH_CHECK(
-        out.scalar_type() == at::kLong,
-        "arange: float32 or int64 only (no host copy)");
-    TORCH_CHECK(
-        start.isIntegral(false) && end.isIntegral(false) &&
-            step.isIntegral(false),
-        "arange: integer start/end/step for int64");
-    const int64_t start_i = start.toLong();
-    const int64_t end_i = end.toLong();
-    const int64_t step_i = step.toLong();
-    at::Tensor meta = at::arange(
-        start,
-        end,
-        step,
-        at::TensorOptions().dtype(at::kLong).device(at::kMeta));
-    if (meta.sizes() != out.sizes())
-    {
-        resize_(
-            out,
-            c10::SymIntArrayRef(meta.sym_sizes()),
-            std::nullopt);
-    }
-    tensor_arange_i64(out, start_i, end_i, step_i);
-    return out;
-}
-
-at::Tensor arange_on_nntile(
-    const at::Scalar &start,
-    const at::Scalar &end,
-    const at::Scalar &step,
-    std::optional<at::ScalarType> dtype_opt,
-    std::optional<at::Layout> layout_opt,
-    std::optional<at::Device> device_opt,
-    std::optional<bool> pin_memory_opt)
-{
-    const auto device = c10::device_or_default(device_opt);
-    TORCH_CHECK(is_nntile_device(device), "arange: expected nntile device");
-    TORCH_CHECK(
-        c10::layout_or_default(layout_opt) == c10::Layout::Strided,
-        "arange: non-strided layout not supported on nntile");
-    TORCH_CHECK(
-        !c10::pinned_memory_or_default(pin_memory_opt),
-        "arange: pin memory is CPU-only");
-    const c10::ScalarType dtype = dtype_opt.has_value()
-        ? *dtype_opt
-        : at::ScalarType::Long;
-    if (dtype == at::kFloat)
-    {
-        at::Tensor meta = at::arange(
-            start,
-            end,
-            step,
-            at::TensorOptions().dtype(at::kFloat).device(at::kMeta));
-        at::Tensor out = empty_metadata_tensor(
-            meta.sizes(),
-            dtype,
-            device);
-        tensor_arange_fp32(
-            out,
-            static_cast<float>(start.toDouble()),
-            static_cast<float>(end.toDouble()),
-            static_cast<float>(step.toDouble()));
-        return out;
-    }
-    TORCH_CHECK(
-        dtype == at::kLong,
-        "arange: float32 or int64 only (no host copy)");
-    TORCH_CHECK(
-        start.isIntegral(false) && end.isIntegral(false) &&
-            step.isIntegral(false),
-        "arange: integer start/end/step for int64");
-    at::Tensor meta = at::arange(
-        start,
-        end,
-        step,
-        at::TensorOptions().dtype(at::kLong).device(at::kMeta));
-    at::Tensor out = empty_metadata_tensor(meta.sizes(), dtype, device);
-    tensor_arange_i64(
-        out,
-        start.toLong(),
-        end.toLong(),
-        step.toLong());
-    return out;
-}
-
 } // namespace
-
-at::Tensor arange_end(
-    const at::Scalar &end,
-    std::optional<at::ScalarType> dtype,
-    std::optional<at::Layout> layout,
-    std::optional<at::Device> device,
-    std::optional<bool> pin_memory)
-{
-    nntile::GraphFillScope record;
-    return arange_on_nntile(
-        /*start=*/0,
-        end,
-        /*step=*/1,
-        dtype,
-        layout,
-        device,
-        pin_memory);
-}
-
-at::Tensor arange_start(
-    const at::Scalar &start,
-    const at::Scalar &end,
-    std::optional<at::ScalarType> dtype,
-    std::optional<at::Layout> layout,
-    std::optional<at::Device> device,
-    std::optional<bool> pin_memory)
-{
-    nntile::GraphFillScope record;
-    return arange_on_nntile(
-        start,
-        end,
-        /*step=*/1,
-        dtype,
-        layout,
-        device,
-        pin_memory);
-}
-
-at::Tensor arange_start_step(
-    const at::Scalar &start,
-    const at::Scalar &end,
-    const at::Scalar &step,
-    std::optional<at::ScalarType> dtype,
-    std::optional<at::Layout> layout,
-    std::optional<at::Device> device,
-    std::optional<bool> pin_memory)
-{
-    nntile::GraphFillScope record;
-    return arange_on_nntile(
-        start,
-        end,
-        step,
-        dtype,
-        layout,
-        device,
-        pin_memory);
-}
-
-at::Tensor &arange_out(
-    const at::Scalar &end,
-    at::Tensor &out)
-{
-    nntile::GraphFillScope record;
-    return arange_fill_out(out, /*start=*/0, end, /*step=*/1);
-}
-
-at::Tensor &arange_start_out(
-    const at::Scalar &start,
-    const at::Scalar &end,
-    const at::Scalar &step,
-    at::Tensor &out)
-{
-    nntile::GraphFillScope record;
-    return arange_fill_out(out, start, end, step);
-}
 
 at::Scalar local_scalar_dense(const at::Tensor &self)
 {
@@ -1164,27 +985,15 @@ at::Tensor contiguous_autograd(
 
 void cpu_fallback(const c10::OperatorHandle &op, torch::jit::Stack *stack)
 {
-    if (!torch_nntile::is_cpu_fallback_enabled())
-    {
-        std::ostringstream message;
-        message << "Operator '" << op.schema().operator_name()
-                << "' is not implemented for device nntile. "
-                   "Implicit nntile<->CPU copies are disabled; "
-                   "move tensors with .to(\"nntile\") / .to(\"cpu\") "
-                   "or pass cpu_fallback=True to init_context "
-                   "(explicit opt-in, not recommended).";
-        TORCH_CHECK(false, message.str());
-    }
-#if (TORCH_VERSION_MAJOR > 2) \
-    || (TORCH_VERSION_MAJOR == 2 && TORCH_VERSION_MINOR >= 12)
-    at::native::cpu_fallback(
-        op,
-        stack,
-        /*error_on_views=*/false,
-        c10::DispatchKey::CPU);
-#else
-    at::native::cpu_fallback(op, stack);
-#endif
+    (void)stack;
+    // NNTile 2.0 has no CPU compute path: an unregistered operator must
+    // never be executed by the ATen CPU kernels on nntile tensors.
+    std::ostringstream message;
+    message << "Operator '" << op.schema().operator_name()
+            << "' is not implemented for device nntile. "
+               "Move tensors with .to(\"nntile\") / .to(\"cpu\") and use the "
+               "classic nntile operators.";
+    TORCH_CHECK(false, message.str());
 }
 
 //! Ops without a generated Autogradnntile kernel (e.g. ``min.other``)
@@ -1227,11 +1036,6 @@ TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
     m.impl(
         "set_.source_Storage_storage_offset",
         TORCH_FN(torch_nntile::set_source_storage_storage_offset));
-    m.impl("arange", TORCH_FN(torch_nntile::arange_end));
-    m.impl("arange.start", TORCH_FN(torch_nntile::arange_start));
-    m.impl("arange.start_step", TORCH_FN(torch_nntile::arange_start_step));
-    m.impl("arange.out", TORCH_FN(torch_nntile::arange_out));
-    m.impl("arange.start_out", TORCH_FN(torch_nntile::arange_start_out));
 }
 
 // AutogradPrivateUse1: ContiguousFn densifies under

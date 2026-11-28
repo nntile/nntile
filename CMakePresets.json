@@ -1,0 +1,25 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 24, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "nnhaul",
+      "displayName": "NNTile 2.0 (NNHaul, CUDA, chunked only)",
+      "description": "The only product: libnnhaul in-tree, chunk-addressable kernels, classic ops, torch_nntile.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-nnhaul",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "BUILD_LIBTORCH_NNTILE": "ON",
+        "BUILD_TORCH_NNTILE": "ON",
+        "BUILD_TESTING": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "nnhaul", "configurePreset": "nnhaul" }
+  ],
+  "testPresets": [
+    { "name": "nnhaul", "configurePreset": "nnhaul", "output": { "outputOnFailure": true }, "filter": { "exclude": { "label": "NotImplemented" } } }
+  ]
+}

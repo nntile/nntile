@@ -4,12 +4,12 @@
 #                              (AIRI), Russia. All rights reserved.
 #
 # NNTile is software framework for fast training of big neural networks on
-# distributed-memory heterogeneous systems based on StarPU runtime system.
+# distributed-memory heterogeneous systems with GPU acceleration.
 #
 # @file nntile/tests/tile_graph/CMakeLists.txt
 # Tests for TileGraph operations
 #
-# @version 1.1.0
+# @version 2.0.0
 
 if(BUILD_COVERAGE)
     setup_target_for_coverage_lcov(NAME coverage_tile
@@ -102,6 +102,8 @@ set(TESTS_TILE_ROOT_CATCH2
     "remote_execution_driver"
 )
 
+nntile_filter_disabled_kernel_tests(TESTS_TILE_CATCH2 TESTS_TILE_ROOT_CATCH2)
+
 foreach(test IN LISTS TESTS_TILE_CATCH2)
     add_test_set(TARGET_NAME tests_tile_ops_${test}
         EXEC_NAME test_${test}
@@ -117,12 +119,6 @@ foreach(test IN LISTS TESTS_TILE_CATCH2)
 endforeach()
 
 foreach(test IN LISTS TESTS_TILE_ROOT_CATCH2)
-    # The chunked-tiles tests exercise the NNHaul runtime API directly
-    # (nnhaul::Handle chunking, stage counters); the headers do not exist
-    # in the StarPU/torch-native flavors.
-    if(test MATCHES "^chunked_" AND NOT NNTILE_USE_NNHAUL)
-        continue()
-    endif()
     add_test_set(TARGET_NAME tests_tile_${test}
         EXEC_NAME test_${test}
         SOURCES ${test}.cc
@@ -136,30 +132,9 @@ foreach(test IN LISTS TESTS_TILE_ROOT_CATCH2)
         ${CMAKE_CURRENT_SOURCE_DIR}/..)
 endforeach()
 
-if(NNTILE_USE_NNHAUL)
-    # The chunked big-tile graph test re-execs itself for the deep-chunk
-    # ladder mode (two full legs).
-    set_tests_properties(tests_tile_chunked_big PROPERTIES TIMEOUT 120)
-    # The adversarial staging probes run multiple tight-cap sessions and a
-    # contiguous-mode child process.
-    set_tests_properties(tests_tile_chunked_staged_probe PROPERTIES TIMEOUT 300)
-endif()
-
-if(NNTILE_USE_CUDA AND NNTILE_USE_FLASH_SDPA)
-    foreach(test IN ITEMS flash_sdpa_fwd_cudnn flash_sdpa_bwd_cudnn)
-        add_test_set(TARGET_NAME tests_tile_ops_${test}
-            EXEC_NAME test_${test}
-            SOURCES ops/${test}.cc
-            LINK_LIBRARIES
-                nntile::nntile
-                Catch2::Catch2WithMain
-                $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>
-            COV_ENABLE ${BUILD_COVERAGE}
-            COV_NAME coverage_tile_ops_${test}
-            COV_GLOBAL coverage_tile coverage
-        )
-        target_include_directories(tests_tile_ops_${test} PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}
-            ${CMAKE_CURRENT_SOURCE_DIR}/..)
-    endforeach()
-endif()
+# The chunked big-tile graph test re-execs itself for the deep-chunk
+# ladder mode (two full legs).
+set_tests_properties(tests_tile_chunked_big PROPERTIES TIMEOUT 120)
+# The adversarial staging probes run multiple tight-cap sessions and a
+# contiguous-mode child process.
+set_tests_properties(tests_tile_chunked_staged_probe PROPERTIES TIMEOUT 300)

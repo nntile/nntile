@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/core/rope_backward.hh
  * Backward RoPE operation for Tile<T>
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -20,11 +20,11 @@ namespace nntile::core
 {
 
 template<typename T>
-void rope_backward_async(int starpu_worker_hint, const Tile<T> &sin, const Tile<T> &cos,
+void rope_backward_async(int worker_hint, const Tile<T> &sin, const Tile<T> &cos,
         const Tile<T> &dy, const Tile<T> &dx, Index sin_pair0 = 0);
 
 template<typename T>
-void rope_backward(int starpu_worker_hint, const Tile<T> &sin, const Tile<T> &cos,
+void rope_backward(int worker_hint, const Tile<T> &sin, const Tile<T> &cos,
         const Tile<T> &dy, const Tile<T> &dx, Index sin_pair0 = 0);
 
 } // namespace nntile::core

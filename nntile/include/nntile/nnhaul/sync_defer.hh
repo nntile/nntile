@@ -4,14 +4,13 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * @file include/nntile/nnhaul/sync_defer.hh
- * Same TLS defer flag as the StarPU build. Wait calls ``nnhaul::wait``.
+ * TLS defer flag for NNHaul; wait calls ``nnhaul::wait``.
+ * @version 2.0.0
  */
 
 #pragma once
 
 #include <nnhaul/nnhaul.hh>
-
-#include <nntile/nnhaul/stage.hh>
 
 #include <atomic>
 #include <cstdint>
@@ -19,44 +18,41 @@
 namespace nntile
 {
 
-extern thread_local int g_starpu_sync_defer_depth;
+extern thread_local int g_sync_defer_depth;
 
-extern std::atomic<std::uint64_t> g_starpu_wait_for_all_count;
+extern std::atomic<std::uint64_t> g_wait_for_all_count;
 
-inline void starpu_task_wait_for_all_counted()
+inline void task_wait_for_all_counted()
 {
-    ++g_starpu_wait_for_all_count;
+    ++g_wait_for_all_count;
     ::nnhaul::wait();
-    // The queue is idle now, so destroying staged scratch handles is
-    // the non-blocking case of the stage lifetime scheme (stage.hh).
-    ::nntile::haul::stage::drain_scratches();
 }
 
-struct StarpuSyncDefer
+struct SyncDefer
 {
-    StarpuSyncDefer()
+    SyncDefer()
     {
-        ++g_starpu_sync_defer_depth;
+        ++g_sync_defer_depth;
     }
 
-    ~StarpuSyncDefer()
+    ~SyncDefer()
     {
-        --g_starpu_sync_defer_depth;
+        --g_sync_defer_depth;
     }
 
-    StarpuSyncDefer(StarpuSyncDefer const &) = delete;
-    StarpuSyncDefer &operator=(StarpuSyncDefer const &) = delete;
+    SyncDefer(SyncDefer const &) = delete;
+    SyncDefer &operator=(SyncDefer const &) = delete;
 };
 
 inline void nnhaul_task_wait_for_all_unless_deferred()
 {
-    if (g_starpu_sync_defer_depth == 0)
+    if (g_sync_defer_depth == 0)
     {
-        starpu_task_wait_for_all_counted();
+        task_wait_for_all_counted();
     }
 }
 
-inline void starpu_task_wait_for_all_unless_deferred()
+inline void task_wait_for_all_unless_deferred()
 {
     nnhaul_task_wait_for_all_unless_deferred();
 }

@@ -4,7 +4,7 @@
  * @file include/nntile/tensor/graph_fill_timer.hh
  * Reentrant wall timer for nntile record work (record(nntile)).
  *
- * @version 1.1.0
+ * @version 2.0.0
  */
 
 #pragma once
@@ -32,7 +32,7 @@ class GraphFillScope
 
 //! ``TORCH_NNTILE_SKIP_KERNELS=1``: do not insert TensorGraph compute
 //! ops. TensorNode / TensorRef construction still runs. Last-drop
-//! ``UNREGISTER`` is still inserted (StarPU unregister task).
+//! ``UNREGISTER`` is still inserted (NNHaul unregister task).
 bool skip_tensor_graph_ops();
 
 } // namespace nntile

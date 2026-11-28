@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/csrc/models/t5.cpp
  * T5 encoder-decoder - port of deleted ``nntile::model::t5``.
+ * @version 2.0.0
  */
 
 #include <torch_nntile/models/t5.hh>

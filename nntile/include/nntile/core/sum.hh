@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/core/sum.hh
  * Sum all elements of a Tile<T>
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -21,10 +21,10 @@ namespace nntile::core
 
 //! Tile-wise sum
 template<typename T>
-void sum_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst);
+void sum_async(int worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst);
 
 //! Tile-wise sum
 template<typename T>
-void sum(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst);
+void sum(int worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst);
 
 } // namespace nntile::core

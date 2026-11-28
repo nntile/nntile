@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/kernel/clear/cuda.hh
  * Clear operation on buffers on CUDA
  *
- * @version 1.2.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -22,12 +22,12 @@ namespace nntile::kernel::clear
 {
 
 //! Zero-fill chunked buffers on CUDA (ONE launch)
-/*! Semantically a memset of `nbytes` bytes to zero, rounded up to a
- * 16-byte multiple (the overclear lands in allocation padding); every
- * 16-byte unit resolves through its device chunk table and stores
- * one unconditional uint4. A single kernel because per-chunk memsets do
- * not scale with bandwidth (a 16 MiB chunk is ~4 us of fill at 3.6
- * TB/s, where launch overhead dominates). */
+/*! Semantically a memset of exactly `nbytes` bytes to zero. Every whole
+ * 16-byte unit resolves through its device chunk table and stores one
+ * unconditional uint4; a final sub-16-byte tail is stored byte-wise, so
+ * no byte outside [0, nbytes) is written. A single kernel because per-chunk memsets do
+ * not scale with bandwidth: at class-sized chunks the fills are short
+ * enough that launch overhead dominates. */
 void chunked(cudaStream_t stream, Index nbytes,
         unsigned char* const* data_chunks, Index ndata, Index elems_data,
         ChunkClass cls = chunk_class())

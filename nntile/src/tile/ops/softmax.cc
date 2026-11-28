@@ -5,12 +5,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/src/tile_graph/softmax.cc
  * TileGraph softmax operation implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tile/ops/softmax.hh"
@@ -29,7 +29,7 @@ template<typename T>
 void run_sm(
     Runtime& runtime, TileGraph::TileNode* m, TileGraph::TileNode* s, Scalar a, TileGraph::TileNode* d, Index ax)
 {
-    nntile::core::softmax<T>(runtime.starpu_worker_hint(), runtime.get_tile<T>(m), runtime.get_tile<T>(s), a, runtime.get_tile<T>(d), ax);
+    nntile::core::softmax<T>(runtime.worker_hint(), runtime.get_tile<T>(m), runtime.get_tile<T>(s), a, runtime.get_tile<T>(d), ax);
 }
 } // namespace
 void softmax(

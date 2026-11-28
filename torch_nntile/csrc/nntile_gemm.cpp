@@ -2,6 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/nntile_gemm.cpp
+ * @version 2.0.0
  */
 
 #include "nntile_gemm.h"
@@ -256,4 +257,3 @@ std::tuple<at::Tensor, at::Tensor> matmul_backward(
 // CompositeImplicitAutograd ``matmul`` → ``mm`` / ``bmm`` / …; Autograd
 // differentiates the decomposed graph. Our PrivateUse1 ``mm`` / ``bmm``
 // supply the device kernels.
-

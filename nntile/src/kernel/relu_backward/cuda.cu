@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/relu_backward/cuda.cu
  * Backward ReLU operation on CUDA
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/relu_backward/cuda.hh"
@@ -62,6 +62,52 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *x_, const T 
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, alpha, x_, dy_, beta, dx_);
 }
 
+
+template<typename T>
+static __global__
+void chunked_cuda_kernel(Index nelems, Scalar alpha, ChunkConst<T> x,
+        ChunkConst<T> dy, Scalar beta, ChunkMut<T> dx)
+{
+    int i = threadIdx.x + blockIdx.x*blockDim.x;
+    using Y = typename T::repr_t;
+    const Y alpha_{alpha}, beta_{beta};
+    constexpr Y zero{0.0};
+    if(i < nelems)
+    {
+        Y x_val = Y{x.at(i)[0]};
+        Y dy_val = Y{dy.at(i)[0]};
+        Y contrib = (x_val > zero) ? alpha_ * dy_val : Y{0.0};
+        if(beta == 0.0)
+        {
+            dx.at(i)[0] = T{contrib};
+        }
+        else
+        {
+            dx.at(i)[0] = T{contrib + beta_ * Y{dx.at(i)[0]}};
+        }
+    }
+}
+
+template<typename T>
+void chunked(cudaStream_t stream, Index nelems, Scalar alpha,
+        const T* const* x_chunks, Index nx, Index elems_x,
+        const T* const* dy_chunks, Index ndy, Index elems_dy,
+        Scalar beta,
+        T* const* dx_chunks, Index ndx, Index elems_dx, ChunkClass cls)
+    noexcept
+{
+    if(nelems <= 0 || nx <= 0 || ndy <= 0 || ndx <= 0)
+    {
+        return;
+    }
+    dim3 blocks((nelems+255)/256), threads(256);
+    (chunked_cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, alpha,
+        chunk_const<T>(x_chunks, nx, elems_x, cls, "nntile_relu_backward"),
+        chunk_const<T>(dy_chunks, ndy, elems_dy, cls, "nntile_relu_backward"),
+        beta,
+        chunk_mut<T>(dx_chunks, ndx, elems_dx, cls, "nntile_relu_backward"));
+}
+
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index nelems, Scalar alpha, const fp32_t *x,
@@ -81,6 +127,35 @@ void cuda<bf16_t>(cudaStream_t stream, Index nelems, Scalar alpha, const bf16_t 
 template
 void cuda<fp16_t>(cudaStream_t stream, Index nelems, Scalar alpha, const fp16_t *x,
         const fp16_t *dy, Scalar beta, fp16_t *dx)
+    noexcept;
+
+template
+void chunked<fp32_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        const fp32_t* const* x, Index nx, Index elems_x,
+        const fp32_t* const* dy, Index ndy, Index elems_dy,
+        Scalar beta, fp32_t* const* dx, Index ndx, Index elems_dx,
+        ChunkClass cls)
+    noexcept;
+template
+void chunked<fp64_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        const fp64_t* const* x, Index nx, Index elems_x,
+        const fp64_t* const* dy, Index ndy, Index elems_dy,
+        Scalar beta, fp64_t* const* dx, Index ndx, Index elems_dx,
+        ChunkClass cls)
+    noexcept;
+template
+void chunked<bf16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        const bf16_t* const* x, Index nx, Index elems_x,
+        const bf16_t* const* dy, Index ndy, Index elems_dy,
+        Scalar beta, bf16_t* const* dx, Index ndx, Index elems_dx,
+        ChunkClass cls)
+    noexcept;
+template
+void chunked<fp16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        const fp16_t* const* x, Index nx, Index elems_x,
+        const fp16_t* const* dy, Index ndy, Index elems_dy,
+        Scalar beta, fp16_t* const* dx, Index ndx, Index elems_dx,
+        ChunkClass cls)
     noexcept;
 
 } // namespace nntile::kernel::relu_backward

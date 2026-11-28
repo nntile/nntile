@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/tests/test_repeat_parity.py
 # Parity tests for nntile repeat via chained scale_slice.
+# @version 2.0.0
 
 import torch
 from conftest import nntile_cpu

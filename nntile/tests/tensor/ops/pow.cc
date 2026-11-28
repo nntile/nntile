@@ -4,14 +4,19 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tensor_graph/pow.cc
  * Test TensorGraph pow operation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
-
+/*!
+ * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.
+ * Kept in-tree for future re-enablement. No product path calls this code;
+ * its tests are not registered while the family is in
+ * NNTILE_DISABLED_KERNELS.
+ */
 #include "nntile/tensor/ops/pow.hh"
 
 #include "context_fixture.hh"
@@ -35,7 +40,7 @@ namespace
 constexpr Scalar alpha = 1.0;
 constexpr Scalar exponent = 2.0;
 
-} 
+}
 
 TEST_CASE("TensorGraph pow structure", "[graph][tensor]")
 {

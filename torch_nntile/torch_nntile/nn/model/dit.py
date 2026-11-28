@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/nn/model/dit.py
 # DiT (AdaLN-Zero) for device="nntile" via torch_nntile.nn only.
+# @version 2.0.0
 
 """Diffusers-style DiT on classic NNTile kernels (no new low-level ops).
 
@@ -24,8 +25,8 @@ from torch import Tensor
 
 from torch_nntile.nn import GELU, Embedding, LayerNorm, SiLU
 from torch_nntile.nn.functional import add, mul, scale_slice
-from torch_nntile.nn.linear import (
-    NntileAttentionOutput, NntileLinear, NntileQKVProjection)
+from torch_nntile.nn.linear import (NntileAttentionOutput, NntileLinear,
+                                    NntileQKVProjection)
 from torch_nntile.nn.sdpa import sdpa_kernel
 
 _TIMESTEP_FREQ_DIM = 256

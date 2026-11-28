@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/tests/test_transformer_layer_parity.py
 # Layer / module unit parity: RoPE, RMSNorm, LlamaMLP/Attention, BERT pieces.
+# @version 2.0.0
 
 from __future__ import annotations
 
@@ -13,12 +14,11 @@ from parity_helpers import assert_close, clone_to_nntile, contiguous_to_nntile
 from torch import Tensor
 
 from torch_nntile.nn.model.bert import BertConfig, BertSelfAttention
-from torch_nntile.nn.model.llama import (
-    LlamaAttention, LlamaConfig, LlamaMLP, LlamaRMSNorm)
+from torch_nntile.nn.model.llama import (LlamaAttention, LlamaConfig, LlamaMLP,
+                                         LlamaRMSNorm)
 from torch_nntile.normalization import rms_norm
-from torch_nntile.rope import (
-    _rope_ref_backward, _rope_ref_forward, rope,
-    rope_sin_cos_from_position_ids)
+from torch_nntile.rope import (_rope_ref_backward, _rope_ref_forward, rope,
+                               rope_sin_cos_from_position_ids)
 
 RTOL = 1e-4
 ATOL = 1e-4

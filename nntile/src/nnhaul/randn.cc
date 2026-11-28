@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file src/starpu/randn.cc
- * Randn operation on a StarPU buffer
+ * @file src/nnhaul/randn.cc
+ * Randn operation on a NNHaul buffer
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 // Corresponding header
@@ -30,7 +30,7 @@
 #include "nntile/nnhaul/pack_args.hh"
 
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 // ---------------------------------------------------------------------------
@@ -371,18 +371,18 @@ void Randn<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
           *underlying_shape;
     const unsigned long long *seed_ptr;
     const Scalar *mean_ptr, *stddev_ptr;
-    ::nntile::haul::unpack_args_ptr(cl_args, ndim_ptr, nelems_ptr, seed_ptr, mean_ptr,
+    ::nntile::nnhaul::unpack_args_ptr(cl_args, ndim_ptr, nelems_ptr, seed_ptr, mean_ptr,
             stddev_ptr, start, shape, stride, underlying_shape);
     // Get interfaces
     Index ndim = *ndim_ptr;
     auto buf_data = static_cast<::nnhaul::Buffer *>(buffers[0]);
     bool const dense = dense_fortran_strides(ndim, shape, stride);
-    if(buf_data->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+    if(buf_data->chunk_count() == 1)
     {
         // Unchunked fast path: the historical single kernel call, bitwise.
         // (A non-dense multi-chunk geometry keeps the piecewise chunked
         // walk below, as before.)
-        // Index walk writes one past ndim; StarPU scratch is 2 * ndim.
+        // Index walk writes one past ndim; NNHaul scratch is 2 * ndim.
         std::size_t const scratch_n =
             static_cast<std::size_t>(*ndim_ptr > 0 ? *ndim_ptr : 1);
         std::vector<nntile::int64_t> tmp_index_storage(scratch_n * 2);
@@ -464,7 +464,7 @@ void Randn<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
           *underlying_shape;
     const unsigned long long *seed_ptr;
     const Scalar *mean_ptr, *stddev_ptr;
-    ::nntile::haul::unpack_args_ptr(
+    ::nntile::nnhaul::unpack_args_ptr(
         cl_args,
         ndim_ptr,
         nelems_ptr,
@@ -480,7 +480,7 @@ void Randn<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto buf_data = static_cast<::nnhaul::Buffer *>(buffers[0]);
     cudaStream_t stream = ::nnhaul::cuda_stream();
     bool const dense = dense_fortran_strides(ndim, shape, stride);
-    if(buf_data->chunk_count() == 1 && !chunkunits::force_chunked_kernels())
+    if(buf_data->chunk_count() == 1)
     {
         // Unchunked fast path: the historical single kernel call, bitwise
         kernel::randn::cuda<T>(
@@ -599,15 +599,15 @@ std::uint64_t Randn<std::tuple<T>>::footprint(void const *cl_args, std::size_t) 
           *underlying_shape;
     const unsigned long long *seed_ptr;
     const Scalar *mean_ptr, *stddev_ptr;
-    ::nntile::haul::unpack_args_ptr(cl_args, ndim_ptr, nelems_ptr, seed_ptr,
+    ::nntile::nnhaul::unpack_args_ptr(cl_args, ndim_ptr, nelems_ptr, seed_ptr,
             mean_ptr, stddev_ptr, start, shape, stride, underlying_shape);
     std::size_t shape_size = *ndim_ptr * sizeof(*shape);
     // Apply hash over parameter copy_shape
-    return ::nntile::haul::fnv1a(shape, shape_size, 0);
+    return ::nntile::nnhaul::fnv1a(shape, shape_size, 0);
 }
 
 template<typename T>
-void Randn<std::tuple<T>>::submit(int starpu_worker_hint,
+void Randn<std::tuple<T>>::submit(int worker_hint,
     Index ndim,
     Index nelems,
     unsigned long long seed,
@@ -624,9 +624,9 @@ void Randn<std::tuple<T>>::submit(int starpu_worker_hint,
     (void)nflops;
     // Submit task: the body serves dense and foreign-strided geometries
     // natively (chunked and unchunked); no staging either way.
-    ::nntile::haul::insert_values(codelet.raw, starpu_worker_hint,
+    ::nntile::nnhaul::insert_values(codelet.raw, worker_hint,
         { { &ndim, sizeof(ndim) }, { &nelems, sizeof(nelems) }, { &seed, sizeof(seed) }, { &mean, sizeof(mean) }, { &stddev, sizeof(stddev) }, { &start[0], ndim*sizeof(start[0]) }, { &shape[0], ndim*sizeof(shape[0]) }, { &stride[0], ndim*sizeof(stride[0]) }, { &underlying_shape[0], ndim*sizeof(underlying_shape[0]) } },
-        { { STARPU_W, &data } });
+        { { ACCESS_W, &data } });
 }
 // Explicit instantiation
 // For some strange reason, the compiler does not instantiate the template
@@ -641,4 +641,4 @@ template class Randn<std::tuple<nntile::bf16_t>>;
 //! Pack of randn operations for different types
 randn_pack_t randn;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

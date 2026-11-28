@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/include/torch_nntile/models/deep_relu.hh
  * Bias-free DeepReLU MLP for device=nntile.
+ * @version 2.0.0
  */
 
 #pragma once

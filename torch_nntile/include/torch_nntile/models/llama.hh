@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/include/torch_nntile/models/llama.hh
  * Llama causal LM matching deleted ``nntile::model::llama``.
+ * @version 2.0.0
  */
 
 #pragma once

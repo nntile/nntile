@@ -5,12 +5,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tile_graph/rope_backward.cc
  * Test TileGraph rope backward vs nntile::core (parity).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include <catch2/catch_test_macros.hpp>
@@ -41,17 +41,17 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph rope_backward", "[grap
     const auto gout = r.get_output<float>(dx);
     nntile::core::Tile<fp32_t> Si(sh), Co(sh), DY(tsh), DX(tsh);
     using Y = typename fp32_t::repr_t;
-    { auto a=Si.acquire(STARPU_W),b=Co.acquire(STARPU_W);
+    { auto a=Si.acquire(ACCESS_W),b=Co.acquire(ACCESS_W);
       for(int i=0;i<2;++i){a[i]=Y(0.1f);b[i]=Y(0.2f);} a.release(); b.release(); }
-    { auto c=DY.acquire(STARPU_W);
+    { auto c=DY.acquire(ACCESS_W);
       for(int i=0;i<20;++i) c[i]=Y(0.05f*static_cast<float>(i+1)); c.release(); }
-    { auto d=DX.acquire(STARPU_W);
+    { auto d=DX.acquire(ACCESS_W);
       for(int i=0;i<20;++i) d[i]=Y(0.01f);
       d.release(); }
     nntile::core::rope_backward<fp32_t>(-1, Si, Co, DY, DX);
-    starpu_task_wait_for_all();
+    task_wait_for_all();
     std::vector<float> tr(20);
-    { auto L=DX.acquire(STARPU_R);
+    { auto L=DX.acquire(ACCESS_R);
       for(int i=0;i<20;++i) tr[static_cast<size_t>(i)]=static_cast<float>(L[i]);
       L.release(); }
     nntile::test::require_relative_element_error(gout, tr);

@@ -4,120 +4,90 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/core/clear.cc
  * Clear Tile<T>
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/core/clear.hh"
-#ifdef NNTILE_USE_NNHAUL
 #include "nntile/nnhaul/ops/clear.hh"
-#else
-#include "nntile/starpu/clear.hh"
-#endif
-#ifdef NNTILE_USE_NNHAUL
 #include "nntile/nnhaul/sync_defer.hh"
-#else
-#include "nntile/starpu/config.hh"
-#endif
 
 namespace nntile::core
 {
 
 //! Asynchronously clear a tile
 template<typename T>
-void clear_async(int starpu_worker_hint, const Tile<T> &tile)
+void clear_async(int worker_hint, const Tile<T> &tile)
 {
-    #ifdef NNTILE_USE_NNHAUL
-    int mpi_rank = 0;
-    #else
-    int mpi_rank = starpu_mpi_world_rank();
-    #endif
-    #ifdef NNTILE_USE_NNHAUL
-    int tile_rank = 0;
-    #else
-    int tile_rank = tile.mpi_get_rank();
-    #endif
-    if(mpi_rank == tile_rank)
-    {
-        #ifdef NNTILE_USE_NNHAUL
-        haul::clear.submit(starpu_worker_hint, tile);
-        #else
-        starpu::clear.submit(starpu_worker_hint, tile);
-        #endif
-
-    }
+    nnhaul::clear.submit(worker_hint, tile);
 }
 
 //! Asynchronously clear a tile
 template<typename T>
-void clear(int starpu_worker_hint, const Tile<T> &tile)
+void clear(int worker_hint, const Tile<T> &tile)
 {
-    clear_async<T>(starpu_worker_hint, tile);
-    #ifdef NNTILE_USE_NNHAUL
+    clear_async<T>(worker_hint, tile);
     nntile::nnhaul_task_wait_for_all_unless_deferred();
-#else
-    nntile::starpu_task_wait_for_all_unless_deferred();
-#endif
 }
 
 // Explicit instantiation
 template
-void clear_async<fp32_t>(int starpu_worker_hint, const Tile<fp32_t> &tile);
+void clear_async<fp32_t>(int worker_hint, const Tile<fp32_t> &tile);
 
 template
-void clear_async<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &tile);
+void clear_async<bf16_t>(int worker_hint, const Tile<bf16_t> &tile);
 
 template
-void clear_async<fp16_t>(int starpu_worker_hint, const Tile<fp16_t> &tile);
+void clear_async<fp16_t>(int worker_hint, const Tile<fp16_t> &tile);
 
 template
-void clear_async<fp32_fast_tf32_t>(int starpu_worker_hint, const Tile<fp32_fast_tf32_t> &tile);
+void clear_async<fp32_fast_tf32_t>(int worker_hint, const Tile<fp32_fast_tf32_t> &tile);
 
 template
-void clear_async<fp32_fast_fp16_t>(int starpu_worker_hint, const Tile<fp32_fast_fp16_t> &tile);
+void clear_async<fp32_fast_fp16_t>(int worker_hint, const Tile<fp32_fast_fp16_t> &tile);
 
 template
-void clear_async<fp32_fast_bf16_t>(int starpu_worker_hint, const Tile<fp32_fast_bf16_t> &tile);
+void clear_async<fp32_fast_bf16_t>(int worker_hint, const Tile<fp32_fast_bf16_t> &tile);
 
 template
-void clear_async<fp64_t>(int starpu_worker_hint, const Tile<fp64_t> &tile);
+void clear_async<fp64_t>(int worker_hint, const Tile<fp64_t> &tile);
 
 template
-void clear_async<int64_t>(int starpu_worker_hint, const Tile<int64_t> &tile);
+void clear_async<int64_t>(int worker_hint, const Tile<int64_t> &tile);
 
 template
-void clear_async<bool_t>(int starpu_worker_hint, const Tile<bool_t> &tile);
+void clear_async<bool_t>(int worker_hint, const Tile<bool_t> &tile);
 
 // Explicit instantiation
 template
-void clear<fp32_t>(int starpu_worker_hint, const Tile<fp32_t> &tile);
+void clear<fp32_t>(int worker_hint, const Tile<fp32_t> &tile);
 
 template
-void clear<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &tile);
+void clear<bf16_t>(int worker_hint, const Tile<bf16_t> &tile);
 
 template
-void clear<fp16_t>(int starpu_worker_hint, const Tile<fp16_t> &tile);
+void clear<fp16_t>(int worker_hint, const Tile<fp16_t> &tile);
 
 template
-void clear<fp32_fast_tf32_t>(int starpu_worker_hint, const Tile<fp32_fast_tf32_t> &tile);
+void clear<fp32_fast_tf32_t>(int worker_hint, const Tile<fp32_fast_tf32_t> &tile);
 
 template
-void clear<fp32_fast_fp16_t>(int starpu_worker_hint, const Tile<fp32_fast_fp16_t> &tile);
+void clear<fp32_fast_fp16_t>(int worker_hint, const Tile<fp32_fast_fp16_t> &tile);
 
 template
-void clear<fp32_fast_bf16_t>(int starpu_worker_hint, const Tile<fp32_fast_bf16_t> &tile);
+void clear<fp32_fast_bf16_t>(int worker_hint, const Tile<fp32_fast_bf16_t> &tile);
 
 template
-void clear<fp64_t>(int starpu_worker_hint, const Tile<fp64_t> &tile);
+void clear<fp64_t>(int worker_hint, const Tile<fp64_t> &tile);
 
 template
-void clear<int64_t>(int starpu_worker_hint, const Tile<int64_t> &tile);
+void clear<int64_t>(int worker_hint, const Tile<int64_t> &tile);
 
 template
-void clear<bool_t>(int starpu_worker_hint, const Tile<bool_t> &tile);
+void clear<bool_t>(int worker_hint, const Tile<bool_t> &tile);
 
 } // namespace nntile::core

@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/transpose/cuda.cu
  * Transpose operation on buffers on CUDA
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/transpose/cuda.hh"
@@ -187,7 +187,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Scalar alpha, const T *src,
  * like the whole-buffer kernel: a 32x(32+1) tile with the load phase
  * coalesced along the contiguous src axis (the di axis) and the store
  * phase coalesced along the contiguous dst axis (the dj axis).
- * Elementwise and deterministic: any piece factorization is bitwise
+ * Elementwise and deterministic: any tile factorization is bitwise
  * the whole-buffer call.
  *
  * @param[in] stream: CUDA stream
@@ -247,7 +247,7 @@ void panel(cudaStream_t stream, Index m, Index n, Index nr, Index nc,
 
 //! Single-chunk transpose tile kernel: both operands sit inside their
 //! chunk 0 (each table holds one chunk, i.e. any contiguous buffer below
-//! the chunk class, e.g. every GPT-2 transpose_heads call). The two
+//! the chunk class). The two
 //! table[0] bases are resolved once per block (a block-uniform read of
 //! two pointers; the table itself is device memory, so this is the
 //! earliest place a host launch can resolve it) and everything after is
@@ -561,10 +561,9 @@ void chunked(cudaStream_t stream, Index m, Index n, Scalar alpha,
         //   address is base + tid + k*m when BLOCK_ROW == m's divisor
         //   covering the column pitch). The pow2-divisor choice (4 rows
         //   for m=12) halves the load width of the 8-row whole-buffer
-        //   tile and measured ~1.06-1.08x the classic split call.
+        //   tile.
         // * otherwise: the multi-chunk ladder's shapes, which on the
-        //   m >= n side divide the narrow n exactly where they can
-        //   (64x12 on the GPT-2 merge shape is ~0.79x classic).
+        //   m >= n side divide the narrow n exactly where they can.
         if(m < n)
         {
             if(m >= 32)
@@ -645,8 +644,7 @@ void chunked(cudaStream_t stream, Index m, Index n, Scalar alpha,
             // Prefer BC dividing n so every column block is a full tile
             // and the store phase is linear in the destination's
             // contiguous axis (the fixed 128x8 tile leaves a ragged edge
-            // whenever 8 does not divide n; 64x12 measured ~0.79x the
-            // classic merge call on the GPT-2 shape).
+            // whenever 8 does not divide n).
             if(n % 12 == 0)
             {
                 launch_single_chunk<T, 64, 12, 4>(stream, m, n, alpha,
@@ -758,9 +756,7 @@ void chunked(cudaStream_t stream, Index m, Index n, Scalar alpha,
             // columns 8..11) and that block pays the kernel's
             // per-element edge path. Prefer a BC that divides n so every
             // tile is full and the store phase is linear in the
-            // destination's contiguous axis. Measured (GPT-2 m=65536,
-            // n=12, 256 KiB chunks): 64x12 is ~0.65-0.75x the contiguous
-            // kernel, 256x4 ~0.8x, fixed 128x8 1.0-1.06x.
+            // destination's contiguous axis.
             if(n % 12 == 0)
             {
                 launch_chunked<T, 64, 12, 4>(stream, t);

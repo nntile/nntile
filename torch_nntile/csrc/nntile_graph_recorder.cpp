@@ -2,6 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/nntile_graph_recorder.cpp
+ * @version 2.0.0
  */
 
 #include "nntile_graph_recorder.h"
@@ -19,7 +20,7 @@
 #include <stdexcept>
 
 #include <nntile/runtime.hh>
-#include <nntile/starpu/sync_defer.hh>
+#include <nntile/nnhaul/sync_defer.hh>
 #include <nntile/dtype.hh>
 #include <nntile/tensor/axis_descriptor.hh>
 #include <nntile/tensor/graph.hh>
@@ -36,13 +37,8 @@
 #include <nntile/tensor/phase_codec.hh>
 
 #include <nntile/defs.h>
-#ifndef NNTILE_USE_NNHAUL
-#include <starpu.h>
-#endif
 
-#ifdef NNTILE_USE_NNHAUL
 #include <nnhaul/nnhaul.hh>
-#endif
 
 namespace nntile
 {
@@ -78,16 +74,16 @@ namespace torch_nntile
 namespace
 {
 
-//! Temporary profiling knob: skip StarPU *compute* submit and host<->tile
+//! Temporary profiling knob: skip NNHaul *compute* submit and host<->tile
 //! acquire/memcpy so record+compile wall time can be measured alone.
 //! ``execute_range`` still runs (watermark + last-consumer reclaim) so
-//! incremental compile stays O(pending). Set ``TORCH_NNTILE_SKIP_STARPU=1``.
+//! incremental compile stays O(pending). Set ``TORCH_NNTILE_SKIP_SUBMIT=1``.
 //! Results / accuracy are meaningless.
-bool skip_starpu_submit_and_acquire()
+bool skip_submit_and_acquire()
 {
     static int const cached = []() -> int
     {
-        char const *env = std::getenv("TORCH_NNTILE_SKIP_STARPU");
+        char const *env = std::getenv("TORCH_NNTILE_SKIP_SUBMIT");
         if (env == nullptr || env[0] == '\0' || std::strcmp(env, "0") == 0)
         {
             return 0;
@@ -122,6 +118,10 @@ namespace
 
 std::recursive_mutex g_recorder_mutex;
 std::unique_ptr<nntile::TensorGraph> g_graph;
+//! Graphs retired on reset while TensorRef Holds were still alive. Their
+//! node storage must outlive any concurrent check-then-deref; freed on the
+//! next reset that finds no Holds anywhere.
+std::vector<std::unique_ptr<nntile::TensorGraph>> g_retired_graphs;
 std::atomic<bool> g_platform_mode{false};
 PlatformIngressHook g_platform_ingress;
 PlatformFlushHook g_platform_flush;
@@ -154,6 +154,14 @@ struct RecorderExecState
 std::unique_ptr<RecorderExecState> g_exec;
 //! True after run_graph() until wait_graph_session() finishes post-run work.
 bool g_run_cleanup_pending = false;
+//! Set when a compile lowered/failed after sealing its phase. The seal
+//! cursor has advanced and partial TileGraph state may exist, so silently
+//! dropping the phase (and continuing training on stale weights) is not
+//! allowed; the session must be reset.
+bool g_compile_failed = false;
+//! Set when execute_range() threw after possibly inserting a prefix of the
+//! phase. Retrying would re-insert those tasks; the session must be reset.
+bool g_run_failed = false;
 
 struct GraphApiTimingStats
 {
@@ -172,7 +180,7 @@ struct GraphApiTimingStats
     std::uint64_t run_ops = 0;
     std::uint64_t wait_calls = 0;
     double wait_s = 0.0;
-    double wait_starpu_s = 0.0;
+    double wait_engine_s = 0.0;
     double wait_compact_s = 0.0;
     double wait_gc_collect_s = 0.0;
     double wait_gc_erase_s = 0.0;
@@ -416,59 +424,11 @@ void apply_axis_name_hints_locked(
     }
 }
 
-//! Temporary: PrivateUse1 aten ops require a single tile per tensor while
-//! torch-native StarPU codelets are introduced. See
-//! docs/dev/torch_starpu_kernels.md.
-[[noreturn]] void throw_tiled_aten_temporarily_disabled()
-{
-    throw std::runtime_error(
-        "torch_nntile: axis-group tiling is not allowed when the pending "
-        "TensorGraph contains torch-native (TORCH_*) compute. Use classic "
-        "torch_nntile.nn ops for tiled graphs, or keep stock aten graphs "
-        "untiled. See docs/dev/torch_nntile_aten_ops.md.");
-}
-
-
-bool graph_has_torch_compute_op_locked()
-{
-    if (g_graph == nullptr)
-    {
-        return false;
-    }
-    const size_t begin = g_graph->phase_seal_cursor();
-    const auto &ops = g_graph->ops();
-    for (size_t i = begin; i < ops.size(); ++i)
-    {
-        const std::string &name = ops[i]->op_name();
-        if (name.rfind("TORCH_", 0) == 0)
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-void require_untiled_torch_session_locked()
-{
-    if (g_graph == nullptr)
-    {
-        return;
-    }
-    if (g_graph->has_tiled_axis_group() && graph_has_torch_compute_op_locked())
-    {
-        throw_tiled_aten_temporarily_disabled();
-    }
-}
-
 void apply_pending_axis_tiling_locked()
 {
     if (g_graph == nullptr || g_axis_tiling_by_name.empty())
     {
         return;
-    }
-    if (graph_has_torch_compute_op_locked())
-    {
-        throw_tiled_aten_temporarily_disabled();
     }
     for (nntile::AxisDescriptor *group : g_graph->axis_groups())
     {
@@ -617,7 +577,7 @@ void write_cpu_bytes_to_staging_locked(
     nntile::Runtime &runtime = *g_exec->runtime;
     nntile::TileGraph::TileNode *tile =
         require_single_staging_tile_locked(staging);
-    bool const skip_starpu = skip_starpu_submit_and_acquire();
+    bool const skip_submit = skip_submit_and_acquire();
     switch (dtype)
     {
     case nntile::DataType::FP32:
@@ -628,9 +588,9 @@ void write_cpu_bytes_to_staging_locked(
             throw std::runtime_error(
                 "torch_nntile: staging write size mismatch");
         }
-        if (!skip_starpu)
+        if (!skip_submit)
         {
-            auto local = buf.acquire(STARPU_W);
+            auto local = buf.acquire(ACCESS_W);
             const auto *src = static_cast<const float *>(host_ptr);
             for (std::size_t i = 0; i < count; ++i)
             {
@@ -649,9 +609,9 @@ void write_cpu_bytes_to_staging_locked(
             throw std::runtime_error(
                 "torch_nntile: staging write size mismatch");
         }
-        if (!skip_starpu)
+        if (!skip_submit)
         {
-            auto local = buf.acquire(STARPU_W);
+            auto local = buf.acquire(ACCESS_W);
             const auto *src =
                 static_cast<const std::int64_t *>(host_ptr);
             for (std::size_t i = 0; i < count; ++i)
@@ -671,9 +631,9 @@ void write_cpu_bytes_to_staging_locked(
             throw std::runtime_error(
                 "torch_nntile: staging write size mismatch");
         }
-        if (!skip_starpu)
+        if (!skip_submit)
         {
-            auto local = buf.acquire(STARPU_W);
+            auto local = buf.acquire(ACCESS_W);
             // Torch bool / uint8 storage is byte-addressed.
             const auto *src =
                 static_cast<const std::uint8_t *>(host_ptr);
@@ -699,7 +659,7 @@ void release_io_staging_locked(nntile::TensorGraph::TensorNode *staging)
     {
         return;
     }
-    // Clear logical marks, then drop StarPU tile payloads
+    // Clear logical marks, then drop NNHaul tile payloads
     // (invalidate_submit alone left handles live).
     g_exec->runtime->invalidate_logical_tiles(staging);
     g_exec->inc_state.tensor_to_tiles.erase(staging);
@@ -726,7 +686,7 @@ void read_staging_to_host_locked(
         throw std::runtime_error(
             "torch_nntile: no runtime for staging readout");
     }
-    if (skip_starpu_submit_and_acquire())
+    if (skip_submit_and_acquire())
     {
         return;
     }
@@ -744,7 +704,7 @@ void read_staging_to_host_locked(
             throw std::runtime_error(
                 "torch_nntile: staging read size mismatch");
         }
-        auto local = buf.acquire(STARPU_R);
+        auto local = buf.acquire(ACCESS_R);
         auto *dst = static_cast<float *>(host_ptr);
         for (std::size_t i = 0; i < count; ++i)
         {
@@ -762,7 +722,7 @@ void read_staging_to_host_locked(
             throw std::runtime_error(
                 "torch_nntile: staging read size mismatch");
         }
-        auto local = buf.acquire(STARPU_R);
+        auto local = buf.acquire(ACCESS_R);
         auto *dst = static_cast<std::int64_t *>(host_ptr);
         for (std::size_t i = 0; i < count; ++i)
         {
@@ -780,7 +740,7 @@ void read_staging_to_host_locked(
             throw std::runtime_error(
                 "torch_nntile: staging read size mismatch");
         }
-        auto local = buf.acquire(STARPU_R);
+        auto local = buf.acquire(ACCESS_R);
         // Torch bool storage is 1 byte/elem; do not write through bool*
         // (pointer arithmetic / aliasing). Treat host buffer as bytes.
         auto *dst = static_cast<std::uint8_t *>(host_ptr);
@@ -989,9 +949,9 @@ nntile::TensorGraph::TensorNode *logical_node_for_tensor_locked(
         }
         const nntile::Index storage_n = graph_numel(logical->shape());
         // Views (transpose/narrow/split/expand) share the parent storage
-        // node. Layout (sizes/strides/offset) is packed into
-        // TorchDispatchArgs at record time — do not densify here.
-        // Broadcast expand may have larger logical numel than storage.
+        // node. The recorded view alias carries sizes/strides/offset —
+        // do not densify here. Broadcast expand may have a larger logical
+        // numel than storage.
         if (!view_fits_storage(mutable_tensor, storage_n))
         {
             throw std::invalid_argument(
@@ -1030,21 +990,12 @@ void clear_pending_recorder_state_locked()
     g_axis_tiling_by_name.clear();
 }
 
-void drain_starpu_after_session_teardown()
+void drain_after_session_teardown()
 {
-#ifndef NNTILE_USE_NNHAUL
-    if (!starpu_is_initialized())
-    {
-        return;
-    }
-    starpu_task_wait_for_all();
-    starpu_task_wait_for_all();
-#else
     if (g_exec != nullptr && g_exec->runtime != nullptr)
     {
         g_exec->runtime->wait();
     }
-#endif
 }
 
 void compact_tensor_graph_session_locked()
@@ -1053,7 +1004,7 @@ void compact_tensor_graph_session_locked()
     // Unsealed ops recorded after the last seal (next phase already in
     // flight while a prior run() completes) are preserved.
     // Dead TensorNode / TileNode IR is GC'd after wait() in
-    // finish_run_locked() (not here: StarPU unregister may still be in
+    // finish_run_locked() (not here: NNHaul unregister may still be in
     // flight at compact_after_submit).
     if (g_graph == nullptr)
     {
@@ -1079,20 +1030,20 @@ void compact_tensor_graph_session_locked()
 }
 
 //! Clear recorder side state so only Python-held TensorRefs remain live
-//! for INVALIDATE selection. Does not wait on StarPU.
+//! for INVALIDATE selection. Does not wait on NNHaul.
 void prepare_invalidate_selection_locked()
 {
     clear_pending_recorder_state_locked();
 }
 
-//! Drain the TensorRef-release queue without touching StarPU.
+//! Drain the TensorRef-release queue without touching NNHaul.
 //!
 //! Reclaim is **only** via ordinary graph ops: ``TensorRef`` last-drop
 //! records ``tensor::unregister``, and
 //! ``append_invalidates_for_unmarked_unsealed`` covers emplace_data temps.
 //! A side-channel ``invalidate_logical_tiles`` here ran *before* the phase
 //! was submitted, so ``del inputs`` after record (but before compile) could
-//! free ingress tiles before embedding tasks were inserted - StarPU then
+//! free ingress tiles before embedding tasks were inserted - NNHaul then
 //! saw "handle is not initialized".
 void flush_released_logicals_locked()
 {
@@ -1202,7 +1153,7 @@ void compile_graph_locked()
 {
     throw_if_local_compiler_disabled_locked();
     // Do not wait for a prior async run(): sealing / lowering the next
-    // phase while StarPU still executes the previous one is allowed.
+    // phase while NNHaul still executes the previous one is allowed.
     // Unmarked phase temps become TensorGraph INVALIDATE ops (async submit).
 
     if (g_graph == nullptr ||
@@ -1210,21 +1161,43 @@ void compile_graph_locked()
     {
         return;
     }
+    if (g_compile_failed)
+    {
+        throw std::runtime_error(
+            "torch_nntile.compile_graph(): a previous compile failed after "
+            "sealing its phase; reset_graph_session() is required before "
+            "recording again (continuing would silently drop a step)");
+    }
 
     SteadyClock::time_point const t0 = SteadyClock::now();
+    // Any throw after the seal leaves the cursor advanced and possibly
+    // partial TileGraph state. Poison the session instead of letting the
+    // next compile() observe an empty pending range and run stale weights.
+    struct CompileFailureGuard
+    {
+        bool done = false;
+        bool &failed;
+        explicit CompileFailureGuard(bool &f): failed(f) {}
+        ~CompileFailureGuard()
+        {
+            if (!done)
+            {
+                failed = true;
+            }
+        }
+    } compile_guard(g_compile_failed);
 
     ensure_nntile_context();
     ensure_recorder_exec_state_locked();
 
     sync_param_grad_aliases_locked();
     apply_pending_axis_tiling_locked();
-    require_untiled_torch_session_locked();
 
     // Marks must reflect live Python refs before INVALIDATE selection.
     prepare_invalidate_selection_locked();
     // Drain release notes only; do not invalidate_logical_tiles here.
     // Payload reclaim is append_invalidates + TensorRef-recorded
-    // UNREGISTER ops in this phase (submitted with compute so StarPU
+    // UNREGISTER ops in this phase (submitted with compute so NNHaul
     // orders them).
     flush_released_logicals_locked();
     nntile::tensor::append_invalidates_for_unmarked_unsealed(*g_graph);
@@ -1290,6 +1263,7 @@ void compile_graph_locked()
     g_timing.compile_s += seconds_since(t0);
     ++g_timing.compile_calls;
     g_timing.compile_ops += phase_ops;
+    compile_guard.done = true;
 }
 
 void run_graph_locked()
@@ -1298,38 +1272,59 @@ void run_graph_locked()
     {
         return;
     }
+    if (g_run_failed)
+    {
+        throw std::runtime_error(
+            "torch_nntile.run(): a previous run failed during submit; "
+            "reset_graph_session() is required before submitting again "
+            "(a retry would re-insert a partially submitted phase)");
+    }
     // Submit the pending tile-op range. INVALIDATE / UNREGISTER ops are
-    // already in the execution stream. Join StarPU via wait() for readout.
+    // already in the execution stream. Join NNHaul via wait() for readout.
     if (g_exec->pending_exec_op_end > g_exec->pending_exec_op_begin)
     {
         std::uint64_t const phase_ops = static_cast<std::uint64_t>(
             g_exec->pending_exec_op_end - g_exec->pending_exec_op_begin);
         SteadyClock::time_point const t0 = SteadyClock::now();
-        bool const submit = !skip_starpu_submit_and_acquire();
+        bool const submit = !skip_submit_and_acquire();
         // Always call execute_range so Runtime::executed_op_end_ advances.
-        // SKIP_STARPU only disables OpNode::execute (StarPU task insert).
+        // SKIP_SUBMIT only disables OpNode::execute (NNHaul task insert).
         if (!g_exec->runtime->has_execution_schedule())
         {
             g_exec->runtime
                 ->install_default_execution_schedule_if_missing();
         }
-        g_exec->runtime->execute_range(
-            g_exec->pending_exec_op_begin,
-            g_exec->pending_exec_op_end,
-            submit);
+        try
+        {
+            g_exec->runtime->execute_range(
+                g_exec->pending_exec_op_begin,
+                g_exec->pending_exec_op_end,
+                submit);
+        }
+        catch (...)
+        {
+            g_run_failed = true;
+            throw;
+        }
         g_timing.run_s += seconds_since(t0);
         ++g_timing.run_calls;
         g_timing.run_ops += phase_ops;
         g_exec->executed_op_end = g_exec->pending_exec_op_end;
         g_exec->pending_exec_op_begin = g_exec->pending_exec_op_end;
     }
-#ifdef NNTILE_USE_NNHAUL
 #ifdef NNHAUL_SIGNAL_GRAPH_END
     // End-of-sequence hint: close, plan, check and issue this phase now,
     // without waiting. The next phase's compile then overlaps this
     // phase's GPU work; wait() remains the barrier.
-    ::nnhaul::signal_graph_end();
-#endif
+    try
+    {
+        ::nnhaul::signal_graph_end();
+    }
+    catch (...)
+    {
+        g_run_failed = true;
+        throw;
+    }
 #endif
     g_run_cleanup_pending = true;
     compact_after_submit_locked();
@@ -1349,11 +1344,11 @@ void finish_run_locked()
         return;
     }
     SteadyClock::time_point const t0 = SteadyClock::now();
-    // Join StarPU for host-visible completion. Session compact already ran
+    // Join NNHaul for host-visible completion. Session compact already ran
     // at the end of run(); reclaim ops were submitted with the phase.
     SteadyClock::time_point t_part = SteadyClock::now();
     g_exec->runtime->wait();
-    g_timing.wait_starpu_s += seconds_since(t_part);
+    g_timing.wait_engine_s += seconds_since(t_part);
     t_part = SteadyClock::now();
     compact_tensor_graph_session_locked();
     // Drain release notes; reclaim ops were already submitted with the
@@ -1370,15 +1365,53 @@ void reset_recorder_locked(bool clear_tensor_gc)
 {
     if (g_exec != nullptr && g_exec->runtime != nullptr)
     {
-        g_exec->runtime->wait();
+        try
+        {
+            g_exec->runtime->wait();
+        }
+        catch (...)
+        {
+            // Teardown must still release the session and engine after a
+            // latched plan/device fault; that fault already reached the
+            // caller that hit it.
+        }
     }
     g_run_cleanup_pending = false;
+    g_compile_failed = false;
+    g_run_failed = false;
     clear_pending_recorder_state_locked();
     g_ephemeral_staging_serial = 0;
     g_exec.reset();
-    set_logical_tensor_nodes_alive(false);
-    g_graph.reset();
-    drain_starpu_after_session_teardown();
+    // Every live TensorRef Hold points into g_graph's nodes. Invalidate
+    // those raw pointers before the graph frees them, so a Hold destroyed
+    // after a later graph is created cannot mistake a stale pointer for a
+    // live node. The destruction lock excludes an off-thread Hold
+    // destructor between the bump and the free.
+    nntile::tensor_nodes_destruction_lock();
+    try
+    {
+        set_logical_tensor_nodes_alive(false);
+        nntile::bump_tensor_nodes_generation();
+        if (g_graph && nntile::tensor_refs_alive())
+        {
+            // A Python tensor may still hold a raw node. Keep the graph's
+            // storage alive; the generation makes the stale ref fail
+            // loudly instead of dereferencing freed memory.
+            g_retired_graphs.push_back(std::move(g_graph));
+        }
+        else
+        {
+            g_retired_graphs.clear();
+            g_graph.reset();
+        }
+    }
+    catch (...)
+    {
+        nntile::tensor_nodes_destruction_unlock();
+        throw;
+    }
+    nntile::tensor_nodes_destruction_unlock();
+    drain_after_session_teardown();
     if (clear_tensor_gc)
     {
         clear_tensor_gc_state();
@@ -1484,12 +1517,8 @@ void run_graph()
 
 std::uint64_t join_predecessor()
 {
-#ifdef NNTILE_USE_NNHAUL
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     return ::nnhaul::join_predecessor();
-#else
-    return 0;
-#endif
 }
 
 void wait_graph_session()
@@ -1500,7 +1529,7 @@ void wait_graph_session()
         platform_flush_unlocked(lock, {}, true);
         return;
     }
-    // finish_run_locked() already joins StarPU when a run is pending.
+    // finish_run_locked() already joins NNHaul when a run is pending.
     finish_run_locked();
 }
 
@@ -1526,11 +1555,6 @@ void set_platform_hooks(
     PlatformFlushHook flush)
 {
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
-    // The platform session starts here — the earliest point where this
-    // is a torch_nntile session. Apply the chunked-tile session policy
-    // before any device tensor can allocate (see
-    // apply_torch_session_chunk_policy).
-    apply_torch_session_chunk_policy();
     g_platform_ingress = std::move(ingress);
     g_platform_flush = std::move(flush);
     g_platform_mode.store(true, std::memory_order_release);
@@ -1854,7 +1878,7 @@ void init_nntile_input_from_cpu(
         static_cast<std::size_t>(cpu_src.numel()));
 
     nntile::tensor::scatter(staging, logical);
-    // StarPU orders unregister after scatter. Peak ~2x during batched
+    // NNHaul orders unregister after scatter. Peak ~2x during batched
     // .to("nntile") is accepted (same as model.cuda() while CPU lives).
     nntile::tensor::unregister(staging);
 }
@@ -2431,9 +2455,9 @@ std::string format_info_locked()
 
     std::ostringstream ss;
     ss << "torch_nntile graph API timing (cumulative):\n";
-    if (skip_starpu_submit_and_acquire())
+    if (skip_submit_and_acquire())
     {
-        ss << "  NOTE: TORCH_NNTILE_SKIP_STARPU=1 "
+        ss << "  NOTE: TORCH_NNTILE_SKIP_SUBMIT=1 "
               "(no compute submit / staging acquire; reclaim on)\n";
     }
     if (skip_nntile_kernels())
@@ -2489,8 +2513,8 @@ std::string format_info_locked()
        << " ms; finishes a pending run() only)\n";
     if (g_timing.wait_calls > 0)
     {
-        ss << "    starpu_join:  " << g_timing.wait_starpu_s << "s (avg "
-           << avg_ms(g_timing.wait_starpu_s, g_timing.wait_calls)
+        ss << "    engine_join:  " << g_timing.wait_engine_s << "s (avg "
+           << avg_ms(g_timing.wait_engine_s, g_timing.wait_calls)
            << " ms)\n";
         ss << "    compact:      " << g_timing.wait_compact_s << "s (avg "
            << avg_ms(g_timing.wait_compact_s, g_timing.wait_calls)
@@ -2505,8 +2529,8 @@ std::string format_info_locked()
            << avg_ms(g_timing.wait_gc_destroy_s, g_timing.wait_calls)
            << " ms)\n";
     }
-    ss << "  starpu_task_wait_for_all: "
-       << nntile::g_starpu_wait_for_all_count.load()
+    ss << "  task_wait_for_all: "
+       << nntile::g_wait_for_all_count.load()
        << " calls (all sources; should stay flat between run()s if async)\n";
     ss << "  host_readout:  " << g_timing.host_readout_calls << " calls, "
        << g_timing.host_readout_s << "s"
@@ -2607,4 +2631,3 @@ double record_nntile_seconds()
 }
 
 } // namespace torch_nntile
-

@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/include/torch_nntile/models/gpt_neo.hh
  * GPT-Neo causal LM matching deleted ``nntile::model::gptneo``.
+ * @version 2.0.0
  */
 
 #pragma once

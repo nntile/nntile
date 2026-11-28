@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/tile/ops/hypot_scalar_inverse.hh
  * TileGraph hypot_scalar_inverse operation: (eps, alpha, dst)
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

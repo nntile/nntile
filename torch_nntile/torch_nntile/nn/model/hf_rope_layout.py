@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/nn/model/hf_rope_layout.py
 # Convert HF rotate_half RoPE channel order <-> NNTile interleaved pairs.
+# @version 2.0.0
 
 """RoPE weight-channel layout helpers for HF <-> NNTile conversion.
 

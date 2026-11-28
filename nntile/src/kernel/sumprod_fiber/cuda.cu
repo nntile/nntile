@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/sumprod_fiber/cuda.cu
  * Sums over slices into a fiber of a product of buffers on CUDA
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include <cstdio>
@@ -229,7 +229,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
         // Cap the block at 1024 threads: 2 x min(m,32) x min(n,32) alone
         // exceeds the limit whenever min(m,32)*min(n,32) > 512 (a launch
         // that always failed with invalid configuration argument).
-        // Mapping-stability caveat (family-2 follow-up B, corrected): the
+        // Mapping-stability caveat (corrected): the
         // thread-to-element mapping is preserved ONLY while
         // 2*ty*min(n,32) <= 512, where tz = min(n,32) still assigns one
         // thread per (i0, i2) fiber position. In the (512, 1024]-thread
@@ -310,7 +310,7 @@ void chunked_m1_kernel(SumProdFiberChunkTables<T> t)
     Index const base_l = blockIdx.x*BLOCK_ROW + src_l;
     if(base_l < t.k)
     {
-        // Run-structured in-chunk walk (piece 4). Each thread reads the
+        // Run-structured in-chunk walk. Each thread reads the
         // flat offsets f0 + i*step (step = BLOCK_COL*k), i = 0, 1, ...,
         // while f < k + src_j... i.e. exactly the column sequence of
         // cuda_kernel_m1 above, in the same order. The span-start divmod
@@ -319,12 +319,10 @@ void chunked_m1_kernel(SumProdFiberChunkTables<T> t)
         // q = chunk_base - chunk*elems, so the hot loop is branch-free and
         // nvcc pipelines the loads exactly like the classic kernel's loop
         // (the earlier per-boundary branch inside the walk inhibited
-        // unrolling and starved memory-level parallelism: the GPT-2
-        // (m,n,k)=(1,1024,768) shape measured 2.9x classic even on the
-        // power-of-two shift path). A rebase (one divmod per chunk
-        // boundary, i.e. per run that straddles) restores q when the walk
-        // crosses into the next chunk. Same values in the same order, so
-        // the result is unchanged bitwise.
+        // unrolling and starved memory-level parallelism). A rebase (one
+        // divmod per chunk boundary, i.e. per run that straddles)
+        // restores q when the walk crosses into the next chunk. Same
+        // values in the same order, so the result is unchanged bitwise.
         long const step = long(BLOCK_COL) * long(t.k);
         long const f0 = long(base_l) + long(src_j) * long(t.k);
         long const fend = long(base_l) + long(t.n) * long(t.k);
@@ -339,7 +337,7 @@ void chunked_m1_kernel(SumProdFiberChunkTables<T> t)
             // and the interior spans of multi-chunk ones). Spans that
             // straddle a boundary take the run walk below.
             long const flast = fend - 1 - ((fend - 1 - f0) % step);
-            // (rule 7) span-start chunk residency by shift/mask on the
+            //  span-start chunk residency by shift/mask on the
             // per-operand shifts (class shift or the 62 sentinel), never
             // a runtime divisor.
             long const c1 = f0 >> shf1;

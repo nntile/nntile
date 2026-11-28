@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/maxsumexp/cuda.cu
  * Max and sum of exponents of a buffer on CUDA
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/maxsumexp/cuda.hh"
@@ -428,8 +428,8 @@ void chunked_cuda_kernel(Index m, Index m_per_block, Index n,
                     i2 < (i2_block+1)*n_per_block and i2 < n; ++i2)
             {
                 long const base = long(i1) + long(m)*long(k)*long(i2);
-                // Whole-fiber fast path: every real GPT-2 fiber lies inside
-                // one 4 MiB chunk, so hoist the chunk lookup out of the
+                // Whole-fiber fast path: a fiber that lies inside one
+                // chunk hoists the chunk lookup out of the
                 // reduction loop (the per-element lookup was the residual).
                 long const fib_end = base + long(m)*(long(k)-1) + 1;
                 Index const cf = mse_chunk_of(base, t.elems_src,
@@ -534,12 +534,11 @@ void chunked_cuda_kernel(Index m, Index m_per_block, Index n,
 
 //! Whole-buffer m==1 kernel: one block per panel and the contiguous
 //! kernel's reduction structure verbatim (so src_val stays in registers).
-//! Piece 7: panels that straddle a chunk boundary no longer return early
-//! for a separate straddle kernel (a second launch whose 12-block grid
-//! serialized AFTER the main wave cost 30 us on the 196.32 MiB GPT-2
-//! logits shape = the pair-4 5% residual); the SAME block now takes the
+//! Panels that straddle a chunk boundary no longer return early
+//! for a separate straddle kernel (a second launch serialized after the
+//! main wave); the SAME block now takes the
 //! per-element chunk-resolved read path in place, overlapping with the
-//! whole-panel blocks inside the ONE launch (rule 4). The per-thread read
+//! whole-panel blocks inside the ONE launch. The per-thread read
 //! sequence of both paths is the contiguous kernel's own, so the result
 //! stays bitwise.
 template<typename T, int BLOCK_ROW, int LOOP>
@@ -566,8 +565,8 @@ void chunked_cuda_kernel_m1_whole(Index n, Index k, Scalar beta,
     if(whole)
     {
         // The whole-panel path is the contiguous kernel's load stream
-        // verbatim, under a block-uniform branch (NOT a per-load select:
-        // the select form cost the 48 MiB 3-chunk control ~1.5%).
+        // verbatim, under a block-uniform branch (NOT a per-load select,
+        // which would add per-load overhead).
         for(Index src_l = threadIdx.x; src_l < src_l_block_end;
                 src_l += BLOCK_ROW)
         {
@@ -788,7 +787,7 @@ void chunked(cudaStream_t stream, Index m, Index n, Index k,
         : long(elems_dst)*long(ndst);
     if(m == 1)
     {
-        // ONE launch over all n panels (piece 7): a straddling panel's
+        // ONE launch over all n panels: a straddling panel's
         // block takes the per-element chunk-resolved path inside this
         // same kernel, so no host-side straddle list, no second launch.
         dim3 threads(64);

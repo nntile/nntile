@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/src/tile_graph/copy.cc
  * TileGraph copy operation implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tile/ops/copy.hh"
@@ -18,8 +18,7 @@
 #include <nntile/dtype.hh>
 #include <nntile/core.hh>
 #include <nntile/core/copy.hh>
-#include <nntile/starpu/copy.hh>
-
+#include <nntile/nnhaul/ops/copy.hh>
 #include <nntile/runtime.hh>
 namespace nntile::tile
 {
@@ -28,7 +27,7 @@ namespace
 template<typename T>
 void run_cp(Runtime& runtime, TileGraph::TileNode* s, TileGraph::TileNode* d)
 {
-    nntile::core::copy<T>(runtime.starpu_worker_hint(), runtime.get_tile<T>(s), runtime.get_tile<T>(d));
+    nntile::core::copy<T>(runtime.worker_hint(), runtime.get_tile<T>(s), runtime.get_tile<T>(d));
 }
 
 template<typename T>
@@ -47,11 +46,8 @@ void run_cp_same_numel(
     {
         throw std::runtime_error("tile copy_same_numel: buffer numel mismatch");
     }
-    starpu::copy.submit(
-        runtime.starpu_worker_hint(),
-        src_tile,
-        dst_tile);
-}
+    nntile::nnhaul::copy.submit(
+        runtime.worker_hint(), src_tile, dst_tile);}
 } // namespace
 void copy(TileGraph::TileNode* src, TileGraph::TileNode* dst)
 {

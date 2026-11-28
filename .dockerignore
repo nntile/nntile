@@ -1,12 +1,22 @@
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                 2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems with GPU acceleration.
+#
+# @file .dockerignore
+# NNTile 2.0 file.
+#
+# @version 2.0.0
+
 .*
 build*
 # HF weights pulled at runtime, not needed in the image
 cache_hf/
 **/cache_hf/
-# Local tarball extractions from manual host-side builds. The tracked
-# `external/{cudnn_frontend,pybind11,googletest,nvbench}` git submodules
-# ARE needed by cmake and must NOT be ignored.
-external/starpu-1.4.7/
+# Local tarball extractions from manual host-side builds.
 # pip editable metadata from local installs
 **/*.egg-info/
 **/__pycache__/

@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/core/mask_scalar.hh
  * Mask scalar operation for Tile<T>
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -21,12 +21,12 @@ namespace nntile::core
 
 // Asynchronous tile-wise mask scalar operation
 template<typename T>
-void mask_scalar_async(int starpu_worker_hint, const Tile<bool_t> &mask, Scalar val, const Tile<T> &A,
+void mask_scalar_async(int worker_hint, const Tile<bool_t> &mask, Scalar val, const Tile<T> &A,
         Index batch_ndim=0);
 
 // Blocking version of tile-wise mask scalar operation
 template<typename T>
-void mask_scalar(int starpu_worker_hint, const Tile<bool_t> &mask, Scalar val, const Tile<T> &A,
+void mask_scalar(int worker_hint, const Tile<bool_t> &mask, Scalar val, const Tile<T> &A,
         Index batch_ndim=0);
 
 } // namespace nntile::core

@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/context.hh
  * NNTile context
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -20,11 +20,7 @@
 #include <nntile/defs.h>
 
 // Third-party headers
-#ifndef NNTILE_USE_NNHAUL
-#include <starpu.h>
-#endif // NNTILE_USE_NNHAUL
 #ifdef NNTILE_USE_CUDA
-#include <cudnn.h>
 #endif // NNTILE_USE_CUDA
 
 // Other NNTile headers
@@ -44,18 +40,6 @@ public:
     //! Flag if the context is initialized
     int initialized = 0;
 
-#ifndef NNTILE_USE_NNHAUL
-    //! StarPU configuration without explicit default value
-    starpu_conf starpu_config;
-#endif
-
-    //! StarPU memory node id of a disk for OOC
-    int ooc_disk_node_id;
-
-    //! Caps chosen at init. Zero on the StarPU build.
-    std::size_t cpu_cap_bytes_chosen = 0;
-    std::size_t cuda_cap_bytes_each_chosen = 0;
-
     //! Verbosity level
     int verbose;
 
@@ -64,14 +48,14 @@ public:
 
     //! Constructor of the context
     /*! The only way to initialize the context is to call this constructor.
-    * @param[in] ncpu: number of CPU workers, -1 means that STARPU_NCPU env
-    *      variable is used. Ignored by the GPU-only NNHaul backend, which
-    *      creates no CPU workers.
-    * @param[in] ncuda: number of CUDA workers, -1 means that STARPU_NCUDA env
-    *      variable is used. NNHaul always provides (at least) one.
-    * @param[in] ooc: enable Out-of-Core (OOC) support
-    * @param[in] ooc_path: path to the OOC disk
-    * @param[in] ooc_size: size of the OOC disk in bytes
+    * @param[in] ncpu: accepted for compatibility. NNHaul creates no CPU
+    *      workers, so this value is ignored.
+    * @param[in] ncuda: only one CUDA worker exists. Values <= 0 select it;
+    *      values > 1 are rejected. Select the GPU with
+    *      ``CUDA_VISIBLE_DEVICES``; ``NNHAUL_DEVICES`` is rejected.
+    * @param[in] ooc: must be 0; disk out-of-core is not supported.
+    * @param[in] ooc_path: ignored (kept for source compatibility)
+    * @param[in] ooc_size: ignored (kept for source compatibility)
     * @param[in] logger: whether logger is enabled
     * @param[in] logger_addr: address of the logger server
     * @param[in] logger_port: port of the logger server
@@ -103,25 +87,6 @@ public:
      * calls did not fail.
      */
     void shutdown();
-
-    //! Restrict computation to CPU
-    void restrict_cpu();
-
-    //! Restrict computation to CUDA
-    void restrict_cuda();
-
-    //! Restore computation to all devices
-    void restore_where();
 };
-
-#ifdef NNTILE_USE_CUDA
-//! Get cuDNN handle for the current CUDA worker
-cudnnHandle_t cudnn_get_local_handle();
-#endif // NNTILE_USE_CUDA
-
-
-//! Restrict every codelet to CUDA workers without constructing a
-//! Context (used by ExecutionDaemon self-configuration).
-void restrict_codelets_to_cuda();
 
 } // namespace nntile

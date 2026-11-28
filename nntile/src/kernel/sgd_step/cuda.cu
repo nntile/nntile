@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/sgd_step/cuda.cu
  * SGD with momentum step with buffers on CUDA
  *
- * @version 1.2.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/sgd_step/cuda.hh"
@@ -179,7 +179,7 @@ static __device__ __forceinline__ long sgs_off_of(long f, Index elems,
 //! __syncthreads, so the per-block cost over the classic kernel is three
 //! 8-byte loads. Straddling blocks (non-power-of-two chunk element
 //! counts) resolve every element through the table tables directly
-//! (piece 9 / rule 10: no staging, no table __syncthreads).
+//! .
 template<typename T, typename Tab>
 static __global__
 void chunked_cuda_kernel(Tab t)
@@ -253,7 +253,7 @@ void chunked_cuda_kernel(Tab t)
     else
     {
         // Window straddles a chunk boundary of some operand: resolve every
-        // element through the table tables directly (rule 10: no staging,
+        // element through the table directly (no staging,
         // no table __syncthreads; same arithmetic).
         Y p_val = static_cast<Y>(
             t.p[sgs_chunk_of(f, t.elems_p, t.shift_p)][sgs_off_of(f, t.elems_p, t.shift_p)]);
@@ -327,9 +327,9 @@ void chunked_cuda_kernel_one_pure(Index num_elems, typename T::repr_t lr,
 //! only, dispatch guard in chunked()); alignment argument as for
 //! chunked_cuda_kernel_one_v4 below. The thread geometry is the classic
 //! kernel's 32-bit one (int q). Reserved for the larger single-chunk
-//! shapes: beyond ~16K elements the memory pipe, not the launch floor,
-//! bounds the kernel and the quad walk's four-times-fewer memory
-//! instructions win; below it chunked() keeps the classic scalar walk.
+//! shapes: when the memory pipe, not the launch floor, bounds the kernel,
+//! the quad walk's four-times-fewer memory instructions win; below that
+//! chunked() keeps the classic scalar walk.
 template<typename T>
 static __global__
 void chunked_cuda_kernel_one_v4_pure(Index num_elems, typename T::repr_t lr,
@@ -397,10 +397,10 @@ void chunked_cuda_kernel_one_v4_wd(Index num_elems,
 
 //! Single-chunk chunked sgd_step: every operand sits inside its chunk 0
 //! (each table holds one chunk, i.e. any contiguous buffer below the chunk
-//! class -- e.g. every GPT-2 attention weight block or bias vector). The
-//! three chunk-0 base pointers are resolved once per thread (warp-uniform
-//! broadcast loads) and the body is the classic kernel's verbatim with the
-//! same exact-rounding pin as the multi-chunk kernel's fast branch, so the
+//! class). The three chunk-0 base pointers are resolved once per thread
+//! (warp-uniform broadcast loads) and the body is the classic kernel's
+//! verbatim with the same exact-rounding pin as the multi-chunk kernel's
+//! fast branch, so the
 //! per-element instruction stream is the classic kernel's and the whole
 //! range stays bitwise one cuda() call -- without the multi-chunk kernel's
 //! fat parameter struct, per-block window checks and shift/mask walk.
@@ -461,8 +461,7 @@ void chunked_cuda_kernel_one(Index num_iter, Index num_elems,
 //! load/store, a quarter of the memory instructions of the scalar walk
 //! for exactly the same bytes. Chunk bases come from the engine's chunk
 //! allocator (one arena cudaMalloc, every chunk base a multiple of the
-//! 4 MiB class from an at least 256-byte-aligned base; the bench's plain
-//! cudaMalloc tables are at least 256-byte aligned too) and a
+//! 4 MiB class from an at least 256-byte-aligned base) and a
 //! single-chunk operand spans its whole chunk from the base, so every
 //! quad access is 16-byte aligned. The per-element arithmetic and its
 //! association are exactly the classic kernel's: every lane runs the

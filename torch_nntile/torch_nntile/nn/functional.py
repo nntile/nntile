@@ -2,12 +2,11 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/torch_nntile/nn/functional.py
+# @version 2.0.0
 """Autograd functions for classic NNTile kernels.
 
-Stock ``torch.nn`` / ``torch.nn.functional`` on ``device=nntile`` follow the
-CUDA dispatch path (torch-native ``aten`` codelets, PyTorch autograd). Use
-**this** module for classic NNTile tiled / hand-written ops (``gemm``,
-``rope``, ``sum_slice``, …). Modules wrapping these functions live in
+Use this module for NNTile's tiled / hand-written ops (``gemm``, ``rope``,
+``sum_slice``, …). Modules wrapping these functions live in
 :mod:`torch_nntile.nn.module`.
 """
 
@@ -17,7 +16,7 @@ import torch
 from torch import Tensor
 
 from torch_nntile.add_fiber import add_fiber
-from torch_nntile.gemm import gemm, matmul
+from torch_nntile.gemm import gemm
 from torch_nntile.loss import cross_entropy, mse_loss
 from torch_nntile.nn.activations import gelu, relu, silu
 from torch_nntile.nn.add import add
@@ -70,7 +69,6 @@ def scale_slice(
 __all__ = [
     "add",
     "add_fiber",
-    "apply_nntile_patches",
     "cat",
     "cross_entropy",
     "embedding",
@@ -78,7 +76,6 @@ __all__ = [
     "gelu",
     "gemm",
     "layer_norm",
-    "matmul",
     "mul",
     "mul_scalar",
     "mse_loss",
@@ -94,21 +91,3 @@ __all__ = [
     "sum_slice",
     "vector_norm",
 ]
-
-
-def apply_nntile_patches() -> None:
-    """Opt-in legacy shim: override selected stock ``F.*`` / ``linalg``
-    symbols.
-
-    New code should call :func:`rms_norm`, :func:`cross_entropy`, etc. from
-    this module explicitly, or use stock ``torch.nn.functional`` on
-    ``device=nntile`` (CUDA parity). Do **not** call this in torch-native
-    training stacks.
-    """
-    from torch_nntile.loss import patch_cross_entropy
-    from torch_nntile.norm import patch_vector_norm
-    from torch_nntile.normalization import patch_rms_norm
-
-    patch_cross_entropy()
-    patch_vector_norm()
-    patch_rms_norm()

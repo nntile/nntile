@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/gelu_backward/cuda.cu
  * Backward GeLU operation on CUDA
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/gelu_backward/cuda.hh"
@@ -66,6 +66,56 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *x, const T *
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, alpha, x, dy, beta, dx);
 }
 
+
+template<typename T>
+static __global__
+void chunked_cuda_kernel(Index nelems, Scalar alpha, ChunkConst<T> x,
+        ChunkConst<T> dy, Scalar beta, ChunkMut<T> dx)
+{
+    int i = threadIdx.x + blockIdx.x*blockDim.x;
+    using Y = typename T::repr_t;
+    const Y alpha_{alpha}, beta_{beta};
+    constexpr Y pi = 3.141592653589793238462643383279502884L,
+        one = 1, mone = -1, pt5 = 0.5;
+    const Y f1 = mone / std::sqrt(Y{2.0}), f2 = one / std::sqrt(2*pi);
+    if(i < nelems)
+    {
+        Y x_val = Y{x.at(i)[0]};
+        Y exp_x = std::exp(-pt5 * x_val * x_val);
+        Y y = erfc(f1 * x_val);
+        Y g = x_val*f2*exp_x + pt5*y;
+        Y contrib = alpha_ * g * Y{dy.at(i)[0]};
+        T *dxp = dx.at(i);
+        if(beta == 0.0)
+        {
+            dxp[0] = T{contrib};
+        }
+        else
+        {
+            dxp[0] = T{contrib + beta_ * Y{dxp[0]}};
+        }
+    }
+}
+
+template<typename T>
+void chunked(cudaStream_t stream, Index nelems, Scalar alpha,
+        const T* const* x_chunks, Index nx, const T* const* dy_chunks,
+        Index ndy, Scalar beta, T* const* dx_chunks, Index ndx,
+        Index elems_x, Index elems_dy, Index elems_dx, ChunkClass cls)
+    noexcept
+{
+    if(nelems <= 0 || nx <= 0 || ndy <= 0 || ndx <= 0)
+    {
+        return;
+    }
+    dim3 blocks((nelems+255)/256), threads(256);
+    (chunked_cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, alpha,
+        chunk_const<T>(x_chunks, nx, elems_x, cls, "nntile_gelu_backward"),
+        chunk_const<T>(dy_chunks, ndy, elems_dy, cls, "nntile_gelu_backward"),
+        beta,
+        chunk_mut<T>(dx_chunks, ndx, elems_dx, cls, "nntile_gelu_backward"));
+}
+
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index nelems, Scalar alpha, const fp32_t *x,
@@ -85,6 +135,34 @@ void cuda<bf16_t>(cudaStream_t stream, Index nelems, Scalar alpha, const bf16_t 
 template
 void cuda<fp16_t>(cudaStream_t stream, Index nelems, Scalar alpha, const fp16_t *x,
         const fp16_t *dy, Scalar beta, fp16_t *dx)
+    noexcept;
+
+template
+void chunked<fp32_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        const fp32_t* const* x_chunks, Index nx, const fp32_t* const* dy_chunks,
+        Index ndy, Scalar beta, fp32_t* const* dx_chunks, Index ndx,
+        Index elems_x, Index elems_dy, Index elems_dx, ChunkClass cls)
+    noexcept;
+
+template
+void chunked<fp64_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        const fp64_t* const* x_chunks, Index nx, const fp64_t* const* dy_chunks,
+        Index ndy, Scalar beta, fp64_t* const* dx_chunks, Index ndx,
+        Index elems_x, Index elems_dy, Index elems_dx, ChunkClass cls)
+    noexcept;
+
+template
+void chunked<bf16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        const bf16_t* const* x_chunks, Index nx, const bf16_t* const* dy_chunks,
+        Index ndy, Scalar beta, bf16_t* const* dx_chunks, Index ndx,
+        Index elems_x, Index elems_dy, Index elems_dx, ChunkClass cls)
+    noexcept;
+
+template
+void chunked<fp16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        const fp16_t* const* x_chunks, Index nx, const fp16_t* const* dy_chunks,
+        Index ndy, Scalar beta, fp16_t* const* dx_chunks, Index ndx,
+        Index elems_x, Index elems_dy, Index elems_dx, ChunkClass cls)
     noexcept;
 
 } // namespace nntile::kernel::gelu_backward

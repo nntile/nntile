@@ -4,25 +4,17 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/core/randn.cc
  * Randn operation for Tile<T>
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/core/randn.hh"
-#ifdef NNTILE_USE_NNHAUL
 #include "nntile/nnhaul/ops/randn.hh"
-#else
-#include "nntile/starpu/randn.hh"
-#endif
-#ifdef NNTILE_USE_NNHAUL
 #include "nntile/nnhaul/sync_defer.hh"
-#else
-#include "nntile/starpu/config.hh"
-#endif
 
 namespace nntile::core
 {
@@ -42,7 +34,7 @@ namespace nntile::core
  * @param[in] stddev: Standard deviation of the normal distribution
  * */
 template<typename T>
-void randn_async(int starpu_worker_hint, const Tile<T> &dst, const std::vector<Index> &start,
+void randn_async(int worker_hint, const Tile<T> &dst, const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
         Scalar mean, Scalar stddev)
 {
@@ -70,57 +62,20 @@ void randn_async(int starpu_worker_hint, const Tile<T> &dst, const std::vector<I
         }
     }
     // Temporary index. NNHaul keeps this scratch inside the CPU kernel.
-#ifndef NNTILE_USE_NNHAUL
-    starpu::VariableHandle tmp_index(sizeof(nntile::int64_t)*2*ndim);
-#endif
 
-    #ifdef NNTILE_USE_NNHAUL
-    int mpi_rank = 0;
-    #else
-    int mpi_rank = starpu_mpi_world_rank();
-    #endif
-    #ifdef NNTILE_USE_NNHAUL
-    int dst_rank = 0;
-    #else
-    int dst_rank = dst.mpi_get_rank();
-    #endif
-    if(mpi_rank == dst_rank)
-    {
-        // Insert task
-        #ifdef NNTILE_USE_NNHAUL
-        haul::randn.submit<std::tuple<T>>(starpu_worker_hint, 
-            ndim,
-            dst.nelems,
-            seed,
-            mean,
-            stddev,
-            start,
-            dst.shape,
-            dst.stride,
-            underlying_shape,
-            dst
-        );
-        #else
-        starpu::randn.submit<std::tuple<T>>(starpu_worker_hint, 
-            ndim,
-            dst.nelems,
-            seed,
-            mean,
-            stddev,
-            start,
-            dst.shape,
-            dst.stride,
-            underlying_shape,
-            dst,
-            tmp_index
-        );
-        #endif
-
-    }
-#ifndef NNTILE_USE_NNHAUL
-    // Unregister temporary index in an async way
-    tmp_index.unregister_submit();
-#endif
+    // Insert task
+    nnhaul::randn.submit<std::tuple<T>>(worker_hint,
+        ndim,
+        dst.nelems,
+        seed,
+        mean,
+        stddev,
+        start,
+        dst.shape,
+        dst.stride,
+        underlying_shape,
+        dst
+    );
 }
 
 //! Blocking version of tile-wise random generation operation
@@ -138,83 +93,79 @@ void randn_async(int starpu_worker_hint, const Tile<T> &dst, const std::vector<I
  * @param[in] stddev: Standard deviation of the normal distribution
  * */
 template<typename T>
-void randn(int starpu_worker_hint, const Tile<T> &dst, const std::vector<Index> &start,
+void randn(int worker_hint, const Tile<T> &dst, const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
         Scalar mean, Scalar stddev)
 {
-    randn_async<T>(starpu_worker_hint, dst, start, underlying_shape, seed, mean, stddev);
-    #ifdef NNTILE_USE_NNHAUL
+    randn_async<T>(worker_hint, dst, start, underlying_shape, seed, mean, stddev);
     nntile::nnhaul_task_wait_for_all_unless_deferred();
-#else
-    nntile::starpu_task_wait_for_all_unless_deferred();
-#endif
 }
 
 // Explicit instantiation
 template
-void randn_async<fp32_t>(int starpu_worker_hint, const Tile<fp32_t> &dst,
+void randn_async<fp32_t>(int worker_hint, const Tile<fp32_t> &dst,
         const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
         Scalar mean, Scalar stddev);
 
 template
-void randn_async<fp32_fast_tf32_t>(int starpu_worker_hint, const Tile<fp32_fast_tf32_t> &dst,
+void randn_async<fp32_fast_tf32_t>(int worker_hint, const Tile<fp32_fast_tf32_t> &dst,
         const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
         Scalar mean, Scalar stddev);
 
 template
-void randn_async<fp32_fast_fp16_t>(int starpu_worker_hint, const Tile<fp32_fast_fp16_t> &dst,
+void randn_async<fp32_fast_fp16_t>(int worker_hint, const Tile<fp32_fast_fp16_t> &dst,
         const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
         Scalar mean, Scalar stddev);
 
 template
-void randn_async<fp32_fast_bf16_t>(int starpu_worker_hint, const Tile<fp32_fast_bf16_t> &dst,
+void randn_async<fp32_fast_bf16_t>(int worker_hint, const Tile<fp32_fast_bf16_t> &dst,
         const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
         Scalar mean, Scalar stddev);
 
 template
-void randn_async<fp64_t>(int starpu_worker_hint, const Tile<fp64_t> &dst,
+void randn_async<fp64_t>(int worker_hint, const Tile<fp64_t> &dst,
         const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
         Scalar mean, Scalar stddev);
 
 template
-void randn_async<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &dst,
+void randn_async<bf16_t>(int worker_hint, const Tile<bf16_t> &dst,
         const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
         Scalar mean, Scalar stddev);
 
 // Explicit instantiation
 template
-void randn<fp32_t>(int starpu_worker_hint, const Tile<fp32_t> &dst, const std::vector<Index> &start,
+void randn<fp32_t>(int worker_hint, const Tile<fp32_t> &dst, const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
         Scalar mean, Scalar stddev);
 
 template
-void randn<fp32_fast_tf32_t>(int starpu_worker_hint, const Tile<fp32_fast_tf32_t> &dst, const std::vector<Index> &start,
+void randn<fp32_fast_tf32_t>(int worker_hint, const Tile<fp32_fast_tf32_t> &dst, const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
         Scalar mean, Scalar stddev);
 
 template
-void randn<fp32_fast_fp16_t>(int starpu_worker_hint, const Tile<fp32_fast_fp16_t> &dst, const std::vector<Index> &start,
+void randn<fp32_fast_fp16_t>(int worker_hint, const Tile<fp32_fast_fp16_t> &dst, const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
         Scalar mean, Scalar stddev);
 
 template
-void randn<fp32_fast_bf16_t>(int starpu_worker_hint, const Tile<fp32_fast_bf16_t> &dst, const std::vector<Index> &start,
+void randn<fp32_fast_bf16_t>(int worker_hint, const Tile<fp32_fast_bf16_t> &dst, const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
         Scalar mean, Scalar stddev);
 
 template
-void randn<fp64_t>(int starpu_worker_hint, const Tile<fp64_t> &dst, const std::vector<Index> &start,
+void randn<fp64_t>(int worker_hint, const Tile<fp64_t> &dst, const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
         Scalar mean, Scalar stddev);
 
 template
-void randn<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &dst, const std::vector<Index> &start,
+void randn<bf16_t>(int worker_hint, const Tile<bf16_t> &dst, const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
         Scalar mean, Scalar stddev);
 

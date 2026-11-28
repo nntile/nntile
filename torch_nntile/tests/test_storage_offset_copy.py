@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/tests/test_storage_offset_copy.py
 # CPU->nntile copy must honor storage_offset (B=1 causal label views).
+# @version 2.0.0
 
 from __future__ import annotations
 
@@ -46,12 +47,8 @@ def test_cpu_readout_into_storage_offset_dst():
 
 
 def test_cross_entropy_batch1_causal_label_view_matches_cpu():
-    import pytest
 
-    # Classic training.cross_entropy is not in the torch-native slim module;
     # F.cross_entropy on offset label views is covered by HF train scripts.
-    if getattr(torch_nntile, "TORCH_NATIVE_OPS", False):
-        pytest.skip("classic cross_entropy helper not in TORCH_NATIVE_OPS")
     from torch_nntile.training import cross_entropy
 
     torch.manual_seed(0)

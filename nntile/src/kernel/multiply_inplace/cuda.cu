@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/multiply_inplace/cuda.cu
  * Per-element product of two buffers on CUDA
  *
- * @version 1.2.0
+ * @version 2.0.0
  * */
 
 #include <cstdio>
@@ -83,105 +83,48 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *src, T *dst)
             dst);
 }
 
-//! Chunk descriptors for the one-launch chunked multiply_inplace (see
-//! cuda.hh). `src`/`dst` are device-table views of host pointer arrays
-//! built by the driver through the shared ChunkPtrTable (no chunk-count
-//! cap); each thread reads its chunk pointer straight from the table
-//! (piece 9 / rule 10: no staging), so the whole flat range is one
-//! launch.
-template<typename T>
-struct ChunkTables
-{
-    const T *const* src; //!< device-table view of the src pointer array
-    Index nsrc;
-    T *const* dst; //!< device-table view of the dst pointer array
-    Index ndst;
-    Index elems_src; //!< elements in a full src chunk
-    Index elems_dst; //!< elements in a full dst chunk
-    int shift_src; //!< class shift (multi-chunk) or the 62 single-chunk sentinel
-    int shift_dst; //!< class shift (multi-chunk) or the 62 single-chunk sentinel
-};
-
-//! Chunk index of a flat element offset (power-of-two shift when possible).
-static __device__ __forceinline__ long chunk_index(long f, Index elems,
-    int shift) noexcept
-{
-    return f >> shift;
-}
-
-template<typename T>
-static __device__ __forceinline__ T chunked_load_src(const T *const *sh,
-    Index elems, int shift, long f) noexcept
-{
-    long const c = chunk_index(f, elems, shift);
-    return sh[c][f - c * long(elems)];
-}
-
-template<typename T>
-static __device__ __forceinline__ T chunked_load_dst(T *const *sh,
-    Index elems, int shift, long f) noexcept
-{
-    long const c = chunk_index(f, elems, shift);
-    return sh[c][f - c * long(elems)];
-}
-
-template<typename T>
-static __device__ __forceinline__ void chunked_store_dst(T *const *sh,
-    Index elems, int shift, long f, T v) noexcept
-{
-    long const c = chunk_index(f, elems, shift);
-    sh[c][f - c * long(elems)] = v;
-}
-
 //! Chunk-aware multiply_inplace kernel: exactly the classic cuda_kernel
 //! geometry (BLOCK/LOOP shared-memory blocks, per-thread clamp on the last
-//! partial block), but each operand is addressed through its chunk table.
-//! Element f = i + j resolves its src chunk by f / elems_src and its dst
-//! chunk by f / elems_dst (shifts when those counts are powers of two).
+//! partial block), with every operand addressed through its chunked view.
 //! The per-element arithmetic is exactly the classic kernel's, so the
 //! result is bitwise the whole-buffer cuda() call.
 template<typename T, int BLOCK, int LOOP>
 static __global__
-void chunked_cuda_kernel(Index nelems, Scalar alpha, ChunkTables<T> t)
+void chunked_cuda_kernel(Index nelems, Scalar alpha, ChunkConst<T> src,
+        ChunkMut<T> dst)
 {
-    long i = long(threadIdx.x) + long(blockIdx.x)*BLOCK;
+    int i = threadIdx.x + blockIdx.x*BLOCK;
     using Y = typename T::repr_t;
     __shared__ T src1_block[BLOCK];
     __shared__ T src2_block[BLOCK];
     constexpr int BLOCK_STEP = BLOCK / LOOP;
-    if((long(blockIdx.x)+1)*BLOCK <= long(nelems))
+    if((blockIdx.x+1)*BLOCK <= nelems)
     {
         for(int j = 0; j < BLOCK; j += BLOCK_STEP)
         {
-            src1_block[threadIdx.x+j] = chunked_load_src(t.src,
-                t.elems_src, t.shift_src, i+j);
-            src2_block[threadIdx.x+j] = chunked_load_dst(t.dst,
-                t.elems_dst, t.shift_dst, i+j);
+            src1_block[threadIdx.x+j] = src.at(i+j)[0];
+            src2_block[threadIdx.x+j] = dst.at(i+j)[0];
         }
         for(int j = 0; j < BLOCK; j += BLOCK_STEP)
         {
-            chunked_store_dst(t.dst, t.elems_dst, t.shift_dst, i+j,
-                static_cast<T>(alpha *
+            dst.at(i+j)[0] = static_cast<T>(alpha *
                     static_cast<Y>(src1_block[threadIdx.x+j]) *
-                    static_cast<Y>(src2_block[threadIdx.x+j])));
+                    static_cast<Y>(src2_block[threadIdx.x+j]));
         }
     }
     else
     {
-        long j_max = long(nelems) - i;
+        int j_max = nelems - i;
         for(int j = 0; j < j_max; j += BLOCK_STEP)
         {
-            src1_block[threadIdx.x+j] = chunked_load_src(t.src,
-                t.elems_src, t.shift_src, i+j);
-            src2_block[threadIdx.x+j] = chunked_load_dst(t.dst,
-                t.elems_dst, t.shift_dst, i+j);
+            src1_block[threadIdx.x+j] = src.at(i+j)[0];
+            src2_block[threadIdx.x+j] = dst.at(i+j)[0];
         }
         for(int j = 0; j < j_max; j += BLOCK_STEP)
         {
-            chunked_store_dst(t.dst, t.elems_dst, t.shift_dst, i+j,
-                static_cast<T>(alpha *
+            dst.at(i+j)[0] = static_cast<T>(alpha *
                     static_cast<Y>(src1_block[threadIdx.x+j]) *
-                    static_cast<Y>(src2_block[threadIdx.x+j])));
+                    static_cast<Y>(src2_block[threadIdx.x+j]));
         }
     }
 }
@@ -197,19 +140,14 @@ void chunked(cudaStream_t stream, Index nelems, Scalar alpha,
     {
         return;
     }
-    ChunkTables<T> t;
-    t.src = src_chunks;
-    t.nsrc = nsrc;
-    t.dst = dst_chunks;
-    t.ndst = ndst;
-    t.elems_src = elems_src;
-    t.elems_dst = elems_dst;
-    t.shift_src = chunk_shift_of<T>(t.nsrc, elems_src, cls, "nntile_multiply_inplace");
-    t.shift_dst = chunk_shift_of<T>(t.ndst, elems_dst, cls, "nntile_multiply_inplace");
     dim3 threads(256);
     dim3 blocks((nelems+1023)/1024);
-    (chunked_cuda_kernel<T, 1024, 4>)<<<blocks, threads, 0,
-        stream>>>(nelems, alpha, t);
+    (chunked_cuda_kernel<T, 1024, 4>)<<<blocks, threads, 0, stream>>>(nelems,
+        alpha,
+        chunk_const<T>(src_chunks, nsrc, elems_src, cls,
+            "nntile_multiply_inplace"),
+        chunk_mut<T>(dst_chunks, ndst, elems_dst, cls,
+            "nntile_multiply_inplace"));
 }
 
 // Explicit instantiation

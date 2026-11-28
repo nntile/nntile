@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/tile/ops/invalidate.hh
- * TileGraph async invalidate: starpu_data_invalidate_submit + drop payload.
+ * TileGraph async invalidate: NNHaul_data_invalidate_submit + drop payload.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -19,7 +19,7 @@
 namespace nntile::tile
 {
 
-//! Async invalidate of a tile buffer (StarPU-ordered after last use).
+//! Async invalidate of a tile buffer (NNHaul-ordered after last use).
 struct TileInvalidateOp : TileGraph::OpNode
 {
     TileGraph::TileNode *x = nullptr;
@@ -28,7 +28,7 @@ struct TileInvalidateOp : TileGraph::OpNode
     explicit TileInvalidateOp(TileGraph::TileNode *x_)
         : x(x_)
     {
-        // Listed as input so StarPU / DCE see the dependence on prior writers
+        // Listed as input so NNHaul / DCE see the dependence on prior writers
         // and readers; no outputs (side-effect only).
         inputs_ = {x};
         outputs_ = {};

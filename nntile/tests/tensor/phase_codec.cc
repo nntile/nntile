@@ -4,15 +4,16 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tensor/phase_codec.cc
  * Tests for TensorGraph Flush PhaseIR encode/decode.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include <nntile/defs.h>
+#include "nntile/kernel_scope.hh"
 #include <nntile/tensor.hh>
 #include <nntile/tensor/ops/adam_step.hh>
 #include <nntile/tensor/ops/add.hh>
@@ -26,9 +27,6 @@
 #include <nntile/tensor/ops/scatter.hh>
 #include <nntile/tensor/ops/unregister.hh>
 #include <nntile/tensor/phase_codec.hh>
-#ifdef NNTILE_TORCH_NATIVE_OPS
-#include <nntile/tensor/ops/torch_dispatch.hh>
-#endif
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
@@ -60,38 +58,7 @@ nlohmann::json unknown_op_blob(char const *name)
     return blob;
 }
 
-nlohmann::json torch_unary_fixture()
-{
-    return nlohmann::json::parse(R"({
-        "nodes": [
-            {"id": 1, "shape": [2], "dtype": "float32", "name": "x"},
-            {"id": 2, "shape": [2], "dtype": "float32", "name": "y"}
-        ],
-        "ops": [
-            {
-                "op_name": "TORCH_UNARY",
-                "inputs": [1],
-                "outputs": [2],
-                "attrs": {"kind": 10}
-            }
-        ]
-    })");
-}
-
 } // namespace
-
-TEST_CASE(
-    "decode_phase allowlists TORCH_UNARY fixture",
-    "[graph][tensor][codec]")
-{
-    auto const blob = torch_unary_fixture();
-    auto const decoded = gt::decode_phase(blob);
-    REQUIRE(decoded.second.size() == 1);
-    REQUIRE(decoded.second.at(0).at("op_name") == "TORCH_UNARY");
-    auto const encoded = gt::encode_phase(decoded.first, decoded.second);
-    REQUIRE(encoded.at("ops").at(0).at("op_name") == "TORCH_UNARY");
-    REQUIRE(encoded.at("nodes").size() == 2);
-}
 
 TEST_CASE("decode_phase fails closed on unknown op", "[graph][tensor][codec]")
 {
@@ -132,16 +99,13 @@ TEST_CASE("v1 allowlist names round-trip", "[graph][tensor][codec]")
     auto const decoded = gt::decode_phase(blob);
     constexpr std::size_t n_ops = gt::kV1PhaseOpCount;
     REQUIRE(decoded.second.size() == n_ops);
-    REQUIRE(n_ops == 80);
-    REQUIRE(decoded.second.at(0).at("op_name") == "TORCH_UNARY");
-    REQUIRE(decoded.second.at(1).at("op_name") == "TORCH_BINARY");
-    REQUIRE(decoded.second.at(2).at("op_name") == "TORCH_TERNARY");
-    REQUIRE(decoded.second.at(3).at("op_name") == "GATHER");
-    REQUIRE(decoded.second.at(4).at("op_name") == "SCATTER");
-    REQUIRE(decoded.second.at(5).at("op_name") == "UNREGISTER");
-    REQUIRE(decoded.second.at(25).at("op_name") == "GELU");
+    REQUIRE(n_ops == 75);
+    REQUIRE(decoded.second.at(0).at("op_name") == "GATHER");
+    REQUIRE(decoded.second.at(1).at("op_name") == "SCATTER");
+    REQUIRE(decoded.second.at(2).at("op_name") == "UNREGISTER");
     REQUIRE(gt::is_v1_phase_op("GELU"));
-    REQUIRE(gt::is_v1_phase_op("FLASH_SDPA_FWD_CUDNN"));
+    REQUIRE_FALSE(gt::is_v1_phase_op("TORCH_UNARY"));
+    REQUIRE_FALSE(gt::is_v1_phase_op("FLASH_SDPA_FWD"));
     REQUIRE_FALSE(gt::is_v1_phase_op("FFT"));
 }
 
@@ -245,130 +209,6 @@ TEST_CASE("encode_phase uses unsealed snapshot", "[graph][tensor][codec]")
     REQUIRE(encoded.at("ops").at(0).at("op_name") == "SCATTER");
 }
 
-#ifdef NNTILE_TORCH_NATIVE_OPS
-TEST_CASE(
-    "encode_phase TensorGraph torch Relu is TORCH_UNARY",
-    "[graph][tensor][codec]")
-{
-    TensorGraph graph("codec_torch_relu");
-    TensorRef x = graph.data({2, 2});
-    TensorRef y = TensorRef::adopt(
-        gt::torch_unary(starpu::TorchKind::Relu, x, {2, 2}));
-
-    auto const blob = gt::encode_phase(graph);
-    REQUIRE(blob.at("ops").size() == 1);
-    REQUIRE(blob.at("ops").at(0).at("op_name") == "TORCH_UNARY");
-    REQUIRE(blob.at("ops").at(0).at("attrs").at("kind").get<std::int32_t>() ==
-        static_cast<std::int32_t>(starpu::TorchKind::Relu));
-    REQUIRE(y->id() == blob.at("ops").at(0).at("outputs").at(0));
-}
-
-TEST_CASE(
-    "encode_phase TensorGraph torch Add is TORCH_BINARY",
-    "[graph][tensor][codec]")
-{
-    TensorGraph graph("codec_torch_add");
-    TensorRef a = graph.data({2, 2});
-    TensorRef b = graph.data({2, 2});
-    TensorRef torch_out = TensorRef::adopt(
-        gt::torch_binary(starpu::TorchKind::Add, a, b, {2, 2}));
-
-    auto const blob = gt::encode_phase(graph);
-    REQUIRE(blob.at("ops").size() == 1);
-    REQUIRE(blob.at("ops").at(0).at("op_name") == "TORCH_BINARY");
-    REQUIRE(blob.at("ops").at(0).at("attrs").at("kind").get<std::int32_t>() ==
-        static_cast<std::int32_t>(starpu::TorchKind::Add));
-    REQUIRE(torch_out->id() == blob.at("ops").at(0).at("outputs").at(0));
-}
-
-TEST_CASE(
-    "encode_phase TORCH_BINARY Mm keeps transposed view layout",
-    "[graph][tensor][codec]")
-{
-    // mm(grad.t(), x): the logical input node is grad's [6, 4] storage;
-    // the [4, 6] transpose travels as a packed view layout.
-    TensorGraph src("codec_mm_t");
-    TensorRef grad = src.data({6, 4});
-    TensorRef x = src.data({6, 16});
-    TensorRef out = src.data({4, 16});
-    starpu::TorchDispatchArgs extra{};
-    extra.in_layout_set[0] = 1;
-    extra.in_ndim[0] = 2;
-    extra.in_sizes[0][0] = 4;
-    extra.in_sizes[0][1] = 6;
-    extra.in_strides[0][0] = 1;
-    extra.in_strides[0][1] = 4;
-    extra.in_offset[0] = 0;
-    extra.in_layout_set[1] = 1;
-    extra.in_ndim[1] = 2;
-    extra.in_sizes[1][0] = 6;
-    extra.in_sizes[1][1] = 16;
-    extra.in_strides[1][0] = 16;
-    extra.in_strides[1][1] = 1;
-    extra.out_layout_set[0] = 1;
-    extra.out_ndim[0] = 2;
-    extra.out_sizes[0][0] = 4;
-    extra.out_sizes[0][1] = 16;
-    extra.out_strides[0][0] = 16;
-    extra.out_strides[0][1] = 1;
-    gt::torch_binary(starpu::TorchKind::Mm, grad, x, out, extra);
-
-    auto const blob = gt::encode_phase(src);
-    auto const attrs = blob.at("ops").at(0).at("attrs");
-    REQUIRE(attrs.at("kind").get<std::int32_t>() ==
-        static_cast<std::int32_t>(starpu::TorchKind::Mm));
-    REQUIRE(attrs.contains("layouts"));
-    bool saw_transposed = false;
-    for (auto const &layout : attrs.at("layouts"))
-    {
-        if (layout.at("arg") == "in" && layout.at("slot") == 0)
-        {
-            saw_transposed = true;
-            REQUIRE(layout.at("sizes") ==
-                nlohmann::json::array({4, 6}));
-            REQUIRE(layout.at("strides") ==
-                nlohmann::json::array({1, 4}));
-            REQUIRE(layout.at("offset") == 0);
-        }
-    }
-    REQUIRE(saw_transposed);
-
-    TensorGraph dst("codec_mm_t_replay");
-    gt::PhaseNodeMap refs;
-    gt::apply_phase(dst, blob, refs);
-    auto const replay = gt::encode_phase(dst);
-    REQUIRE(replay.at("ops").at(0).at("op_name") == "TORCH_BINARY");
-    REQUIRE(replay.at("ops").at(0).at("attrs") == attrs);
-}
-
-TEST_CASE(
-    "encode_phase TORCH_BINARY default meta omits wire layouts",
-    "[graph][tensor][codec]")
-{
-    // Old graphs: ops recorded without packed layouts must not grow
-    // attrs keys, so older decoders see byte-identical PhaseIR.
-    TensorGraph src("codec_mm_plain");
-    TensorRef a = src.data({2, 3});
-    TensorRef b = src.data({3, 2});
-    TensorRef out = src.data({2, 2});
-    gt::torch_binary(starpu::TorchKind::Mm, a, b, out);
-
-    auto const blob = gt::encode_phase(src);
-    auto const attrs = blob.at("ops").at(0).at("attrs");
-    REQUIRE(attrs.at("kind").get<std::int32_t>() ==
-        static_cast<std::int32_t>(starpu::TorchKind::Mm));
-    REQUIRE_FALSE(attrs.contains("layouts"));
-    REQUIRE_FALSE(attrs.contains("scalars"));
-    REQUIRE_FALSE(attrs.contains("iargs"));
-
-    TensorGraph dst("codec_mm_plain_replay");
-    gt::PhaseNodeMap refs;
-    gt::apply_phase(dst, blob, refs);
-    auto const replay = gt::encode_phase(dst);
-    REQUIRE(replay.at("ops").at(0).at("attrs") == attrs);
-}
-
-#endif
 
 TEST_CASE(
     "encode_phase GEMM attrs round-trip through reconstruct",
@@ -451,6 +291,10 @@ TEST_CASE(
     "encode_phase CONV2D and EMBEDDING INT64 attrs",
     "[graph][tensor][codec]")
 {
+    if(nntile::kernel_family_disabled("conv2d_inplace"))
+    {
+        SKIP("kernel family conv2d_inplace is disabled in this build");
+    }
     TensorGraph conv_g("codec_conv");
     TensorRef X = conv_g.data({4, 4, 1, 1});
     TensorRef C = conv_g.data({3, 3, 1, 1});
@@ -490,90 +334,6 @@ TEST_CASE(
     REQUIRE(replay_blob.at("ops").at(0).at("attrs").at("axis") == 2);
 }
 
-#ifdef NNTILE_TORCH_NATIVE_OPS
-TEST_CASE(
-    "encode_phase TORCH_UNARY Sum keeps reduction dims",
-    "[graph][tensor][codec]")
-{
-    // x.sum(dim=1): the recorded op carries n_dims/keepdim/dim in iargs
-    // and the reduced output layout; dropping them used to force the
-    // receiver to guess the reduction dims from output shapes.
-    TensorGraph src("codec_sum_dims");
-    TensorRef x = src.data({6, 8});
-    TensorRef out = src.data({6});
-    starpu::TorchDispatchArgs extra{};
-    extra.iargs[0] = 1; // n_dims
-    extra.iargs[1] = 0; // keepdim = false
-    extra.iargs[2] = 1; // dim = 1
-    extra.in_layout_set[0] = 1;
-    extra.in_ndim[0] = 2;
-    extra.in_sizes[0][0] = 6;
-    extra.in_sizes[0][1] = 8;
-    extra.in_strides[0][0] = 8;
-    extra.in_strides[0][1] = 1;
-    extra.out_layout_set[0] = 1;
-    extra.out_ndim[0] = 1;
-    extra.out_sizes[0][0] = 6;
-    extra.out_strides[0][0] = 1;
-    gt::torch_unary(starpu::TorchKind::Sum, x, out, extra);
-
-    auto const blob = gt::encode_phase(src);
-    auto const attrs = blob.at("ops").at(0).at("attrs");
-    REQUIRE(attrs.at("kind").get<std::int32_t>() ==
-        static_cast<std::int32_t>(starpu::TorchKind::Sum));
-    REQUIRE(attrs.at("iargs") ==
-        nlohmann::json::array({1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0}));
-    REQUIRE(attrs.contains("layouts"));
-    REQUIRE_FALSE(attrs.contains("scalars"));
-
-    TensorGraph dst("codec_sum_dims_replay");
-    gt::PhaseNodeMap refs;
-    gt::apply_phase(dst, blob, refs);
-    auto const replay = gt::encode_phase(dst);
-    REQUIRE(replay.at("ops").at(0).at("op_name") == "TORCH_UNARY");
-    REQUIRE(replay.at("ops").at(0).at("attrs") == attrs);
-}
-
-TEST_CASE(
-    "decode_torch_dispatch_attrs fails closed on bad layouts",
-    "[graph][tensor][codec]")
-{
-    nlohmann::json attrs = {
-        {"kind", 50},
-        {"layouts", nlohmann::json::array({
-            {
-                {"arg", "sideways"},
-                {"slot", 0},
-                {"sizes", nlohmann::json::array({2, 2})},
-                {"strides", nlohmann::json::array({2, 1})},
-                {"offset", 0},
-            },
-        })},
-    };
-    REQUIRE_THROWS_WITH(
-        gt::decode_torch_dispatch_attrs(attrs),
-        Catch::Matchers::ContainsSubstring("'in' or 'out'"));
-
-    nlohmann::json too_many_dims = {
-        {"kind", 50},
-        {"layouts", nlohmann::json::array({
-            {
-                {"arg", "in"},
-                {"slot", 0},
-                {"sizes", std::vector<Index>(
-                    starpu::torch_dispatch_max_ndim + 1, 1)},
-                {"strides", std::vector<Index>(
-                    starpu::torch_dispatch_max_ndim + 1, 1)},
-                {"offset", 0},
-            },
-        })},
-    };
-    REQUIRE_THROWS_WITH(
-        gt::decode_torch_dispatch_attrs(too_many_dims),
-        Catch::Matchers::ContainsSubstring("out of range"));
-}
-#endif // NNTILE_TORCH_NATIVE_OPS
 
 TEST_CASE("decode_phase GELU JSON is not UnknownOp", "[graph][tensor][codec]")
 {
@@ -591,4 +351,3 @@ TEST_CASE("decode_phase GELU JSON is not UnknownOp", "[graph][tensor][codec]")
     auto const decoded = gt::decode_phase(blob);
     REQUIRE(decoded.second.at(0).at("op_name") == "GELU");
 }
-

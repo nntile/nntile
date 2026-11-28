@@ -3,12 +3,12 @@
 #
 # @file torch_nntile/torch_nntile/gemm.py
 # N-D GEMM matching ``nntile::tensor::gemm`` / C++ graph API semantics.
+# @version 2.0.0
 
 """N-D GEMM for torch_nntile (not PyTorch last-2-dim matmul rules)."""
 
 from __future__ import annotations
 
-import torch
 from torch import Tensor
 
 from torch_nntile import _C
@@ -39,9 +39,4 @@ def gemm(
     return _C.gemm(a, b, ndim, batch_ndim, trans_a, trans_b)
 
 
-def matmul(a: Tensor, b: Tensor) -> Tensor:
-    """``torch.matmul`` on nntile with inferred ``ndim`` / ``batch_ndim``."""
-    return torch.matmul(a, b)
-
-
-__all__ = ["gemm", "matmul"]
+__all__ = ["gemm"]

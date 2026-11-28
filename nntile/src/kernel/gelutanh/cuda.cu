@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/gelutanh/cuda.cu
  * Approximate GeLU operation on CUDA based on tanh function
  *
- * @version 1.3.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/gelutanh/cuda.hh"
@@ -81,9 +81,8 @@ static __device__ __forceinline__ long gelutanh_chunk_index(long f,
 //! and the SAME per-element expression (copied verbatim from cuda_kernel,
 //! including the per-thread constant derivation, so nvcc's contraction
 //! decisions are the classic kernel's) with every operand address resolved
-//! through its chunk table read straight from the device table (piece
-//! 9 / rule 10: no staging, no table __syncthreads). The result is
-//! bitwise cuda()'s.
+//! through its chunk table read straight from the device table (no
+//! staging, no table __syncthreads). The result is bitwise cuda()'s.
 template<typename T>
 static __global__
 void chunked_cuda_kernel(Index nelems, ChunkTables<T> t)

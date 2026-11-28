@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/gelutanh_inplace/cuda.cu
  * Approximate GeLU operation on CUDA based on tanh function
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/gelutanh_inplace/cuda.hh"
@@ -55,6 +55,43 @@ void cuda(cudaStream_t stream, Index nelems, T *data)
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, data);
 }
 
+
+template<typename T>
+static __global__
+void chunked_cuda_kernel(Index nelems, ChunkMut<T> data)
+{
+    using Y = typename T::repr_t;
+    int i = threadIdx.x + blockIdx.x*blockDim.x;
+    // Constants
+    constexpr Y pi = 3.141592653589793238462643383279502884L,
+        one = 1, f1 = Y{0.044715};
+    // Square root is not constexpr by standard, proceed with a static const
+    const Y sqrt_pi = sqrt(pi), sqrt_2 = sqrt(Y{2}),
+        f2 = sqrt_2/sqrt_pi, f3 = -Y{2}*f2, f4 = f3*f1;
+    if(i < nelems)
+    {
+        T *p = data.at(i);
+        Y z = static_cast<Y>(p[0]);
+        Y y = z * (f3 + f4*z*z);
+        p[0] = T{z / (one+::exp(y))};
+    }
+}
+
+template<typename T>
+void chunked(cudaStream_t stream, Index nelems,
+        T* const* data_chunks, Index ndata, Index elems_data, ChunkClass cls)
+    noexcept
+{
+    if(nelems <= 0 || ndata <= 0)
+    {
+        return;
+    }
+    dim3 blocks((nelems+255)/256), threads(256);
+    (chunked_cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems,
+        chunk_mut<T>(data_chunks, ndata, elems_data, cls,
+            "nntile_gelutanh_inplace"));
+}
+
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index nelems, fp32_t *data)
@@ -71,5 +108,25 @@ void cuda<bf16_t>(cudaStream_t stream, Index nelems, bf16_t *data)
 template
 void cuda<fp16_t>(cudaStream_t stream, Index nelems, fp16_t *data)
     noexcept;
+
+template
+void chunked<fp32_t>(cudaStream_t stream, Index nelems,
+        fp32_t* const* data_chunks, Index ndata, Index elems_data,
+        ChunkClass cls) noexcept;
+
+template
+void chunked<fp64_t>(cudaStream_t stream, Index nelems,
+        fp64_t* const* data_chunks, Index ndata, Index elems_data,
+        ChunkClass cls) noexcept;
+
+template
+void chunked<bf16_t>(cudaStream_t stream, Index nelems,
+        bf16_t* const* data_chunks, Index ndata, Index elems_data,
+        ChunkClass cls) noexcept;
+
+template
+void chunked<fp16_t>(cudaStream_t stream, Index nelems,
+        fp16_t* const* data_chunks, Index ndata, Index elems_data,
+        ChunkClass cls) noexcept;
 
 } // namespace nntile::kernel::gelutanh_inplace

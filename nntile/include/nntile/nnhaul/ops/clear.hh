@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file include/nntile/starpu/clear.hh
- * Clear a StarPU buffer
+ * @file include/nntile/nnhaul/ops/clear.hh
+ * Clear a NNHaul buffer
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -20,7 +20,7 @@
 // NNTile headers
 #include <nntile/nnhaul/codelet.hh>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Wrapper class for clear operation
@@ -52,10 +52,10 @@ public:
 
 
     //! Submit clear task
-    void submit(int starpu_worker_hint, ::nnhaul::Handle & data);
+    void submit(int worker_hint, ::nnhaul::Handle & data);
 };
 
 //! Clear operation object
 extern Clear clear;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

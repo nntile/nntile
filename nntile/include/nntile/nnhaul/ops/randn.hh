@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file include/nntile/starpu/randn.hh
- * Randn operation on StarPU buffer
+ * @file include/nntile/nnhaul/ops/randn.hh
+ * Randn operation on NNHaul buffer
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -23,7 +23,7 @@
 // NNTile headers
 #include <nntile/nnhaul/codelet.hh>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Generic wrapper class for randn operation is not defined
@@ -64,7 +64,7 @@ public:
 
     //! Submit randn task
     void submit(
-        int starpu_worker_hint,
+        int worker_hint,
         Index ndim,
         Index nelems,
         unsigned long long seed,
@@ -92,4 +92,4 @@ using randn_pack_t = OperationPack<
 //! Pack of randn operations for different types
 extern randn_pack_t randn;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

@@ -3,14 +3,15 @@
 #
 # @file torch_nntile/tests/test_sgd_step_parity.py
 # Fused SGD parity: CPU PyTorch vs nntile tensor::sgd_step.
+# @version 2.0.0
 
 import pytest
 import torch
 from conftest import nntile_cpu
-from torch_nntile.training import SGD, fused_sgd_step
 
 import torch_nntile
 from torch_nntile import _C
+from torch_nntile.training import SGD, fused_sgd_step
 
 
 def _reference_cpu_sgd(

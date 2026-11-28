@@ -1,34 +1,56 @@
+<!--
+ @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+                              (Skoltech), Russia. All rights reserved.
+                2023-present Artificial Intelligence Research Institute
+                              (AIRI), Russia. All rights reserved.
+
+ NNTile is software framework for fast training of big neural networks on
+ distributed-memory heterogeneous systems with GPU acceleration.
+
+ @file README.md
+ @version 2.0.0
+-->
+
 NNTile
 ======
 
-![Build and test.](https://github.com/nntile/nntile/actions/workflows/build-test.yml/badge.svg)
-![Nightly building.](https://github.com/nntile/nntile/actions/workflows/on-schedule.yml/badge.svg)
+![NNHaul backend](https://github.com/nntile/nntile/actions/workflows/nnhaul.yml/badge.svg)
 
 ## General purpose
 
 **NNTile** is a framework for training large neural networks. It relies on a
 task-based parallel programming paradigm that distributes computations across
-available hardware resources dynamically and moves data asynchronously, using
-the [StarPU](https://starpu.gitlabpages.inria.fr) runtime.
+available hardware resources dynamically and moves data asynchronously.
+NNTile 2.0 runs on NNHaul, single-GPU CUDA, with chunk-addressable kernels.
 
 ## Install (Python product)
 
 Plain CMake defaults to building **libnntile**, **libtorch_nntile**, and the
 installable **torch_nntile** pip wheel (needs PyTorch on `CMAKE_PREFIX_PATH`).
-Prebuilt wheels: [torch_nntile/README.md](torch_nntile/README.md).
+Build the wheel: [torch_nntile/README.md](torch_nntile/README.md).
 
 ```bash
 TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
 cmake -S . -B build -GNinja -DCMAKE_PREFIX_PATH="$TORCH_PREFIX"
 cmake --build build -j$(nproc)
-# → build/wheelhouse/torch_nntile-*.whl  (linux_x86_64; no auditwheel by default)
-pip install build/wheelhouse/torch_nntile-*.whl
+# → build/wheelhouse/torch_nntile-*.whl  (linux_x86_64; no bundled libs)
+pip install --force-reinstall build/wheelhouse/torch_nntile-*.whl
+# The unrepaired local wheel links the build tree: run Python with
+export LD_LIBRARY_PATH="$PWD/build/torch_nntile:$PWD/build/nntile:$PWD/build/nnhaul:${LD_LIBRARY_PATH:-}"
 ```
 
 Local CMake leaves `TORCH_NNTILE_WHEEL_REPAIR=OFF`, so the wheel keeps a plain
-`linux_x86_64` tag. Host `auditwheel` on Ubuntu 24.04 would otherwise emit
-`manylinux_2_39_x86_64`, which many pip installs reject. Release CI still
+`linux_x86_64` tag and does not bundle `libtorch_nntile`, `libnntile` or
+`libnnhaul`; it is loadable only with the build-tree libraries on the loader
+path (or with the libraries installed system-wide). Pass
+`-DTORCH_NNTILE_WHEEL_REPAIR=ON` to bundle and patch them (needs
+`auditwheel`; the tag then depends on the host glibc). The wheel workflow
 repairs inside the manylinux_2_28 image (`manylinux_2_28_x86_64`).
+
+NNTile 2.0 is CUDA-only and NNHaul-only (see
+[docs/backends.md](docs/backends.md)); the CUDA wheel is the NNHaul
+product (`torch_nntile.backend() == "nnhaul"`). There is no CPU or macOS
+wheel.
 
 Libnntile-only (no LibTorch), as in layered CI:
 
@@ -37,22 +59,19 @@ cmake -S . -B build -GNinja \
   -DBUILD_LIBTORCH_NNTILE=OFF -DBUILD_TORCH_NNTILE=OFF
 ```
 
-Release CI also uses cibuildwheel /
+The wheel workflow uses cibuildwheel /
 [`torch_nntile/tools/build_wheel_deps.sh`](torch_nntile/tools/build_wheel_deps.sh).
 
 ## Example usage
 
-1. Fine-tuning language models on a single-GPU server when GPU memory is
-   insufficient. Training acceleration is achieved through optimized data
-   offloading/loading and checkpointing managed by the custom-developed SGOC
-   scheduler.
-2. Parallel fine-tuning of large language models with very wide layers on a
-   server equipped with heterogeneous GPUs. Parallelism along the hidden
-   dimension enables efficient load distribution across GPUs of varying
-   performance capabilities.
-3. Inference of multiple models on a resource-constrained server. Inactive
-   data is offloaded from GPU memory to system RAM; if RAM capacity is
-   exceeded, data can be offloaded to disk.
+1. Training and fine-tuning transformer language models on a single CUDA
+   device, with chunked tile storage that keeps large activations within a
+   bounded GPU arena.
+2. Running PyTorch autograd models through `torch_nntile.nn` on
+   `device="nntile"`, with NNTile's classic kernels behind the PrivateUse1
+   dispatcher.
+3. Deferred graph capture: `compile_graph()` / `run()` / `wait()` let a
+   training phase be recorded once and replayed with pipelined GPU work.
 
 ## Documentation
 
@@ -65,27 +84,8 @@ Full documentation lives under **[docs/](docs/README.md)**. Start at
 | TensorGraph execution backend | [docs/graph.md](docs/graph.md) |
 | Build, Docker, CMake, testing | [docs/build/README.md](docs/build/README.md) |
 | C++ stack (kernel → TensorGraph → Runtime) | [docs/cpp/README.md](docs/cpp/README.md) |
-| Inference, HTTP gateway, Telegram bot | [docs/inference/README.md](docs/inference/README.md) |
-| Gateway + bot deployment | [infra/README.md](infra/README.md) |
-| SGOC scheduler (limited VRAM) | [docs/sgoc/README.md](docs/sgoc/README.md) |
 
-CUDA compute capability **8.0+** is required ([docs/README.md](docs/README.md)).
-
-## Preliminary experimental results
-
-Experiments with custom 4-layer and 8-layer GPT models of sizes up to 50B
-showed both good performance and a possibility to train 4 times larger models
-compared to PyTorch FSDP on the same hardware (a single server with 8 x
-Nvidia A100 80GB SXM).
-
-![Custom 4-layer model on 4 GPUs](images/gpt_short_perf_4gpu.png)
-![Custom 4-layer model on 8 GPUs](images/gpt_short8_perf.png)
-
-The same figures in better quality:
-
-- [Custom 4-layer model on 4 GPUs](images/gpt_short_perf_4gpu.pdf)
-- [Custom 4-layer model on 8 GPUs](images/gpt_short_perf_8gpu.pdf)
-- [Custom 8-layer model on 8 GPUs](images/gpt_short8_perf.pdf)
+CUDA 12.x and compute capability **7.0+** are required ([docs/README.md](docs/README.md)).
 
 ## Authors
 

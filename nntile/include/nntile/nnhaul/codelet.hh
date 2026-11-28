@@ -5,6 +5,7 @@
  *
  * @file include/nntile/nnhaul/codelet.hh
  * NNHaul codelet wrapper and ``nnhaul::insert`` helpers.
+ * @version 2.0.0
  */
 
 #pragma once
@@ -24,7 +25,7 @@
 #include <utility>
 #include <vector>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 inline std::uint64_t fnv1a(
@@ -122,10 +123,18 @@ BufChunks<T> buf_chunks(void **buffers, int index) noexcept
  * f(n, ptrs...) per piece with the piece length n and one pointer per
  * buffer at the piece's flat offset.
  *
+ * This is the transitional driver path for families without a one-launch
+ * chunked kernel. It issues one contiguous kernel launch per piece, so a
+ * multi-chunk tile becomes many small launches; that adds driver/launch
+ * traffic and limits async queue depth. Prefer a dedicated chunked kernel
+ * (one launch with chunk pointer tables) for hot families.
+ *
  * Buffers may be chunked with different tables (mixed dtypes give
  * different chunk boundaries); the walk splits at every boundary it
- * crosses. For unchunked buffers this is exactly one call with the
- * whole-tile base pointers - today's single-pointer path.
+ * crosses. The NNHaul-backend guarantee is structural, not checked here: on
+ * this backend a nnhaul::Handle always decomposes into chunks of the one
+ * class, and NNHAUL_CHUNK_TILES=0 is refused, so an unchunked buffer
+ * cannot exist. A single-chunk operand is exactly one piece.
  * */
 template<typename F, typename... Ts>
 void for_each_flat_piece(std::size_t nelems, F &&f, BufChunks<Ts> &...bufs)
@@ -137,9 +146,14 @@ void for_each_flat_piece(std::size_t nelems, F &&f, BufChunks<Ts> &...bufs)
         ((n = n < bufs.remain() ? n : bufs.remain()), ...);
         if (n == 0)
         {
-            // A buffer ran out before nelems (mismatched handle sizes);
-            // stop instead of hanging or reading past its last chunk.
-            break;
+            // A buffer ran out before nelems: the handle sizes do not
+            // match the launch. Abort instead of returning a partially
+            // written result (these bodies are noexcept, so a throw
+            // would terminate anyway).
+            std::fprintf(stderr,
+                "nntile: for_each_flat_piece: operand shorter than %zu "
+                "elements\n", nelems);
+            std::abort();
         }
         f(n, bufs.cur()...);
         (bufs.bump(n), ...);
@@ -149,19 +163,15 @@ void for_each_flat_piece(std::size_t nelems, F &&f, BufChunks<Ts> &...bufs)
 
 inline ::nnhaul::Access access_from_mode(int mode)
 {
-    if (mode == STARPU_REDUX)
-    {
-        throw std::runtime_error("redux != 0 is not supported");
-    }
-    if (mode == STARPU_R)
+    if (mode == ACCESS_R)
     {
         return ::nnhaul::Access::Read;
     }
-    if (mode == STARPU_W)
+    if (mode == ACCESS_W)
     {
         return ::nnhaul::Access::Write;
     }
-    if (mode == STARPU_RW)
+    if (mode == ACCESS_RW)
     {
         return ::nnhaul::Access::ReadWrite;
     }
@@ -347,16 +357,6 @@ public:
     {
     }
 
-    Codelet &restrict_where(std::uint32_t)
-    {
-        return *this;
-    }
-
-    Codelet &restore_where()
-    {
-        return *this;
-    }
-
     Codelet &set_modes_variable()
     {
         return *this;
@@ -397,19 +397,6 @@ public:
     {
     }
 
-    OperationPack &restrict_where(std::uint32_t where)
-    {
-        (static_cast<Operation<Ts> &>(*this).codelet.restrict_where(where),
-            ...);
-        return *this;
-    }
-
-    OperationPack &restore_where()
-    {
-        (static_cast<Operation<Ts> &>(*this).codelet.restore_where(), ...);
-        return *this;
-    }
-
     template<typename T, typename... Args>
     void submit(Args &&...args)
     {
@@ -418,4 +405,4 @@ public:
     }
 };
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

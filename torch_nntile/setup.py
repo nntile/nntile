@@ -3,10 +3,9 @@
 #
 # @file torch_nntile/setup.py
 # Build thin PyTorch PrivateUse1 extension linking prebuilt libtorch_nntile.
+# @version 2.0.0
 
 import os
-import subprocess
-import sys
 from pathlib import Path
 
 # Cloud images may default to clang without libstdc++ headers; g++ is required.
@@ -14,13 +13,13 @@ os.environ.setdefault("CC", "gcc")
 os.environ.setdefault("CXX", "g++")
 
 try:
-    import torch
+    import torch  # noqa: F401
 except ImportError as exc:  # pragma: no cover - build-time guard
     raise SystemExit(
         "torch_nntile requires PyTorch to build the native extension.\n"
         "Install the pinned ABI first, then retry:\n"
         "  pip install 'torch==2.9.1' 'torchvision==0.24.1'\n"
-        "Or use a matching CPU/CUDA wheel index for your platform."
+        "The nntile wheel itself is CUDA-only."
     ) from exc
 
 from setuptools import find_packages, setup
@@ -41,71 +40,11 @@ def _nntile_flag_from_defs(nntile_inc: Path, name: str) -> bool:
     return os.environ.get(name) in ("1", "ON", "on", "TRUE", "true")
 
 
-def _nntile_torch_native_ops(nntile_inc: Path) -> bool:
-    env = os.environ.get("NNTILE_TORCH_NATIVE_OPS")
-    if env is not None:
-        return env not in ("0", "OFF", "off", "False", "false")
-    return _nntile_flag_from_defs(nntile_inc, "NNTILE_TORCH_NATIVE_OPS")
-
-
-def _nntile_nntile_native_ops(nntile_inc: Path) -> bool:
-    env = os.environ.get("NNTILE_NNTILE_NATIVE_OPS")
-    if env is not None:
-        return env not in ("0", "OFF", "off", "False", "false")
-    return _nntile_flag_from_defs(nntile_inc, "NNTILE_NNTILE_NATIVE_OPS")
-
-
 def _extension_sources(nntile_inc: Path) -> list[str]:
     # Bridge / models live in shared libtorch_nntile; _C is pybind only.
-    if _nntile_nntile_native_ops(nntile_inc):
-        return ["csrc/nntile_module.cpp"]
-    return ["csrc/nntile_module_torch_native.cpp"]
-
-
-def _pkg_config(package: str, flag: str) -> list[str]:
-    env = os.environ.copy()
-    pkg_config_path = env.get("PKG_CONFIG_PATH", "")
-    starpu_roots = []
-    if starpu_prefix := os.environ.get("STARPU_PREFIX"):
-        starpu_roots.append(f"{starpu_prefix}/lib/pkgconfig")
-    starpu_roots.append("/opt/starpu/lib/pkgconfig")
-    for starpu_pkg in starpu_roots:
-        if starpu_pkg not in pkg_config_path.split(":"):
-            pkg_config_path = (
-                f"{starpu_pkg}:{pkg_config_path}" if pkg_config_path else starpu_pkg
-            )
-    env["PKG_CONFIG_PATH"] = pkg_config_path
-    try:
-        out = subprocess.check_output(
-            ["pkg-config", flag, package],
-            env=env,
-            text=True,
-        )
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return []
-    return [part for part in out.strip().split() if part]
-
-
-def _apply_pkg_config(
-    package: str,
-    include_dirs: list[str],
-    library_dirs: list[str],
-    extra_compile_args: list[str],
-    extra_link_args: list[str],
-    libraries: list[str],
-) -> None:
-    for flag in _pkg_config(package, "--cflags"):
-        if flag.startswith("-I"):
-            include_dirs.append(flag[2:])
-        else:
-            extra_compile_args.append(flag)
-    for flag in _pkg_config(package, "--libs"):
-        if flag.startswith("-L"):
-            library_dirs.append(flag[2:])
-        elif flag.startswith("-l"):
-            libraries.append(flag[2:])
-        else:
-            extra_link_args.append(flag)
+    # NNTile 2.0 has one stack: classic nntile kernels.
+    del nntile_inc
+    return ["csrc/nntile_module.cpp"]
 
 
 def _nvidia_pkg_include_dir(env_var: str, modname: str, header: str) -> str | None:
@@ -131,8 +70,6 @@ def _nvidia_pkg_include_dir(env_var: str, modname: str, header: str) -> str | No
 
 
 def _cuda_include_dirs() -> list[str]:
-    if os.environ.get("TORCH_NNTILE_USE_CUDA") != "1":
-        return []
     dirs: list[str] = []
     if cuda_home := os.environ.get("CUDA_HOME"):
         cuda_include = Path(cuda_home) / "include"
@@ -140,7 +77,6 @@ def _cuda_include_dirs() -> list[str]:
             dirs.append(str(cuda_include))
     # Thin toolkit is nvcc + stubs only; math headers come from pip nvidia-*.
     for env_var, modname, header in (
-        ("CUDNN_INCLUDE_PATH", "nvidia.cudnn", "cudnn.h"),
         ("NVIDIA_CUBLAS_INCLUDE_PATH", "nvidia.cublas", "cublas.h"),
         ("NVIDIA_CUDA_RUNTIME_INCLUDE_PATH", "nvidia.cuda_runtime", "cuda_runtime.h"),
         ("NVIDIA_CUSOLVER_INCLUDE_PATH", "nvidia.cusolver", "cusolverDn.h"),
@@ -173,14 +109,10 @@ def _nntile_built_with_cuda(nntile_inc: Path) -> bool:
             if line.strip().startswith("#define NNTILE_USE_CUDA"):
                 return True
         return False
-    return os.environ.get("TORCH_NNTILE_USE_CUDA") == "1"
+    return False
 
 
-def _write_build_info(
-    built_with_cuda: bool,
-    torch_native_ops: bool,
-    nntile_native_ops: bool,
-) -> None:
+def _write_build_info(built_with_cuda: bool) -> None:
     path = ROOT / "torch_nntile" / "_build_info.py"
     path.write_text(
         "# @copyright (c) 2026-present Skolkovo Institute of Science and "
@@ -195,9 +127,7 @@ def _write_build_info(
         "\n"
         "from __future__ import annotations\n"
         "\n"
-        f"BUILT_WITH_CUDA = {built_with_cuda!s}\n"
-        f"TORCH_NATIVE_OPS = {torch_native_ops!s}\n"
-        f"NNTILE_NATIVE_OPS = {nntile_native_ops!s}\n",
+        f"BUILT_WITH_CUDA = {built_with_cuda!s}\n",
         encoding="utf-8",
     )
 
@@ -210,7 +140,7 @@ def _resolve_lib_layout() -> tuple[Path, Path, Path, Path]:
     """
     ci_build_wheel = os.environ.get("CIBUILDWHEEL") == "1"
 
-    if (var := os.environ.get("NNTILE_SOURCE_DIR")):
+    if var := os.environ.get("NNTILE_SOURCE_DIR"):
         nntile_source = Path(var)
     else:
         nntile_source = REPO_ROOT
@@ -218,7 +148,7 @@ def _resolve_lib_layout() -> tuple[Path, Path, Path, Path]:
     nntile_prefix = os.environ.get("NNTILE_PREFIX")
     torch_prefix = os.environ.get("TORCH_NNTILE_PREFIX", nntile_prefix)
 
-    if nntile_prefix:
+    if nntile_prefix and not os.environ.get("NNTILE_BUILD_DIR"):
         nntile_pref = Path(nntile_prefix)
         torch_pref = Path(torch_prefix) if torch_prefix else nntile_pref
         nntile_lib = nntile_pref / "lib"
@@ -233,9 +163,10 @@ def _resolve_lib_layout() -> tuple[Path, Path, Path, Path]:
                 f"TORCH_NNTILE_PREFIX={torch_pref!r} has no "
                 f"libtorch_nntile under {torch_lib}"
             )
-        if not (nntile_inc / "nntile" / "defs.h").exists() and not (
-            nntile_inc / "nntile.hh"
-        ).exists():
+        if (
+            not (nntile_inc / "nntile" / "defs.h").exists()
+            and not (nntile_inc / "nntile.hh").exists()
+        ):
             raise RuntimeError(
                 f"NNTILE_PREFIX={nntile_pref!r} missing installed headers "
                 f"under {nntile_inc}"
@@ -244,7 +175,7 @@ def _resolve_lib_layout() -> tuple[Path, Path, Path, Path]:
         print(f"libtorch_nntile found: {torch_pref}")
         return nntile_lib, torch_lib, nntile_inc, nntile_source
 
-    if (var := os.environ.get("NNTILE_BUILD_DIR")):
+    if var := os.environ.get("NNTILE_BUILD_DIR"):
         nntile_build = Path(var)
     elif ci_build_wheel:
         nntile_build = nntile_source / "build" / "torch_nntile_wheel"
@@ -261,7 +192,7 @@ def _resolve_lib_layout() -> tuple[Path, Path, Path, Path]:
             "  CXX=g++ pip install -e ./torch_nntile --no-build-isolation"
         )
 
-    if (var := os.environ.get("TORCH_NNTILE_BUILD_DIR")):
+    if var := os.environ.get("TORCH_NNTILE_BUILD_DIR"):
         torch_build = Path(var)
     else:
         torch_build = nntile_build
@@ -290,30 +221,15 @@ def _resolve_lib_layout() -> tuple[Path, Path, Path, Path]:
 
 def _nntile_extension_kwargs() -> dict:
     """Build kwargs for torch_nntile._C (links libtorch_nntile + libnntile)."""
-    nntile_lib_dir, torch_lib_dir, nntile_inc, nntile_source = (
-        _resolve_lib_layout()
-    )
+    nntile_lib_dir, torch_lib_dir, nntile_inc, nntile_source = _resolve_lib_layout()
     built_with_cuda = _nntile_built_with_cuda(nntile_inc)
-    torch_native_ops = _nntile_torch_native_ops(nntile_inc)
-    nntile_native_ops = _nntile_nntile_native_ops(nntile_inc)
-    _write_build_info(
-        built_with_cuda,
-        torch_native_ops,
-        nntile_native_ops,
-    )
-    if built_with_cuda:
-        os.environ.setdefault("TORCH_NNTILE_USE_CUDA", "1")
-        print("libnntile CUDA: ON (BUILT_WITH_CUDA=True)")
-    else:
-        print("libnntile CUDA: OFF (BUILT_WITH_CUDA=False)")
-    print(
-        "torch_nntile torch-native ops: "
-        f"{'ON' if torch_native_ops else 'OFF'}"
-    )
-    print(
-        "torch_nntile nntile-native ops: "
-        f"{'ON' if nntile_native_ops else 'OFF'}"
-    )
+    if not built_with_cuda:
+        raise SystemExit(
+            "NNTile 2.0 requires a CUDA libnntile: the linked prefix "
+            "reports no CUDA support"
+        )
+    _write_build_info(built_with_cuda)
+    print("libnntile CUDA: ON (BUILT_WITH_CUDA=True)")
 
     cxx_standard = os.environ.get("TORCH_NNTILE_CXX_STANDARD", "c++17")
     extra_compile_args = [f"-std={cxx_standard}"]
@@ -330,25 +246,14 @@ def _nntile_extension_kwargs() -> dict:
     library_dirs: list[str] = [str(nntile_lib_dir), str(torch_lib_dir)]
     libraries: list[str] = ["torch_nntile", "nntile"]
     extra_link_args: list[str] = []
-    if sys.platform == "darwin":
-        extra_link_args.append("-Wl,-rpath,@loader_path/../torch/lib")
 
-    if os.environ.get("TORCH_NNTILE_WHEEL") != "1":
-        if sys.platform == "darwin":
-            extra_link_args.append(f"-Wl,-rpath,{nntile_lib_dir}")
-            extra_link_args.append(f"-Wl,-rpath,{torch_lib_dir}")
-        else:
-            extra_link_args.append(f"-Wl,-rpath,{nntile_lib_dir}")
-            extra_link_args.append(f"-Wl,-rpath,{torch_lib_dir}")
+    if (
+        os.environ.get("TORCH_NNTILE_WHEEL") != "1"
+        or os.environ.get("TORCH_NNTILE_WHEEL_BUILD_RPATH") == "1"
+    ):
+        extra_link_args.append(f"-Wl,-rpath,{nntile_lib_dir}")
+        extra_link_args.append(f"-Wl,-rpath,{torch_lib_dir}")
 
-    _apply_pkg_config(
-        "starpu-1.4",
-        include_dirs,
-        library_dirs,
-        extra_compile_args,
-        extra_link_args,
-        libraries,
-    )
     include_dirs.extend(_cuda_include_dirs())
 
     return {
@@ -368,13 +273,12 @@ _built_with_cuda = bool(ext_kwargs.pop("_built_with_cuda", False))
 _nntile_inc = Path(ext_kwargs.pop("_nntile_inc"))
 EXT_SOURCES = _extension_sources(_nntile_inc)
 
-_wheel_version = os.environ.get("TORCH_NNTILE_WHEEL_VERSION", "0.1.0")
+_wheel_version = os.environ.get("TORCH_NNTILE_WHEEL_VERSION", "2.0.0")
 _torch_requires = "torch==2.9.1"
 _torchvision_requires = "torchvision==0.24.1"
 _linux_marker = 'platform_system == "Linux" and platform_machine == "x86_64"'
 _linux_nvidia_requires = [
     f"nvidia-cublas-cu12>=12.8.4.1; {_linux_marker}",
-    f"nvidia-cudnn-cu12>=9.10.2.21; {_linux_marker}",
     f"nvidia-cusparse-cu12>=12.5.8.93; {_linux_marker}",
     f"nvidia-cusolver-cu12>=11.7.3.90; {_linux_marker}",
     f"nvidia-nvjitlink-cu12>=12.8.93; {_linux_marker}",

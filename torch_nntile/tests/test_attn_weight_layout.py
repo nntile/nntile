@@ -3,17 +3,17 @@
 #
 # @file torch_nntile/tests/test_attn_weight_layout.py
 # Attention weight layout conversion tests.
+# @version 2.0.0
 
 from __future__ import annotations
 
 import torch
-from torch_nntile.nn.weight_layout import (
-    convert_attn_weights,
-    nntile_to_torch_o_weight,
-    nntile_to_torch_qkv_weight,
-    torch_to_nntile_o_weight,
-    torch_to_nntile_qkv_weight,
-)
+
+from torch_nntile.nn.weight_layout import (convert_attn_weights,
+                                           nntile_to_torch_o_weight,
+                                           nntile_to_torch_qkv_weight,
+                                           torch_to_nntile_o_weight,
+                                           torch_to_nntile_qkv_weight)
 
 
 def test_qkv_weight_round_trip():

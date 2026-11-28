@@ -6,6 +6,7 @@
  *
  * Side L: ``gemm(x, W, ndim=1, trans_b)``. Side R: ``gemm(W, x, ndim=1)``.
  * GAP: ``sum_slice`` (old ``nntile.layer.gap.GAP`` without side-R transpose).
+ * @version 2.0.0
  */
 
 #include <torch_nntile/models/mlp_mixer.hh>

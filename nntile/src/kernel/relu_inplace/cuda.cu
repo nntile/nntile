@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file src/kernel/relu_inplace/cuda.cu
  * Inplace ReLU operation on CUDA
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/relu_inplace/cuda.hh"
@@ -46,6 +46,36 @@ void cuda(cudaStream_t stream, Index nelems, T *data)
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, data);
 }
 
+
+template<typename T>
+static __global__
+void chunked_cuda_kernel(Index nelems, ChunkMut<T> data)
+{
+    using Y = typename T::repr_t;
+    int i = threadIdx.x + blockIdx.x*blockDim.x;
+    constexpr Y zero = 0;
+    if(i < nelems)
+    {
+        data.at(i)[0] = T{::fmax(Y{data.at(i)[0]}, zero)};
+    }
+}
+
+template<typename T>
+void chunked(cudaStream_t stream, Index nelems,
+        T* const* data_chunks, Index ndata,
+        Index elems_data, ChunkClass cls)
+    noexcept
+{
+    if(nelems <= 0 || ndata <= 0)
+    {
+        return;
+    }
+    dim3 blocks((nelems+255)/256), threads(256);
+    (chunked_cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems,
+        chunk_mut<T>(data_chunks, ndata, elems_data, cls,
+            "nntile_relu_inplace"));
+}
+
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index nelems, fp32_t *data)
@@ -61,6 +91,23 @@ void cuda<bf16_t>(cudaStream_t stream, Index nelems, bf16_t *data)
 
 template
 void cuda<fp16_t>(cudaStream_t stream, Index nelems, fp16_t *data)
+    noexcept;
+
+template
+void chunked<fp32_t>(cudaStream_t stream, Index nelems,
+        fp32_t* const* data, Index ndata, Index elems_data, ChunkClass cls)
+    noexcept;
+template
+void chunked<fp64_t>(cudaStream_t stream, Index nelems,
+        fp64_t* const* data, Index ndata, Index elems_data, ChunkClass cls)
+    noexcept;
+template
+void chunked<bf16_t>(cudaStream_t stream, Index nelems,
+        bf16_t* const* data, Index ndata, Index elems_data, ChunkClass cls)
+    noexcept;
+template
+void chunked<fp16_t>(cudaStream_t stream, Index nelems,
+        fp16_t* const* data, Index ndata, Index elems_data, ChunkClass cls)
     noexcept;
 
 } // namespace nntile::kernel::relu_inplace

@@ -1,0 +1,191 @@
+{
+ "_comment": [
+  "Copyright (c) 2026-present Skolkovo Institute of Science and Technology (Skoltech), Russia. All rights reserved. Hand-written synthetic NNHaul trace example (format_version 1, one device + host, four lanes, one plan batch); it contains no measured workload or timing data.",
+  "@version 1.0.0",
+  "SPDX-License-Identifier: MIT"
+ ],
+ "traceEvents": [
+  {
+   "ph": "M",
+   "name": "process_name",
+   "pid": 1,
+   "ts": 0,
+   "args": {
+    "name": "nnhaul"
+   }
+  },
+  {
+   "ph": "M",
+   "name": "thread_name",
+   "pid": 1,
+   "tid": 1,
+   "ts": 0,
+   "args": {
+    "name": "exec(0)"
+   }
+  },
+  {
+   "ph": "M",
+   "name": "thread_name",
+   "pid": 1,
+   "tid": 2,
+   "ts": 0,
+   "args": {
+    "name": "exec(1)"
+   }
+  },
+  {
+   "ph": "M",
+   "name": "thread_name",
+   "pid": 1,
+   "tid": 3,
+   "ts": 0,
+   "args": {
+    "name": "chan(0,1)"
+   }
+  },
+  {
+   "ph": "M",
+   "name": "thread_name",
+   "pid": 1,
+   "tid": 4,
+   "ts": 0,
+   "args": {
+    "name": "chan(1,0)"
+   }
+  },
+  {
+   "ph": "X",
+   "name": "tile_op 0.0",
+   "cat": "exec",
+   "pid": 1,
+   "tid": 1,
+   "ts": 0,
+   "dur": 40,
+   "args": {
+    "plan_seq": 0,
+    "position": 0,
+    "kind": "tile_op",
+    "lane": 0,
+    "lane_name": "exec(0)"
+   }
+  },
+  {
+   "ph": "X",
+   "name": "tile_op 0.1",
+   "cat": "exec",
+   "pid": 1,
+   "tid": 2,
+   "ts": 10,
+   "dur": 20,
+   "args": {
+    "plan_seq": 0,
+    "position": 1,
+    "kind": "tile_op",
+    "lane": 1,
+    "lane_name": "exec(1)"
+   }
+  },
+  {
+   "ph": "X",
+   "name": "copy 0.2",
+   "cat": "chan",
+   "pid": 1,
+   "tid": 4,
+   "ts": 20,
+   "dur": 30,
+   "args": {
+    "plan_seq": 0,
+    "position": 2,
+    "kind": "copy",
+    "bytes": 4194304,
+    "lane": 3,
+    "lane_name": "chan(1,0)"
+   }
+  },
+  {
+   "ph": "X",
+   "name": "copy 0.3",
+   "cat": "chan",
+   "pid": 1,
+   "tid": 3,
+   "ts": 50,
+   "dur": 25,
+   "args": {
+    "plan_seq": 0,
+    "position": 3,
+    "kind": "copy",
+    "bytes": 4194304,
+    "lane": 2,
+    "lane_name": "chan(0,1)"
+   }
+  },
+  {
+   "ph": "X",
+   "name": "tile_op 0.4",
+   "cat": "exec",
+   "pid": 1,
+   "tid": 1,
+   "ts": 100,
+   "dur": 50,
+   "args": {
+    "plan_seq": 0,
+    "position": 4,
+    "kind": "tile_op",
+    "lane": 0,
+    "lane_name": "exec(0)"
+   }
+  },
+  {
+   "ph": "X",
+   "name": "tile_op 0.5",
+   "cat": "exec",
+   "pid": 1,
+   "tid": 1,
+   "ts": 150,
+   "dur": 60,
+   "args": {
+    "plan_seq": 0,
+    "position": 5,
+    "kind": "tile_op",
+    "lane": 0,
+    "lane_name": "exec(0)"
+   }
+  }
+ ],
+ "metadata": {
+  "format_version": 1,
+  "runtime_version": "1.0.0-fixture",
+  "lane_count": 4,
+  "lanes": [
+   {
+    "tid": 1,
+    "lane": 0,
+    "name": "exec(0)"
+   },
+   {
+    "tid": 2,
+    "lane": 1,
+    "name": "exec(1)"
+   },
+   {
+    "tid": 3,
+    "lane": 2,
+    "name": "chan(0,1)"
+   },
+   {
+    "tid": 4,
+    "lane": 3,
+    "name": "chan(1,0)"
+   }
+  ],
+  "wall_clock_span_us": 150,
+  "plan": {
+   "batches": 1,
+   "planned_ops": 6,
+   "issued_ops": 6,
+   "fired_ops": 6,
+   "reconcile_ok": true
+  }
+ }
+}

@@ -3,16 +3,17 @@
 #
 # @file torch_nntile/tests/test_rope_mse_smoke.py
 # Smoke shapes for rope and mse_loss on device="nntile".
+# @version 2.0.0
 
 """Forward-shape smokes for ``rope`` and ``mse_loss`` on device nntile."""
 
 from __future__ import annotations
 
 import torch
-from torch_nntile.rope import rope, rope_sin_cos_from_position_ids
-from torch_nntile.training import mse_loss
 
 import torch_nntile
+from torch_nntile.rope import rope, rope_sin_cos_from_position_ids
+from torch_nntile.training import mse_loss
 
 
 def test_rope_forward_shape_on_nntile():

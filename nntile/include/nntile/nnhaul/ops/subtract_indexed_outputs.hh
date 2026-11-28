@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file include/nntile/starpu/subtract_indexed_outputs.hh
- * Subtraction of a given value from certain matrix elements for StarPU buffer
+ * @file include/nntile/nnhaul/ops/subtract_indexed_outputs.hh
+ * Subtraction of a given value from certain matrix elements for NNHaul buffer
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -23,7 +23,7 @@
 // NNTile headers
 #include <nntile/nnhaul/codelet.hh>
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Generic wrapper class for subtract_indexed_outputs operation is not defined
@@ -92,4 +92,4 @@ using subtract_indexed_outputs_pack_t = OperationPack<
 //! Pack of subtract_indexed_outputs operations for different types
 extern subtract_indexed_outputs_pack_t subtract_indexed_outputs;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

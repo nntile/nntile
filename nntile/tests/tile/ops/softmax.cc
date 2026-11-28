@@ -5,12 +5,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tile_graph/softmax.cc
  * Test TileGraph softmax vs nntile::core (parity).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include <catch2/catch_test_macros.hpp>
@@ -44,12 +44,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph softmax axis0", "[grap
     const auto gout = r.get_output<float>(d);
     nntile::core::Tile<fp32_t> M(mh), S(sh), D(sh);
     using Y = typename fp32_t::repr_t;
-    { auto a=M.acquire(STARPU_W), b=S.acquire(STARPU_W), c=D.acquire(STARPU_W);
+    { auto a=M.acquire(ACCESS_W), b=S.acquire(ACCESS_W), c=D.acquire(ACCESS_W);
       for(Index j=0;j<nms;j+=2) { a[j]=Y(mv[static_cast<size_t>(j)]); a[j+1]=Y(mv[static_cast<size_t>(j+1)]);}
       for(Index i=0;i<n;++i) { b[i]=Y(0.01f*static_cast<float>(i+1)); c[i]=Y(0);} a.release(); b.release(); c.release(); }
     nntile::core::softmax<fp32_t>(-1, M, S, al, D, axis);
-    starpu_task_wait_for_all();
+    task_wait_for_all();
     std::vector<float> tr(n);
-    { auto L=D.acquire(STARPU_R); for(Index i=0;i<n;++i) tr[static_cast<size_t>(i)]=static_cast<float>(L[i]); L.release(); }
+    { auto L=D.acquire(ACCESS_R); for(Index i=0;i<n;++i) tr[static_cast<size_t>(i)]=static_cast<float>(L[i]); L.release(); }
     nntile::test::require_relative_element_error(gout, tr);
 }

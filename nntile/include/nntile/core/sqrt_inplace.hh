@@ -4,14 +4,19 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file include/nntile/core/sqrt_inplace.hh
  * Inplace sqrt operation for Tile<T>
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
-
+/*!
+ * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.
+ * Kept in-tree for future re-enablement. No product path calls this code;
+ * its tests are not registered while the family is in
+ * NNTILE_DISABLED_KERNELS.
+ */
 #pragma once
 
 #include <nntile/core/tile.hh>
@@ -21,10 +26,10 @@ namespace nntile::core
 
 // Asynchronous tile-wise sqrt operation
 template<typename T>
-void sqrt_inplace_async(int starpu_worker_hint, const Tile<T> &A);
+void sqrt_inplace_async(int worker_hint, const Tile<T> &A);
 
 // Blocking version of tile-wise sqrt operation
 template<typename T>
-void sqrt_inplace(int starpu_worker_hint, const Tile<T> &A);
+void sqrt_inplace(int worker_hint, const Tile<T> &A);
 
 } // namespace nntile::core

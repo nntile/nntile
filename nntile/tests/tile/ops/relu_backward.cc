@@ -5,12 +5,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/tests/tile_graph/relu_backward.cc
  * Test TileGraph relu backward vs nntile::core (parity).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include <catch2/catch_test_macros.hpp>
@@ -51,9 +51,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph relu_backward matches 
     nntile::core::Tile<fp32_t> tx(sh), tdy(sh), tdx(sh);
     using Y = typename nntile::fp32_t::repr_t;
     {
-        auto l1 = tx.acquire(STARPU_W);
-        auto l2 = tdy.acquire(STARPU_W);
-        auto l3 = tdx.acquire(STARPU_W);
+        auto l1 = tx.acquire(ACCESS_W);
+        auto l2 = tdy.acquire(ACCESS_W);
+        auto l3 = tdx.acquire(ACCESS_W);
         for(Index i = 0; i < nelems; ++i)
         {
             l1[i] = Y(xv[static_cast<size_t>(i)]);
@@ -65,10 +65,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph relu_backward matches 
         l3.release();
     }
     nntile::core::relu_backward<fp32_t>(-1, Scalar{1.0}, tx, tdy, Scalar{0.0}, tdx);
-    starpu_task_wait_for_all();
+    task_wait_for_all();
     std::vector<float> tref(nelems);
     {
-        auto l2 = tdx.acquire(STARPU_R);
+        auto l2 = tdx.acquire(ACCESS_R);
         for(Index i = 0; i < nelems; ++i) { tref[static_cast<size_t>(i)] = static_cast<float>(l2[i]); }
         l2.release();
     }

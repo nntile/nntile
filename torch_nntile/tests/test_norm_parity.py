@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/tests/test_norm_parity.py
 # Parity tests for nntile 2-norm via TensorGraph (libnntile).
+# @version 2.0.0
 
 import pytest
 import torch
@@ -14,7 +15,7 @@ from torch_nntile import _C
 
 def _init_nntile() -> None:
     if not _C.is_context_initialized():
-        torch_nntile.init_context(ncpu=2, ncuda=0, cpu_fallback=False)
+        torch_nntile.init_context(ncpu=2, ncuda=1, cpu_fallback=False)
 
 
 @pytest.fixture(autouse=True)

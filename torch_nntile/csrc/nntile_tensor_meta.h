@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/csrc/nntile_tensor_meta.h
  * Graph binding metadata on device=nntile TensorImpl.
+ * @version 2.0.0
  */
 
 #pragma once

@@ -3,16 +3,16 @@
 #
 # @file torch_nntile/tests/test_simple_matmul_tiling.py
 # Tiled matmul graph-mode regression (two compile/run epochs).
+# @version 2.0.0
 
 from __future__ import annotations
 
 import subprocess
 import sys
 import textwrap
-from pathlib import Path
 
-import pytest
 from conftest import subprocess_environ
+
 
 def _run_subprocess(script: str) -> None:
     env = subprocess_environ()
@@ -43,11 +43,10 @@ def test_simple_matmul_tiled_two_epochs():
 
         torch_nntile.init_context(
             ncpu=1,
-            ncuda=0,
+            ncuda=1,
             verbose=0,
             cpu_fallback=False,
         )
-        torch_nntile.restrict_cpu()
 
         from torch_nntile.nn.functional import gemm
 

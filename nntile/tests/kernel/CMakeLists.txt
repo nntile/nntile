@@ -4,12 +4,12 @@
 #                              (AIRI), Russia. All rights reserved.
 #
 # NNTile is software framework for fast training of big neural networks on
-# distributed-memory heterogeneous systems based on StarPU runtime system.
+# distributed-memory heterogeneous systems with GPU acceleration.
 #
 # @file tests/kernel/CMakeLists.txt
 # Tests for nntile::kernel functions
 #
-# @version 1.1.0
+# @version 2.0.0
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -52,6 +52,8 @@ if(BUILD_COVERAGE)
         GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
 endif()
 
+nntile_filter_disabled_kernel_tests(TESTS TESTS_NOT_IMPLEMENTED TESTS_CATCH2)
+
 foreach(test IN LISTS TESTS)
     set(labels core)
     if(test IN_LIST TESTS_NOT_IMPLEMENTED)
@@ -69,9 +71,7 @@ foreach(test IN LISTS TESTS)
 endforeach()
 
 set(TESTS_CATCH2
-    "accumulate_attn_output"
     "add"
-    "accumulate_maxsumexp"
     "add_fiber"
     "add_fiber_inplace"
     "scale_fiber"
@@ -119,13 +119,7 @@ set(TESTS_CATCH2
     "sum_fiber"
 )
 
-# CUDA-only tests (only added when CUDA is available)
-if(NNTILE_USE_CUDA AND NNTILE_USE_FLASH_SDPA)
-    list(APPEND TESTS_CATCH2
-        "flash_sdpa_fwd_cudnn"
-        "flash_sdpa_bwd_cudnn"
-    )
-endif()
+nntile_filter_disabled_kernel_tests(TESTS_CATCH2)
 
 foreach(test IN LISTS TESTS_CATCH2)
     set(labels core)
@@ -148,3 +142,51 @@ foreach(test IN LISTS TESTS_CATCH2)
         LABELS ${labels}
     )
 endforeach()
+
+# Chunked-versus-contiguous A/B. Backend-agnostic: the chunked entry points
+# compile in both products, so this runs under NNHaul and under NNHaul with
+# CUDA. Not a Catch2 test, so it needs no fixture framework.
+if(NNTILE_USE_CUDA)
+    add_test_set(TARGET_NAME tests_kernel_chunked_ab
+        SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/chunked_ab.cc
+        LINK_LIBRARIES
+            nntile::nntile
+            CUDA::cudart
+        LABELS "SUBSYSTEM_KERNEL;NNHAUL"
+    )
+endif()
+
+# The same A/B for the chunked entry points that the small wrapper tests
+# never reach with more than one chunk: unary, in-place, reduction,
+# per-fiber max and softmax, all over 10 class pieces plus a tail.
+if(NNTILE_USE_CUDA)
+    add_test_set(TARGET_NAME tests_kernel_chunked_ops
+        SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/chunked_ops.cc
+        LINK_LIBRARIES
+            nntile::nntile
+            CUDA::cudart
+        LABELS "SUBSYSTEM_KERNEL;NNHAUL"
+    )
+endif()
+
+# The probe that the suite's chunk-class environment actually reached the
+# kernel-side class. A 1 MiB suite leg is meaningless without it.
+if(NNTILE_USE_CUDA)
+    add_test_set(TARGET_NAME tests_kernel_chunk_class_probe
+        SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/chunk_class_probe.cc
+        LINK_LIBRARIES
+            nntile::nntile
+            CUDA::cudart
+        LABELS "SUBSYSTEM_KERNEL;NNHAUL"
+    )
+endif()
+
+# Manual benchmark: one-launch chunked GeLU vs one contiguous launch per
+# chunk. Not registered with ctest; run by hand on a GPU.
+if(NNTILE_USE_CUDA)
+    add_executable(gelu_chunk_benchmark
+        ${CMAKE_CURRENT_SOURCE_DIR}/gelu_chunk_benchmark.cc)
+    target_link_libraries(gelu_chunk_benchmark PRIVATE
+        nntile::nntile
+        CUDA::cudart)
+endif()

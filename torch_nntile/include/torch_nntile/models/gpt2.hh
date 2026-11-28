@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/include/torch_nntile/models/gpt2.hh
  * GPT-2 causal LM matching deleted ``nntile::model::gpt2``.
+ * @version 2.0.0
  */
 
 #pragma once

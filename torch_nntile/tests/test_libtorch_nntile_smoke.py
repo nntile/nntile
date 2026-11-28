@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/tests/test_libtorch_nntile_smoke.py
 # Minimal libtorch_nntile / device=nntile smoke (CI + local).
+# @version 2.0.0
 
 from __future__ import annotations
 

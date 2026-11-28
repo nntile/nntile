@@ -5,25 +5,23 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems with GPU acceleration.
  *
  * @file nntile/src/runtime.cc
  * Runtime implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/runtime.hh"
 
+#include <cstdio>
+
 #include "nntile/core/execution_schedule.hh"
 #include "nntile/core/execution_worker.hh"
-#ifdef NNTILE_USE_NNHAUL
 #include "nntile/backend_workers.hh"
 #include "nntile/nnhaul/chunk_gate.hh"
 #include "nntile/nnhaul/sync_defer.hh"
-#else
-#include "nntile/starpu/sync_defer.hh"
-#endif
 
 // TileGraph::get_tensor_descriptor is inline in graph.hh; this TU must see
 // the definition when calling it on const TileGraph&.
@@ -67,7 +65,7 @@ bool tile_logical_is_live(TileGraph::TileNode const *tile)
 }
 
 //! Keep the logical tensor flag in sync with its tiles (O(tiles)).
-void sync_logical_starpu_flag(TileGraph::TileNode *tile)
+void sync_logical_registered_flag(TileGraph::TileNode *tile)
 {
     if (tile == nullptr)
     {
@@ -82,7 +80,7 @@ void sync_logical_starpu_flag(TileGraph::TileNode *tile)
     bool any = false;
     for (TileGraph::TileNode *t : desc->tiles)
     {
-        if (t != nullptr && t->is_starpu_registered())
+        if (t != nullptr && t->is_registered())
         {
             any = true;
             break;
@@ -92,11 +90,11 @@ void sync_logical_starpu_flag(TileGraph::TileNode *tile)
         desc->source_node);
     if (any)
     {
-        src->note_starpu_registered();
+        src->note_registered();
     }
     else
     {
-        src->note_starpu_unregistered();
+        src->note_unregistered();
     }
 }
 
@@ -106,7 +104,7 @@ void allocate_tile_and_register(
 {
     auto t = std::make_shared<nntile::core::Tile<T>>(shape);
     node->set_payload(std::move(t));
-    sync_logical_starpu_flag(node);
+    sync_logical_registered_flag(node);
 }
 
 //! Enqueue op I/O tiles that are not yet live. Accumulators listed only as
@@ -139,13 +137,20 @@ Runtime::Runtime(const TileGraph &graph) : graph_(graph) {}
 
 Runtime::~Runtime()
 {
-#ifdef NNTILE_USE_NNHAUL
     if (!nnhaul_retained_payloads_.empty())
     {
-        starpu_task_wait_for_all_counted();
+        try
+        {
+            task_wait_for_all_counted();
+        }
+        catch (std::exception const &e)
+        {
+            // A destructor must not terminate on a latched plan fault.
+            std::fprintf(stderr, "nntile: runtime teardown: %s\n",
+                e.what());
+        }
         nnhaul_retained_payloads_.clear();
     }
-#endif
 }
 
 DataType Runtime::get_dtype(
@@ -193,47 +198,18 @@ void Runtime::compile()
         }
         compiled_graph_op_count_ = graph_ops.size();
     }
-#ifdef NNTILE_USE_NNHAUL
-    // Chunked tiles are for the classic stack only. Torch_dispatch ops
-    // consume tiles through contiguous torch tensors and cannot read a
-    // chunk chain, so the combination must be impossible to reach: if
-    // this graph lowers a torch op while any chunked tile handle is
-    // alive (every chunked tile registers itself in the stage registry
-    // at allocation), fail LOUDLY at compile time - before execution
-    // could hand a chunked buffer to a torch kernel. The gate flip below
-    // only affects future allocations and would silently leave the old
-    // chunked tiles consumable, hence the throw. NNHAUL_CHUNK_TILES=0
-    // also forces unchunked handles (the one-class law has no such arm).
-    if (graph_has_torch_ops_
-        && ::nntile::haul::stage::chunked_handle_count() != 0)
-    {
-        throw std::runtime_error(
-            "NNTile/NNHaul: this graph lowers torch_dispatch ops "
-            "(TILE_TORCH_*), which cannot consume chunked NNHaul tiles, "
-            "but chunked tile handles are already allocated in this "
-            "session (the chunked-tile gate is on and chunked handles "
-            "were allocated before this graph compiled). For classic "
-            "sessions set NNHAUL_CHUNK_TILES=0 from process start; for "
-            "torch_nntile sessions make sure NNHAUL_CHUNK_TILES is "
-            "UNSET (the session policy then disables chunked tiles "
-            "automatically) and that the libtorch_nntile.so in this "
-            "process matches the installed libnntile.so.");
-    }
-    // Monotonic session law: a torch-op graph disables chunked tiles
-    // for the REST of the session (future allocations only — the guard
-    // above has already thrown if chunked handles were alive). Classic
-    // graphs no longer FORCE chunking back on: a session that started
-    // with chunking off (the torch_nntile session policy or
-    // NNHAUL_CHUNK_TILES=0) keeps it off, while pure-classic sessions
-    // are unaffected (the default is on and nothing ever turned it
-    // off). The old unconditional form re-enabled chunking after every
-    // classic graph's compile, which clobbered a session-level flip
-    // made before any torch-op graph had compiled.
+    // Fail closed on a mixed binary. There is no TILE_TORCH_* family in
+    // NNTile 2.0, so this combination means a stale or hand-built object
+    // leaked into the process. Do not demote the tile gate to make it run:
+    // the op would read a chunk chain as a contiguous tensor.
     if(graph_has_torch_ops_)
     {
-        ::nntile::haul::set_tile_chunking(false);
+        throw std::runtime_error(
+            "NNTile: this graph lowers torch_dispatch ops (TILE_TORCH_*), "
+            "which this build does not implement and which cannot consume "
+            "chunked tiles. Rebuild the graph without torch_dispatch ops. "
+            "Chunking is never disabled at runtime.");
     }
-#endif
 
     auto const t_dce = std::chrono::steady_clock::now();
     eliminate_dead_ops();
@@ -285,7 +261,7 @@ void Runtime::invalidate_logical_tiles(
         {
             continue;
         }
-        if (tile->has_payload() && tile->is_starpu_registered())
+        if (tile->has_payload() && tile->is_registered())
         {
             to_release.push_back(tile);
         }
@@ -295,53 +271,49 @@ void Runtime::invalidate_logical_tiles(
         init_state_.erase(logical);
         return;
     }
-    // Async reclaim only. StarPU orders invalidate_submit /
+    // Async reclaim only. NNHaul orders invalidate_submit /
     // unregister_submit after the handle's last submitted use, so this is
     // safe during overlapping compile/run phases (no wait_for_all).
     for (const TileGraph::TileNode *tile : to_release)
     {
-        if (tile == nullptr || !tile->is_starpu_registered()
+        if (tile == nullptr || !tile->is_registered()
             || !tile->has_payload())
         {
             continue;
         }
         auto payload = tile->payload();
         invalidate_tile_buffer(tile, payload);
-#ifdef NNTILE_USE_NNHAUL
         if (payload)
         {
             nnhaul_retained_payloads_.push_back(payload);
         }
-#endif
         auto *mut = const_cast<TileGraph::TileNode *>(tile);
         mut->clear_payload();
-        sync_logical_starpu_flag(mut);
+        sync_logical_registered_flag(mut);
     }
     init_state_.erase(logical);
 }
 
 void Runtime::invalidate_tile(TileGraph::TileNode *tile)
 {
-    if (tile == nullptr || !tile->is_starpu_registered()
+    if (tile == nullptr || !tile->is_registered()
         || !tile->has_payload())
     {
         return;
     }
     auto payload = tile->payload();
     invalidate_tile_buffer(tile, payload);
-#ifdef NNTILE_USE_NNHAUL
-    if (payload)
-    {
-        nnhaul_retained_payloads_.push_back(payload);
-    }
-#endif
+        if (payload)
+        {
+            nnhaul_retained_payloads_.push_back(payload);
+        }
     tile->clear_payload();
-    sync_logical_starpu_flag(tile);
+    sync_logical_registered_flag(tile);
 }
 
 void Runtime::unregister_tile(TileGraph::TileNode *tile)
 {
-    if (tile == nullptr || !tile->is_starpu_registered())
+    if (tile == nullptr || !tile->is_registered())
     {
         return;
     }
@@ -349,15 +321,13 @@ void Runtime::unregister_tile(TileGraph::TileNode *tile)
     {
         auto payload = tile->payload();
         unregister_tile_buffer(tile, payload);
-#ifdef NNTILE_USE_NNHAUL
         if (payload)
         {
             nnhaul_retained_payloads_.push_back(payload);
         }
-#endif
     }
     tile->clear_payload();
-    sync_logical_starpu_flag(tile);
+    sync_logical_registered_flag(tile);
 }
 
 void Runtime::mark_initialized(TensorGraph::TensorNode const *tensor)
@@ -594,15 +564,7 @@ void Runtime::install_default_execution_schedule_if_missing()
             "Runtime::install_default_execution_schedule_if_missing: "
             "call compile() first");
     }
-    if (sched::execution_ncuda() > 0)
-    {
-        set_execution_schedule(
-            generate_affinity_batch_execution_schedule());
-    }
-    else
-    {
-        set_execution_schedule(generate_round_robin_execution_schedule());
-    }
+    set_execution_schedule(generate_affinity_batch_execution_schedule());
 }
 
 ExecutionSchedule Runtime::generate_round_robin_execution_schedule() const
@@ -657,8 +619,6 @@ void Runtime::set_execution_schedule(ExecutionSchedule schedule)
             std::to_string(execution_order_.size()) + ")");
     }
     int const num_workers = sched::count_execution_workers();
-#ifdef NNTILE_USE_NNHAUL
-    bool const cuda_workers = g_backend_ncuda > 0;
     if (schedule.workers.empty())
     {
         for (BackendWorker const &worker : backend_worker_list())
@@ -670,10 +630,6 @@ void Runtime::set_execution_schedule(ExecutionSchedule schedule)
             schedule.workers.push_back(std::move(info));
         }
     }
-#else
-    bool const cuda_workers = starpu_is_initialized() &&
-        starpu_worker_get_count_by_type(STARPU_CUDA_WORKER) > 0;
-#endif
     if (schedule.num_workers <= 0)
     {
         schedule.num_workers = num_workers;
@@ -685,17 +641,6 @@ void Runtime::set_execution_schedule(ExecutionSchedule schedule)
             std::to_string(schedule.num_workers) +
             "' vs runtime '" + std::to_string(num_workers) + "')");
     }
-#ifndef NNTILE_USE_NNHAUL
-    if (schedule.use_cuda_workers != cuda_workers)
-    {
-        throw std::runtime_error(
-            "Runtime::set_execution_schedule: worker_kind mismatch (json '" +
-            std::string(schedule.use_cuda_workers ? "cuda" : "cpu") +
-            "' vs runtime '" + (cuda_workers ? "cuda" : "cpu") + "')");
-    }
-#else
-    (void)cuda_workers;
-#endif
     for (size_t i = 0; i < schedule.ops.size(); ++i)
     {
         if (schedule.ops[i].execution_index != i)
@@ -720,7 +665,6 @@ void Runtime::set_execution_schedule(ExecutionSchedule schedule)
                 std::to_string(i) + "] worker " + std::to_string(w) +
                 " out of range [0, " + std::to_string(num_workers) + ")");
         }
-#ifdef NNTILE_USE_NNHAUL
         ScheduleWorkerInfo const *live = nullptr;
         for (ScheduleWorkerInfo const &info : schedule.workers)
         {
@@ -740,26 +684,20 @@ void Runtime::set_execution_schedule(ExecutionSchedule schedule)
         bool const cuda_kind = live->kind == "cuda";
         bool const has_cuda =
             sched::tile_op_has_cuda_kernel(schedule.ops[i].op_name);
-        if (cuda_kind && !has_cuda)
+        if (!cuda_kind)
+        {
+            throw std::runtime_error(
+                "Runtime::set_execution_schedule: ops[" +
+                std::to_string(i) + "] names a non-CUDA worker; NNTile 2.0 "
+                "has exactly one CUDA worker");
+        }
+        if (!has_cuda)
         {
             throw std::runtime_error(
                 "Runtime::set_execution_schedule: ops[" +
                 std::to_string(i) + "] worker kind has no kernel for " +
                 schedule.ops[i].op_name);
         }
-        if (g_schedule_kind_filter == ScheduleKindFilter::Cpu &&
-            cuda_kind)
-        {
-            throw std::runtime_error(
-                "Runtime::set_execution_schedule: CPU restriction");
-        }
-        if (g_schedule_kind_filter == ScheduleKindFilter::Cuda &&
-            !cuda_kind)
-        {
-            throw std::runtime_error(
-                "Runtime::set_execution_schedule: CUDA restriction");
-        }
-#endif
     }
     for (auto const &[tile, worker] : schedule.tile_virtual_worker)
     {
@@ -779,42 +717,8 @@ void Runtime::load_execution_schedule(std::string const &path)
     set_execution_schedule(load_execution_schedule_json(path));
 }
 
-void Runtime::apply_execution_schedule_from_file(std::string const &path)
-{
-    if (!compiled_)
-    {
-        throw std::runtime_error(
-            "Runtime::apply_execution_schedule_from_file: call compile() "
-            "first");
-    }
-    if (!execution_schedule_file_cache_ ||
-        execution_schedule_file_cache_path_ != path)
-    {
-        execution_schedule_file_cache_ = load_execution_schedule_json(path);
-        execution_schedule_file_cache_path_ = path;
-    }
-    try
-    {
-        set_execution_schedule(*execution_schedule_file_cache_);
-    }
-    catch (...)
-    {
-        clear_execution_schedule_file_cache();
-        throw;
-    }
-}
 
-void Runtime::clear_execution_schedule_file_cache()
-{
-    execution_schedule_file_cache_.reset();
-    execution_schedule_file_cache_path_.clear();
-}
 
-void Runtime::compile_with_round_robin_schedule()
-{
-    compile();
-    set_execution_schedule(generate_round_robin_execution_schedule());
-}
 
 void Runtime::write_execution_schedule_json(std::string const &path) const
 {
@@ -884,7 +788,7 @@ void Runtime::allocate_missing_tiles()
         {
             auto *node = const_cast<TileGraph::TileNode *>(tile_key);
             node->set_payload(adopt_it->second);
-            sync_logical_starpu_flag(node);
+            sync_logical_registered_flag(node);
             return;
         }
         if (tile_key->has_payload())
@@ -973,10 +877,10 @@ void Runtime::execute_range(
         throw std::out_of_range("Runtime::execute_range: bad range");
     }
     // Submit only: core sync wrappers skip wait_for_all while deferred so
-    // torch_nntile run() can return before StarPU finishes the phase.
+    // torch_nntile run() can return before NNHaul finishes the phase.
     // Unmarked-temp reclaim is ordinary TILE_INVALIDATE ops in this stream
     // (appended at compile), not a side-channel flush.
-    StarpuSyncDefer defer_waits;
+    SyncDefer defer_waits;
     bool const use_static_schedule =
         submit_tasks && has_execution_schedule();
     for (size_t i = op_begin; i < op_end; ++i)
@@ -985,15 +889,14 @@ void Runtime::execute_range(
         {
             if (use_static_schedule)
             {
-                starpu_worker_hint_ =
-                    sched::starpu_worker_id_for_scheduled_op(
+                worker_hint_ =
+                    sched::worker_id_for_scheduled_op(
                         execution_schedule_.worker_for_op(i),
-                        execution_schedule_.use_cuda_workers,
                         execution_order_[i]->op_name());
             }
             else
             {
-                starpu_worker_hint_ = -1;
+                worker_hint_ = -1;
             }
             execution_order_[i]->execute(*this);
         }
@@ -1014,47 +917,10 @@ void Runtime::execute()
     executed_op_end_ = 0;
     allocate_missing_tiles();
     // Submit only - same contract as execute_range. Call wait() to join
-    // StarPU. Last-consumer invalidate_submit runs inside execute_range.
+    // NNHaul. Last-consumer invalidate_submit runs inside execute_range.
     execute_range(0, execution_order_.size());
 }
 
-void Runtime::build_tile_last_consumer_map()
-{
-    // Pending suffix only: size dying lists and last-consumer scratch to
-    // O(pending), never O(|execution_order_|). Absolute op indices are
-    // recovered via tiles_dying_op_base_.
-    const size_t n = execution_order_.size();
-    const size_t begin =
-        executed_op_end_ < n ? executed_op_end_ : n;
-    tiles_dying_op_base_ = begin;
-    tiles_dying_after_op_.clear();
-    if (begin >= n)
-    {
-        return;
-    }
-    const size_t pending = n - begin;
-    tiles_dying_after_op_.assign(pending, {});
-
-    // Sparse last-consumer over tiles touched by the pending suffix only.
-    // Dense last_op_by_id[max_id+1] was O(session tile nodes) every compile
-    // because TileNode ids are monotonic and append-only.
-    std::unordered_map<const TileGraph::TileNode *, size_t> last_op;
-    last_op.reserve(pending * 4);
-    for (size_t i = begin; i < n; ++i)
-    {
-        for (const auto *in : execution_order_[i]->inputs())
-        {
-            if (in != nullptr)
-            {
-                last_op[in] = i;
-            }
-        }
-    }
-    for (const auto &[tile, last] : last_op)
-    {
-        tiles_dying_after_op_[last - begin].push_back(tile);
-    }
-}
 
 void Runtime::invalidate_tile_buffer(
     const TileGraph::TileNode *node,
@@ -1164,65 +1030,8 @@ void Runtime::unregister_tile_buffer(
     }
 }
 
-void Runtime::release_dead_tiles_after_op(size_t op_idx)
-{
-    queue_dead_tiles_after_op(op_idx);
-    if (g_starpu_sync_defer_depth == 0)
-    {
-        starpu_task_wait_for_all_counted();
-        flush_queued_dead_tiles();
-    }
-}
 
-void Runtime::queue_dead_tiles_after_op(size_t op_idx)
-{
-    if (op_idx < tiles_dying_op_base_)
-    {
-        return;
-    }
-    size_t const local = op_idx - tiles_dying_op_base_;
-    if (local >= tiles_dying_after_op_.size())
-    {
-        return;
-    }
-    for (const TileGraph::TileNode *tile : tiles_dying_after_op_[local])
-    {
-        // Skip tensors that still have a live TensorRef.
-        if (tile == nullptr || tile_logical_is_live(tile))
-        {
-            continue;
-        }
-        queued_dead_tiles_.push_back(tile);
-    }
-}
 
-void Runtime::flush_queued_dead_tiles()
-{
-    if (queued_dead_tiles_.empty())
-    {
-        return;
-    }
-    for (const TileGraph::TileNode *tile : queued_dead_tiles_)
-    {
-        if (tile == nullptr || !tile->is_starpu_registered()
-            || !tile->has_payload())
-        {
-            continue;
-        }
-        auto payload = tile->payload();
-        invalidate_tile_buffer(tile, payload);
-#ifdef NNTILE_USE_NNHAUL
-        if (payload)
-        {
-            nnhaul_retained_payloads_.push_back(payload);
-        }
-#endif
-        auto *mut = const_cast<TileGraph::TileNode *>(tile);
-        mut->clear_payload();
-        sync_logical_starpu_flag(mut);
-    }
-    queued_dead_tiles_.clear();
-}
 
 void Runtime::eliminate_dead_ops()
 {
@@ -1288,7 +1097,7 @@ void Runtime::eliminate_dead_ops()
 
     // Seed from tiles whose logical still has a live TensorRef.
     // TILE_UNREGISTER is recorded when that TensorRef is already gone;
-    // the StarPU handle stays until this op runs, so seed its inputs
+    // the NNHaul handle stays until this op runs, so seed its inputs
     // even though tile_logical_is_live is false.
     for (size_t i = pending_begin; i < n; ++i)
     {
@@ -1317,8 +1126,8 @@ void Runtime::eliminate_dead_ops()
     // reader is the remote gather. This fallback used to run only when
     // the work list was empty, so a single pending TILE_UNREGISTER
     // disabled it and DCE pruned the producing op; the gathered tile
-    // stayed uninitialized and StarPU aborted on
-    // _starpu_data_check_initialized. Seed sinks unconditionally -
+    // stayed uninitialized and NNHaul aborted on
+    // the engine initialized check. Seed sinks unconditionally -
     // liveness of other tiles is unaffected (their consumers still
     // propagate through the work list).
     for (auto const &p : producer)
@@ -1410,11 +1219,11 @@ std::string Runtime::execution_op_name(size_t i) const
 
 void Runtime::wait()
 {
-    starpu_task_wait_for_all_counted();
-#ifdef NNTILE_USE_NNHAUL
+    task_wait_for_all_counted();
     nnhaul_retained_payloads_.clear();
-#endif
 }
+
+
 
 bool Runtime::drop_fully_executed_history()
 {

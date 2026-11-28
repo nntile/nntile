@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/include/torch_nntile/models/roberta.hh
  * RoBERTa MLM matching deleted ``nntile::model::roberta``.
+ * @version 2.0.0
  */
 
 #pragma once

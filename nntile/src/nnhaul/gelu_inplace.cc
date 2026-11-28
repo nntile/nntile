@@ -4,12 +4,12 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
- * distributed-memory heterogeneous systems based on StarPU runtime system.
+ * distributed-memory heterogeneous systems based on the NNHaul runtime system.
  *
- * @file src/starpu/gelu_inplace.cc
- * GeLU inplace operation on a StarPU buffer
+ * @file src/nnhaul/gelu_inplace.cc
+ * GeLU inplace operation on a NNHaul buffer
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 // Corresponding header
@@ -17,12 +17,14 @@
 
 // Standard libraries
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 
 // Other NNTile headers
 #include "nntile/kernel/gelu_inplace.hh"
+#include "nntile/nnhaul/chunk_units.hh"
 
-namespace nntile::haul
+namespace nntile::nnhaul
 {
 
 //! Constructor
@@ -41,7 +43,7 @@ GeluInplace<std::tuple<T>>::GeluInplace():
     // Modes are not fixed, they are decided during runtime by default
 }
 
-//! Apply gelu_inplace on StarPU buffer on CPU
+//! Apply gelu_inplace on NNHaul buffer on CPU
 template<typename T>
 void GeluInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
@@ -49,9 +51,9 @@ void GeluInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     // Get interfaces
-    auto data = ::nntile::haul::buf_chunks<T>(buffers, 0);
+    auto data = ::nntile::nnhaul::buf_chunks<T>(buffers, 0);
     // Launch kernel per flat chunk piece (single piece if unchunked)
-    ::nntile::haul::for_each_flat_piece(
+    ::nntile::nnhaul::for_each_flat_piece(
         args->nelems,
         [&](std::size_t n, T *p) {
             kernel::gelu_inplace::cpu<T>(n, p);
@@ -85,24 +87,51 @@ void GeluInplace<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_ar
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Apply gelu_inplace on StarPU buffer on CUDA
+//! Apply gelu_inplace on NNHaul buffer on CUDA
 template<typename T>
 void GeluInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
+    chunkunits::require_kernel_index_envelope(
+        static_cast<std::size_t>(args->nelems), "nntile_gelu_inplace");
     // Get interfaces
-    auto data = ::nntile::haul::buf_chunks<T>(buffers, 0);
-    // Get CUDA stream
+    auto *data_buf = static_cast<::nnhaul::Buffer *>(buffers[0]);
     cudaStream_t stream = ::nnhaul::cuda_stream();
-    // Launch kernel per flat chunk piece (single piece if unchunked)
-    ::nntile::haul::for_each_flat_piece(
-        args->nelems,
-        [&](std::size_t n, T *p) {
-            kernel::gelu_inplace::cuda<T>(stream, n, p);
-        },
-        data);
+    if(data_buf->chunk_count() == 1)
+    {
+        if(args->nelems > 0)
+        {
+            kernel::gelu_inplace::cuda<T>(stream, args->nelems,
+                data_buf->get_ptr<T>());
+        }
+        return;
+    }
+    if(args->nelems > 0)
+    {
+        chunkunits::ChunkView<T> const cvd(data_buf);
+        chunkunits::LaunchTables &tabs = chunkunits::launch_tables();
+        tabs.clear();
+        std::size_t const o_pd = tabs.add(cvd);
+        chunkunits::ChunkPtrTable &arena = chunkunits::chunk_ptr_table();
+        if(arena.begin(stream))
+        {
+            void const *table_base = arena.upload_tables(tabs);
+            if(table_base != nullptr)
+            {
+                kernel::gelu_inplace::chunked<T>(stream, args->nelems,
+                    arena.table_view<T *>(table_base, o_pd),
+                    Index(cvd.nchunks),
+                    Index(cvd.chunk_elems));
+                arena.end(stream);
+                return;
+            }
+            std::fprintf(stderr,
+                "nntile_gelu_inplace: chunk-ptr table cannot serve this launch\n");
+            std::abort();
+        }
+    }
 }
 
 // Specializations of CUDA wrapper for accelerated types
@@ -144,13 +173,13 @@ std::uint64_t GeluInplace<std::tuple<T>>::footprint(void const *cl_args, std::si
     // Get arguments
     auto args = reinterpret_cast<args_t const *>(cl_args);
     uint32_t hash = 0;
-    hash = ::nntile::haul::fnv1a(&args->nelems, sizeof(args->nelems), hash);
+    hash = ::nntile::nnhaul::fnv1a(&args->nelems, sizeof(args->nelems), hash);
     return hash;
 }
 
 //! Submit gelu_inplace task
 template<typename T>
-void GeluInplace<std::tuple<T>>::submit(int starpu_worker_hint,
+void GeluInplace<std::tuple<T>>::submit(int worker_hint,
     Index nelems,
     ::nnhaul::Handle & data
 )
@@ -159,8 +188,8 @@ void GeluInplace<std::tuple<T>>::submit(int starpu_worker_hint,
     args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->nelems = nelems;
     // Submit task
-    ::nntile::haul::insert_task(codelet.raw, starpu_worker_hint,
-        { { STARPU_RW, &data } }, args, sizeof(*args));
+    ::nntile::nnhaul::insert_task(codelet.raw, worker_hint,
+        { { ACCESS_RW, &data } }, args, sizeof(*args));
     std::free(args);
 
 }
@@ -179,4 +208,4 @@ template class GeluInplace<std::tuple<nntile::fp16_t>>;
 //! Pack of gelu_inplace operations for different types
 gelu_inplace_pack_t gelu_inplace;
 
-} // namespace nntile::haul
+} // namespace nntile::nnhaul

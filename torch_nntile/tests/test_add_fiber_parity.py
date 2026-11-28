@@ -3,15 +3,15 @@
 #
 # @file torch_nntile/tests/test_add_fiber_parity.py
 # add_fiber parity vs broadcasted add (no scale_slice expand path).
+# @version 2.0.0
 
 from __future__ import annotations
 
 import torch
 from conftest import nntile_cpu
+
 from torch_nntile.add_fiber import add_fiber
 from torch_nntile.nn.functional import relu
-
-import torch_nntile
 
 
 def test_add_fiber_1d_bias_matches_broadcast_add():
@@ -100,4 +100,3 @@ def test_add_fiber_nonleaf_tensor_backward():
     )
     torch.testing.assert_close(nntile_cpu(gx), gx_cpu, rtol=1e-4, atol=1e-4)
     torch.testing.assert_close(nntile_cpu(gb), gb_cpu, rtol=1e-4, atol=1e-4)
-

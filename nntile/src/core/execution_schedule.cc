@@ -6,17 +6,13 @@
  *
  * @file nntile/src/core/execution_schedule.cc
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/core/execution_schedule.hh"
 #include "nntile/core/execution_worker.hh"
 #include "nntile/defs.h"
-#ifdef NNTILE_USE_NNHAUL
 #include "nntile/backend_workers.hh"
-#else
-#include <starpu.h>
-#endif
 #include "nntile/tile/graph_data_node.hh"
 #include "nntile/tile/graph_decl.hh"
 #include "nntile/tile/graph_op_node.hh"
@@ -171,7 +167,6 @@ ExecutionSchedule build_execution_schedule(
     ExecutionSchedule schedule;
     schedule.policy = std::move(policy);
     schedule.num_workers = sched::count_execution_workers();
-#ifdef NNTILE_USE_NNHAUL
     schedule.workers.clear();
     for (BackendWorker const &worker : backend_worker_list())
     {
@@ -182,12 +177,6 @@ ExecutionSchedule build_execution_schedule(
         schedule.workers.push_back(std::move(info));
     }
     schedule.num_workers = static_cast<int>(schedule.workers.size());
-    schedule.use_cuda_workers = g_backend_ncuda > 0;
-#else
-    schedule.use_cuda_workers =
-        starpu_is_initialized() &&
-        starpu_worker_get_count_by_type(STARPU_CUDA_WORKER) > 0;
-#endif
     if (schedule.num_workers <= 0)
     {
         schedule.num_workers = 1;
@@ -361,115 +350,27 @@ namespace sched
 
 int count_execution_workers()
 {
-#ifdef NNTILE_USE_NNHAUL
     // One CUDA worker, never a CPU worker.
     return 1;
-#else
-    if (!starpu_is_initialized())
-    {
-        return 1;
-    }
-    int const ncuda = starpu_worker_get_count_by_type(STARPU_CUDA_WORKER);
-    if (ncuda > 0)
-    {
-        return ncuda;
-    }
-    int const ncpu = starpu_worker_get_count_by_type(STARPU_CPU_WORKER);
-    return ncpu > 0 ? ncpu : 1;
-#endif
 }
 
-int execution_ncuda()
-{
-#ifdef NNTILE_USE_NNHAUL
-    return 1;
-#else
-    if (!starpu_is_initialized())
-    {
-        return 0;
-    }
-    return starpu_worker_get_count_by_type(STARPU_CUDA_WORKER);
-#endif
-}
 
 bool tile_op_has_cuda_kernel(std::string const &tile_op_name)
 {
-#ifdef NNTILE_USE_CUDA
     return tile_op_name != "TILE_LOG_SCALAR";
-#else
-    (void)tile_op_name;
-    return false;
-#endif
 }
 
-int logical_worker_to_starpu_id(int logical_worker, bool use_cuda_workers)
-{
-#ifdef NNTILE_USE_NNHAUL
-    // The only live worker is CUDA worker 0. Logical ids beyond it do
-    // not name a CPU worker (none exists); they alias the one GPU.
-    (void)use_cuda_workers;
-    return logical_worker < 0 ? -1 : 0;
-#else
-    if (!starpu_is_initialized() || logical_worker < 0)
-    {
-        return -1;
-    }
-    if (use_cuda_workers)
-    {
-        int const ncuda =
-            starpu_worker_get_count_by_type(STARPU_CUDA_WORKER);
-        if (ncuda <= 0)
-        {
-            return -1;
-        }
-        return starpu_worker_get_by_type(
-            STARPU_CUDA_WORKER, logical_worker % ncuda);
-    }
-    int const ncpu = starpu_worker_get_count_by_type(STARPU_CPU_WORKER);
-    if (ncpu <= 0)
-    {
-        return -1;
-    }
-    return starpu_worker_get_by_type(
-        STARPU_CPU_WORKER, logical_worker % ncpu);
-#endif
-}
-
-bool tile_op_requires_cpu_worker(std::string const &tile_op_name)
-{
-#ifdef NNTILE_USE_NNHAUL
-    // No CPU worker exists, so no tile op can require one. An op with
-    // no CUDA kernel fails loudly at insert() instead of being sent to
-    // a worker that was never created.
-    (void)tile_op_name;
-    return false;
-#else
-    return tile_op_name == "TILE_LOG_SCALAR" ||
-        tile_op_name == "TILE_RANDN";
-#endif
-}
-
-int starpu_worker_id_for_scheduled_op(
+int worker_id_for_scheduled_op(
     int logical_worker,
-    bool use_cuda_workers,
     std::string const &tile_op_name)
 {
-#ifdef NNTILE_USE_NNHAUL
     // libnnhaul has exactly one worker (CUDA 0). Every schedulable op
-    // goes there. There is no CPU worker to fall back to: an op
-    // without a CUDA kernel is rejected by nnhaul::insert with its
-    // own error, which is the correct loud failure.
-    (void)use_cuda_workers;
+    // goes there. An op without a CUDA kernel is rejected by
+    // nnhaul::insert with its own error, which is the correct loud
+    // failure.
     (void)tile_op_name;
     (void)logical_worker;
     return 0;
-#else
-    if (tile_op_requires_cpu_worker(tile_op_name))
-    {
-        return logical_worker_to_starpu_id(logical_worker, false);
-    }
-    return logical_worker_to_starpu_id(logical_worker, use_cuda_workers);
-#endif
 }
 
 } // namespace sched
@@ -500,7 +401,6 @@ std::string execution_schedule_to_json(ExecutionSchedule const &schedule)
     j["policy"] = schedule.policy.empty()
         ? "round_robin_virtual_tensor_split"
         : schedule.policy;
-#ifdef NNTILE_USE_NNHAUL
     nlohmann::json worker_rows = nlohmann::json::array();
     for (ScheduleWorkerInfo const &worker : schedule.workers)
     {
@@ -514,12 +414,6 @@ std::string execution_schedule_to_json(ExecutionSchedule const &schedule)
         {"num_workers", schedule.num_workers},
         {"workers", worker_rows},
     };
-#else
-    j["hardware"] = {
-        {"num_workers", schedule.num_workers},
-        {"worker_kind", schedule.use_cuda_workers ? "cuda" : "cpu"},
-    };
-#endif
     nlohmann::json fp = nlohmann::json::object();
     fp["op_count"] = schedule.fingerprint.op_count;
     fp["op_names"] = schedule.fingerprint.op_names;
@@ -582,7 +476,6 @@ ExecutionSchedule load_execution_schedule_json(std::string const &path)
         {
             schedule.num_workers = hw["num_workers"].get<int>();
         }
-#ifdef NNTILE_USE_NNHAUL
         if (!hw.contains("workers") || !hw["workers"].is_array())
         {
             throw std::runtime_error(
@@ -602,9 +495,19 @@ ExecutionSchedule load_execution_schedule_json(std::string const &path)
             info.device = row.contains("device")
                 ? row.at("device").get<int>()
                 : -1;
-            if (info.kind == "cuda")
+            if (info.kind != "cuda")
             {
-                schedule.use_cuda_workers = true;
+                throw std::runtime_error(
+                    "execution.json names a worker of kind '" + info.kind +
+                    "'; NNTile 2.0 has exactly one CUDA worker");
+            }
+            if (info.device != -1 && info.device != 0)
+            {
+                throw std::runtime_error(
+                    "execution.json names device " +
+                    std::to_string(info.device) +
+                    "; NNTile 2.0 uses device 0 (select the GPU with "
+                    "CUDA_VISIBLE_DEVICES)");
             }
             schedule.workers.push_back(std::move(info));
         }
@@ -624,20 +527,11 @@ ExecutionSchedule load_execution_schedule_json(std::string const &path)
                 "execution.json: hardware.num_workers does not match "
                 "hardware.workers");
         }
-#else
-        if (hw.contains("worker_kind") && hw["worker_kind"].is_string())
-        {
-            schedule.use_cuda_workers =
-                hw["worker_kind"].get<std::string>() == "cuda";
-        }
-#endif
     }
-#ifdef NNTILE_USE_NNHAUL
     else
     {
         throw std::runtime_error("regenerate execution.json");
     }
-#endif
     if (j.contains("schedule_fingerprint") &&
         j["schedule_fingerprint"].is_object())
     {
