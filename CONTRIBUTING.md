@@ -36,7 +36,7 @@ There is no CUDA switch; configure always enables CUDA.
 models on `device="nntile"` are out of scope for 2.0.
 
 ```bash
-export LD_LIBRARY_PATH="$PWD/build-nnhaul/nntile:$PWD/build-nnhaul/nnhaul:${LD_LIBRARY_PATH:-}"
+export LD_LIBRARY_PATH="$PWD/build-nnhaul/nntile:$PWD/build-nnhaul/nnhaul:$PWD/build-nnhaul/torch_nntile:${LD_LIBRARY_PATH:-}"
 python3 -m pip install build-nnhaul/wheelhouse/torch_nntile-*.whl
 python3 torch_nntile/tools/smoke_test_wheel.py
 ```

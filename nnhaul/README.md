@@ -183,7 +183,7 @@ CUDA GPU at test time only.
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -GNinja
 cmake --build build
-ctest --test-dir build --output-on-failure   # 26 C++ + 2 Python tests
+ctest --test-dir build --output-on-failure   # 28 C++ + 2 Python tests
 cmake --install build --prefix /opt/nnhaul   # or --prefix /usr/local
 ```
 
@@ -379,7 +379,7 @@ in [docs/examples/](docs/examples/).
 
 ## Tests
 
-`ctest` in this repository runs the runtime suite (26 C++ and 2 Python
+`ctest` in this repository runs the runtime suite (28 C++ and 2 Python
 tests): the unit suites over the plan-engine types — host
 pool, binding table (including a 10k-transition churn against a
 reference fold), plan checker (the full fault table), dependency, the

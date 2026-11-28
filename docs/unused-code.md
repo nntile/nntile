@@ -111,9 +111,10 @@ rather than marked:
 - The universal **staged fallback** in `nntile/include/nntile/nnhaul/stage.hh`
   and `nntile/src/nnhaul/stage.cc`: gather-into-contiguous-scratch /
   run / scatter machinery, its `StagedBuf` state, the scratch live set
-  (`stash_scratches`, `drain_scratches`), and the staged-submit probe counters.
-  Every product driver now has a chunk-aware path; the docs already described
-  this fallback as removed.
+  (`stash_scratches`, `drain_scratches`). The submit-path machinery is gone;
+  the zero-engagement probe `staged_submit_count` is retained because the
+  chunked-tile tests assert that it stays zero. Every product driver now has a
+  chunk-aware path; the docs already described this fallback as removed.
   **This is not GEMM staging.** GEMM keeps its own dedicated workspace
   staging (`gemm_workspace_staged` in `nntile/src/nnhaul/gemm.cc` and the
   `Workspace` contract in `nntile/include/nntile/kernel/gemm/cuda.hh`,
@@ -126,7 +127,8 @@ rather than marked:
 - Manual 1.x/early-2.0 scripts `torch_nntile/tests/torch_{add_step,
   gemm_add_step,linear_step,linear_train}.py`; they were not collected by
   pytest and are superseded by the parity tests.
-- Unreferenced benchmark images `images/gpt_short8_perf.*`.
+- Unreferenced benchmark images `images/gpt_short8_perf.*` and the five
+  `torch_nntile/examples/overhead_gpt2/gpt2_{xs,s,m,l,xl}.json` sweep configs.
 - `.github/scripts/deepen-pr-checkout.sh` — replaced by `fetch-depth: 0` in
   the lint workflow.
 - `nntile/include/nntile/tensor/tiling_spec_json.hh` and
@@ -139,7 +141,7 @@ rather than marked:
   (`apply_execution_schedule_from_file`, `clear_execution_schedule_file_cache`,
   `compile_with_round_robin_schedule`, `build_tile_last_consumer_map`,
   `release_dead_tiles_after_op`, `queue_dead_tiles_after_op`,
-  `flush_queued_dead_tiles`) and their private state.
+  `flush_queued_dead_tiles`, `invalidate_initialized`) and their private state.
 - Zero-caller accessors: `TensorGraph::data_names`,
   `TileGraph::data_names`, `has_tiled_axis_group`, `num_untiled_groups`,
   `reset_phase_seal_cursor`, `TileNode::clear_tensor_info`,
