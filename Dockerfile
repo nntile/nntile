@@ -15,8 +15,8 @@
 
 # syntax=docker/dockerfile:1.7
 
-ARG CUDA_VERSION=12.8.1
-ARG UBUNTU_VERSION=ubuntu24.04
+ARG CUDA_VERSION=12.4.1
+ARG UBUNTU_VERSION=ubuntu22.04
 ARG BASE_IMAGE=nvidia/cuda:${CUDA_VERSION}-devel-${UBUNTU_VERSION}
 
 FROM ${BASE_IMAGE} AS sandbox
@@ -36,13 +36,13 @@ LABEL org.opencontainers.image.source="https://github.com/nntile/nntile" \
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
-        build-essential ca-certificates ccache cmake curl git gdb lcov \
-        ninja-build pkg-config python3.12 python3.12-dev python3.12-venv \
-        unzip wget vim && \
+        build-essential ca-certificates ccache curl git gdb lcov \
+        ninja-build pkg-config python3 unzip wget vim && \
     rm -rf /var/lib/apt/lists/*
 
 # uv installs and owns the Python environment; no conda layer.
-RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
+RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh && \
+    uv python install ${PYTHON_VERSION}
 
 ENV CUDA_HOME=/usr/local/cuda \
     PATH=/opt/venv/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
@@ -61,7 +61,7 @@ RUN uv venv /opt/venv --python ${PYTHON_VERSION} && \
         "torch==${TORCH_VERSION}" "torchvision==${TORCHVISION_VERSION}" \
         --index-url https://download.pytorch.org/whl/cu128 && \
     uv pip install --python /opt/venv/bin/python \
-        "transformers==4.52.*" "numpy<3" pytest setuptools wheel ninja
+        "transformers==4.52.*" "numpy<3" pytest setuptools wheel ninja cmake
 
 RUN groupadd -g ${USER_GID} nntile 2>/dev/null || true && \
     useradd -m -u ${USER_UID} -g ${USER_GID} -s /bin/bash nntile 2>/dev/null || true && \
