@@ -21,7 +21,7 @@ cmake --build --preset nnhaul -j
 This produces `libnnhaul.so`, `libnntile.so`, `libtorch_nntile.so`, and a
 local `torch_nntile-2.0.0` wheel under `build-nnhaul/wheelhouse`.
 
-`USE_CUDA` is a removed switch; configure always enables CUDA (a missing toolkit is a hard error).
+Configure always enables CUDA; a missing toolkit is a hard error.
 
 ## Libnntile only
 

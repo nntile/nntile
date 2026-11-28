@@ -43,8 +43,7 @@ option(BUILD_LIBNNTILE "Build the core C++ libnntile library" ON)
 # NNTile 2.0 has exactly one runtime: NNHaul. It is CUDA-only and its
 # codelets are chunked-only. There is no backend switch.
 # NNTile 2.0 has no CUDA switch: the NNHaul backend and every chunked
-# kernel entry point require CUDA. Explicit USE_CUDA is rejected below as a
-# removed 1.x option.
+# kernel entry point require CUDA, enabled unconditionally below.
 # Default ON: the user-facing product is the torch_nntile pip wheel (needs
 # LibTorch on CMAKE_PREFIX_PATH). Layered CI and Torch-less configures must
 # pass -DBUILD_LIBTORCH_NNTILE=OFF -DBUILD_TORCH_NNTILE=OFF.
@@ -55,43 +54,6 @@ option(BUILD_TORCH_NNTILE
 option(BUILD_COVERAGE "Generate code coverage report" OFF)
 # NNTile 2.0 has one torch_nntile stack: classic nntile kernels and models.
 # There is no ATen-on-nntile dispatch family to select.
-
-# Options that selected the removed backends/paths in the 1.x series. A
-# command-line -D is reported as cache type UNINITIALIZED: fail on it, because
-# a user asking for the old distributed runtime, a CPU BLAS, an ATen dispatch
-# family, or the unchunked debug switch must not get an NNHaul-only build under
-# a different name. A typed entry is a leftover from an old build directory;
-# warn and purge it so an incremental reconfigure keeps working.
-foreach(_removed_opt IN ITEMS
-        NNTILE_USE_NNHAUL
-        USE_CUDA
-        USE_CUDA_FP8
-        NNTILE_TORCH_NATIVE_OPS
-        NNTILE_NNTILE_NATIVE_OPS
-        USE_CBLAS
-        USE_FLASH_SDPA
-        USE_CUDA_FP16
-        USE_CUDA_TF32
-        USE_CUDA_BF16
-        NNTILE_FORCE_CHUNKED_KERNELS
-        BUILD_DOCS
-        BUILD_LIBTORCH_NNTILE_EXAMPLES)
-    if(DEFINED ${_removed_opt})
-        get_property(_removed_type CACHE ${_removed_opt} PROPERTY TYPE)
-        if(_removed_type STREQUAL "UNINITIALIZED")
-            message(FATAL_ERROR
-                "${_removed_opt} was removed in NNTile 2.0. There is exactly "
-                "one backend (NNHaul) and one kernel layout (chunked); remove "
-                "the option from your configure command.")
-        endif()
-        message(WARNING
-            "${_removed_opt} is a stale entry from an NNTile 1.x build "
-            "directory; it has no effect in 2.0 and is being removed from the "
-            "cache. Reconfigure from a clean build directory if anything "
-            "still points at a removed backend.")
-        unset(${_removed_opt} CACHE)
-    endif()
-endforeach()
 
 # NNTILE_PREFIX / TORCH_NNTILE_PREFIX are the documented layered-install
 # knobs; fold them into CMAKE_PREFIX_PATH so config-mode find_package sees
