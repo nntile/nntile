@@ -1,160 +1,73 @@
 # @copyright (c) 2022-present Skolkovo Institute of Science and Technology
 #                              (Skoltech), Russia. All rights reserved.
-#                2023-present Artificial Intelligence Research Institute
+#                 2023-present Artificial Intelligence Research Institute
 #                              (AIRI), Russia. All rights reserved.
 #
 # NNTile is software framework for fast training of big neural networks on
-# NNTile 2.0: CUDA-only, NNHaul backend.
+# distributed-memory heterogeneous systems with GPU acceleration.
 #
 # @file Dockerfile
-# Instructions for Docker to build an image for testing with NNTile and Torch
-# using conda/miniconda for all dependencies
+# NNTile 2.0 sandbox: CUDA toolkit + cuDNN + uv-managed Python environment
+# with PyTorch. Published as ghcr.io/nntile/nntile-sandbox and reused by CI
+# so every job does not reinstall the toolchain.
 #
 # @version 2.0.0
 
-# Set CUDA version
-ARG CUDA_VERSION=12.8
+# syntax=docker/dockerfile:1.7
 
-# Set base OS
-ARG BASE_OS=ubuntu22.04
+ARG CUDA_VERSION=12.8.1
+ARG UBUNTU_VERSION=ubuntu24.04
+ARG BASE_IMAGE=nvidia/cuda:${CUDA_VERSION}-cudnn-devel-${UBUNTU_VERSION}
 
-# Use CUDA base image with CUDA driver
-# Everything else is installed via Conda into "nntile" environment
-ARG BASE_IMAGE=nvidia/cuda:${CUDA_VERSION}-base-${BASE_OS}
-
-# Parallel build (inherited in sandbox and nntile stages)
-ARG MAKE_JOBS=4
-
-# Target CUDA architectures (inherited in sandbox and nntile stages)
-ARG CUDA_ARCHS=70;75;80;86;89;90;100;120
-
-# Read the base image. Target "sandbox" contains all the NNTile prerequisites
-# and is meant for the NNTile development
 FROM ${BASE_IMAGE} AS sandbox
 
-# Image labels
-LABEL org.opencontainers.image.source="https://github.com/nntile/nntile"
-LABEL Maintainer="Aleksandr Mikhalev <al.mikhalev@skoltech.ru>"
-
-# Inherit global ARGs
-ARG MAKE_JOBS
-ARG CUDA_ARCHS
-
-# Desired Python version
-ARG PYTHON_VERSION=3.12
-
-# Desired Pytorch version
-ARG PYTORCH_VERSION=2.9.1
-
-# No interactions with a user during docker build
-# ARG is not exposed into a container environment
 ARG DEBIAN_FRONTEND=noninteractive
+ARG PYTHON_VERSION=3.12
+ARG TORCH_VERSION=2.9.1
+ARG TORCHVISION_VERSION=0.24.1
+ARG USER_UID=1000
+ARG USER_GID=1000
 
-# Override the default shell to ensure bash is used
-SHELL ["/bin/bash", "--login", "-c"]
+LABEL org.opencontainers.image.source="https://github.com/nntile/nntile" \
+      org.opencontainers.image.title="NNTile 2.0 sandbox" \
+      org.opencontainers.image.description="CUDA-only NNHaul build/test environment" \
+      org.opencontainers.image.licenses="MIT"
 
-# Install only minimal system packages needed for conda installation
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt update && \
-    apt install -y --no-install-recommends \
-        ca-certificates \
-        curl \
-        unzip \
-        wget
+    apt-get update && apt-get install -y --no-install-recommends \
+        build-essential ca-certificates ccache cmake curl git gdb lcov \
+        ninja-build pkg-config python3.12 python3.12-dev python3.12-venv \
+        unzip wget vim && \
+    rm -rf /var/lib/apt/lists/*
 
-# Set Conda-related environment variables
-ENV CONDA_DIR=/opt/conda
-ENV PATH=${CONDA_DIR}/bin:${PATH}
+# uv installs and owns the Python environment; no conda layer.
+RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
 
-# Install Miniforge
-RUN --mount=type=cache,target=/tmp \
-    set -xe && \
-    export URL="https://github.com/conda-forge/miniforge/releases/latest" && \
-    export URL="${URL}/download/Miniforge3-$(uname)-$(uname -m).sh" && \
-    wget ${URL} -O /tmp/miniforge.sh && \
-    bash /tmp/miniforge.sh -b -p ${CONDA_DIR} && \
-    conda init && \
-    source "${CONDA_DIR}/etc/profile.d/conda.sh" && \
-    source "${CONDA_DIR}/etc/profile.d/mamba.sh" && \
-    conda config --set auto_activate_base false
+ENV CUDA_HOME=/usr/local/cuda \
+    PATH=/opt/venv/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    LD_LIBRARY_PATH=/usr/local/cuda/lib64 \
+    CCACHE_DIR=/ccache \
+    CMAKE_CUDA_COMPILER_LAUNCHER=ccache \
+    CMAKE_CXX_COMPILER_LAUNCHER=ccache \
+    CMAKE_CUDA_ARCHITECTURES=70;75;80;86;89;90 \
+    UV_LINK_MODE=copy \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    OMP_NUM_THREADS=1
 
-# Create an environment "nntile" with custom Python and Pytorch versions
-# Also install compilers and libraries, required for the NNTile
-RUN --mount=type=cache,target=/opt/conda/pkgs \
-    set -xe && \
-    CONDA_OVERRIDE_CUDA=${CUDA_VERSION} conda create -n nntile \
-        python=${PYTHON_VERSION} \
-        pytorch-gpu=${PYTORCH_VERSION} \
-        cuda \
-        cuda-toolkit \
-        "transformers==4.52.*" \
-        nomkl \
-        cmake \
-        ninja \
-        make \
-        gcc_linux-64 \
-        gxx_linux-64 \
-        gfortran_linux-64 \
-        libxml2-devel \
-        git \
-        gawk \
-        curl \
-        vim \
-        gdb \
-        lcov \
-        binutils \
-        time \
-        torchvision \
-        pre-commit \
-        isort \
-        ruff \
-        mypy \
-        numpy \
-        pydantic \
-        scipy \
-        tomli \
-        sentencepiece \
-        datasets \
-        pytest \
-        pytest-benchmark \
-        tokenizers \
-        patchelf \
-        auditwheel
+RUN uv venv /opt/venv --python ${PYTHON_VERSION} && \
+    uv pip install --python /opt/venv/bin/python \
+        "torch==${TORCH_VERSION}" "torchvision==${TORCHVISION_VERSION}" \
+        --index-url https://download.pytorch.org/whl/cu128 && \
+    uv pip install --python /opt/venv/bin/python \
+        "transformers==4.52.*" "numpy<3" pytest setuptools wheel ninja
 
-# Make RUN commands use the new environment:
-SHELL ["conda", "run", "-n", "nntile", "/bin/bash", "-c"]
+RUN groupadd -g ${USER_GID} nntile 2>/dev/null || true && \
+    useradd -m -u ${USER_UID} -g ${USER_GID} -s /bin/bash nntile 2>/dev/null || true && \
+    mkdir -p /workspace /ccache && \
+    chown -R ${USER_UID}:${USER_GID} /workspace /ccache /opt/venv
 
-# Make containers use "nntile" environment by default
-ENTRYPOINT ["conda", "run", "--no-capture-output", "-n", "nntile"]
-
-# Launch bash in the "nntile" environment by default
-CMD ["/bin/bash"]
-
-# Keep the host math libraries single-threaded in the container
-ENV OMP_NUM_THREADS=1
-
-# Set default working directory for the NNTile development
-WORKDIR /workspace/nntile
-
-
-# Target "nntile" contains the compiled libraries
-FROM sandbox AS nntile
-
-# Inherit global ARGs
-ARG MAKE_JOBS
-ARG CUDA_ARCHS
-
-# Copy all sources
-ADD . /workspace/nntile
-
-# Configure NNTile 2.0 (CUDA-only, NNHaul-only).
-RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_CUDA_ARCHITECTURES="${CUDA_ARCHS}" \
-    -DCMAKE_PREFIX_PATH=$CONDA_PREFIX \
-    -DBUILD_LIBTORCH_NNTILE=OFF \
-    -DBUILD_TORCH_NNTILE=OFF \
-    -GNinja
-
-# Finally, build the NNTile inplace without installation
-RUN cmake --build build -j ${MAKE_JOBS}
+WORKDIR /workspace
+ENTRYPOINT ["/bin/bash", "-lc"]
+CMD ["bash"]
