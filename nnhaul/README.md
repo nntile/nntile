@@ -58,7 +58,7 @@ lane model are summarised above; the trace format is documented in
 [docs/traces.md](docs/traces.md).
 
 `nnhaul::cuda_stream()`, `nnhaul::cublas_handle()`,
-`nnhaul::cudnn_handle()`, `nnhaul::workspace_ptr()` and
+`nnhaul::workspace_ptr()` and
 `nnhaul::device_index()` are valid inside a codelet body and name the
 RUNNING node. CPU kernels are first-class TILE_OPs on the host node: a
 two-body codelet's TILE_OP node selects the body (the host node
@@ -156,7 +156,7 @@ documented in Doxygen comments in
 ## Build and installation
 
 Requirements: CMake ≥ 3.18, a C++17 compiler, the CUDA toolkit
-(compiler and runtime), and cuDNN 9 (`cudnn.h` + `libcudnn`).
+(compiler and runtime).
 
 ### Building on a CUDA host
 
@@ -168,17 +168,14 @@ ctest --test-dir build --output-on-failure
 
 The default arch is `sm_75`; pass `-DCMAKE_CUDA_ARCHITECTURES=...` to
 target another one. A container works
-too (any image with the toolkit, cuDNN, CMake and Ninja); NNTile supplies
+too (any image with the toolkit, CMake and Ninja); NNTile supplies
 its own images for the parent build.
 
 ### Standalone build and install
 
 Prerequisites on `PATH`: `cmake` (≥ 3.18), `ninja`, a C++17 `g++`,
-and `nvcc` from a CUDA toolkit (12.x). cuDNN 9 must be installed —
-its location is resolved from `CUDNN_ROOT` (with `include/` and `lib/`
-beneath it), the CUDA toolkit's own directories, or explicit
-`-DCUDNN_INCLUDE_DIR=...` / `-DCUDNN_LIBRARY=...`. The build needs a
-CUDA GPU at test time only.
+and `nvcc` from a CUDA toolkit (12.x). The build needs a CUDA GPU at
+test time only.
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -GNinja
@@ -196,7 +193,6 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -GNinja \
     -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc \
     -DCMAKE_CUDA_HOST_COMPILER=/usr/bin/g++ \
     -DCUDAToolkit_ROOT=/usr/local/cuda \
-    -DCUDNN_ROOT=/opt/cudnn
 ```
 
 The GPU architecture defaults to `sm_75`; pass
@@ -220,7 +216,7 @@ add_executable(myapp myapp.cc)
 target_link_libraries(myapp PRIVATE nnhaul::nnhaul)
 ```
 
-`find_package(nnhaul)` re-finds Threads, the CUDA toolkit and cuDNN,
+`find_package(nnhaul)` re-finds Threads and the CUDA toolkit,
 so the consumer needs no CUDA language enabled and no manual include
 paths.
 

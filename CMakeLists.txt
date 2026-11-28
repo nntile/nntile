@@ -133,9 +133,7 @@ endmacro()
 macro(nntile_apply_cuda target)
     nntile_propagation_scope(${target} _scope)
     if(NNTILE_LINK_CUDA)
-        target_link_libraries(${target} ${_scope} CUDA::cublas CUDNN::cudnn_all)
-        target_include_directories(${target} ${_scope}
-            "$<BUILD_INTERFACE:${cudnn_frontend_SOURCE_DIR}/include>")
+        target_link_libraries(${target} ${_scope} CUDA::cublas)
     endif()
 endmacro()
 
@@ -191,12 +189,6 @@ if(CMAKE_CUDA_COMPILER)
     # Prefer pip nvidia-*-cu12 for cublas/cudart when wheel CI (or a
     # local build) exports NVIDIA_* paths / NNTILE_CUDA_FROM_PIP.
     include("${PROJECT_SOURCE_DIR}/cmake/NNTilePreferPipCuda.cmake")
-    add_subdirectory("external/cudnn_frontend")
-    # An installed nntile found by find_package already imported
-    # CUDNN::cudnn_all; importing it twice is a CMake error.
-    if(NOT TARGET CUDNN::cudnn_all)
-        include(${cudnn_frontend_SOURCE_DIR}/cmake/cuDNN.cmake)
-    endif()
 else()
     message(FATAL_ERROR
         "no CUDA compiler was found; NNTile 2.0 is CUDA-only.")

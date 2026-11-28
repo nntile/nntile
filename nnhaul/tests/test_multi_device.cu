@@ -36,7 +36,7 @@
  * channel matrix rule). Case 5 is pure check-mode data (nothing
  * device-specific runs in check mode) and runs anywhere.
  * Cases 1-4 share the suite's ONE engine lifecycle on any host (one
- * public init/shutdown over the probed device count — repeated cuDNN
+ * public init/shutdown over the probed device count — repeated
  * handle create/destroy cycles fault intermittently inside this
  * stack's driver; the 2-GPU moves ride the same runtime, their
  * counters diffed per batch). GPU: the suite initializes CUDA — run
@@ -380,10 +380,8 @@ void it_two_gpu_peer_copy(int devices)
         // init over exactly the probed count: k device nodes plus the
         // host node, the host node's id IS k). Keeping the
         // suite to one public init/shutdown cycle sidesteps an
-        // intermittent driver-side fault this stack shows inside
-        // cudnnDestroy on the third handle create/destroy cycle in
-        // one process (observed here; libcudnn_graph.so's teardown
-        // racing libcuda — never the engine's own path).
+        // intermittent driver-side fault this stack showed on the third
+        // handle create/destroy cycle in one process.
         int const again = probe_devices();
         CHECK(again == devices);
         CHECK(devices >= 0);
@@ -1101,9 +1099,9 @@ int main()
 
     // Cases 1-4 share the suite's ONE engine lifecycle on any host —
     // init once over the probed device count, shutdown once (an
-    // intermittent driver-side fault inside cudnnDestroy shows on
-    // this stack from the third handle create/destroy cycle in one
-    // process; one cycle keeps the suite clear of it everywhere). On
+    // intermittent driver-side fault shows on this stack from the third
+    // handle create/destroy cycle in one process; one cycle keeps the
+    // suite clear of it everywhere). On
     // a 2-GPU host the moves of cases 1-2 ride the same runtime, each
     // move's counters DIFFED over its own batch; with fewer devices
     // they skip loudly inside. The tracer stays armed throughout:

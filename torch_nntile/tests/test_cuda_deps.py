@@ -43,7 +43,6 @@ def test_ensure_linux_cuda_deps_passes_when_present(monkeypatch, tmp_path):
     lib_root.mkdir(parents=True)
     (lib_root / "libcublas.so.12").write_bytes(b"")
     for folder in (
-        "cudnn",
         "cusparse",
         "cusolver",
         "nvjitlink",

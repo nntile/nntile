@@ -36,7 +36,6 @@
 
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
-#include <cudnn.h>
 
 #include <algorithm>
 #include <cstdio>
@@ -1212,7 +1211,6 @@ CudaLaunchFn engine_device_body(RuntimeState &R, NodeId node,
         tls.node = node;
         tls.stream = stream;
         tls.cublas = facts.cublas;
-        tls.cudnn = facts.cudnn;
         tls.workspace = facts.workspace;
         tls.workspace_bytes = facts.workspace_bytes;
         tls.copy_desc = facts.copy_desc;
@@ -1719,18 +1717,6 @@ void engine_init(int ncpu, int ncuda, std::size_t cpu_cap_bytes,
                             std::to_string(f.ordinal));
             }
         }
-        cudnnStatus_t dnn_err = cudnnCreate(&f.cudnn);
-        if (dnn_err != CUDNN_STATUS_SUCCESS)
-        {
-            throw Error("cudnnCreate failed on device " +
-                        std::to_string(f.ordinal));
-        }
-        if (cudnnSetStream(f.cudnn, R.exec_lanes[d]->stream()) !=
-            CUDNN_STATUS_SUCCESS)
-        {
-            throw Error("cudnnSetStream failed on device " +
-                        std::to_string(f.ordinal));
-        }
     }
     }
     catch (...)
@@ -1739,10 +1725,6 @@ void engine_init(int ncpu, int ncuda, std::size_t cpu_cap_bytes,
         {
             DeviceFacts &f = R.dev[d];
             (void) cudaSetDevice(f.ordinal);
-            if (f.cudnn != nullptr)
-            {
-                cudnnDestroy(f.cudnn);
-            }
             if (f.cublas != nullptr)
             {
                 cublasDestroy(f.cublas);
@@ -2198,16 +2180,6 @@ void engine_shutdown()
     {
         DeviceFacts &f = R.dev[d];
         (void) cudaSetDevice(f.ordinal);
-        if (f.cudnn != nullptr)
-        {
-            // Unbind from the (already destroyed) execution stream
-            // before the handle dies: the binding is a driver-side
-            // reference the stream-first order would leave
-            // dangling through the destroy.
-            (void) cudnnSetStream(f.cudnn, nullptr);
-            cudnnDestroy(f.cudnn);
-            f.cudnn = nullptr;
-        }
         if (f.cublas != nullptr)
         {
             (void) cublasSetStream(f.cublas, nullptr);

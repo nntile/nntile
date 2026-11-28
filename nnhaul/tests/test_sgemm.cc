@@ -48,10 +48,7 @@ void gemm(void **buffers, void *cl_args) noexcept
         kN);
     cudaStream_t bound = nullptr;
     cublasGetStream(nnhaul::cublas_handle(), &bound);
-    cudaStream_t cudnn_stream = nullptr;
-    cudnnGetStream(nnhaul::cudnn_handle(), &cudnn_stream);
-    if (bound != nnhaul::cuda_stream() ||
-        cudnn_stream != nnhaul::cuda_stream() || nnhaul::device_index() != 0)
+    if (bound != nnhaul::cuda_stream() || nnhaul::device_index() != 0)
     {
         *mismatch = 1;
     }

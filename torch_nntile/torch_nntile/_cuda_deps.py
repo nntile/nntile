@@ -19,7 +19,6 @@ from pathlib import Path
 
 _LINUX_CUDA_NVIDIA_PACKAGES: tuple[tuple[str, str], ...] = (
     ("cublas", "nvidia-cublas-cu12"),
-    ("cudnn", "nvidia-cudnn-cu12"),
     ("cusparse", "nvidia-cusparse-cu12"),
     ("cusolver", "nvidia-cusolver-cu12"),
     ("nvjitlink", "nvidia-nvjitlink-cu12"),
@@ -28,7 +27,6 @@ _LINUX_CUDA_NVIDIA_PACKAGES: tuple[tuple[str, str], ...] = (
 
 _LINUX_CUDA_SONAMES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("cublas", ("libcublas.so.12",)),
-    ("cudnn", ("libcudnn.so.9",)),
     ("cusparse", ("libcusparse.so.12",)),
     ("cusolver", ("libcusolver.so.12", "libcusolver.so.11")),
     ("nvjitlink", ("libnvjitlink.so.12", "libnvJitLink.so.12")),
@@ -135,6 +133,6 @@ def ensure_linux_cuda_deps(*, required: bool | None = None) -> None:
         "torch_nntile was built with CUDA and requires NVIDIA CUDA 12 "
         f"libraries. Install: pip install {packages} "
         "(or set TORCH_LIB_DIR / CONDA_PREFIX / CUDA_HOME / LD_LIBRARY_PATH "
-        "so libcublas, libcudnn, libcusparse, libcusolver, libnvjitlink, "
+        "so libcublas, libcusparse, libcusolver, libnvjitlink, "
         "and libcudart are visible — see torch_nntile/tools/setup_torch_cuda_env.sh)"
     )

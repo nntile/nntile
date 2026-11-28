@@ -122,8 +122,8 @@ rather than marked:
 - `core::Tile::acquire_async` — an alias of the blocking `acquire` with no
   callers.
 - `cudnn_get_local_cudnn_handle` — only the deleted flash-SDPA path consumed
-  it; no NNTile kernel uses cuDNN directly now (NNHaul still creates its own
-  cuDNN handle internally).
+  it; NNTile and NNHaul have no cuDNN dependency now (the engine's unused
+  handle creation was removed too).
 - Manual 1.x/early-2.0 scripts `torch_nntile/tests/torch_{add_step,
   gemm_add_step,linear_step,linear_train}.py`; they were not collected by
   pytest and are superseded by the parity tests.

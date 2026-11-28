@@ -19,7 +19,7 @@ torch-native/ATen-on-nntile path.
 
 ## Environment
 
-- CUDA toolkit with `nvcc`, cuBLAS, cuDNN.
+- CUDA toolkit with `nvcc` and cuBLAS.
 - PyTorch matching `torch_nntile` (2.9.x), CMake >= 3.24, Ninja, g++.
 
 ## Build

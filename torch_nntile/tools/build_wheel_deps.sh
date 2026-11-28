@@ -107,13 +107,6 @@ configure_nntile_cmake() {
     elif [ -n "${CUDA_HOME:-}" ]; then
         cmake_args+=(-DCMAKE_CUDA_COMPILER="${CUDA_HOME}/bin/nvcc")
     fi
-    if [ -n "${CUDNN_PATH:-}" ]; then
-        cmake_args+=(
-            -DCUDNN_PATH="${CUDNN_PATH}"
-            -DCUDNN_INCLUDE_PATH="${CUDNN_INCLUDE_PATH}"
-            -DCUDNN_LIBRARY_PATH="${CUDNN_LIBRARY_PATH}"
-        )
-    fi
     if [ "${NNTILE_CUDA_FROM_PIP:-0}" = "1" ] \
         || [ -n "${NVIDIA_CUBLAS_LIBRARY_PATH:-}" ]; then
         cmake_args+=(-DNNTILE_CUDA_FROM_PIP=ON)
@@ -203,7 +196,7 @@ assert_pip_cuda_link() {
         return 1
     fi
     # Ensure ldd can see pip nvidia trees when asserting.
-    export LD_LIBRARY_PATH="${NVIDIA_CUBLAS_LIBRARY_PATH:-}:${CUDNN_LIBRARY_PATH:-}:${NVIDIA_CUDA_RUNTIME_LIBRARY_PATH:-}:${LD_LIBRARY_PATH:-}"
+    export LD_LIBRARY_PATH="${NVIDIA_CUBLAS_LIBRARY_PATH:-}:${NVIDIA_CUDA_RUNTIME_LIBRARY_PATH:-}:${LD_LIBRARY_PATH:-}"
     bash "${script_dir}/assert_pip_cuda_libs.sh" "${lib}"
 }
 

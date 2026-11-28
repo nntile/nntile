@@ -116,8 +116,6 @@ else()
             "NNHAUL_ROOT to use the in-tree shared nnhaul.")
     endif()
     find_package(CUDAToolkit REQUIRED)
-    find_path(CUDNN_INCLUDE_DIR cudnn.h REQUIRED)
-    find_library(CUDNN_LIBRARY cudnn REQUIRED)
     get_filename_component(_nnhaul_libdir "${NNHAUL_LIBRARY}" DIRECTORY)
     list(APPEND CMAKE_INSTALL_RPATH "${_nnhaul_libdir}")
     set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}")
@@ -126,8 +124,7 @@ else()
         IMPORTED_LOCATION "${NNHAUL_LIBRARY}")
     target_include_directories(nnhaul INTERFACE
         "${NNHAUL_INCLUDE_DIR}"
-        ${CUDAToolkit_INCLUDE_DIRS}
-        "${CUDNN_INCLUDE_DIR}")
+        ${CUDAToolkit_INCLUDE_DIRS})
     # defs.h carries the configured chunk class; linking a libnnhaul built
     # with a different one would dispatch with mismatched chunk arithmetic.
     if(EXISTS "${NNHAUL_ROOT}/include/nnhaul/defs.h")
@@ -147,6 +144,5 @@ else()
     endif()
     target_link_libraries(nnhaul INTERFACE
         CUDA::cudart
-        CUDA::cublas
-        "${CUDNN_LIBRARY}")
+        CUDA::cublas)
 endif()

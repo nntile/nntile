@@ -19,7 +19,7 @@ build and no macOS product.
 ## Requirements
 
 - CMake >= 3.24, Ninja, a C++17 compiler
-- CUDA toolkit with `nvcc`, cuBLAS, cuDNN
+- CUDA toolkit with `nvcc` and cuBLAS
 - LibTorch (PyTorch) when building `torch_nntile`
 - Python 3.12 for the wheel
 

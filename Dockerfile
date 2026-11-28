@@ -7,7 +7,7 @@
 # distributed-memory heterogeneous systems with GPU acceleration.
 #
 # @file Dockerfile
-# NNTile 2.0 sandbox: CUDA toolkit + cuDNN + uv-managed Python environment
+# NNTile 2.0 sandbox: CUDA toolkit + uv-managed Python environment
 # with PyTorch. Published as ghcr.io/nntile/nntile-sandbox and reused by CI
 # so every job does not reinstall the toolchain.
 #
@@ -17,7 +17,7 @@
 
 ARG CUDA_VERSION=12.8.1
 ARG UBUNTU_VERSION=ubuntu24.04
-ARG BASE_IMAGE=nvidia/cuda:${CUDA_VERSION}-cudnn-devel-${UBUNTU_VERSION}
+ARG BASE_IMAGE=nvidia/cuda:${CUDA_VERSION}-devel-${UBUNTU_VERSION}
 
 FROM ${BASE_IMAGE} AS sandbox
 

@@ -174,7 +174,6 @@ struct Tls
     NodeId node = 0;
     cudaStream_t stream = nullptr;
     cublasHandle_t cublas = nullptr;
-    cudnnHandle_t cudnn = nullptr;
     void *workspace = nullptr;
     std::size_t workspace_bytes = 0;
     void *copy_desc = nullptr;
@@ -287,7 +286,6 @@ struct DeviceFacts
     void *cublas_workspace = nullptr;
     std::size_t cublas_workspace_bytes = 0;
     cublasHandle_t cublas = nullptr;
-    cudnnHandle_t cudnn = nullptr;
     std::uint64_t alloc_count = 0; // driver allocations (init acts)
 };
 

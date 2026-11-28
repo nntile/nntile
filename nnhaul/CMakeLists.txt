@@ -88,65 +88,6 @@ find_package(CUDAToolkit REQUIRED)
 
 include(GNUInstallDirs)
 
-set(_nnhaul_cudnn_hints
-    "$ENV{CUDNN_ROOT}/include"
-    "$ENV{CUDNN_INCLUDE_PATH}"
-    "$ENV{CUDNN_PATH}/include"
-    "${CUDAToolkit_ROOT}/include"
-    "${CUDAToolkit_LIBRARY_ROOT}/include"
-)
-find_path(
-    CUDNN_INCLUDE_DIR
-    cudnn.h
-    HINTS ${_nnhaul_cudnn_hints}
-)
-set(_nnhaul_cudnn_libs
-    "$ENV{CUDNN_ROOT}/lib"
-    "$ENV{CUDNN_LIBRARY_PATH}"
-    "$ENV{CUDNN_PATH}/lib"
-    "${CUDAToolkit_ROOT}/lib"
-)
-find_library(
-    CUDNN_LIBRARY
-    NAMES cudnn
-    HINTS ${_nnhaul_cudnn_libs}
-)
-if(NOT CUDNN_LIBRARY)
-    # Linux sonames first (the declared target), then the macOS and
-    # Windows names so a toolkit-local cuDNN wins on those too.
-    find_file(
-        CUDNN_LIBRARY
-        NAMES libcudnn.so.9 libcudnn.so
-            libcudnn.9.dylib libcudnn.dylib
-            cudnn64_9.dll cudnn.lib
-        HINTS ${_nnhaul_cudnn_libs}
-    )
-endif()
-if(NOT CUDNN_INCLUDE_DIR OR NOT CUDNN_LIBRARY)
-    message(
-        FATAL_ERROR
-        "cuDNN is required (cudnn.h and libcudnn). "
-        "Set CUDNN_ROOT, CUDNN_INCLUDE_DIR, and CUDNN_LIBRARY."
-    )
-endif()
-get_filename_component(CUDNN_LIB_DIR "${CUDNN_LIBRARY}" DIRECTORY)
-if(NNHAUL_IS_TOP_LEVEL)
-    set(CMAKE_BUILD_RPATH "${CUDAToolkit_LIBRARY_DIR};${CUDNN_LIB_DIR}")
-endif()
-
-# cuDNN as an imported target so the export stays relocatable: the
-# installed nnhaulConfig.cmake re-finds cuDNN and defines the same
-# target before loading nnhaulTargets.cmake.
-if(NOT TARGET nnhaul::cudnn)
-    add_library(nnhaul::cudnn UNKNOWN IMPORTED)
-    set_target_properties(
-        nnhaul::cudnn
-        PROPERTIES
-            IMPORTED_LOCATION "${CUDNN_LIBRARY}"
-            INTERFACE_INCLUDE_DIRECTORIES "${CUDNN_INCLUDE_DIR}"
-    )
-endif()
-
 # The chunk-graph executor (the plan format): the
 # one engine of this tree. Sources are flat under src/ in dependency
 # order — pools and the binding table, the inventory, the plan and its
@@ -209,7 +150,6 @@ target_link_libraries(
         Threads::Threads
         CUDA::cudart
         CUDA::cublas
-        nnhaul::cudnn
 )
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(

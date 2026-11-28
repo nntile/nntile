@@ -16,7 +16,7 @@
 # Source this script; do not execute in a subshell.
 #
 # nvcc and libcuda stubs come from the thin system toolkit
-# (install_linux_cuda_toolkit.sh). Math/runtime libs (cudart, cublas, cudnn)
+# (install_linux_cuda_toolkit.sh). Math/runtime libs (cudart, cublas)
 # come from pip nvidia-*-cu12 packages pulled in by torch — not from
 # /usr/local/cuda/lib64.
 set -euo pipefail
@@ -38,7 +38,7 @@ disk_log "before pip torch"
 "${python}" -m pip install --upgrade pip
 "${python}" -m pip install --no-cache-dir numpy
 # Index is cu128-only; pin torch==X.Y.Z without a +cu128 local tag.
-# Transitive deps already include nvidia-{cuda_runtime,cublas,cudnn,...}-cu12.
+# Transitive deps already include nvidia-{cuda_runtime,cublas,...}-cu12.
 "${python}" -m pip install --no-cache-dir \
     "torch==${torch_version}" \
     "torchvision==0.24.1" \
@@ -59,8 +59,7 @@ if [ -z "${CUDA_HOME:-}" ]; then
 fi
 
 # Resolve pip nvidia package roots (include + lib) for cmake / LD_LIBRARY_PATH.
-# cuDNN headers pull in cusolver/cusparse even when those libs are not
-# linked; expose their pip include dirs for the nntile build.
+# Expose the pip include dirs the nntile build needs.
 nvidia_env="$("${python}" - <<'PY'
 from pathlib import Path
 import importlib
@@ -82,7 +81,6 @@ def pkg_paths(modname: str) -> tuple[str, str, str]:
     return str(root), str(include), str(lib)
 
 for key, modname in (
-    ("CUDNN", "nvidia.cudnn"),
     ("NVIDIA_CUBLAS", "nvidia.cublas"),
     ("NVIDIA_CUDA_RUNTIME", "nvidia.cuda_runtime"),
     ("NVIDIA_CUDA_NVRTC", "nvidia.cuda_nvrtc"),
@@ -96,7 +94,6 @@ for key, modname in (
 PY
 )"
 eval "${nvidia_env}"
-export CUDNN_PATH CUDNN_INCLUDE_PATH CUDNN_LIBRARY_PATH
 export NVIDIA_CUBLAS_PATH NVIDIA_CUBLAS_INCLUDE_PATH NVIDIA_CUBLAS_LIBRARY_PATH
 export NVIDIA_CUDA_RUNTIME_PATH NVIDIA_CUDA_RUNTIME_INCLUDE_PATH
 export NVIDIA_CUDA_RUNTIME_LIBRARY_PATH
@@ -109,8 +106,8 @@ export NVIDIA_CUSPARSE_LIBRARY_PATH
 export NNTILE_CUDA_FROM_PIP=1
 
 # Prefer pip math/runtime libs over any residual toolkit copies.
-pip_lib_path="${NVIDIA_CUBLAS_LIBRARY_PATH}:${CUDNN_LIBRARY_PATH}:${NVIDIA_CUDA_RUNTIME_LIBRARY_PATH}:${NVIDIA_CUDA_NVRTC_LIBRARY_PATH}:${NVIDIA_CUSOLVER_LIBRARY_PATH}:${NVIDIA_CUSPARSE_LIBRARY_PATH}"
-pip_inc_path="${NVIDIA_CUBLAS_INCLUDE_PATH}:${CUDNN_INCLUDE_PATH}:${NVIDIA_CUDA_RUNTIME_INCLUDE_PATH}:${NVIDIA_CUDA_NVRTC_INCLUDE_PATH}:${NVIDIA_CUSOLVER_INCLUDE_PATH}:${NVIDIA_CUSPARSE_INCLUDE_PATH}"
+pip_lib_path="${NVIDIA_CUBLAS_LIBRARY_PATH}:${NVIDIA_CUDA_RUNTIME_LIBRARY_PATH}:${NVIDIA_CUDA_NVRTC_LIBRARY_PATH}:${NVIDIA_CUSOLVER_LIBRARY_PATH}:${NVIDIA_CUSPARSE_LIBRARY_PATH}"
+pip_inc_path="${NVIDIA_CUBLAS_INCLUDE_PATH}:${NVIDIA_CUDA_RUNTIME_INCLUDE_PATH}:${NVIDIA_CUDA_NVRTC_INCLUDE_PATH}:${NVIDIA_CUSOLVER_INCLUDE_PATH}:${NVIDIA_CUSPARSE_INCLUDE_PATH}"
 
 # Torch's FindCUDA wants unversioned libnvrtc.so under CUDA_nvrtc_LIBRARY.
 if [ -z "${CUDA_nvrtc_LIBRARY:-}" ] && [ -d "${NVIDIA_CUDA_NVRTC_LIBRARY_PATH}" ]; then

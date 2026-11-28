@@ -8,7 +8,7 @@
 #
 # @file cmake/nnhaulConfig.cmake.in
 # find_package(nnhaul) config template: re-finds the dependencies the
-# exported nnhaul::nnhaul target needs (Threads, CUDAToolkit, cuDNN)
+# exported nnhaul::nnhaul target needs (Threads, CUDAToolkit)
 # and loads the targets file.
 #
 # @version 2.0.0
@@ -18,53 +18,6 @@
 include(CMakeFindDependencyMacro)
 find_dependency(Threads)
 find_dependency(CUDAToolkit)
-
-# cuDNN: the same hints the nnhaul build itself used. Override with
-# CUDNN_ROOT / CUDNN_INCLUDE_DIR / CUDNN_LIBRARY.
-set(_nnhaul_config_cudnn_hints
-    "$ENV{CUDNN_ROOT}/include"
-    "${CUDAToolkit_ROOT}/include"
-    "${CUDAToolkit_LIBRARY_ROOT}/include"
-)
-set(_nnhaul_config_cudnn_lib_hints
-    "$ENV{CUDNN_ROOT}/lib"
-    "${CUDAToolkit_ROOT}/lib"
-)
-if(NOT TARGET nnhaul::cudnn)
-    find_path(
-        NNHAUL_CUDNN_INCLUDE_DIR
-        cudnn.h
-        HINTS ${_nnhaul_config_cudnn_hints}
-    )
-    find_library(
-        NNHAUL_CUDNN_LIBRARY
-        NAMES cudnn
-        HINTS ${_nnhaul_config_cudnn_lib_hints}
-    )
-    if(NOT NNHAUL_CUDNN_LIBRARY)
-        find_file(
-            NNHAUL_CUDNN_LIBRARY
-            NAMES libcudnn.so.9 libcudnn.so
-                libcudnn.9.dylib libcudnn.dylib
-                cudnn64_9.dll cudnn.lib
-            HINTS ${_nnhaul_config_cudnn_lib_hints}
-        )
-    endif()
-    if(NOT NNHAUL_CUDNN_INCLUDE_DIR OR NOT NNHAUL_CUDNN_LIBRARY)
-        set(nnhaul_NOT_FOUND_MESSAGE
-            "nnhaul requires cuDNN (cudnn.h and libcudnn) which was not "
-            "found. Set CUDNN_ROOT, CUDNN_INCLUDE_DIR, or CUDNN_LIBRARY.")
-        set(nnhaul_FOUND FALSE)
-        return()
-    endif()
-    add_library(nnhaul::cudnn UNKNOWN IMPORTED)
-    set_target_properties(
-        nnhaul::cudnn
-        PROPERTIES
-            IMPORTED_LOCATION "${NNHAUL_CUDNN_LIBRARY}"
-            INTERFACE_INCLUDE_DIRECTORIES "${NNHAUL_CUDNN_INCLUDE_DIR}"
-    )
-endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/nnhaulTargets.cmake")
 

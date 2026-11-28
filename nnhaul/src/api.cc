@@ -699,16 +699,6 @@ cublasHandle_t cublas_handle()
     return tls.cublas;
 }
 
-cudnnHandle_t cudnn_handle()
-{
-    if (!tls.in_kernel || tls.cudnn == nullptr)
-    {
-        throw Error(
-            "nnhaul::cudnn_handle is only valid inside a CUDA codelet");
-    }
-    return tls.cudnn;
-}
-
 int device_index()
 {
     if (!tls.in_kernel)

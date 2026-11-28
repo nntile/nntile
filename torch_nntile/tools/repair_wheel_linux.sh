@@ -44,8 +44,6 @@ python="${PYTHON:-${Python3_EXECUTABLE:-python3}}"
     --exclude libnvidia-ml.so.1 \
     --exclude "libcublas.so.*" \
     --exclude "libcublasLt.so.*" \
-    --exclude "libcudnn.so.*" \
-    --exclude "libcudnn_*.so.*" \
     --exclude "libcusparse.so.*" \
     --exclude "libcusolver.so.*" \
     --exclude "libnvJitLink.so.*" \
@@ -64,7 +62,6 @@ fi
 # so use $ORIGIN/../nvidia/... (PyTorch uses ../../ from torch/lib/).
 nvidia_rpath=(
     '$ORIGIN/../nvidia/cublas/lib'
-    '$ORIGIN/../nvidia/cudnn/lib'
     '$ORIGIN/../nvidia/cusparse/lib'
     '$ORIGIN/../nvidia/cusolver/lib'
     '$ORIGIN/../nvidia/nvjitlink/lib'

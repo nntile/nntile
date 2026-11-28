@@ -41,26 +41,6 @@ find_dependency(nlohmann_json)
 
 if(NNTILE_BUILT_WITH_CUDA)
     find_dependency(CUDAToolkit 12.0)
-    # The build links CUDNN::cudnn_all; define an equivalent imported
-    # target for consumers that do not have the build's cuDNN helper.
-    if(NOT TARGET CUDNN::cudnn_all)
-        find_path(_nntile_cudnn_include cudnn.h
-            HINTS "${CUDNN_ROOT}/include" "$ENV{CUDNN_ROOT}/include")
-        find_library(_nntile_cudnn_library cudnn
-            HINTS "${CUDNN_ROOT}/lib" "$ENV{CUDNN_ROOT}/lib")
-        if(NOT _nntile_cudnn_include OR NOT _nntile_cudnn_library)
-            set(nntile_FOUND FALSE)
-            set(nntile_NOT_FOUND_MESSAGE
-                "nntile was built with CUDA/cuDNN; install cuDNN or set "
-                "CUDNN_ROOT")
-            check_required_components(nntile)
-            return()
-        endif()
-        add_library(CUDNN::cudnn_all UNKNOWN IMPORTED)
-        set_target_properties(CUDNN::cudnn_all PROPERTIES
-            IMPORTED_LOCATION "${_nntile_cudnn_library}"
-            INTERFACE_INCLUDE_DIRECTORIES "${_nntile_cudnn_include}")
-    endif()
 endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/nntileTargets.cmake")

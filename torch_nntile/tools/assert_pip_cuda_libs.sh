@@ -12,7 +12,7 @@
 #
 # @version 2.0.0
 
-# Fail if libnntile's cublas/cudnn/cudart NEEDED entries resolve under the
+# Fail if libnntile's cublas/cudart NEEDED entries resolve under the
 # system CUDA toolkit instead of pip site-packages/nvidia (when linked).
 set -euo pipefail
 
@@ -29,18 +29,18 @@ fi
 
 needed="$(readelf -d "${lib}" | awk '/NEEDED/ {print $5}' | tr -d '[]')"
 echo "NEEDED (nvidia-related) for ${lib}:"
-echo "${needed}" | grep -E 'cublas|cudnn|cudart' || true
+echo "${needed}" | grep -E 'cublas|cudart' || true
 
 if command -v ldd >/dev/null 2>&1; then
     resolved="$(ldd "${lib}" 2>/dev/null || true)"
-    bad="$(echo "${resolved}" | grep -E 'libcublas|libcudnn|libcudart' \
+    bad="$(echo "${resolved}" | grep -E 'libcublas|libcudart' \
         | grep '/usr/local/cuda' || true)"
     if [ -n "${bad}" ]; then
         echo "assert_pip_cuda_libs: resolved toolkit copies (want pip nvidia):" >&2
         echo "${bad}" >&2
         exit 1
     fi
-    good="$(echo "${resolved}" | grep -E 'libcublas|libcudnn|libcudart' \
+    good="$(echo "${resolved}" | grep -E 'libcublas|libcudart' \
         | grep 'site-packages/nvidia' || true)"
     if [ -n "${good}" ]; then
         echo "Resolved from pip nvidia:"

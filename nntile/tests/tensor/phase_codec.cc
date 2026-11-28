@@ -105,7 +105,7 @@ TEST_CASE("v1 allowlist names round-trip", "[graph][tensor][codec]")
     REQUIRE(decoded.second.at(2).at("op_name") == "UNREGISTER");
     REQUIRE(gt::is_v1_phase_op("GELU"));
     REQUIRE_FALSE(gt::is_v1_phase_op("TORCH_UNARY"));
-    REQUIRE_FALSE(gt::is_v1_phase_op("FLASH_SDPA_FWD_CUDNN"));
+    REQUIRE_FALSE(gt::is_v1_phase_op("FLASH_SDPA_FWD"));
     REQUIRE_FALSE(gt::is_v1_phase_op("FFT"));
 }
 

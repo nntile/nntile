@@ -37,7 +37,7 @@ cmake --preset nnhaul -DCMAKE_PREFIX_PATH="$TORCH_PREFIX"
 cmake --build --preset nnhaul -j
 ```
 
-The build needs CUDA, cuBLAS, cuDNN and LibTorch. It produces
+The build needs CUDA, cuBLAS and LibTorch. It produces
 `libnntile.so`, `libnnhaul.so`, `libtorch_nntile.so`, and a local
 `torch_nntile` wheel under `build-nnhaul/wheelhouse`.
 

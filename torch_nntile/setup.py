@@ -77,7 +77,6 @@ def _cuda_include_dirs() -> list[str]:
             dirs.append(str(cuda_include))
     # Thin toolkit is nvcc + stubs only; math headers come from pip nvidia-*.
     for env_var, modname, header in (
-        ("CUDNN_INCLUDE_PATH", "nvidia.cudnn", "cudnn.h"),
         ("NVIDIA_CUBLAS_INCLUDE_PATH", "nvidia.cublas", "cublas.h"),
         ("NVIDIA_CUDA_RUNTIME_INCLUDE_PATH", "nvidia.cuda_runtime", "cuda_runtime.h"),
         ("NVIDIA_CUSOLVER_INCLUDE_PATH", "nvidia.cusolver", "cusolverDn.h"),
@@ -280,7 +279,6 @@ _torchvision_requires = "torchvision==0.24.1"
 _linux_marker = 'platform_system == "Linux" and platform_machine == "x86_64"'
 _linux_nvidia_requires = [
     f"nvidia-cublas-cu12>=12.8.4.1; {_linux_marker}",
-    f"nvidia-cudnn-cu12>=9.10.2.21; {_linux_marker}",
     f"nvidia-cusparse-cu12>=12.5.8.93; {_linux_marker}",
     f"nvidia-cusolver-cu12>=11.7.3.90; {_linux_marker}",
     f"nvidia-nvjitlink-cu12>=12.8.93; {_linux_marker}",

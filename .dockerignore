@@ -16,8 +16,7 @@ build*
 # HF weights pulled at runtime, not needed in the image
 cache_hf/
 **/cache_hf/
-# Local tarball extractions from manual host-side builds. The tracked
-# `external/cudnn_frontend` tree IS needed by cmake and must NOT be ignored.
+# Local tarball extractions from manual host-side builds.
 # pip editable metadata from local installs
 **/*.egg-info/
 **/__pycache__/

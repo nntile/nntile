@@ -19,7 +19,6 @@
 
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
-#include <cudnn.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -254,7 +253,7 @@ class Codelet
     /*! Kernel body: receives the buffer array and the cl_args copy.
      * Must not throw. Runs on the node's execution lane inside the
      * codelet window, with cuda_stream()/cublas_handle()/
-     * cudnn_handle()/device_index() naming the RUNNING node. */
+     * device_index() naming the RUNNING node. */
     using Kernel = void (*)(void **buffers, void *cl_args) noexcept;
     /*! Footprint key function: hashes cl_args into the diagnostic
      * history key. May be null. */
@@ -457,8 +456,6 @@ bool workspace_region(void **base, std::size_t *bytes);
 /*! The cuBLAS handle of the RUNNING codelet's node, bound to that
  * node's execution lane (in-codelet only). */
 cublasHandle_t cublas_handle();
-/*! The cuDNN handle of the RUNNING codelet's node (in-codelet only). */
-cudnnHandle_t cudnn_handle();
 /*! The CUDA device ordinal of the RUNNING codelet's node
  * (in-codelet only). */
 int device_index();

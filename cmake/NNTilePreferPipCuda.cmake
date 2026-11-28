@@ -4,7 +4,7 @@
 # @file cmake/NNTilePreferPipCuda.cmake
 # Prefer pip nvidia-*-cu12 libraries over system CUDA toolkit copies.
 #
-# Call after find_package(CUDAToolkit). When NVIDIA_* / CUDNN_* paths are set
+# Call after find_package(CUDAToolkit). When NVIDIA_* paths are set
 # (typically by torch_nntile/tools/setup_torch_cuda_env.sh), point CUDA::cublas
 # / CUDA::cublasLt / optionally CUDA::cudart at those trees so libnntile does
 # not link a second copy under /usr/local/cuda/lib64.
