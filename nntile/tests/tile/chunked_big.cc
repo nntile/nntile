@@ -13,7 +13,7 @@
  * with a kernel-time chunk_count probe proving the chunked layout was
  * actually live.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include <catch2/catch_test_macros.hpp>

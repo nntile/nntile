@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/ops/total_sum_accum.hh
  * TensorGraph total_sum_accum operation
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

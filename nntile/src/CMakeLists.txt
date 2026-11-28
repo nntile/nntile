@@ -12,7 +12,7 @@
 # @file src/CMakeLists.txt
 # Set NNTile sources to compile
 #
-# @version 1.1.0
+# @version 2.0.0
 
 # Base of the NNTile sources
 set(BASE_SRC "context.cc" "kernel_scope.cc")
@@ -249,7 +249,6 @@ set(LOGGER_SRC
 
 set(GRAPH_TENSOR_LAYER_SRC
     "tensor/axis_descriptor.cc"
-    "tensor/tiling_spec_json.cc"
     "tensor/tensor_graph_tiling.cc"
     "tensor/graph_data_node.cc"
     "tensor/graph_op_node.cc"

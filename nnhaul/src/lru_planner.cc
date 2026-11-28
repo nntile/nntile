@@ -120,7 +120,7 @@
  *    just-in-time refetch, and the copy overlaps the compute between
  *    the fire and its consumer.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

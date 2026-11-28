@@ -10,7 +10,7 @@
  * Test TensorGraph subtract_indexed_outputs against
  * nntile::tensor::subtract_indexed_outputs.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tensor/ops/subtract_indexed_outputs.hh"

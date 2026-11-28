@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/_platform.py
 # Optional nntile-server client when NNTILE_SERVER_SOCKET is set.
+# @version 2.0.0
 
 """Flush recorded TensorGraphs to the closed nntile-server.
 

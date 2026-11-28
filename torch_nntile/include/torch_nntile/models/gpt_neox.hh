@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/include/torch_nntile/models/gpt_neox.hh
  * GPT-NeoX causal LM matching deleted ``nntile::model::gptneox``.
+ * @version 2.0.0
  */
 
 #pragma once

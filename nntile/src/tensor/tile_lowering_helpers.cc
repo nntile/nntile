@@ -9,7 +9,7 @@
  *
  * @file nntile/src/tensor_graph/tile_lowering_helpers.cc
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tensor/tile_lowering_helpers.hh"

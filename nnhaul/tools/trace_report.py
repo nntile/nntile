@@ -25,7 +25,7 @@
 # Usage:
 #   python3 tools/trace_report.py <trace.json> [-o trace.html]
 #
-# @version 1.0.0
+# @version 2.0.0
 
 import argparse
 import html

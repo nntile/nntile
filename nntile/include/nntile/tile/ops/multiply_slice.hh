@@ -9,7 +9,7 @@
  * @file include/nntile/tile/ops/multiply_slice.hh
  * TileGraph multiply_slice: in-place product with a broadcasted slice
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

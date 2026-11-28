@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/ops/pow.hh
  * TensorGraph pow operation: (alpha, exp, A) in-place
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 /*!
  * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.

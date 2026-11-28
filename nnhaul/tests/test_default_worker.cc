@@ -16,7 +16,7 @@
  * named for the host node submits fine — task-not-runnable is the
  * checker's census at wait).
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

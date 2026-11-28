@@ -1,4 +1,17 @@
 #!/usr/bin/env bash
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                 2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems with GPU acceleration.
+#
+# @file torch_nntile/tools/setup_torch_cuda_env.sh
+# NNTile 2.0 file.
+#
+# @version 2.0.0
+
 # Install torch (cu128) once and export pip nvidia paths for libnntile.
 # Source this script; do not execute in a subshell.
 #

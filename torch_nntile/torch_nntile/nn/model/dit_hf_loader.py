@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/nn/model/dit_hf_loader.py
 # Copy Diffusers DiTTransformer2DModel weights into torch_nntile DiT.
+# @version 2.0.0
 
 """HF Diffusers DiT → NNTile DiT (AdaLN-Zero, non-overlapping patches)."""
 

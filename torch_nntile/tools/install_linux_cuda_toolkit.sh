@@ -1,4 +1,17 @@
 #!/usr/bin/env bash
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                 2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems with GPU acceleration.
+#
+# @file torch_nntile/tools/install_linux_cuda_toolkit.sh
+# NNTile 2.0 file.
+#
+# @version 2.0.0
+
 # Install a thin, headless CUDA "compiler kit" in manylinux_2_28 (RHEL8).
 #
 # Provides only what pip nvidia-*-cu12 cannot:

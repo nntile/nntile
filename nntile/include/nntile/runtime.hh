@@ -9,7 +9,7 @@
  * @file include/nntile/runtime.hh
  * ``nntile::Runtime`` - compile/execute a ``TileGraph`` (IR only).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -150,9 +150,6 @@ class Runtime
     bool is_initialized(TensorGraph::TensorNode const *tensor) const;
 
 
-    //! Clear initialized flag after staging readout (tile handle stays live).
-    void invalidate_initialized(TensorGraph::TensorNode const *tensor);
-
 
     //! Drop NNHaul buffers for a logical tensor that is no longer marked
     //! input/output. Uses ``invalidate_submit`` / async unregister only -
@@ -226,25 +223,12 @@ class Runtime
 
     void load_execution_schedule(std::string const &path);
 
-    //! Load ``execution.json`` once (per path), then ``set_execution_schedule``.
-    //! Re-reads only when ``path`` changes. Clears cache if apply fails.
-    void apply_execution_schedule_from_file(std::string const &path);
-
-    void clear_execution_schedule_file_cache();
-
-    //! ``compile()`` then round-robin schedule in memory (convenience for tests).
-    void compile_with_round_robin_schedule();
-
     void write_execution_schedule_json(std::string const &path) const;
 
   private:
 
     void allocate_missing_tiles();
     void eliminate_dead_ops();
-    void build_tile_last_consumer_map();
-    void release_dead_tiles_after_op(size_t op_idx);
-    void queue_dead_tiles_after_op(size_t op_idx);
-    void flush_queued_dead_tiles();
     void invalidate_tile_buffer(
         const TileNode *node,
         const std::shared_ptr<void> &tile_ptr);
@@ -265,20 +249,11 @@ class Runtime
     //! Payloads live on ``TileNode::payload_`` (O(1) field access).
     std::vector<std::shared_ptr<OpNode>> execution_order_;
     ExecutionSchedule execution_schedule_;
-    std::optional<ExecutionSchedule> execution_schedule_file_cache_;
-    std::string execution_schedule_file_cache_path_;
     bool compiled_ = false;
     int worker_hint_ = -1;
     std::unordered_map<TensorGraph::TensorNode const *, bool> init_state_;
     std::unordered_map<const TileNode *, std::shared_ptr<void>> tile_adoption_;
     std::unordered_set<const TileNode *> live_tile_nodes_;
-    //! ``tiles_dying_after_op_[i]`` = tiles whose last consumer is
-    //! absolute op index ``tiles_dying_op_base_ + i`` (pending window only).
-    std::vector<std::vector<const TileNode *>> tiles_dying_after_op_;
-    size_t tiles_dying_op_base_ = 0;
-    //! Scratch for last-consumer tiles; flushed via invalidate_submit during
-    //! ``execute_range`` (not deferred to ``wait()``).
-    std::vector<const TileNode *> queued_dead_tiles_;
     //! Payloads whose handles have an async invalidate in flight.
     //! ``nnhaul::Handle`` must stay alive until ``wait()`` joins that task.
     std::vector<std::shared_ptr<void>> nnhaul_retained_payloads_;
@@ -997,18 +972,6 @@ inline bool Runtime::is_initialized(
     }
     auto it = init_state_.find(tensor);
     return it != init_state_.end() && it->second;
-}
-
-
-inline void Runtime::invalidate_initialized(
-    TensorGraph::TensorNode const *tensor)
-{
-    if (tensor == nullptr)
-    {
-        throw std::invalid_argument(
-            "Runtime::invalidate_initialized: tensor must be non-null");
-    }
-    init_state_[tensor] = false;
 }
 
 

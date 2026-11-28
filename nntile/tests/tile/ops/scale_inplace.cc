@@ -10,7 +10,7 @@
  * @file nntile/tests/tile_graph/scale_inplace.cc
  * TileGraph scale_inplace vs nntile::core::scale_inplace (in-place parity B).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include <catch2/catch_test_macros.hpp>

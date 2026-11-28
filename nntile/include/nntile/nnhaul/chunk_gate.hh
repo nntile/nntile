@@ -9,7 +9,7 @@
  * @file include/nntile/nnhaul/chunk_gate.hh
  * Process-wide gate for chunked tile allocation in the NNHaul build.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

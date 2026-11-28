@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/graph_op_node.hh
  * TensorGraph::OpNode - base class for TensorGraph operations.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

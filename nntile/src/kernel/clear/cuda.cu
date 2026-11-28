@@ -11,7 +11,7 @@
  * device-resident, so the host cannot issue per-chunk cudaMemsetAsync
  * without a synchronizing copy).
  *
- * @version 1.4.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/clear/cuda.hh"

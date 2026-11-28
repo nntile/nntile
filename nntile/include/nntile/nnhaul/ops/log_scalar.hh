@@ -9,7 +9,7 @@
  * @file include/nntile/nnhaul/ops/log_scalar.hh
  * NNHaul wrapper to log scalar value
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

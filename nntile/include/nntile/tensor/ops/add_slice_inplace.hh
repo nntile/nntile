@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/ops/add_slice_inplace.hh
  * TensorGraph add_slice_inplace operation: dst = alpha * src + beta * dst
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

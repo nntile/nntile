@@ -5,6 +5,7 @@
  *
  * @file include/nntile/nnhaul/pack_args.hh
  * Unpack packed cl_args without including nnhaul/nnhaul.hh.
+ * @version 2.0.0
  */
 
 #pragma once

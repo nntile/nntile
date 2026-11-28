@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/tests/model_smoke_helpers.hh
  * Helpers for C++ model forward/backward smoke (shape/device only).
+ * @version 2.0.0
  */
 
 #pragma once

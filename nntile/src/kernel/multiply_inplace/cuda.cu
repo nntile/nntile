@@ -9,7 +9,7 @@
  * @file src/kernel/multiply_inplace/cuda.cu
  * Per-element product of two buffers on CUDA
  *
- * @version 1.2.0
+ * @version 2.0.0
  * */
 
 #include <cstdio>

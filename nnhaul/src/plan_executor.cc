@@ -37,7 +37,7 @@
  * position, OpRef — and dependents never run; the barrier is THE
  * detection point, its fault wrapped with the same census.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

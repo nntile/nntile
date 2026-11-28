@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/ops/sumprod_slice.hh
  * TensorGraph sumprod_slice operation: dst = alpha * sumprod_slice(src1, src2) + beta * dst
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

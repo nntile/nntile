@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/nn/weight_layout.py
 # Attention weight layout conversion between PyTorch/HF and NNTile.
+# @version 2.0.0
 
 """Convert attention projection weights for NNTile GEMM layouts."""
 

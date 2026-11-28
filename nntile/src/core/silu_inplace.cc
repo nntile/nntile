@@ -9,7 +9,7 @@
  * @file src/core/silu_inplace.cc
  * Inplace SiLU operation for Tile<T>
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/core/silu_inplace.hh"

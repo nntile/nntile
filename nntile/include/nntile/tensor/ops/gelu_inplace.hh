@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/ops/gelu_inplace.hh
  * TensorGraph gelu_inplace operation: dst = gelu(dst)
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

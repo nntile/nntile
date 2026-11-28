@@ -9,7 +9,7 @@
  * @file src/nnhaul/add_inplace.cc
  * Add operation on a NNHaul buffers
  *
- * @version 1.2.0
+ * @version 2.0.0
  * */
 
 // Corresponding header

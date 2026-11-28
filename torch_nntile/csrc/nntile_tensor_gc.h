@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/csrc/nntile_tensor_gc.h
  * Tensor metadata tracking for GC (0-byte nntile storage).
+ * @version 2.0.0
  */
 
 #pragma once

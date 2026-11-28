@@ -9,7 +9,7 @@
  * @file src/nnhaul/sumprod_slice.cc
  * Sums over fibers into a slice of a product of two NNHaul buffers
  *
- * @version 1.2.0
+ * @version 2.0.0
  * */
 
 // Corresponding header

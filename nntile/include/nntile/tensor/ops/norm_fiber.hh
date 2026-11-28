@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/ops/norm_fiber.hh
  * TensorGraph norm_fiber operation
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

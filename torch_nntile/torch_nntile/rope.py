@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/rope.py
 # Rotary position embedding (RoPE) for device="nntile".
+# @version 2.0.0
 
 """RoPE: ``y = rope(sin, cos, x)``.
 

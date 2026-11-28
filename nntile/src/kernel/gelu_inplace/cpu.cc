@@ -9,7 +9,7 @@
  * @file src/kernel/gelu_inplace/cpu.cc
  * GeLU inplace operation on CPU
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/gelu_inplace/cpu.hh"

@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/models/__init__.py
 # Compatibility alias for torch_nntile.nn.model.
+# @version 2.0.0
 
 """Compatibility alias for :mod:`torch_nntile.nn.model`.
 

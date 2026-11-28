@@ -4,7 +4,7 @@
  * @file include/nntile/tensor/graph_fill_timer.hh
  * Reentrant wall timer for nntile record work (record(nntile)).
  *
- * @version 1.1.0
+ * @version 2.0.0
  */
 
 #pragma once

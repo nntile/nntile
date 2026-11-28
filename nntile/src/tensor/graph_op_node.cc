@@ -9,7 +9,7 @@
  * @file nntile/src/tensor_graph/graph_op_node.cc
  * TensorGraph::OpNode default member implementations.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tensor/graph.hh"

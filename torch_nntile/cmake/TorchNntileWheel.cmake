@@ -4,6 +4,7 @@
 # @file torch_nntile/cmake/TorchNntileWheel.cmake
 # Custom target: build torch_nntile Python wheel against in-tree libs or an
 # install prefix (-DNNTILE_PREFIX / -DTORCH_NNTILE_PREFIX).
+# @version 2.0.0
 
 if(NOT BUILD_TORCH_NNTILE)
     return()

@@ -9,7 +9,7 @@
  * @file include/nntile/tile/ops/randn.hh
  * TileGraph randn operation: (dst, start, underlying_shape, seed, mean, stddev)
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

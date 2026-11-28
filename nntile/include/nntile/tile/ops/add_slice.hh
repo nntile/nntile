@@ -9,7 +9,7 @@
  * @file include/nntile/tile/ops/add_slice.hh
  * TileGraph add_slice operation: dst = alpha * src1 + beta * src2
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

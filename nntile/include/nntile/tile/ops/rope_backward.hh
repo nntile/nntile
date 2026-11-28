@@ -9,7 +9,7 @@
  * @file include/nntile/tile/ops/rope_backward.hh
  * TileGraph rope_backward operation: (sin, cos, dy, dx)
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

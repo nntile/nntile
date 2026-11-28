@@ -11,7 +11,7 @@
 #              "no wrapper exists", not "a whole-buffer launch was found";
 #   unused   - no core/tile/tensor wrapper reaches it (dead kernel);
 #   classic  - no nnhaul wrapper and reachable: a default-product blocker to review.
-# @version 1.1.0
+# @version 2.0.0
 """Generate the chunked-coverage table for the NNHaul backend."""
 
 import pathlib

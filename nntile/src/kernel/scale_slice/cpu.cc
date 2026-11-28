@@ -9,7 +9,7 @@
  * @file src/kernel/scale_slice/cpu.cc
  * Per-element scaling of a broadcasted slice on CPU
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/scale_slice/cpu.hh"

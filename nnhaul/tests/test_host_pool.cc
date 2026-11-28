@@ -15,7 +15,7 @@
  * requested whole blocks, addr() stable and distinct per block, the
  * census counts, and the loud foreign index.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

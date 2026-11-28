@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/include/torch_nntile/models/t5.hh
  * T5 encoder-decoder matching deleted ``nntile::model::t5``.
+ * @version 2.0.0
  */
 
 #pragma once

@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/csrc/models/gpt_neox.cpp
  * GPT-NeoX causal LM - port of deleted ``nntile::model::gptneox``.
+ * @version 2.0.0
  */
 
 #include <torch_nntile/models/gpt_neox.hh>

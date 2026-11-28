@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/ops/gelutanh_backward.hh
  * TensorGraph gelutanh_backward operation: dx = alpha * grad_func(x) * dy + beta * dx
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

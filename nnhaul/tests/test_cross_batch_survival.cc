@@ -15,7 +15,7 @@
  * surfaced exactly this: a batch-scoped survival rule lost such a
  * tile.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

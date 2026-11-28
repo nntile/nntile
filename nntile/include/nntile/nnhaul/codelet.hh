@@ -5,6 +5,7 @@
  *
  * @file include/nntile/nnhaul/codelet.hh
  * NNHaul codelet wrapper and ``nnhaul::insert`` helpers.
+ * @version 2.0.0
  */
 
 #pragma once

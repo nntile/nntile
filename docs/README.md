@@ -1,3 +1,16 @@
+<!--
+ @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+                              (Skoltech), Russia. All rights reserved.
+                2023-present Artificial Intelligence Research Institute
+                              (AIRI), Russia. All rights reserved.
+
+ NNTile is software framework for fast training of big neural networks on
+ distributed-memory heterogeneous systems with GPU acceleration.
+
+ @file docs/README.md
+ @version 2.0.0
+-->
+
 # NNTile documentation
 
 **NNTile** is a framework for training large neural networks on a single
@@ -26,6 +39,7 @@ products are not part of NNTile 2.0.
 | TensorGraph execution backend | [graph.md](graph.md) |
 | C++ stack (kernel → TensorGraph → Runtime) | [cpp/README.md](cpp/README.md) |
 | Kernel scope (transformers only) | [kernel-scope.md](kernel-scope.md) |
+| Unused / reference-only code registry | [unused-code.md](unused-code.md) |
 
 ## Documentation map
 
@@ -36,6 +50,10 @@ docs/
   graph.md                  TensorGraph → TileGraph → Runtime backend
   build/README.md           Build, CMake, Docker, testing, wheel CI
   cpp/README.md             C++ kernel / NNHaul / tile / tensor / runtime
+  backends.md               Backend, device and kernel-scope summary
+  chunked-tiles.md          Chunk model, kernels and driver modes
+  kernel-scope.md           Disabled kernel families and revival
+  unused-code.md            Unused/reference-only code registry
 ```
 
 Package-level docs also live next to the code:
@@ -58,6 +76,6 @@ Package-level docs also live next to the code:
 
 ### Testing and comparing against Pytorch requires additionally
 
-- Pytorch 2.0 or above.
+- PyTorch 2.9.x.
 - Transformers Python package 4.52.*.
 - Pytest 8.2 or above.

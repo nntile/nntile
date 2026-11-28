@@ -19,7 +19,7 @@
  * no watchdog, no prefetch, no sim world — the previous engine's
  * reactive machinery is deleted with it.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

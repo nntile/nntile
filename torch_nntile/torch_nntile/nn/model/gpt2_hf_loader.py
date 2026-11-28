@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/nn/model/gpt2_hf_loader.py
 # Convert weights between HuggingFace GPT-2 and minimal torch_nntile GPT2LMHead.
+# @version 2.0.0
 
 """Bidirectional HF <-> NNTile-layout weight conversion for minimal GPT-2."""
 

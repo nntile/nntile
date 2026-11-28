@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/CMakeLists.txt
 # libtorch_nntile (LibTorch PrivateUse1 + models).
+# @version 2.0.0
 
 if(NOT BUILD_LIBTORCH_NNTILE)
     return()

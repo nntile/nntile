@@ -6,7 +6,7 @@
  *
  * @file nntile/src/tile/lower_staging_tensor.cc
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tile/lower_staging_tensor.hh"

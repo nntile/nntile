@@ -9,7 +9,7 @@
 # @file nntile/CMakeLists.txt
 # libnntile: kernel -> nnhaul -> core -> TileGraph -> TensorGraph -> Runtime.
 #
-# @version 1.1.0
+# @version 2.0.0
 
 if(NOT BUILD_LIBNNTILE)
     return()

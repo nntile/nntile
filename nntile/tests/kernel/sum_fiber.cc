@@ -9,7 +9,7 @@
  * @file tests/kernel/sum_fiber.cc
  * Sums over slices into a fiber of a buffer
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 // Corresponding header

@@ -2,6 +2,7 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/torch_nntile/nn/norm.py
+# @version 2.0.0
 """Classic NNTile normalization for ``device=nntile``."""
 
 from __future__ import annotations

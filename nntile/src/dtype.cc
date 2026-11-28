@@ -9,7 +9,7 @@
  * @file nntile/src/dtype.cc
  * Implementation of DataType utilities.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/dtype.hh"

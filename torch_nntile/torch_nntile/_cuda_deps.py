@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/_cuda_deps.py
 # Linux CUDA runtime dependency checks.
+# @version 2.0.0
 
 """Verify NVIDIA CUDA 12 libraries before loading native extensions.
 

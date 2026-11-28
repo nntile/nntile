@@ -9,7 +9,7 @@
  * @file include/nntile/context.hh
  * NNTile context
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -21,7 +21,6 @@
 
 // Third-party headers
 #ifdef NNTILE_USE_CUDA
-#include <cudnn.h>
 #endif // NNTILE_USE_CUDA
 
 // Other NNTile headers
@@ -40,13 +39,6 @@ class Context
 public:
     //! Flag if the context is initialized
     int initialized = 0;
-
-    //! Always -1: disk out-of-core is not supported.
-    int ooc_disk_node_id;
-
-    //! Caps chosen at init.
-    std::size_t cpu_cap_bytes_chosen = 0;
-    std::size_t cuda_cap_bytes_each_chosen = 0;
 
     //! Verbosity level
     int verbose;
@@ -96,10 +88,5 @@ public:
      */
     void shutdown();
 };
-
-#ifdef NNTILE_USE_CUDA
-//! Get cuDNN handle for the current CUDA worker
-cudnnHandle_t cudnn_get_local_handle();
-#endif // NNTILE_USE_CUDA
 
 } // namespace nntile

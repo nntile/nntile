@@ -14,7 +14,7 @@ enabling, the issue-tile clocks and what they measure (and what they
 do not), the measured overhead, and the analyzer and viewers in
 tools/.
 
-@version 1.0.0
+@version 2.0.0
 -->
 
 <!-- SPDX-License-Identifier: MIT -->

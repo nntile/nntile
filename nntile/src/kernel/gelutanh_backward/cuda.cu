@@ -9,7 +9,7 @@
  * @file src/kernel/gelutanh_backward/cuda.cu
  * Backward approximate GeLU operation on CUDA
  *
- * @version 1.3.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/gelutanh_backward/cuda.hh"

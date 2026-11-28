@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/csrc/nntile_gemm_layout.h
  * Map PyTorch tensor layouts to NNTile GEMM parameters.
+ * @version 2.0.0
  */
 
 #pragma once

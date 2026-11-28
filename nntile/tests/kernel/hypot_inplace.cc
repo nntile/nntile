@@ -9,7 +9,7 @@
  * @file tests/kernel/hypot_inplace.cc
  * Per-element hypot_inplace function of tensors
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 // Corresponding header

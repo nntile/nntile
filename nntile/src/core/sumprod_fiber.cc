@@ -9,7 +9,7 @@
  * @file src/core/sumprod_fiber.cc
  * Sums over fibers into a slice of a product of two Tile<T>
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/core/sumprod_fiber.hh"

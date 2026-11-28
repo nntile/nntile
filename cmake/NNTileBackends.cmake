@@ -13,6 +13,7 @@
 
 # The parent's architecture list governs the subproject; set the default
 # before nnhaul enables CUDA so it is not detected per build.
+# @version 2.0.0
 if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
     set(CMAKE_CUDA_ARCHITECTURES "70;75;80;86;89;90" CACHE STRING
         "Semicolon-separated CUDA SM versions for NVCC")

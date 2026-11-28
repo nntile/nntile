@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/add_slice_inplace/cuda.hh
  * Per-element addition of a tensor and a broadcasted slice on CUDA
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

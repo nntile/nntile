@@ -9,7 +9,7 @@
  * @file nntile/src/tile_graph/scale_inplace.cc
  * TileGraph scale inplace operation implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tile/ops/scale_inplace.hh"

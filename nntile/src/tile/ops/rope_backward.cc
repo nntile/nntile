@@ -9,7 +9,7 @@
  * @file nntile/src/tile_graph/rope_backward.cc
  * TileGraph rope backward operation implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tile/ops/rope_backward.hh"

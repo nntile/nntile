@@ -9,7 +9,7 @@
  * @file nntile/src/tile_graph/silu_inplace.cc
  * TileGraph silu inplace operation implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tile/ops/silu_inplace.hh"

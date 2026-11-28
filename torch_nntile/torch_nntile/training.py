@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/training.py
 # Training helpers for models on device="nntile".
+# @version 2.0.0
 
 """Utilities for training on the nntile device.
 

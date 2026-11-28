@@ -9,7 +9,7 @@
  * @file include/nntile/tile/ops/add.hh
  * TileGraph add operation: z = alpha * x + beta * y
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

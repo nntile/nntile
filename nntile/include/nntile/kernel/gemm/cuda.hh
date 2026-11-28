@@ -11,7 +11,7 @@
  * dedicated device workspace whole-multi-chunk-operand staging copies
  * through, and the fused ONE-LAUNCH gather/scatter kernels.
  *
- * @version 1.2.0
+ * @version 2.0.0
  * */
 
 #pragma once

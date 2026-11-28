@@ -9,7 +9,7 @@
  * @file src/nnhaul/multiply_fiber.cc
  * NNHaul wrappers for per-element product of a tensor and a broadcasted fiber
  *
- * @version 1.2.0
+ * @version 2.0.0
  * */
 
 // Corresponding header

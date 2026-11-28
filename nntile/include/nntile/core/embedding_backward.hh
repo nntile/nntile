@@ -9,7 +9,7 @@
  * @file include/nntile/core/embedding_backward.hh
  * Backward embeddings from vocabulary within Tile<T>
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

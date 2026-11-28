@@ -9,7 +9,7 @@
  * @file include/nntile/shape_utils.hh
  * Shape / axis helpers for C-order tensor conventions.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

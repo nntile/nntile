@@ -9,7 +9,7 @@
  * @file src/core/softmax_inplace.cc
  * softmax_inplace operation for Tile<T>
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/core/softmax_inplace.hh"

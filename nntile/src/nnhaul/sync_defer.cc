@@ -5,6 +5,7 @@
  *
  * @file nntile/src/nnhaul/sync_defer.cc
  * Definitions for the NNHaul sync-defer TLS / wait counters.
+ * @version 2.0.0
  */
 
 #include <nntile/nnhaul/sync_defer.hh>

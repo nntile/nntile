@@ -11,7 +11,7 @@ lanes of the node inventory.
 Documentation index: the chunk model, the trace manual, and a worked
 trace example.
 
-@version 1.0.0
+@version 2.0.0
 -->
 
 <!-- SPDX-License-Identifier: MIT -->

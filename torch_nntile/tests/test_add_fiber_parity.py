@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/tests/test_add_fiber_parity.py
 # add_fiber parity vs broadcasted add (no scale_slice expand path).
+# @version 2.0.0
 
 from __future__ import annotations
 

@@ -9,7 +9,7 @@
  * @file src/kernel/sqrt_inplace/cuda.cu
  * Inplace sqrt of buffer on CUDA
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 /*!
  * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.

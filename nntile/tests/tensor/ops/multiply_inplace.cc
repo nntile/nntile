@@ -9,7 +9,7 @@
  * @file nntile/tests/tensor_graph/multiply_inplace.cc
  * Test TensorGraph multiply_inplace operation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tensor/ops/multiply_inplace.hh"

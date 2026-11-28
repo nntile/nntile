@@ -9,7 +9,7 @@
  * @file nntile/tests/tensor_graph/sgd_step.cc
  * Test TensorGraph sgd_step operation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tensor/ops/sgd_step.hh"

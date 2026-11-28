@@ -14,7 +14,7 @@
 # with trace_check.py, and cross-checks the trace against the
 # workload's test_hooks sidecar and the analyzer's --json summary.
 #
-# @version 1.0.0
+# @version 2.0.0
 
 """End-to-end test of the trace pipeline over a real GPU workload.
 

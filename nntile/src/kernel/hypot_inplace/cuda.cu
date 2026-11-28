@@ -9,7 +9,7 @@
  * @file src/kernel/hypot_inplace/cuda.cu
  * hypot_inplace operation on buffers on CUDA
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/hypot_inplace/cuda.hh"

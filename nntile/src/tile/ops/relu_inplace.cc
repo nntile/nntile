@@ -9,7 +9,7 @@
  * @file nntile/src/tile_graph/relu_inplace.cc
  * TileGraph relu inplace operation implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tile/ops/relu_inplace.hh"

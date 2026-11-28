@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/nn/model/deep_relu.py
 # PyTorch DeepReLU MLP (bias-free Linear + ReLU chain).
+# @version 2.0.0
 
 """DeepReLU: a chain of Linear (no bias) -> ReLU blocks.
 

@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/hypot_inplace/cuda.hh
  * hypot_inplace operation on buffers on CUDA
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/loss.py
 # Loss support for device="nntile".
+# @version 2.0.0
 
 """Loss helpers for the nntile device."""
 

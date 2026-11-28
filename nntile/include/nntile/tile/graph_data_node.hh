@@ -9,7 +9,7 @@
  * @file include/nntile/tile/graph_data_node.hh
  * TileGraph::TileNode - data node for TileGraph (shape, dtype, name).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -70,9 +70,6 @@ class TileGraph::TileNode
     //! Set tensor descriptor and tile coordinate
     void set_tensor_info(
         TileGraph::TensorDescriptor *desc, std::vector<Index> coord);
-
-    //! Drop logical-tensor association (retired tiles after relayout).
-    void clear_tensor_info();
 
     void set_bind_hint(std::vector<std::uint8_t> data);
     const std::vector<std::uint8_t> *get_bind_hint() const;

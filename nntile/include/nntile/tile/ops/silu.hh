@@ -9,7 +9,7 @@
  * @file include/nntile/tile/ops/silu.hh
  * TileGraph SiLU: dst = silu(src)
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

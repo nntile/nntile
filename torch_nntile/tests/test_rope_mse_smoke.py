@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/tests/test_rope_mse_smoke.py
 # Smoke shapes for rope and mse_loss on device="nntile".
+# @version 2.0.0
 
 """Forward-shape smokes for ``rope`` and ``mse_loss`` on device nntile."""
 

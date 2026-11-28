@@ -9,7 +9,7 @@
  * @file tests/kernel/conv2d_inplace.cc
  * Placeholder for conv2d_inplace kernel test
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 /*!
  * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.

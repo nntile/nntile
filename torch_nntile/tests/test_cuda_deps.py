@@ -1,5 +1,6 @@
 # @copyright (c) 2026-present Skolkovo Institute of Science and Technology
 #                              (Skoltech), Russia. All rights reserved.
+# @version 2.0.0
 
 import importlib.util
 import sys

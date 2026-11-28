@@ -5,6 +5,7 @@
  *
  * @file include/nntile/backend_workers.hh
  * Worker counts recorded by ``Context`` for the NNHaul build.
+ * @version 2.0.0
  */
 
 #pragma once

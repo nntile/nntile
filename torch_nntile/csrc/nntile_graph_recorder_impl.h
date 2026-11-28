@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/csrc/nntile_graph_recorder_impl.h
  * Internal graph recording helpers (libnntile TensorGraph).
+ * @version 2.0.0
  */
 
 #pragma once

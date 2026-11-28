@@ -9,7 +9,7 @@
  * @file src/kernel/sgd_step/cpu.cc
  * Fused SGD with momentum step on buffers on CPU
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/sgd_step/cpu.hh"

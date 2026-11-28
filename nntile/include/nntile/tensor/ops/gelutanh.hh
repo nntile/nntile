@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/ops/gelutanh.hh
  * TensorGraph gelutanh operation: dst = gelutanh(src)
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

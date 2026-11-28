@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/nn/__init__.py
 # Neural network modules for device="nntile".
+# @version 2.0.0
 
 """``torch_nntile.nn`` — classic NNTile kernels on ``device=nntile``.
 

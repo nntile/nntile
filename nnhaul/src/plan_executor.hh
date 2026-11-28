@@ -106,7 +106,7 @@
  * src/backend.hh's interface plus host_worker.hh (the host lane's own
  * type and the DeferralBridge — backend-side, vendor-free) appear here.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

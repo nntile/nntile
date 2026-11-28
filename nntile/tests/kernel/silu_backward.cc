@@ -9,7 +9,7 @@
  * @file tests/kernel/silu_backward.cc
  * Placeholder for silu_backward kernel test
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 // Corresponding header

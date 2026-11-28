@@ -2,6 +2,7 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/torch_nntile/kernels/__init__.py
+# @version 2.0.0
 """Backward-compatible alias for :mod:`torch_nntile.nn.functional`.
 
 Prefer ``import torch_nntile.nn.functional as nntile_F`` (or

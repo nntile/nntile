@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/tests/test_simple_matmul_tiling.py
 # Tiled matmul graph-mode regression (two compile/run epochs).
+# @version 2.0.0
 
 from __future__ import annotations
 

@@ -2,6 +2,7 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/torch_nntile/nn/activations.py
+# @version 2.0.0
 """Classic NNTile activation kernels for ``device=nntile``."""
 
 from __future__ import annotations

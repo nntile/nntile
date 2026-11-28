@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/include/torch_nntile/runtime.hh
  * Public runtime API for libtorch_nntile (context + TensorGraph).
+ * @version 2.0.0
  */
 
 #pragma once

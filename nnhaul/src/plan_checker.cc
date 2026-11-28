@@ -24,7 +24,7 @@
  * state, the ops prefix, the inputs' relevant facts. One pass,
  * O(ops + operands + C + |entry|) — no sort, no rescan.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

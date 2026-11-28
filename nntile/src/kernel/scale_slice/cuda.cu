@@ -9,7 +9,7 @@
  * @file src/kernel/scale_slice/cuda.cu
  * Per-element scaling of a broadcasted slice on CUDA
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/scale_slice/cuda.hh"

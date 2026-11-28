@@ -14,7 +14,7 @@ storage, chunk-granular transfers, and the kernel decomposition that
 keeps results identical to contiguous tiles (bit-exact for elementwise
 ops, within each family's documented chaining tolerance for reductions).
 
-@version 1.0.0
+@version 2.0.0
 -->
 
 # Chunked tiles for classic NNTile ops

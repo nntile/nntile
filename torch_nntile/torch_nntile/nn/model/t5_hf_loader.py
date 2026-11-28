@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/nn/model/t5_hf_loader.py
 # Convert weights between HuggingFace T5 and torch_nntile T5.
+# @version 2.0.0
 
 """Bidirectional HF <-> NNTile weight conversion for T5.
 

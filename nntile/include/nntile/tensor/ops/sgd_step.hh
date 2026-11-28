@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/ops/sgd_step.hh
  * TensorGraph sgd_step: fused SGD with momentum step
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

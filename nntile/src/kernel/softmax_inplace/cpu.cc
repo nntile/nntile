@@ -9,7 +9,7 @@
  * @file src/kernel/softmax_inplace/cpu.cc
  * Inplace softmax operation for a buffer on CPU
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/softmax_inplace/cpu.hh"

@@ -5,6 +5,7 @@
  * PrivateUse1 ``aten::add`` (torch autograd InputBuffer / AccumulateGrad
  * and user ``torch.add``). The classic ``nntile::tensor::add`` kernels
  * handle float32; int64 is not supported.
+ * @version 2.0.0
  */
 
 #include "nntile_graph_recorder.h"

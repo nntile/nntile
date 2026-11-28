@@ -5,6 +5,7 @@
  *
  * @file src/context.cc
  * Context init and shutdown on the NNHaul runtime.
+ * @version 2.0.0
  */
 
 #include "nntile/context.hh"
@@ -52,10 +53,6 @@ std::vector<BackendWorker> backend_worker_list()
 }
 
 #ifdef NNTILE_USE_CUDA
-cudnnHandle_t cudnn_get_local_handle()
-{
-    return ::nnhaul::cudnn_handle();
-}
 #endif // NNTILE_USE_CUDA
 
 Context::Context(
@@ -71,7 +68,6 @@ Context::Context(
     std::size_t cpu_cap_bytes,
     std::size_t cuda_cap_bytes_each):
     initialized(0),
-    ooc_disk_node_id(-1),
     verbose(verbose)
 {
     (void)ooc_path;
@@ -160,8 +156,6 @@ Context::Context(
     // first host-pool acquire into an allocation of half the machine.
     // A caller that wants a ceiling passes cpu_cap_bytes explicitly or
     // sets NNHAUL_LIMIT_CPU_MEM.
-    cpu_cap_bytes_chosen = cpu_cap_bytes;
-    cuda_cap_bytes_each_chosen = cuda_cap_bytes_each;
 #if defined(__unix__) || defined(__APPLE__)
     {
         // A preloaded copy of nnhaul (e.g. a plugin linked against the

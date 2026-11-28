@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/ops/relu_inplace.hh
  * TensorGraph relu_inplace operation: dst = relu(dst)
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

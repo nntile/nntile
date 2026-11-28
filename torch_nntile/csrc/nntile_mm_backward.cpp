@@ -6,6 +6,7 @@
  * PyTorch autograd for aten::mm decomposes into mm/bmm calls in the backward
  * graph; this module provides shared backward GEMM helpers for tests and future
  * explicit backward kernels.
+ * @version 2.0.0
  */
 
 #include "nntile_executor_classic.h"

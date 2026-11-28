@@ -6,7 +6,7 @@
  * @file include/nntile/core/tile.hh
  * Tile<T> class
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -169,7 +169,6 @@ public:
 
     TileLocalData<T> acquire(int mode) const;
 
-    TileLocalData<T> acquire_async(int mode) const;
 };
 
 template<typename T>
@@ -239,12 +238,6 @@ public:
 
 template<typename T>
 TileLocalData<T> Tile<T>::acquire(int mode) const
-{
-    return TileLocalData<T>(*this, mode, true);
-}
-
-template<typename T>
-TileLocalData<T> Tile<T>::acquire_async(int mode) const
 {
     return TileLocalData<T>(*this, mode, true);
 }

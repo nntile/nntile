@@ -6,6 +6,7 @@
 # Backward may use classic ADD / ADD_INPLACE to combine fan-in grads.
 # These are torch_nntile::models (ports of deleted nntile::model::*), not
 # Hugging Face torch.nn rewrites.
+# @version 2.0.0
 
 from __future__ import annotations
 

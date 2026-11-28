@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/tests/test_add_parity.py
 # Parity tests for nntile add via TensorGraph (libnntile).
+# @version 2.0.0
 
 import torch
 from conftest import nntile_cpu

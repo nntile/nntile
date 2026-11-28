@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/tests/test_nn_classic.py
 # Classic torch_nntile.nn ops vs CPU formulas.
+# @version 2.0.0
 
 from __future__ import annotations
 

@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/csrc/models/bert.cpp
  * BERT MLM - port of deleted ``nntile::model::bert`` (not HF ATen).
+ * @version 2.0.0
  */
 
 #include <torch_nntile/models/bert.hh>

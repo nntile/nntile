@@ -9,7 +9,7 @@
  * @file nntile/src/tile_graph/add_inplace.cc
  * TileGraph add_inplace operation implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tile/ops/add_inplace.hh"

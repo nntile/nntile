@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/include/torch_nntile/classic_nn.hh
  * Classic nntile::kernel LayerNorm / Embedding modules.
+ * @version 2.0.0
  */
 
 #pragma once

@@ -9,7 +9,7 @@
  * @file include/nntile/core/isfinite.hh
  * Check NaN or Inf elements for Tile<T>
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 /*!
  * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.

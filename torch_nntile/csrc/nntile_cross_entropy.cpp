@@ -2,6 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/nntile_cross_entropy.cpp
+ * @version 2.0.0
  */
 
 #include "nntile_executor_classic.h"

@@ -20,7 +20,7 @@
  * request produces an identical plan twice; and the loud caller-defect
  * surface. Every product runs through the checker (validate = true).
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

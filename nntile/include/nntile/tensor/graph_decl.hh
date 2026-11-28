@@ -11,7 +11,7 @@
  * (data nodes + ops). Autograd and ``backward()`` belong to PyTorch /
  * libtorch_nntile, which record tensor ops into this graph.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -65,12 +65,6 @@ class TensorGraph
     //! ``merge_axis``, and TensorNode GC — never rebuilt from ``data_``.
     std::vector<AxisDescriptor *> axis_groups() const;
 
-    //! True if any live axis group has tiling set. O(|groups|), no copy.
-    bool has_tiled_axis_group() const;
-
-    //! Number of axis groups that have no tiling set.
-    size_t num_untiled_groups() const;
-
     // Queries
     const std::string &name() const { return name_; }
     //! High-water slot count (includes GC holes). NodeIds are never reused.
@@ -81,8 +75,6 @@ class TensorGraph
 
     //! Rename a data node (labels only; identity is the pointer).
     void rename_data_node(TensorNode *node, std::string new_name);
-
-    std::vector<std::string> data_names() const;
 
     const std::vector<std::unique_ptr<TensorNode>> &tensor_nodes() const
     {
@@ -120,8 +112,6 @@ class TensorGraph
 
     //! Same with an explicit carried list (overrides automatic marks).
     PhaseSnapshot seal_phase(std::vector<TensorNode const *> carried);
-
-    void reset_phase_seal_cursor();
 
     size_t phase_seal_cursor() const { return phase_seal_cursor_; }
 

@@ -8,7 +8,7 @@
  * @file tests/test_cap_throw.cc
  * A tile larger than the GPU cap is rejected at insert with a cap error.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

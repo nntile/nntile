@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/nn/model/dit.py
 # DiT (AdaLN-Zero) for device="nntile" via torch_nntile.nn only.
+# @version 2.0.0
 
 """Diffusers-style DiT on classic NNTile kernels (no new low-level ops).
 

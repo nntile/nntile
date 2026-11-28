@@ -10,7 +10,7 @@
  * @file nntile/src/tensor_graph/rope_backward.cc
  * TensorGraph rope_backward operation implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tensor/ops/rope_backward.hh"

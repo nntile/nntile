@@ -9,7 +9,7 @@
  * @file src/nnhaul/sgd_step.cc
  * Fused SGD with momentum step operation of NNHaul buffers
  *
- * @version 1.2.0
+ * @version 2.0.0
  * */
 
 // Corresponding header

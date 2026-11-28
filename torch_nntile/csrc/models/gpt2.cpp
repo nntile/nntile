@@ -10,6 +10,7 @@
  *
  * Use cyclic ``model_transpose`` only - never the HF pairwise axis-swap
  * bridge (slow; reserved for ATen HF layouts).
+ * @version 2.0.0
  */
 
 #include <torch_nntile/models/gpt2.hh>

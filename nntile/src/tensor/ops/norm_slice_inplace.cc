@@ -10,7 +10,7 @@
  * @file nntile/src/tensor_graph/norm_slice_inplace.cc
  * TensorGraph norm_slice_inplace operation implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tensor/ops/norm_slice_inplace.hh"

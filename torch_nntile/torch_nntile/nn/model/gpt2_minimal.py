@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/nn/model/gpt2_minimal.py
 # Minimal GPT-2 model for device="nntile" (NNTile attention weight layouts).
+# @version 2.0.0
 
 """Minimal GPT-2 stack mirroring ``nntile::model::gpt2`` graph modules.
 

@@ -4,7 +4,7 @@
  * @file src/core/swap_two_axes.cc
  * swap_two_axes operation for Tile<T>.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/core/swap_two_axes.hh"

@@ -9,7 +9,7 @@
  * @file nntile/src/tensor_graph/silu_backward.cc
  * TensorGraph silu_backward operation implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tensor/ops/silu_backward.hh"

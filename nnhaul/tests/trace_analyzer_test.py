@@ -14,7 +14,7 @@
 # version 1) and asserts every reported number equals the
 # hand-computed expectation.
 #
-# @version 1.0.0
+# @version 2.0.0
 
 """Acceptance test for the trace analyzer tooling (format_version 1).
 

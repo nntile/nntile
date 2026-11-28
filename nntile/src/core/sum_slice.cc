@@ -9,7 +9,7 @@
  * @file src/core/sum_slice.cc
  * Sum over fibers into a slice of a Tile<T>
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/core/sum_slice.hh"

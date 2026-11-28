@@ -8,7 +8,7 @@
  * use from the NNHAUL_CHUNK_SIZE_MB environment variable (MiB, a power
  * of two), falling back to the configure-time default below. NNTile
  * reads this header, so both sides always agree.
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 #pragma once

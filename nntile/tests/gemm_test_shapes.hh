@@ -9,7 +9,7 @@
  * @file nntile/tests/gemm_test_shapes.hh
  * Shared C-order GEMM operand shapes for graph tests.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

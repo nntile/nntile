@@ -6,6 +6,7 @@
 #
 # Run explicitly (needs tensorflow + tensorboard on PATH):
 #     pytest logger/test_server.py
+# @version 2.0.0
 
 import os
 import select

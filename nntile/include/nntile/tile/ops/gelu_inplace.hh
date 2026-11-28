@@ -9,7 +9,7 @@
  * @file include/nntile/tile/ops/gelu_inplace.hh
  * TileGraph GeLU in-place: dst = gelu(dst)
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

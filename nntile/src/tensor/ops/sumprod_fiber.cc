@@ -10,7 +10,7 @@
  * @file nntile/src/tensor_graph/sumprod_fiber.cc
  * TensorGraph sumprod_fiber operation implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tensor/ops/sumprod_fiber.hh"

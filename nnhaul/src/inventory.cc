@@ -15,7 +15,7 @@
  * 0..k, then one transfer lane per connected ordered pair in ascending
  * (a, b) order.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

@@ -9,7 +9,7 @@
  * @file include/nntile/core/embedding.hh
  * Embeddings from vocabulary within Tile<T>
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

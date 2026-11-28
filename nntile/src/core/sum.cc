@@ -9,7 +9,7 @@
  * @file src/core/sum.cc
  * Sum all elements of a Tile<T>
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/core/sum.hh"

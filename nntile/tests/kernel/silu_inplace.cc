@@ -9,7 +9,7 @@
  * @file tests/kernel/silu_inplace.cc
  * Inplace SiLU kernel test
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 // Corresponding header

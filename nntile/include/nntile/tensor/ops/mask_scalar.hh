@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/ops/mask_scalar.hh
  * TensorGraph mask_scalar operation: A[mask] = val
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

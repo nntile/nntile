@@ -9,7 +9,7 @@
 # @file .clang-format
 # Canonical clang-format profile for NNHaul (LLVM base, 79-column limit).
 #
-# @version 1.0.0
+# @version 2.0.0
 
 # Matches the NNTile C++ style: 79 columns, Allman, east const.
 BasedOnStyle: LLVM

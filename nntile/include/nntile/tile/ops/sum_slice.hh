@@ -9,7 +9,7 @@
  * @file include/nntile/tile/ops/sum_slice.hh
  * TileGraph sum_slice operation: dst = alpha * sum_slice(src) + beta * dst
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

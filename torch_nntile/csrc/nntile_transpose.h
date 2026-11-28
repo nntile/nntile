@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/csrc/nntile_transpose.h
  * Umbrella header for cyclic ``model_transpose``.
+ * @version 2.0.0
  */
 
 #pragma once

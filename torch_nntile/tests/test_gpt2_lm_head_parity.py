@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/tests/test_gpt2_lm_head_parity.py
 # GPT2LMHead forward/backward parity vs HuggingFace GPT2LMHeadModel.
+# @version 2.0.0
 
 from __future__ import annotations
 

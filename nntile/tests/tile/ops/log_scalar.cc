@@ -10,7 +10,7 @@
  * @file nntile/tests/tile_graph/log_scalar.cc
  * Test TileGraph log_scalar (names a NNHaul data handle).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include <catch2/catch_test_macros.hpp>

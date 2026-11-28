@@ -9,7 +9,7 @@
  * @file nntile/src/tile_graph/unregister.cc
  * TileGraph async unregister implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tile/ops/unregister.hh"

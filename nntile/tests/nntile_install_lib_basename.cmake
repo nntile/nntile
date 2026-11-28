@@ -6,6 +6,7 @@
 # Resolve installed nntile library basename for the current
 # configure host. Use from CMakeLists.txt (WIN32/APPLE are defined), not from
 # cmake -P scripts.
+# @version 2.0.0
 
 function(nntile_install_lib_basename out_var)
     if(BUILD_SHARED_LIBS)

@@ -19,7 +19,7 @@
  * churn over small pools checked against a shadow fold; and the loud
  * programmer-misuse surface of the header's contract.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

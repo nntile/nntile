@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/gelu_backward.hh
  * Backward GeLU low-level kernels
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

@@ -13,7 +13,7 @@
  * issued witness, kernel launches, the per-node pool stats, and the
  * simulate exposure — the chunk-graph engine's first proof.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

@@ -36,7 +36,7 @@
  * again) — so the step-wise TimingPass and the one-shot simulate_run
  * below agree whatever retirement schedule the caller keeps.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

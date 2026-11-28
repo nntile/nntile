@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/ops/unregister.hh
  * TensorGraph async unregister (lowers to per-tile unregister_submit).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

@@ -5,13 +5,12 @@
  *
  * @file include/nntile/nnhaul/sync_defer.hh
  * TLS defer flag for NNHaul; wait calls ``nnhaul::wait``.
+ * @version 2.0.0
  */
 
 #pragma once
 
 #include <nnhaul/nnhaul.hh>
-
-#include <nntile/nnhaul/stage.hh>
 
 #include <atomic>
 #include <cstdint>
@@ -27,9 +26,6 @@ inline void task_wait_for_all_counted()
 {
     ++g_wait_for_all_count;
     ::nnhaul::wait();
-    // The queue is idle now, so destroying staged scratch handles is
-    // the non-blocking case of the stage lifetime scheme (stage.hh).
-    ::nntile::nnhaul::stage::drain_scratches();
 }
 
 struct SyncDefer

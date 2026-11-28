@@ -13,7 +13,7 @@
  * failures and test_hooks read. Residency is NOT here — it lives in
  * the binding table; the pool owns bytes, nothing else.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

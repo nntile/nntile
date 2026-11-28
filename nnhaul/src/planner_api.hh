@@ -6,7 +6,7 @@
  * <nnhaul/planner.hh>: the topology/sink adapters, the in-tree LRU path,
  * and the NNHAUL_PLANNER dynamic loader.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

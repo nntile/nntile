@@ -5,6 +5,7 @@
  *
  * @file include/nntile/data_access.hh
  * Access-mode names used by NNHaul call sites.
+ * @version 2.0.0
  */
 
 #pragma once
@@ -22,12 +23,11 @@ enum data_access_mode
     ACCESS_COMMUTE = 0
 };
 
-//! Drain NNHaul through the counted, scratch-draining wait (defined in
-//! nnhaul/sync_defer.hh) so staged scratch handles do not needlessly
-//! survive this path.
+//! Drain NNHaul through the counted wait (defined in
+//! nnhaul/sync_defer.hh).
 namespace nntile
 {
-//! nnhaul::wait() plus the staged-scratch drain (sync_defer.hh).
+//! nnhaul::wait() through the counted wait (sync_defer.hh).
 void nnhaul_wait_for_all_drained();
 }
 

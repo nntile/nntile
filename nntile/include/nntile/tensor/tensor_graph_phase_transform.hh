@@ -10,7 +10,7 @@
  * Optional ``TensorGraph`` rewrite between phase seal and tile lowering
  * (identity baseline today; future DDP/FSDP-style graphs).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

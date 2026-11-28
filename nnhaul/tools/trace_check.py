@@ -16,7 +16,7 @@
 # the absence of the deleted counter events. Exit 0 iff every
 # invariant holds.
 #
-# @version 1.0.0
+# @version 2.0.0
 
 """Validate an NNHaul Chrome Trace Event dump (format_version 1).
 

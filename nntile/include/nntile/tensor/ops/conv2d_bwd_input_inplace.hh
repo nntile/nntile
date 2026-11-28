@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/ops/conv2d_bwd_input_inplace.hh
  * TensorGraph conv2d_bwd_input_inplace: dX = alpha*conv_bwd(dY,kernel) + beta*dX
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 /*!
  * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.

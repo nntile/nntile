@@ -9,7 +9,7 @@
  * @file include/nntile/nnhaul/ops/maxsumexp.hh
  * Max and sum of exponents for NNHaul buffer
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

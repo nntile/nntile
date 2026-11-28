@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/graph_data_node.hh
  * TensorGraph::TensorNode - data node for TensorGraph (shape, dtype, name).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -56,8 +56,6 @@ class TensorGraph::TensorNode
     Index dim(int idx) const;
     Index nelems() const;
     size_t size_bytes() const;
-    bool is_compatible(const TensorNode *other) const;
-
     // Graph access
     TensorGraph *graph();
     const TensorGraph *graph() const;

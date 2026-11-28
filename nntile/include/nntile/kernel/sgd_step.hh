@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/sgd_step.hh
  * Fused SGD with momentum step
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

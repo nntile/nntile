@@ -10,7 +10,7 @@
 # the chunk class plus the tests that assert chunk counts.
 #
 # Usage: tools/run_chunked_suite.sh <build-dir> [ctest args...]
-# @version 1.1.0
+# @version 2.0.0
 set -eu
 build=${1:?usage: run_chunked_suite.sh <build-dir> [ctest args...]}
 shift || true

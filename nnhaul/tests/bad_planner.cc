@@ -5,7 +5,7 @@
  * A deliberately incompatible planner library: it exports the two entry
  * symbols but declares API version 999. The loader must refuse it.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

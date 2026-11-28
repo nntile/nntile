@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/nn/sdpa.py
 # SDPA eager layer for device="nntile".
+# @version 2.0.0
 
 """Scaled dot-product attention matching ``nntile::sdpa_eager``."""
 

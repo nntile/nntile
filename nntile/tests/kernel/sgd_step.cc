@@ -9,7 +9,7 @@
  * @file tests/kernel/sgd_step.cc
  * Fused SGD with momentum optimizer step
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 // Corresponding header

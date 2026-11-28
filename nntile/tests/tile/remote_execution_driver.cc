@@ -9,7 +9,7 @@
  * @file nntile/tests/tile/remote_execution_driver.cc
  * RemoteExecutionDriver submits a TileGraph over a Unix socket.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "context_fixture.hh"

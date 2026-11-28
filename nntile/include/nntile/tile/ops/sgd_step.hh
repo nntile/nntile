@@ -9,7 +9,7 @@
  * @file include/nntile/tile/ops/sgd_step.hh
  * TileGraph SGD step for one tile (calls nntile::core::sgd_step).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

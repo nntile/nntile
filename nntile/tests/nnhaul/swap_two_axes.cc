@@ -10,7 +10,7 @@
  * wrapper on the same inputs, including the class-boundary shape and
  * the d4 == 1 matrix-transpose regime.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 #include "harness.hh"

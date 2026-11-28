@@ -9,7 +9,7 @@
  * @file include/nntile/core/conv2d_bwd_weight_inplace.hh
  * Backward 2D-Convolution of two tiles in WHCN format to get weight grad
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 /*!
  * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.

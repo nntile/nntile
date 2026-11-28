@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/ops/add_fiber_inplace.hh
  * TensorGraph add_fiber_inplace: tensor = alpha * fiber + beta * tensor
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

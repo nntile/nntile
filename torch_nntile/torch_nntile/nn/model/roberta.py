@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/nn/model/roberta.py
 # RoBERTa masked LM for device="nntile".
+# @version 2.0.0
 
 """RoBERTa stack mirroring ``nntile::model::roberta`` (RobertaMlm)."""
 

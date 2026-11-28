@@ -9,7 +9,7 @@
  * @file src/kernel/norm/cuda.cu
  * Euclidean norm of all elements in a buffer on CUDA
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/norm/cuda.hh"

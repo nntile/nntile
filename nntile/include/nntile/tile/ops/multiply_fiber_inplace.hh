@@ -9,7 +9,7 @@
  * @file include/nntile/tile/ops/multiply_fiber_inplace.hh
  * TileGraph multiply_fiber_inplace: dst = alpha * src * dst
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

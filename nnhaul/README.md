@@ -11,7 +11,7 @@ lanes of the node inventory.
 Repository overview: purpose, architecture, build and installation,
 usage, environment knobs, tests, and the documentation index.
 
-@version 1.0.0
+@version 2.0.0
 -->
 
 <!-- SPDX-License-Identifier: MIT -->
@@ -20,6 +20,10 @@ usage, environment knobs, tests, and the documentation index.
 
 Task-based dynamic execution engine — a C++17 **chunk-graph
 multi-device executor** over k CUDA device nodes plus one host node.
+
+> NNTile 2.0 pins `ncuda=1` (one CUDA device per process). The multi-device
+> executor described below is a standalone NNHaul capability and is not used
+> by the NNTile product.
 
 ## General purpose
 
@@ -179,7 +183,7 @@ CUDA GPU at test time only.
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -GNinja
 cmake --build build
-ctest --test-dir build --output-on-failure   # 28 C++ + 2 Python tests
+ctest --test-dir build --output-on-failure   # 26 C++ + 2 Python tests
 cmake --install build --prefix /opt/nnhaul   # or --prefix /usr/local
 ```
 
@@ -375,7 +379,7 @@ in [docs/examples/](docs/examples/).
 
 ## Tests
 
-`ctest` in this repository runs the runtime suite (28 C++ and 2 Python
+`ctest` in this repository runs the runtime suite (26 C++ and 2 Python
 tests): the unit suites over the plan-engine types — host
 pool, binding table (including a 10k-transition churn against a
 reference fold), plan checker (the full fault table), dependency, the

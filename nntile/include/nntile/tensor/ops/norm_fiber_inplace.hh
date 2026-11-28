@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/ops/norm_fiber_inplace.hh
  * TensorGraph norm_fiber_inplace operation
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

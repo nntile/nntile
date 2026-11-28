@@ -30,7 +30,7 @@
  * shrunk) — the same harness-fact discipline as the host lane's
  * unbounded FIFO.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

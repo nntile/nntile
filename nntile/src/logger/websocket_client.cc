@@ -9,7 +9,7 @@
  * @file src/logger/websocket_client.cc
  * Simple web socket client
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/logger/websocket_client.hh"

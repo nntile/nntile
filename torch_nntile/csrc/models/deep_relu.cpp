@@ -2,6 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/models/deep_relu.cpp
+ * @version 2.0.0
  */
 
 #include <torch_nntile/models/deep_relu.hh>

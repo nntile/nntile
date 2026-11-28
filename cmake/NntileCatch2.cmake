@@ -6,6 +6,7 @@
 # GLOBAL: find_package in external/ must expose targets to nntile/tests/.
 #
 # NNTILE_CATCH2_GIT_TAG is the single Catch2 pin.
+# @version 2.0.0
 
 if(TARGET Catch2::Catch2WithMain)
     return()

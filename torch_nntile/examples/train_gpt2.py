@@ -4,6 +4,7 @@
 #
 # @file torch_nntile/examples/train_gpt2.py
 # Train NNTile-optimized GPT2LMHead on device="nntile" (HF-format checkpoints).
+# @version 2.0.0
 
 """Train the NNTile-layout minimal GPT-2 on a tiny synthetic token stream.
 

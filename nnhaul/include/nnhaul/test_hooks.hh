@@ -13,7 +13,7 @@
  * lane-clock simulation's run makespan, and the trace knobs — the engine's
  * observable surfaces.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

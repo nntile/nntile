@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/softmax_inplace.hh
  * Low-level kernels to softmax_inplace along axis
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

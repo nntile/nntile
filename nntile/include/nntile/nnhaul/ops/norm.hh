@@ -9,7 +9,7 @@
  * @file include/nntile/nnhaul/ops/norm.hh
  * Euclidean norm of all elements in a NNHaul buffer
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

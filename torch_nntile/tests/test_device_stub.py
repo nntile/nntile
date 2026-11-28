@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/tests/test_device_stub.py
 # Tests for PyTorch nntile device registration and CPU <-> nntile copies.
+# @version 2.0.0
 
 import torch
 from conftest import nntile_cpu

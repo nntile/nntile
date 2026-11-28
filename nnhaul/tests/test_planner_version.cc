@@ -5,7 +5,7 @@
  * The loader refuses a planner built for a different API version, and the
  * refusal names both versions.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

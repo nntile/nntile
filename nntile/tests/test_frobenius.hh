@@ -9,7 +9,7 @@
  * @file nntile/tests/test_frobenius.hh
  * Relative Frobenius helpers for graph / core parity tests.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

@@ -9,7 +9,7 @@
  * @file include/nntile/tile/ops/add_inplace.hh
  * TileGraph add_inplace operation: y = alpha * x + beta * y
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

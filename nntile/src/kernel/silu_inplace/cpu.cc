@@ -9,7 +9,7 @@
  * @file src/kernel/silu_inplace/cpu.cc
  * Inplace SiLU operation on CPU
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/silu_inplace/cpu.hh"

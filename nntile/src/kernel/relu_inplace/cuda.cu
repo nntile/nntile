@@ -9,7 +9,7 @@
  * @file src/kernel/relu_inplace/cuda.cu
  * Inplace ReLU operation on CUDA
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/relu_inplace/cuda.hh"

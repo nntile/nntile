@@ -9,7 +9,7 @@
  * @file src/nnhaul/norm_slice.cc
  * Euclidean norms of fibers into a slice of a NNHaul buffer (out-of-place version)
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 // Corresponding header

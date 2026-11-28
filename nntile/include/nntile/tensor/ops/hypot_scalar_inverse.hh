@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/ops/hypot_scalar_inverse.hh
  * TensorGraph hypot_scalar_inverse operation: (eps, alpha, dst)
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

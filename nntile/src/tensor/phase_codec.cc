@@ -9,7 +9,7 @@
  * @file nntile/src/tensor/phase_codec.cc
  * TensorGraph phase codec for Flush PhaseIR JSON.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include <nntile/tensor/phase_codec.hh>

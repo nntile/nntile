@@ -13,7 +13,7 @@
  *   for each ``(i0,i2)`` this is a ``d1xd3`` matrix transpose. A separate
  *   tiled shared-memory kernel coalesces both loads and stores.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/swap_two_axes/cuda.hh"

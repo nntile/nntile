@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/norm/cpu.hh
  * Euclidean norm of all elements in a buffer on CPU
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

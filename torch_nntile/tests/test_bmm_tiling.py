@@ -2,6 +2,7 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/tests/test_bmm_tiling.py
+# @version 2.0.0
 
 from __future__ import annotations
 

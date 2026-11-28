@@ -9,7 +9,7 @@
  * @file src/nnhaul/multiply_inplace.cc
  * Per-element multiplication of two NNHaul buffers
  *
- * @version 1.2.0
+ * @version 2.0.0
  * */
 
 // Corresponding header

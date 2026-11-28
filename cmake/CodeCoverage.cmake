@@ -1,3 +1,9 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Third-party file bundled unchanged from the upstream project; the
+# upstream copyright and BSD-3-Clause license follow.
+#
+# @version 2.0.0
+
 # Copyright (c) 2012 - 2017, Lars Bilke
 # All rights reserved.
 #

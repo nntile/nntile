@@ -63,7 +63,7 @@
  * per-direction "pair absent from the probe") and pass. The suite
  * initializes CUDA — run it under the suite's GPU lock.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

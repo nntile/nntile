@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/gemm.py
 # N-D GEMM matching ``nntile::tensor::gemm`` / C++ graph API semantics.
+# @version 2.0.0
 
 """N-D GEMM for torch_nntile (not PyTorch last-2-dim matmul rules)."""
 

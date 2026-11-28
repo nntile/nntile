@@ -33,9 +33,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
+
+      - name: Legal headers (2.0.0)
+        run: python3 tools/check_headers.py
 
       - name: Removed runtime and API remnants
         shell: bash
@@ -53,7 +56,7 @@ jobs:
             fi
             echo "ok: ${desc}"
           }
-          check_absent "removed distributed runtime identifier" -inE "starpu|star_pu"
+          check_absent "removed distributed runtime identifier" -inE "star[-_]?pu"
           check_absent "ACCESS_REDUX remnant" -n "ACCESS_REDUX"
           check_absent "removed accumulate family" -nE \
             "accumulate_attn_output|accumulate_maxsumexp|accumulate_hypot|accumulate\.cc"

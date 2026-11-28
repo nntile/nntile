@@ -9,7 +9,7 @@
  * @file src/kernel/norm/cpu.cc
  * Euclidean norm of all elements in a buffer on CPU
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/norm/cpu.hh"

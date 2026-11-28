@@ -9,7 +9,7 @@
  * @file include/nntile/nnhaul/ops/sqrt.hh
  * Sqrt operation on a NNHaul buffer
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 /*!
  * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.

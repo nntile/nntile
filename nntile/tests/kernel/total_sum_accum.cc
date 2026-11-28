@@ -9,7 +9,12 @@
  * @file tests/kernel/total_sum_accum.cc
  * Total sum accumulated of a buffer on CPU
  *
- * @version 1.1.0
+ * @version 2.0.0
+ *
+ * PLACEHOLDER TEST: the kernel family is active, but this file
+ * still returns -1 and is registered with the NotImplemented label
+ * (excluded from the default ctest run). It is planned work, not a
+ * deprecated 1.x test.
  * */
 
 #include <iostream>

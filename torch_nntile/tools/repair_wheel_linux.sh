@@ -1,4 +1,17 @@
 #!/usr/bin/env bash
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                 2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems with GPU acceleration.
+#
+# @file torch_nntile/tools/repair_wheel_linux.sh
+# NNTile 2.0 file.
+#
+# @version 2.0.0
+
 set -euo pipefail
 
 wheel="${1:?wheel path is required}"

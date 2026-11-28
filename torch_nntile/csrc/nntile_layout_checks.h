@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/csrc/nntile_layout_checks.h
  * Layout checks for classic NNTile kernels vs CUDA-parity aten paths.
+ * @version 2.0.0
  */
 
 #pragma once

@@ -9,7 +9,7 @@
  * @file src/core/hypot_inplace.cc
  * hypot_inplace operation for Tile<T>
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/core/hypot_inplace.hh"

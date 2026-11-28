@@ -25,7 +25,7 @@
  * CPU: the facts are built from the test thread's steady clock, no
  * device is touched.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

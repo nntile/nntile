@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/csrc/nntile_broadcast.cpp
  * Broadcast and repeat via chained ``scale_slice`` (one axis per op).
+ * @version 2.0.0
  */
 
 #include "nntile_broadcast.h"

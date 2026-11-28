@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/ops/concat.hh
  * TensorGraph concat operation: output = concat(a, b, axis)
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

@@ -9,7 +9,7 @@
  * Version semantics on the rolling stream: R||R share one replica, W
  * excludes readers through stream order, ReadWrite retags in place.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/ops/norm.hh
  * TensorGraph norm operation: y = alpha * norm(x) + beta * y
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

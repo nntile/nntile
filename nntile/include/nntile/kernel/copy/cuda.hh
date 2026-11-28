@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/copy/cuda.hh
  * Copy operation on buffers on CUDA
  *
- * @version 1.2.0
+ * @version 2.0.0
  * */
 
 #pragma once

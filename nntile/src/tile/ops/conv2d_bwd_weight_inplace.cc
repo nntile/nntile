@@ -9,7 +9,7 @@
  * @file nntile/src/tile_graph/conv2d_bwd_weight_inplace.cc
  * TileGraph conv2d bwd weight inplace operation implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 /*!
  * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.

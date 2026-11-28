@@ -11,7 +11,7 @@
  * include/nntile/nnhaul/chunk_gate.hh for the session rule; out-of-line so
  * every shared library shares this single instance).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/nnhaul/chunk_gate.hh"

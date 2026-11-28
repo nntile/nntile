@@ -14,7 +14,7 @@
  * must agree bitwise. Built only when CUDA is enabled; the kernel entry
  * points themselves are backend-agnostic.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 #include <nntile/kernel/add_fiber/cuda.hh>

@@ -4,7 +4,7 @@
  * @file include/nntile/nnhaul/ops/swap_two_axes.hh
  * swap_two_axes operation on NNHaul buffers (5D, swap axes 1 and 3).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

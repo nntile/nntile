@@ -9,7 +9,7 @@
  * @file nntile/src/tensor_graph/log_scalar.cc
  * TensorGraph log_scalar operation implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tensor/ops/log_scalar.hh"

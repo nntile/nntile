@@ -2,6 +2,7 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/tests/classic_graph.py
+# @version 2.0.0
 """Helpers: pending TensorGraph must be classic kernels, not TORCH_*."""
 
 from __future__ import annotations

@@ -12,6 +12,7 @@
  *
  * Build: cmake --build <build> --target gelu_chunk_benchmark
  * Run:   ./gelu_chunk_benchmark [repeats]
+ * @version 2.0.0
  */
 
 #include "nntile/kernel/gelu/cuda.hh"

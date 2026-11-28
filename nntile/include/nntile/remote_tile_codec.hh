@@ -9,7 +9,7 @@
  * @file include/nntile/remote_tile_codec.hh
  * Classic TILE_* encode / apply for the Unix-socket driver.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

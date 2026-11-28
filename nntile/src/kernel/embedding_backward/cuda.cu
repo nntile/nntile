@@ -9,7 +9,7 @@
  * @file src/kernel/embedding_backward/cuda.cu
  * Backward of embeddings from vocabulary within buffers
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/embedding_backward/cuda.hh"

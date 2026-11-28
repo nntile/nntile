@@ -9,7 +9,7 @@
  * @file include/nntile/nnhaul/ops/norm_fiber_inplace.hh
  * Euclidean norms over slices into a fiber of a product of a NNHaul buffer
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

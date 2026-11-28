@@ -10,7 +10,7 @@
 # Kernel-versus-wrapper comparisons on the NNHaul backend. These test the
 # nntile side of the integration (nntile + nnhaul), not NNHaul alone.
 #
-# @version 1.1.0
+# @version 2.0.0
 
 function(nnhaul_wrapper_test name)
     set(target "tests_nnhaul_${name}")

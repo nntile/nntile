@@ -16,7 +16,7 @@
  * the cross-plan late records; EventRegistry's resolve (the
  * registry-miss abort), insert (never two on one op), and sweep.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

@@ -3,6 +3,7 @@
 #
 # @file cmake/nntileConfig.cmake.in
 # find_package(nntile) config for installed libnntile.
+# @version 2.0.0
 
 @PACKAGE_INIT@
 

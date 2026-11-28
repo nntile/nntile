@@ -9,7 +9,7 @@
  * @file include/nntile/tile/graph_op_node.hh
  * TileGraph::OpNode - base class for TileGraph operations.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

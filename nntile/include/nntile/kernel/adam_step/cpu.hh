@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/adam_step/cpu.hh
  * Fused Adam step on CPU buffers
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

@@ -10,7 +10,7 @@
  * @file nntile/src/tile_graph/from_tensor_graph.cc
  * TileGraph::from_tensor_graph - convert TensorGraph to TileGraph.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tile/graph.hh"

@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/nn/model/gpt_neo.py
 # GPT-Neo causal LM for device="nntile".
+# @version 2.0.0
 
 """GPT-Neo stack mirroring ``nntile::model::gptneo``."""
 

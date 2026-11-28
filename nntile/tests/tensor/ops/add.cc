@@ -9,7 +9,7 @@
  * @file nntile/tests/tensor_graph/add.cc
  * Test TensorGraph add operation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "context_fixture.hh"

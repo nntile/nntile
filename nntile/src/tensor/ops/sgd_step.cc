@@ -10,7 +10,7 @@
  * @file nntile/src/tensor_graph/sgd_step.cc
  * TensorGraph sgd_step operation implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tensor/ops/sgd_step.hh"

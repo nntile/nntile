@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/ops/gather.hh
  * TensorGraph gather operation: (src, dst)
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

@@ -10,7 +10,7 @@
  * @file nntile/src/tile_graph/randn.cc
  * TileGraph randn operation implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tile/ops/randn.hh"

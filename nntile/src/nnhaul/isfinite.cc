@@ -9,7 +9,7 @@
  * @file src/nnhaul/isfinite.cc
  * Accumulate flags for NaN and Inf in a buffer
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 /*!
  * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.

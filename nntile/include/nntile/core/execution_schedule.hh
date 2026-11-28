@@ -11,7 +11,7 @@
  * produced by an explicit generator (e.g. round-robin) and may be loaded back
  * to configure ``Runtime::execute()``. No data home nodes or MPI ownership.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

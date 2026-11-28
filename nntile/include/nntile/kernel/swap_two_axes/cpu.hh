@@ -4,7 +4,7 @@
  * @file include/nntile/kernel/swap_two_axes/cpu.hh
  * Swap axes 1 and 3 in a 5D buffer on CPU.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

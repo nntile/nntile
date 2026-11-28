@@ -9,7 +9,7 @@
  * @file nntile/tests/tile_graph/gelu.cc
  * GeLU: TensorGraph vs TileGraph (mixed tile sizes) parity.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "context_fixture.hh"

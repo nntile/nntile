@@ -7,6 +7,7 @@
  * Native C++ models (GPT-2, BERT, Llama, ...) must use ``model_transpose``
  * here. Do **not** use ``swap_two_axes`` / ``aten::transpose`` - that path
  * exists only for HuggingFace-layout compatibility and is much slower.
+ * @version 2.0.0
  */
 
 #pragma once

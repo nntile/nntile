@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/csrc/models/gpt_neo.cpp
  * GPT-Neo causal LM - port of deleted ``nntile::model::gptneo``.
+ * @version 2.0.0
  */
 
 #include <torch_nntile/models/gpt_neo.hh>

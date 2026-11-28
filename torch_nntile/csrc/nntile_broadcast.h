@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/csrc/nntile_broadcast.h
  * Broadcast helpers built from chained ``scale_slice`` ops.
+ * @version 2.0.0
  */
 
 #pragma once

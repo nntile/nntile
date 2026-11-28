@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/nn/model/llama.py
 # Llama causal LM for device="nntile".
+# @version 2.0.0
 
 """Llama stack mirroring ``nntile::model::llama`` (RMSNorm, RoPE, SiLU MLP).
 

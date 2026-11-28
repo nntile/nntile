@@ -9,7 +9,7 @@
  * @file include/nntile/tile/ops/adam_step.hh
  * TileGraph Adam step for one tile (calls nntile::core::adam_step).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

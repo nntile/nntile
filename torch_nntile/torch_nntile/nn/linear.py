@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/nn/linear.py
 # Linear / attention projection modules for nntile models.
+# @version 2.0.0
 
 """Linear and attention projection helpers matching deleted NNGraph layouts."""
 

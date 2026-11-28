@@ -16,7 +16,7 @@
  * three-stream constants and the C memory counters died with the
  * reactive engine (their workload is test_trace_mem's, deleted).
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

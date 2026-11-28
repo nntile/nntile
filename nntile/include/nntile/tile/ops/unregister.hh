@@ -9,7 +9,7 @@
  * @file include/nntile/tile/ops/unregister.hh
  * TileGraph async unregister: NNHaul_data_unregister_submit + drop payload.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

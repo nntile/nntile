@@ -12,7 +12,7 @@
  * <nntile/runtime.hh>``) for execution.
  * Autograd is owned by PyTorch / libtorch_nntile, not by this class.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -193,10 +193,6 @@ inline TensorGraph::PhaseSnapshot TensorGraph::seal_phase(
     return snap;
 }
 
-inline void TensorGraph::reset_phase_seal_cursor()
-{
-    phase_seal_cursor_ = 0;
-}
 
 inline void TensorGraph::drop_all_ops()
 {
@@ -336,51 +332,13 @@ inline TensorGraph::TensorNode *TensorGraph::TensorNode::set_name(
     return this;
 }
 
-inline std::vector<std::string> TensorGraph::data_names() const
-{
-    std::vector<std::string> names;
-    names.reserve(data_.size());
-    for (auto const &node : data_)
-    {
-        if (!node)
-        {
-            continue;
-        }
-        names.push_back(node->name());
-    }
-    return names;
-}
 
 inline std::vector<AxisDescriptor *> TensorGraph::axis_groups() const
 {
     return {axis_groups_.begin(), axis_groups_.end()};
 }
 
-inline bool TensorGraph::has_tiled_axis_group() const
-{
-    for (AxisDescriptor const *axis : axis_groups_)
-    {
-        if (axis != nullptr && axis->is_tiled())
-        {
-            return true;
-        }
-    }
-    return false;
-}
 
-inline size_t TensorGraph::num_untiled_groups() const
-{
-    auto groups = axis_groups();
-    size_t count = 0;
-    for (const auto *g : groups)
-    {
-        if (!g->is_tiled())
-        {
-            ++count;
-        }
-    }
-    return count;
-}
 
 inline std::string TensorGraph::to_string() const
 {

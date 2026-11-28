@@ -9,7 +9,7 @@
  * @file src/nnhaul/softmax_inplace.cc
  * Inplace softmax operation for NNHaul buffer
  *
- * @version 1.2.0
+ * @version 2.0.0
  * */
 
 // Corresponding header

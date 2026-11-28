@@ -11,7 +11,7 @@
 #
 # Enforce flat public includes: no nntile/core/ or nntile/graph/ path segments.
 #
-# @version 1.1.0
+# @version 2.0.0
 set -euo pipefail
 
 root="${1:-.}"

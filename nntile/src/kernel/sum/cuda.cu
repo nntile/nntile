@@ -9,7 +9,7 @@
  * @file src/kernel/sum/cuda.cu
  * Sum all elements of a buffer on CUDA
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/sum/cuda.hh"

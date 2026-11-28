@@ -1,3 +1,16 @@
+<!--
+ @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+                              (Skoltech), Russia. All rights reserved.
+                2023-present Artificial Intelligence Research Institute
+                              (AIRI), Russia. All rights reserved.
+
+ NNTile is software framework for fast training of big neural networks on
+ distributed-memory heterogeneous systems with GPU acceleration.
+
+ @file CONTRIBUTING.md
+ @version 2.0.0
+-->
+
 # Contributing to NNTile
 
 NNTile 2.0 is CUDA-only and NNHaul-only. Contributions must keep that
@@ -23,6 +36,7 @@ There is no CUDA switch; configure always enables CUDA.
 models on `device="nntile"` are out of scope for 2.0.
 
 ```bash
+export LD_LIBRARY_PATH="$PWD/build-nnhaul/nntile:$PWD/build-nnhaul/nnhaul:${LD_LIBRARY_PATH:-}"
 python3 -m pip install build-nnhaul/wheelhouse/torch_nntile-*.whl
 python3 torch_nntile/tools/smoke_test_wheel.py
 ```
@@ -33,5 +47,5 @@ Follow `STYLE_GUIDE.md` and `.clang-format`.
 
 ## Compatibility
 
-NNTile 1.x (CPU, macOS, stock-torch-on-nntile) remains on the `1.x`
-branch. Changes that require those products belong there.
+NNTile 1.x (CPU, macOS, stock-torch-on-nntile) remains at the `1.1.0`
+tag. Changes that require those products belong there.

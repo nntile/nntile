@@ -9,7 +9,7 @@
  * @file include/nntile/tile/ops/multiply.hh
  * TileGraph multiply: z = alpha * x * y
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

@@ -9,7 +9,7 @@
  * A cuBLAS SGEMM codelet on the worker stream, checked against a CPU
  * reference.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

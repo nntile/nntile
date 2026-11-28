@@ -9,7 +9,7 @@
  * @file nntile/tests/tile_graph/mixed_tile_common.hh
  * Shared helpers for tensor vs TileGraph parity under mixed per-axis tile sizes.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

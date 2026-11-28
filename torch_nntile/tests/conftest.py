@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/tests/conftest.py
 # Session-wide NNHaul / nntile context for device="nntile" parity tests.
+# @version 2.0.0
 
 from __future__ import annotations
 

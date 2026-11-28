@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/setup.py
 # Build thin PyTorch PrivateUse1 extension linking prebuilt libtorch_nntile.
+# @version 2.0.0
 
 import os
 from pathlib import Path

@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/nn/model/bert_hf_loader.py
 # Convert weights between HuggingFace BERT and torch_nntile BertMlm.
+# @version 2.0.0
 
 """Bidirectional HF <-> NNTile weight conversion for BERT MLM."""
 

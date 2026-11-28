@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/tensor_graph_tiling.hh
  * Tile layout derived from TensorGraph axis descriptors (arbitrary partitions).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -55,8 +55,6 @@ class TensorAxisLayout
     //! Extent of the tile at grid_coord along each dimension.
     std::vector<Index> tile_shape_at(
         const std::vector<Index> &grid_coord) const;
-
-    Index tile_nelems_at(const std::vector<Index> &grid_coord) const;
 
     Index grid_volume() const
     {

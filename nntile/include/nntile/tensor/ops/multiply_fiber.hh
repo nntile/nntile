@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/ops/multiply_fiber.hh
  * TensorGraph multiply_fiber operation: dst = alpha * src1 * src2 (fiber)
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

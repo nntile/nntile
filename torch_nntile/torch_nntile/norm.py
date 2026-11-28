@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/norm.py
 # 2-norm support for device="nntile".
+# @version 2.0.0
 
 """L2 norm helpers for the nntile device."""
 

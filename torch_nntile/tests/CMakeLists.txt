@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/tests/CMakeLists.txt
 # C++ tests for libtorch_nntile (PrivateUse1 vs CPU).
+# @version 2.0.0
 
 cmake_minimum_required(VERSION 3.24)
 

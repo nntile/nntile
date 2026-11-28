@@ -11,7 +11,7 @@
 # exported nnhaul::nnhaul target needs (Threads, CUDAToolkit, cuDNN)
 # and loads the targets file.
 #
-# @version 1.0.0
+# @version 2.0.0
 
 @PACKAGE_INIT@
 

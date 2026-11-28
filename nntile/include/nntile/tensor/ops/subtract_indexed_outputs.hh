@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/ops/subtract_indexed_outputs.hh
  * TensorGraph subtract_indexed_outputs: dst[labels[i]] -= val
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

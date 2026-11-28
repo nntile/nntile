@@ -9,7 +9,7 @@
  * @file include/nntile/tile/ops/scale_fiber.hh
  * TileGraph scale_fiber operation: dst = alpha * src (fiber broadcast)
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

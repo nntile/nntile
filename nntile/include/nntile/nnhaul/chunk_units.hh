@@ -13,7 +13,7 @@
  * host+device discipline established by src/nnhaul/gemm.cc and
  * src/nnhaul/embedding_backward.cc.
  *
- * @version 1.2.0
+ * @version 2.0.0
  * */
 
 #pragma once

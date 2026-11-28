@@ -25,7 +25,7 @@
  * the simulate exposure at the join over the batch's own folded owed
  * sets.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

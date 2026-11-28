@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/nn/model/gpt_neox.py
 # GPT-NeoX causal LM for device="nntile".
+# @version 2.0.0
 
 """GPT-NeoX stack mirroring ``nntile::model::gptneox``.
 

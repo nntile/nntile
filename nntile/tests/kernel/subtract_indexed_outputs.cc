@@ -9,7 +9,7 @@
  * @file tests/kernel/subtract_indexed_outputs.cc
  * Placeholder for subtract_indexed_outputs kernel test
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/subtract_indexed_outputs.hh"

@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/tests/test_transformer_layer_parity.py
 # Layer / module unit parity: RoPE, RMSNorm, LlamaMLP/Attention, BERT pieces.
+# @version 2.0.0
 
 from __future__ import annotations
 

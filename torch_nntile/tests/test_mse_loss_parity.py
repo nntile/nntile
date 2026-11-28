@@ -4,6 +4,7 @@
 # @file torch_nntile/tests/test_mse_loss_parity.py
 # mse_loss parity: CPU PyTorch vs nntile tensor ops, with upstream
 # grad_output scaling (composed-loss use).
+# @version 2.0.0
 
 import torch
 from conftest import nntile_cpu

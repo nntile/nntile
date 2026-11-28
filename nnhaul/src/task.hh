@@ -14,7 +14,7 @@
  * at submit. The pending chain — submission-order bookkeeping the
  * engine drains at close-and-plan — is unchanged.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

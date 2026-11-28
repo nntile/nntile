@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/nn/model/__init__.py
 # Models built from torch_nntile.nn modules (classic nntile kernels).
+# @version 2.0.0
 
 """Models that use classic NNTile kernels via :mod:`torch_nntile.nn.module`.
 

@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/csrc/models/roberta.cpp
  * RoBERTa MLM - port of deleted ``nntile::model::roberta`` (NNGraph layout).
+ * @version 2.0.0
  */
 
 #include <torch_nntile/models/roberta.hh>

@@ -10,7 +10,7 @@
  * @file nntile/src/tile_graph/append_tensor_graph_phase.cc
  * Incremental TensorGraph phase lowering into TileGraph.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tile/append_tensor_graph_phase.hh"

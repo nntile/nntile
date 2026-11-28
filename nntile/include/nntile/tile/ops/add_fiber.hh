@@ -9,7 +9,7 @@
  * @file include/nntile/tile/ops/add_fiber.hh
  * TileGraph add_fiber operation: output = alpha * fiber + beta * tensor
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

@@ -40,7 +40,7 @@
  * (staged bytes against the capacity) is POLICY and lives in the gemm
  * wrapper (src/nnhaul/gemm.cc), which knows the operand names.
  *
- * @version 1.2.0
+ * @version 2.0.0
  * */
 
 // Corresponding headers

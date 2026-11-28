@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/tests/test_attn_weight_layout.py
 # Attention weight layout conversion tests.
+# @version 2.0.0
 
 from __future__ import annotations
 

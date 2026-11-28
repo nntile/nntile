@@ -11,7 +11,7 @@
 # the test suites. Works standalone and as an add_subdirectory /
 # FetchContent subproject (tests off by default then).
 #
-# @version 1.0.0
+# @version 2.0.0
 
 cmake_minimum_required(VERSION 3.18)
 

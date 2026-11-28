@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/phase_codec.hh
  * TensorGraph phase codec: Flush ``PhaseIR`` JSON ``{nodes, ops}``.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

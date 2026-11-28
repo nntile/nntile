@@ -9,7 +9,7 @@
  * @file src/nnhaul/multiply_slice.cc
  * NNHaul wrappers for per-element product of a tensor and a broadcasted slice
  *
- * @version 1.2.0
+ * @version 2.0.0
  * */
 
 // Corresponding header

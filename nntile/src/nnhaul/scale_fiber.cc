@@ -9,7 +9,7 @@
  * @file src/nnhaul/scale_fiber.cc
  * NNHaul wrappers for scaling of a tensor with a broadcasted fiber
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 // Corresponding header

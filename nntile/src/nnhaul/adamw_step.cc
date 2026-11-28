@@ -9,7 +9,7 @@
  * @file src/nnhaul/adamw_step.cc
  * AdamW operation of NNHaul buffers
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 // Corresponding header

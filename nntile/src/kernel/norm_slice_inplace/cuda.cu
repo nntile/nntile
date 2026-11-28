@@ -9,7 +9,7 @@
  * @file src/kernel/norm_slice_inplace/cuda.cu
  * Euclidean norms of fibers into a slice of a buffer on CUDA
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include <cstdio>

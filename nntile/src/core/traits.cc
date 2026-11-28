@@ -9,7 +9,7 @@
  * @file src/core/traits.cc
  * Integer properties of the Tile<T> class
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/core/traits.hh"

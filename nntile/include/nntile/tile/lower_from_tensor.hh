@@ -9,7 +9,7 @@
  * @file include/nntile/tile/lower_from_tensor.hh
  * Lower TensorGraph ops to TileGraph ops (elementwise, GEMM, optimizer steps).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

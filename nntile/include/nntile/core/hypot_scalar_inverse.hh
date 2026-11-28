@@ -9,7 +9,7 @@
  * @file include/nntile/core/hypot_scalar_inverse.hh
  * hypot_scalar_inverse operation for Tile<T>
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

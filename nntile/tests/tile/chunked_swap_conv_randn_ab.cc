@@ -18,7 +18,7 @@
  * end to end; conv cases cover several strides/dilations/offsets and
  * beta != 0, randn covers dense and foreign-strided geometries.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include <catch2/catch_test_macros.hpp>

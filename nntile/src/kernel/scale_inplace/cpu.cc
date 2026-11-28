@@ -9,7 +9,7 @@
  * @file src/kernel/scale_inplace/cpu.cc
  * Scale inplace operation on buffers on CPU
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/scale_inplace/cpu.hh"

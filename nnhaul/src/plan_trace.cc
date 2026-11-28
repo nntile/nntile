@@ -24,7 +24,7 @@
  * mid-flight — the facts arrive only at the queue-close join, and every
  * method here runs on the engine thread.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

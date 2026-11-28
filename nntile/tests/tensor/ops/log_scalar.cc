@@ -9,7 +9,7 @@
  * @file nntile/tests/tensor_graph/log_scalar.cc
  * Test TensorGraph log_scalar operation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tensor/ops/log_scalar.hh"

@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/ops/rope_backward.hh
  * TensorGraph rope_backward operation: (sin, cos, dy, dx)
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

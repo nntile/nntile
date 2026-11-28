@@ -9,7 +9,7 @@
  * @file nntile/tests/tile_graph/relu.cc
  * TileGraph relu vs nntile::core::relu (small parity B).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tile/ops/relu.hh"

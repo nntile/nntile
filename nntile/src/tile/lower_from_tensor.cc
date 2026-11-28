@@ -9,7 +9,7 @@
  * @file nntile/src/tile_graph/lower_from_tensor.cc
  * TileGraph lower from tensor operation implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tile/lower_from_tensor.hh"

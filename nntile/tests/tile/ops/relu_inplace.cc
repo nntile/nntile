@@ -10,7 +10,7 @@
  * @file nntile/tests/tile_graph/relu_inplace.cc
  * TileGraph relu_inplace vs nntile::core::relu_inplace (in-place parity B).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include <catch2/catch_test_macros.hpp>

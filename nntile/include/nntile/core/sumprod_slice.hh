@@ -9,7 +9,7 @@
  * @file include/nntile/core/sumprod_slice.hh
  * Scalar product of slices of two Tile<T>
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

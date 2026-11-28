@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/csrc/nntile_platform_bind.h
  * Pybind wrappers for platform Ingress / Flush host-copy hooks.
+ * @version 2.0.0
  */
 
 #pragma once

@@ -3,6 +3,7 @@
 #
 # @file cmake/torch_nntileConfig.cmake.in
 # find_package(torch_nntile) config for installed libtorch_nntile.
+# @version 2.0.0
 
 @PACKAGE_INIT@
 

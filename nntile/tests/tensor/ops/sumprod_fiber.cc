@@ -9,7 +9,7 @@
  * @file nntile/tests/tensor_graph/sumprod_fiber.cc
  * Test TensorGraph sumprod_fiber operation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tensor/ops/sumprod_fiber.hh"

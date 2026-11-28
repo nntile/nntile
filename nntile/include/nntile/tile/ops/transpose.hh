@@ -9,7 +9,7 @@
  * @file include/nntile/tile/ops/transpose.hh
  * TileGraph transpose: dst = alpha * transpose(src, ndim)
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

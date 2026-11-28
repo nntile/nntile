@@ -9,7 +9,7 @@
 # @file nntile/tests/tensor_graph/CMakeLists.txt
 # Tests for TensorGraph operations
 #
-# @version 1.1.0
+# @version 2.0.0
 
 if(BUILD_COVERAGE)
     setup_target_for_coverage_lcov(NAME coverage_tensor

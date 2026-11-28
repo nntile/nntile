@@ -9,7 +9,7 @@
  * @file src/nnhaul/gelutanh.cc
  * Approximate GeLU operation on a NNHaul buffer
  *
- * @version 1.2.0
+ * @version 2.0.0
  * */
 
 // Corresponding headers

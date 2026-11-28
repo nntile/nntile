@@ -10,7 +10,7 @@
  * @file nntile/src/tensor_graph/add_slice.cc
  * TensorGraph add_slice operation implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tensor/ops/add_slice.hh"

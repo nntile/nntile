@@ -9,7 +9,7 @@
  * @file include/nntile/nnhaul/ops/multiply_inplace.hh
  * Per-element product of two NNHaul buffers
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

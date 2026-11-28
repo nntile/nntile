@@ -9,7 +9,7 @@
  * @file nntile/tests/tensor_graph/rope_backward.cc
  * Test TensorGraph rope_backward operation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tensor/ops/rope_backward.hh"

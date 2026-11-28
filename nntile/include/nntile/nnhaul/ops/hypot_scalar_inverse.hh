@@ -9,7 +9,7 @@
  * @file include/nntile/nnhaul/ops/hypot_scalar_inverse.hh
  * Inverse of a hypot operation of a buffer and a scalar
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

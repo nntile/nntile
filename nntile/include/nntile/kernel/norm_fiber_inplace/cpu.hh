@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/norm_fiber_inplace/cpu.hh
  * Euclidean norms over slices into a fiber of a product of buffers on CPU
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

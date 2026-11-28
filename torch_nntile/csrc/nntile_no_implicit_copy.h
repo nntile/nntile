@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/csrc/nntile_no_implicit_copy.h
  * Reject silent nntile ↔ CPU copies in compute kernels.
+ * @version 2.0.0
  */
 
 #pragma once

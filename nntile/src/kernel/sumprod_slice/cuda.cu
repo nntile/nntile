@@ -9,7 +9,7 @@
  * @file src/kernel/sumprod_slice/cuda.cu
  * Sums over fibers into a slice of a product of buffers on CUDA
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include <cstdio>

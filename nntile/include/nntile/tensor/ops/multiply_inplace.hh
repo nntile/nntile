@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/ops/multiply_inplace.hh
  * TensorGraph multiply_inplace operation: dst = alpha * src * dst
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

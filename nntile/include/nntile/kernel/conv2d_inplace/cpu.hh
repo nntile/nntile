@@ -10,7 +10,7 @@
  * Forward 2D-Convolution of two tensors in WHCN format
  * Due to Fortran ordering, WHCN of NNTile is equal to NCHF format of PyTorch
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 /*!
  * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.

@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/scale/cpu.hh
  * Scale operation on buffers on CPU
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

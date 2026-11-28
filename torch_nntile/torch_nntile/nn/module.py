@@ -2,6 +2,7 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/torch_nntile/nn/module.py
+# @version 2.0.0
 """``torch.nn.Module`` subclasses backed by classic NNTile kernels.
 
 Import from :mod:`torch_nntile.nn.module` (or :mod:`torch_nntile.nn`).

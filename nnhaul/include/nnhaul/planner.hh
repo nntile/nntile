@@ -11,7 +11,7 @@
  * proprietary ones loaded with NNHAUL_PLANNER=<path>) use this header
  * unchanged.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

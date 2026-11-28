@@ -10,6 +10,7 @@
 # not link a second copy under /usr/local/cuda/lib64.
 #
 # Enable with -DNNTILE_CUDA_FROM_PIP=ON or env NNTILE_CUDA_FROM_PIP=1.
+# @version 2.0.0
 
 if(DEFINED ENV{NNTILE_CUDA_FROM_PIP} AND NOT DEFINED NNTILE_CUDA_FROM_PIP)
     if("$ENV{NNTILE_CUDA_FROM_PIP}" STREQUAL "1"

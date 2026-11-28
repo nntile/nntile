@@ -9,7 +9,7 @@
  * @file include/nntile/nnhaul/ops/subtract_indexed_outputs.hh
  * Subtraction of a given value from certain matrix elements for NNHaul buffer
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

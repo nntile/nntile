@@ -12,7 +12,7 @@
 # nntileConfig.cmake after find_package(nntile), so the tests match the
 # library they link against rather than this source tree's default.
 #
-# @version 1.0.0
+# @version 2.0.0
 
 # Transformer-focused scope: families outside the transformer model and
 # training paths are disabled at the public op level, and their tests are

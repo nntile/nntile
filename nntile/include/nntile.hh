@@ -9,7 +9,7 @@
  * @file include/nntile.hh
  * Convenience header for the NNTile TensorGraph stack (libnntile).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

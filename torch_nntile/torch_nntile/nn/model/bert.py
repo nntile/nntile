@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/nn/model/bert.py
 # BERT masked LM for device="nntile".
+# @version 2.0.0
 
 """BERT stack mirroring ``nntile::model::bert`` (BertMlm)."""
 

@@ -17,7 +17,7 @@
  * delivered at it; and HostEventPool's acquire/release with
  * the exhaustion census .
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

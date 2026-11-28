@@ -18,7 +18,7 @@ Every source file must start with a copyright/license header:
  * @file path/to/file.hh
  * Brief description of the file
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 ```
 
@@ -36,8 +36,15 @@ For CMakeLists.txt files, use `#` instead of `/*!`:
 # @file path/to/CMakeLists.txt
 # Brief description
 #
-# @version 1.1.0
+# @version 2.0.0
 ```
+
+The header version is the product version: **2.0.0** for every authored
+file. Exceptions are limited to vendored dependencies under `external/`,
+license files, binary assets, JSON data/config files (which cannot carry
+comments), and files that already carry a third-party license plus an
+SPDX identifier and the `@version 2.0.0` marker (currently
+`cmake/CodeCoverage.cmake`). `tools/check_headers.py` enforces this in CI.
 
 ## Includes
 
@@ -204,7 +211,7 @@ void gemm<fp32_t>(Scalar alpha, const TransOp &transA,
 
 Example:
 ```cpp
-auto tile = tensor.get_tile(0);
+auto &tile = runtime.get_tile<fp32_t>(node);
 auto tile_local = tile.acquire(ACCESS_W);
 // ... use tile_local ...
 tile_local.release();

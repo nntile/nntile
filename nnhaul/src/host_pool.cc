@@ -13,7 +13,7 @@
  * growth ladder, addr() over the block table, the census counts, and
  * the per-block cudaFreeHost teardown declared in host_pool.hh.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

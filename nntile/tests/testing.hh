@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems with GPU acceleration.
  * @file tests/testing.hh
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

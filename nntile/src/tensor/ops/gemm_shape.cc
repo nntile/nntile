@@ -6,7 +6,7 @@
  * @file src/tensor/ops/gemm_shape.cc
  * Shape helper for GEMM.
  *
- * @version 1.1.0
+ * @version 2.0.0
  */
 
 #include "nntile/tensor/ops/gemm.hh"

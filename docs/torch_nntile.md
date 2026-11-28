@@ -1,3 +1,16 @@
+<!--
+ @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+                              (Skoltech), Russia. All rights reserved.
+                2023-present Artificial Intelligence Research Institute
+                              (AIRI), Russia. All rights reserved.
+
+ NNTile is software framework for fast training of big neural networks on
+ distributed-memory heterogeneous systems with GPU acceleration.
+
+ @file docs/torch_nntile.md
+ @version 2.0.0
+-->
+
 # torch_nntile (NNTile 2.0)
 
 PyTorch **PrivateUse1** backend registered as `device="nntile"`, backed by
@@ -52,4 +65,4 @@ The classic GPT-2 training example is
 ## Migration from 1.x
 
 NNTile 1.x stock-`torch.nn`/HF-on-`nntile`, CPU, macOS, and flash-SDPA
-paths are not available in 2.0. Stay on the `1.x` branch for those products.
+paths are not available in 2.0. Stay at the `1.1.0` tag for those products.

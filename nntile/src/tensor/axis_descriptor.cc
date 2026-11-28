@@ -10,7 +10,7 @@
  * @file nntile/src/tensor_graph/axis_descriptor.cc
  * AxisDescriptor and merge_axis implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tensor/axis_descriptor.hh"
@@ -63,14 +63,6 @@ void AxisDescriptor::set_tiling(const std::vector<Index>& sizes)
     tile_sizes = sizes;
 }
 
-Index AxisDescriptor::num_tiles() const
-{
-    if(tile_sizes.empty())
-    {
-        return 1;
-    }
-    return static_cast<Index>(tile_sizes.size());
-}
 
 std::string AxisDescriptor::tile_sizes_to_string() const
 {
@@ -188,6 +180,30 @@ void merge_axis(std::shared_ptr<AxisDescriptor>& lhs,
         g->drop_axis_group(old_desc.get());
         g->note_axis_group(keep.get());
     }
+}
+
+
+void apply_tiling_to_axis(AxisDescriptor *ad,
+    const std::vector<Index> &sizes)
+{
+    if(sizes.size() == 1)
+    {
+        ad->set_tiling(sizes[0]);
+        return;
+    }
+    Index total = 0;
+    for(Index s : sizes)
+    {
+        total += s;
+    }
+    if(total != ad->extent)
+    {
+        throw std::runtime_error(
+            "tiling: sum of tile sizes for axis '" + ad->name + "' (" +
+            std::to_string(total) + ") != extent (" +
+            std::to_string(ad->extent) + ")");
+    }
+    ad->set_tiling(sizes);
 }
 
 } // namespace nntile

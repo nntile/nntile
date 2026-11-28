@@ -9,7 +9,7 @@
  * @file nntile/src/tensor_graph/add.cc
  * TensorGraph add operation implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 // Include corresponding header

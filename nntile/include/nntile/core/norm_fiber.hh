@@ -9,7 +9,7 @@
  * @file include/nntile/core/norm_fiber.hh
  * Euclidean norms over slices into a fiber of a Tile<T>
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

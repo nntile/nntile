@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/ops/gelu.hh
  * TensorGraph GeLU operation: y = gelu(x)
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

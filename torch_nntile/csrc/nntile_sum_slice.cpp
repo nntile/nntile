@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/csrc/nntile_sum_slice.cpp
  * ``sum_slice`` forward / ``add_slice`` backward for GAP.
+ * @version 2.0.0
  */
 
 #include "nntile_sum_slice.h"

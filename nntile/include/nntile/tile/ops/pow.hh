@@ -9,7 +9,7 @@
  * @file include/nntile/tile/ops/pow.hh
  * TileGraph pow in-place: A = alpha * A^exp
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 /*!
  * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.

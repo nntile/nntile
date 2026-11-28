@@ -9,7 +9,7 @@
  * @file src/kernel/copy/cuda.cu
  * Copy operation on buffers on CUDA
  *
- * @version 1.2.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/copy/cuda.hh"

@@ -12,7 +12,7 @@
  * run in BOTH backend configurations: the chunked entry points are
  * backend-agnostic (with a 16 MiB default class when nnhaul is absent).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include <nntile/kernel/add/cuda.hh>

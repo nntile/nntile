@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/tests/test_norm_parity.py
 # Parity tests for nntile 2-norm via TensorGraph (libnntile).
+# @version 2.0.0
 
 import pytest
 import torch

@@ -9,7 +9,7 @@
  * @file nntile/tests/gemm_core_reference.hh
  * Reference GEMM via nntile::core for tile/tensor parity tests.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

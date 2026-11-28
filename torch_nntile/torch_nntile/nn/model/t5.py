@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/nn/model/t5.py
 # T5 encoder-decoder for device="nntile".
+# @version 2.0.0
 
 """Simplified T5 mirroring ``nntile::model::t5``."""
 

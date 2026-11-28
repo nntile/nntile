@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/mask_scalar/cpu.hh
  * Mask operation with scalar on CPU
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

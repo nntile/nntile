@@ -9,7 +9,7 @@
  * @file nntile/tests/tensor_graph/rope.cc
  * Test TensorGraph rope operation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tensor/ops/rope.hh"

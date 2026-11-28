@@ -17,7 +17,7 @@
 # exec lanes' internal idle bubbles, op counts by kind, and the plan
 # witness echo. Python 3, standard library only.
 #
-# @version 1.0.0
+# @version 2.0.0
 
 """Analyze an NNHaul Chrome Trace Event dump (format_version 1).
 

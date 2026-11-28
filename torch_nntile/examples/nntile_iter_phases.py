@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/examples/nntile_iter_phases.py
 # Per-iteration TensorGraph: record, compile, wait, run; wait after last run.
+# @version 2.0.0
 
 """Shared nntile train-phase timing.
 

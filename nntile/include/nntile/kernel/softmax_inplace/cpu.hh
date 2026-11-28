@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/softmax_inplace/cpu.hh
  * softmax_inplace operation on CPU
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

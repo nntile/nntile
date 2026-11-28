@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/relu_backward/cpu.hh
  * Backward ReLU operation on CPU
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

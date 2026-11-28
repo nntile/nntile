@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/tests/parity_helpers.py
 # Shared helpers for CPU / HF / nntile model submodule parity tests.
+# @version 2.0.0
 
 from __future__ import annotations
 

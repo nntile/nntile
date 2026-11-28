@@ -9,7 +9,7 @@
  * @file src/kernel/add/cuda.cu
  * Add operation on buffers on CUDA
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include <cstdio>

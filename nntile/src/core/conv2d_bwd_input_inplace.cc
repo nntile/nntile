@@ -9,7 +9,7 @@
  * @file src/core/conv2d_bwd_input_inplace.cc
  * Backward 2D-Convolution of two tiles in WHCN format to get input grad
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 /*!
  * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.

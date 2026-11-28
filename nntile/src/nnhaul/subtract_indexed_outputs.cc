@@ -9,7 +9,7 @@
  * @file src/nnhaul/subtract_indexed_outputs.cc
  * Subtract a given value from certain matrix elements for NNHaul buffer
  *
- * @version 1.2.0
+ * @version 2.0.0
  * */
 
 // Corresponding header

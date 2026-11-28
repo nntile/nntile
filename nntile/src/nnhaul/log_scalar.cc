@@ -9,7 +9,7 @@
  * @file src/nnhaul/log_scalar.cc
  * NNHaul wrapper to log scalar value
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 // Corresponding header

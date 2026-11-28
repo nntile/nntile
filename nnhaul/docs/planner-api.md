@@ -6,7 +6,7 @@
 The public planner interface: what a planner reads, what it emits, how it
 is loaded, and what an external planner may and may not assume.
 
-@version 1.0.0
+@version 2.0.0
 -->
 
 <!-- SPDX-License-Identifier: MIT -->

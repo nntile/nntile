@@ -10,7 +10,7 @@
  * @file nntile/src/runtime.cc
  * Runtime implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/runtime.hh"
@@ -717,42 +717,8 @@ void Runtime::load_execution_schedule(std::string const &path)
     set_execution_schedule(load_execution_schedule_json(path));
 }
 
-void Runtime::apply_execution_schedule_from_file(std::string const &path)
-{
-    if (!compiled_)
-    {
-        throw std::runtime_error(
-            "Runtime::apply_execution_schedule_from_file: call compile() "
-            "first");
-    }
-    if (!execution_schedule_file_cache_ ||
-        execution_schedule_file_cache_path_ != path)
-    {
-        execution_schedule_file_cache_ = load_execution_schedule_json(path);
-        execution_schedule_file_cache_path_ = path;
-    }
-    try
-    {
-        set_execution_schedule(*execution_schedule_file_cache_);
-    }
-    catch (...)
-    {
-        clear_execution_schedule_file_cache();
-        throw;
-    }
-}
 
-void Runtime::clear_execution_schedule_file_cache()
-{
-    execution_schedule_file_cache_.reset();
-    execution_schedule_file_cache_path_.clear();
-}
 
-void Runtime::compile_with_round_robin_schedule()
-{
-    compile();
-    set_execution_schedule(generate_round_robin_execution_schedule());
-}
 
 void Runtime::write_execution_schedule_json(std::string const &path) const
 {
@@ -955,43 +921,6 @@ void Runtime::execute()
     execute_range(0, execution_order_.size());
 }
 
-void Runtime::build_tile_last_consumer_map()
-{
-    // Pending suffix only: size dying lists and last-consumer scratch to
-    // O(pending), never O(|execution_order_|). Absolute op indices are
-    // recovered via tiles_dying_op_base_.
-    const size_t n = execution_order_.size();
-    const size_t begin =
-        executed_op_end_ < n ? executed_op_end_ : n;
-    tiles_dying_op_base_ = begin;
-    tiles_dying_after_op_.clear();
-    if (begin >= n)
-    {
-        return;
-    }
-    const size_t pending = n - begin;
-    tiles_dying_after_op_.assign(pending, {});
-
-    // Sparse last-consumer over tiles touched by the pending suffix only.
-    // Dense last_op_by_id[max_id+1] was O(session tile nodes) every compile
-    // because TileNode ids are monotonic and append-only.
-    std::unordered_map<const TileGraph::TileNode *, size_t> last_op;
-    last_op.reserve(pending * 4);
-    for (size_t i = begin; i < n; ++i)
-    {
-        for (const auto *in : execution_order_[i]->inputs())
-        {
-            if (in != nullptr)
-            {
-                last_op[in] = i;
-            }
-        }
-    }
-    for (const auto &[tile, last] : last_op)
-    {
-        tiles_dying_after_op_[last - begin].push_back(tile);
-    }
-}
 
 void Runtime::invalidate_tile_buffer(
     const TileGraph::TileNode *node,
@@ -1101,63 +1030,8 @@ void Runtime::unregister_tile_buffer(
     }
 }
 
-void Runtime::release_dead_tiles_after_op(size_t op_idx)
-{
-    queue_dead_tiles_after_op(op_idx);
-    if (g_sync_defer_depth == 0)
-    {
-        task_wait_for_all_counted();
-        flush_queued_dead_tiles();
-    }
-}
 
-void Runtime::queue_dead_tiles_after_op(size_t op_idx)
-{
-    if (op_idx < tiles_dying_op_base_)
-    {
-        return;
-    }
-    size_t const local = op_idx - tiles_dying_op_base_;
-    if (local >= tiles_dying_after_op_.size())
-    {
-        return;
-    }
-    for (const TileGraph::TileNode *tile : tiles_dying_after_op_[local])
-    {
-        // Skip tensors that still have a live TensorRef.
-        if (tile == nullptr || tile_logical_is_live(tile))
-        {
-            continue;
-        }
-        queued_dead_tiles_.push_back(tile);
-    }
-}
 
-void Runtime::flush_queued_dead_tiles()
-{
-    if (queued_dead_tiles_.empty())
-    {
-        return;
-    }
-    for (const TileGraph::TileNode *tile : queued_dead_tiles_)
-    {
-        if (tile == nullptr || !tile->is_registered()
-            || !tile->has_payload())
-        {
-            continue;
-        }
-        auto payload = tile->payload();
-        invalidate_tile_buffer(tile, payload);
-        if (payload)
-        {
-            nnhaul_retained_payloads_.push_back(payload);
-        }
-        auto *mut = const_cast<TileGraph::TileNode *>(tile);
-        mut->clear_payload();
-        sync_logical_registered_flag(mut);
-    }
-    queued_dead_tiles_.clear();
-}
 
 void Runtime::eliminate_dead_ops()
 {

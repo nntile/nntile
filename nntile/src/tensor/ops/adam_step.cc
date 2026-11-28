@@ -10,7 +10,7 @@
  * @file nntile/src/tensor_graph/adam_step.cc
  * TensorGraph adam_step operation implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tensor/ops/adam_step.hh"

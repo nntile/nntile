@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/ops/scale_slice.hh
  * TensorGraph scale_slice operation: dst = alpha * src (slice broadcast)
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

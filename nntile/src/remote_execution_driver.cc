@@ -9,7 +9,7 @@
  * @file nntile/src/remote_execution_driver.cc
  * Unix-socket TileGraph driver (NNTILE_DRIVER_SOCKET).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include <nntile/remote_execution_driver.hh>
@@ -1075,25 +1075,7 @@ std::vector<float> RemoteExecutionDriver::gather(TileGraph::NodeId id)
     return reply.at("data").get<std::vector<float>>();
 }
 
-std::vector<std::int64_t> RemoteExecutionDriver::gather_int64(
-    TileGraph::NodeId id)
-{
-    send_json(
-        fd_,
-        {{"type", "Gather"}, {"node_id", id}});
-    auto reply = require_ok(recv_json(fd_), "gather");
-    return reply.at("data").get<std::vector<std::int64_t>>();
-}
 
-std::vector<std::uint8_t> RemoteExecutionDriver::gather_bool(
-    TileGraph::NodeId id)
-{
-    send_json(
-        fd_,
-        {{"type", "Gather"}, {"node_id", id}});
-    auto reply = require_ok(recv_json(fd_), "gather");
-    return reply.at("data").get<std::vector<std::uint8_t>>();
-}
 
 ExecutionDaemon::ExecutionDaemon(std::string socket_path)
     : path_(

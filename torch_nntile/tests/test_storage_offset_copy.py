@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/tests/test_storage_offset_copy.py
 # CPU->nntile copy must honor storage_offset (B=1 causal label views).
+# @version 2.0.0
 
 from __future__ import annotations
 

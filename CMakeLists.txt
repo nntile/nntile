@@ -9,7 +9,7 @@
 # @file CMakeLists.txt
 # Top-level CMake (unified nntile package).
 #
-# @version 1.1.0
+# @version 2.0.0
 
 cmake_minimum_required(VERSION 3.24)
 message(STATUS "Using CMake ${CMAKE_VERSION}")

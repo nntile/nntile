@@ -14,7 +14,7 @@
  * only. NodePoolStats are the observable face — the old flat Stats fields
  * died with the single-stream engine).
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

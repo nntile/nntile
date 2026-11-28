@@ -4,6 +4,7 @@
 #                              (AIRI), Russia. All rights reserved.
 #
 # CTest script: run cmake --install and verify the install tree layout.
+# @version 2.0.0
 
 if(NOT DEFINED BUILD_DIR)
     message(FATAL_ERROR "BUILD_DIR is required")

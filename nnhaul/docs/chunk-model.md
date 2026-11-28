@@ -6,7 +6,7 @@
 The chunk model in one page: the one class, how a tile decomposes, what a
 codelet receives, and how a COPY moves bytes. Standalone by design.
 
-@version 1.0.0
+@version 2.0.0
 -->
 
 <!-- SPDX-License-Identifier: MIT -->

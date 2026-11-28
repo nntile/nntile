@@ -9,7 +9,7 @@
  * @file src/kernel/logsumexp/cpu.cc
  * Logsumexp after computed maxsumexp result of a buffer on CPU
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/logsumexp/cpu.hh"

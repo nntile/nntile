@@ -9,7 +9,7 @@
  * @file src/kernel/maxsumexp/cuda.cu
  * Max and sum of exponents of a buffer on CUDA
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/maxsumexp/cuda.hh"

@@ -9,7 +9,7 @@
  * @file src/kernel/scale/cuda.cu
  * Scale operation on buffers on CUDA
  *
- * @version 1.3.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/scale/cuda.hh"

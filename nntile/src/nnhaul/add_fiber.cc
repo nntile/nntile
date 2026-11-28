@@ -9,7 +9,7 @@
  * @file src/nnhaul/add_fiber.cc
  * NNHaul wrappers for addition of a tensor and a broadcasted fiber
  *
- * @version 1.2.0
+ * @version 2.0.0
  * */
 
 // Corresponding header

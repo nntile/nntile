@@ -6,7 +6,7 @@
  * @file include/nntile/core/execution_worker.hh
  * NNHaul worker helpers for static execution schedules.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

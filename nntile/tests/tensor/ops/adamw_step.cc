@@ -9,7 +9,7 @@
  * @file nntile/tests/tensor_graph/adamw_step.cc
  * Test TensorGraph adamw_step operation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tensor/ops/adamw_step.hh"

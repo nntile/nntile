@@ -9,7 +9,7 @@
  * @file src/kernel/randn/cuda.cu
  * Randn operation on CUDA (FP32 product path; same chameleon PRNG as CPU)
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/randn/cuda.hh"

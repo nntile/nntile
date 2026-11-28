@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/nn/model/mlp_mixer.py
 # MLP-Mixer for device="nntile" - gemm side-L / side-R, no axis swaps.
+# @version 2.0.0
 
 """MLP-Mixer matching ``torch_nntile::models::MlpMixer`` / main torch_models.
 

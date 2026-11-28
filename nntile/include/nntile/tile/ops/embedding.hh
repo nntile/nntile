@@ -9,7 +9,7 @@
  * @file include/nntile/tile/ops/embedding.hh
  * TileGraph embedding operation: embed = vocab[index]
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

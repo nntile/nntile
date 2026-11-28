@@ -9,7 +9,7 @@
  * @file nntile/src/tensor_graph/invalidate.cc
  * TensorGraph async invalidate implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tensor/ops/invalidate.hh"

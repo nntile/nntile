@@ -9,7 +9,7 @@
  * @file include/nntile/tile/ops/hypot_inplace.hh
  * TileGraph hypot_inplace operation: (alpha, src, beta, dst)
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

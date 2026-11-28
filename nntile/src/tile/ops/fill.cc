@@ -9,7 +9,7 @@
  * @file nntile/src/tile_graph/fill.cc
  * TileGraph fill operation implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tile/ops/fill.hh"

@@ -9,7 +9,7 @@
  * @file include/nntile/tile/ops/conv2d_bwd_weight_inplace.hh
  * TileGraph conv2d_bwd_weight_inplace: dC = alpha*conv_bwd(X,dY) + beta*dC
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 /*!
  * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.

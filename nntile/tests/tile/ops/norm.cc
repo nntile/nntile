@@ -10,7 +10,7 @@
  * @file nntile/tests/tile_graph/norm.cc
  * Test TileGraph norm vs nntile::core (parity).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include <catch2/catch_test_macros.hpp>

@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/add_fiber.py
 # add_fiber matching ``nntile::tensor::add_fiber`` / C++ GPT-2 bias path.
+# @version 2.0.0
 
 """Add a fiber without materializing a broadcast (no ``scale_slice``)."""
 

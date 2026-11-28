@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/ops/sumprod_fiber.hh
  * TensorGraph sumprod_fiber operation: dst = alpha * sumprod_fiber(src1, src2) + beta * dst
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

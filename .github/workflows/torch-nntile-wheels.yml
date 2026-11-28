@@ -1,3 +1,16 @@
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                 2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems with GPU acceleration.
+#
+# @file .github/workflows/torch-nntile-wheels.yml
+# NNTile 2.0 file.
+#
+# @version 2.0.0
+
 name: torch_nntile wheels
 
 # cibuildwheel packaging: before-all builds the libs, then builds the
@@ -47,7 +60,7 @@ jobs:
           - os: ubuntu-24.04
             identifier: cp312-manylinux_x86_64
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         if: ${{ env.ACT != 'true' }}
         with:
           persist-credentials: false
@@ -79,7 +92,7 @@ jobs:
 
       - name: Use Python 3.12
         # Pin the venv interpreter to the version the wheel builds.
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 

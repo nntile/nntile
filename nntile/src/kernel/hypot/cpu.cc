@@ -9,7 +9,7 @@
  * @file src/kernel/hypot/cpu.cc
  * hypot operation on buffers on CPU
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/hypot/cpu.hh"

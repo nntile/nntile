@@ -9,7 +9,7 @@
  * @file include/nntile/nnhaul/ops/sgd_step.hh
  * SGD with momentum step with NNHaul buffers
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

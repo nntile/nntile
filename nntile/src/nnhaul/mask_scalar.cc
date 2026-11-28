@@ -9,7 +9,7 @@
  * @file src/nnhaul/mask_scalar.cc
  * NNHaul wrappers for mask_scalar operation
  *
- * @version 1.2.0
+ * @version 2.0.0
  * */
 
 // Corresponding header

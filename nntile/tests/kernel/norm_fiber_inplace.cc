@@ -9,7 +9,7 @@
  * @file tests/kernel/norm_fiber_inplace.cc
  * Euclidean norms over slices into a fiber of a product of buffers
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/kernel/norm_fiber_inplace.hh"

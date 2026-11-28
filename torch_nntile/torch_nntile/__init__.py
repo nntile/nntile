@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/torch_nntile/__init__.py
 # Register the PyTorch nntile device (PrivateUse1).
+# @version 2.0.0
 
 """PyTorch nntile device (PrivateUse1; requires libnntile).
 

@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/logsumexp/cuda.hh
  * Logsumexp of a buffer on CUDA
  *
- * @version 1.2.0
+ * @version 2.0.0
  * */
 
 #pragma once

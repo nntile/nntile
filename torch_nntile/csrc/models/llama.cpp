@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/csrc/models/llama.cpp
  * Llama causal LM - port of deleted ``nntile::model::llama``.
+ * @version 2.0.0
  */
 
 #include <torch_nntile/models/llama.hh>

@@ -3,6 +3,7 @@
  *
  * @file torch_nntile/csrc/nntile_repeat.cpp
  * ``aten::repeat`` for device nntile via chained ``scale_slice``.
+ * @version 2.0.0
  */
 
 #include "nntile_broadcast.h"

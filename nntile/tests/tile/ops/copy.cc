@@ -10,7 +10,7 @@
  * @file nntile/tests/tile_graph/copy.cc
  * TileGraph copy vs nntile::core::copy (small parity B).
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include <catch2/catch_test_macros.hpp>

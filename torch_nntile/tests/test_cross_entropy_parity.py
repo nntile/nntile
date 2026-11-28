@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/tests/test_cross_entropy_parity.py
 # Cross-entropy parity: CPU PyTorch vs nntile tensor ops.
+# @version 2.0.0
 
 import pytest
 import torch

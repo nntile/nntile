@@ -9,7 +9,7 @@
  * Host-written bytes survive the round trip through GPU replicas (host
  * write, kernel read back).
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

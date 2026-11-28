@@ -4,6 +4,7 @@
 # @file torch_nntile/tests/test_models_python_classic_graph.py
 # Python torch_nntile.nn.model must record classic kernels on forward.
 # Backward may use classic ADD / ADD_INPLACE to combine fan-in grads.
+# @version 2.0.0
 
 from __future__ import annotations
 

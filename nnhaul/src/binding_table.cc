@@ -16,7 +16,7 @@
  * contract; every loud throw below is either programmer range misuse
  * or the FreeList's own discipline, never a fold fault.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 // SPDX-License-Identifier: MIT

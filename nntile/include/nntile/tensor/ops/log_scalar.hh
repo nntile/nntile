@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/ops/log_scalar.hh
  * TensorGraph log_scalar: log scalar value from tensor (debugging/monitoring)
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

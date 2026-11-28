@@ -9,7 +9,7 @@
  * @file include/nntile/nnhaul/ops/softmax.hh
  * Softmax operation for NNHaul buffer
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

@@ -9,7 +9,7 @@
  * @file nntile/tests/tile_graph/tile_graph.cc
  * Tests for TileGraph class: construction, from_tensor_graph, and execution.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "context_fixture.hh"

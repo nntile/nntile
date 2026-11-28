@@ -9,7 +9,7 @@
  * @file include/nntile/tensor.hh
  * Convenience header for TensorGraph. Includes graph definition and operations.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

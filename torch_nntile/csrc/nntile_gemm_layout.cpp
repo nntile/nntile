@@ -2,6 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/nntile_gemm_layout.cpp
+ * @version 2.0.0
  */
 
 #include "nntile_gemm_layout.h"

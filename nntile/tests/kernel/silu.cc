@@ -9,7 +9,7 @@
  * @file tests/kernel/silu.cc
  * SiLU kernel test
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 // Corresponding header

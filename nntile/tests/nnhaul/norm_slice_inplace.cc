@@ -9,7 +9,7 @@
  * norm_slice_inplace: direct kernel versus the NNHaul wrapper on the same
  * inputs.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 
 #include "harness.hh"

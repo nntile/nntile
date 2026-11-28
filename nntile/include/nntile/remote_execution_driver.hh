@@ -10,7 +10,7 @@
  * RemoteExecutionDriver: submit an already-lowered TileGraph over
  * ``NNTILE_DRIVER_SOCKET``. Does not compile TensorGraph → TileGraph.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
@@ -67,10 +67,6 @@ class RemoteExecutionDriver : public ExecutionDriver
         TileGraph::NodeId id, std::vector<std::uint8_t> const &data);
 
     std::vector<float> gather(TileGraph::NodeId id);
-
-    std::vector<std::int64_t> gather_int64(TileGraph::NodeId id);
-
-    std::vector<std::uint8_t> gather_bool(TileGraph::NodeId id);
 
   private:
     std::string path_;

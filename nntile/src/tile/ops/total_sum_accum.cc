@@ -10,7 +10,7 @@
  * @file nntile/src/tile_graph/total_sum_accum.cc
  * TileGraph total sum accum operation implementation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tile/ops/total_sum_accum.hh"

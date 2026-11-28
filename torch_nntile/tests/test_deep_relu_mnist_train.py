@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/tests/test_deep_relu_mnist_train.py
 # Full-batch MNIST training: CPU vs nntile loss and weight parity.
+# @version 2.0.0
 
 import pytest
 import torch

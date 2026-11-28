@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/scale_slice.hh
  * Per-element scaling of a broadcasted slice
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once

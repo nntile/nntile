@@ -9,7 +9,7 @@
  * @file nntile/tests/tensor_graph/scale_slice.cc
  * Test TensorGraph scale_slice operation.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/tensor/ops/scale_slice.hh"

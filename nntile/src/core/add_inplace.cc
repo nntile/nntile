@@ -9,7 +9,7 @@
  * @file src/core/add_inplace.cc
  * Add inplace operation for Tile<T>'s
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #include "nntile/core/add_inplace.hh"

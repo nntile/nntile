@@ -8,7 +8,7 @@
  * @file nntile/tests/nnhaul/pow.cc
  * pow: direct kernel versus the NNHaul wrapper on the same inputs.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * */
 /*!
  * INTENTIONALLY DISABLED in the NNTile 2.0 transformer-only scope.

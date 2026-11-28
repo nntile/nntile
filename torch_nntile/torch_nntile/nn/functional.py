@@ -2,6 +2,7 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/torch_nntile/nn/functional.py
+# @version 2.0.0
 """Autograd functions for classic NNTile kernels.
 
 Use this module for NNTile's tiled / hand-written ops (``gemm``, ``rope``,

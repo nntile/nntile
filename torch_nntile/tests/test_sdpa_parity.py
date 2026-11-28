@@ -3,6 +3,7 @@
 #
 # @file torch_nntile/tests/test_sdpa_parity.py
 # SDPA eager parity vs NNTile-layout reference implementation.
+# @version 2.0.0
 
 from __future__ import annotations
 

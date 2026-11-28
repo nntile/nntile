@@ -6,7 +6,7 @@
  * @file include/nntile/tile/lower_staging_tensor.hh
  * Lower a single-tile io_staging tensor into a TileGraph immediately.
  *
- * @version 1.1.0
+ * @version 2.0.0
  * */
 
 #pragma once
