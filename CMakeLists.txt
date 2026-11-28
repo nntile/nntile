@@ -66,8 +66,6 @@ foreach(_removed_opt IN ITEMS
         NNTILE_USE_NNHAUL
         USE_CUDA
         USE_CUDA_FP8
-        BUILD_NNHAUL
-        NNTILE_BUILD_NNHAUL
         NNTILE_TORCH_NATIVE_OPS
         NNTILE_NNTILE_NATIVE_OPS
         USE_CBLAS
