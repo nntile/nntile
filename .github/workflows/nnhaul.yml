@@ -2,16 +2,16 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file .github/workflows/nnhaul.yml
-# NNTile 2.0 GPU gate: the vendored NNHaul backend on the Cheems runner
-# group (CUDA GPU + driver on the host).
+# NNTile 2.0 GPU gate in the published sandbox image
+# (ghcr.io/nntile/nntile-sandbox). The image already contains CUDA,
+# the compilers, PyTorch and transformers, so a job only checks out the
+# source and runs the build/tests.
 #
-# Deliberately NOT triggered by pull_request. nntile/nntile is a public
-# repository and the runner group is shared with private projects: a fork
-# PR can add or edit a workflow that requests `group: cheems`, and approving
-# that run would execute untrusted code on the GPU host. GPU work therefore
-# runs only for pushes to protected branches and for workflow_dispatch,
-# which requires write access. Fork PRs get the hosted invariants workflow;
-# a maintainer brings a fork branch into the repository to get a GPU run.
+# The image is rebuilt by docker-sandbox.yml when its Dockerfile changes;
+# jobs pull the branch tag. GPU work is deliberately NOT triggered by
+# pull_request: nntile/nntile is public and the runner group is shared with
+# private projects, so a fork PR could add a workflow that requests the
+# group. GPU runs only on pushes to product branches and workflow_dispatch.
 #
 # @version 2.0.0
 
@@ -29,12 +29,10 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 env:
-  # The runners have the toolkit in /usr/local/cuda but not on PATH for
-  # non-login shells; nvcc must be discoverable by CMake and torch.
-  CUDA_HOME: /usr/local/cuda
-  PATH: /usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+  IMAGE: ghcr.io/nntile/nntile-sandbox:${{ github.ref_name }}
 
 concurrency:
   group: nntile-2.0-gpu-${{ inputs.ref || github.ref }}
@@ -52,29 +50,35 @@ jobs:
           ref: ${{ inputs.ref || github.ref }}
           persist-credentials: false
 
-      - name: configure
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: build and run both chunk classes in the sandbox image
         run: |
-          cmake -S . -B build-nnhaul -GNinja \
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            -DBUILD_LIBTORCH_NNTILE=OFF \
-            -DBUILD_TORCH_NNTILE=OFF \
-            -DNNHAUL_BUILD_TESTS=ON \
-            -DBUILD_TESTING=ON
-
-      - name: build
-        run: cmake --build build-nnhaul -j"$(nproc)"
-
-      - name: engine + nntile suites (1 MiB chunk class)
-        run: NNHAUL_CHUNK_SIZE_MB=1 sh tools/run_chunked_suite.sh build-nnhaul
-
-      - name: engine + nntile suites (2 MiB chunk class)
-        run: NNHAUL_CHUNK_SIZE_MB=2 sh tools/run_chunked_suite.sh build-nnhaul
+          mkdir -p "${RUNNER_TEMP}/ccache"
+          docker run --rm --gpus all \
+            --user "$(id -u):$(id -g)" -e HOME=/tmp \
+            --security-opt=no-new-privileges \
+            -v "$PWD:/src" -v "${RUNNER_TEMP}/ccache:/ccache" -w /src \
+            "$IMAGE" '
+              set -eu
+              cmake -S . -B build-nnhaul -GNinja \
+                -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+                -DBUILD_LIBTORCH_NNTILE=OFF \
+                -DBUILD_TORCH_NNTILE=OFF \
+                -DNNHAUL_BUILD_TESTS=ON \
+                -DBUILD_TESTING=ON
+              cmake --build build-nnhaul -j"$(nproc)"
+              NNHAUL_CHUNK_SIZE_MB=1 sh tools/run_chunked_suite.sh build-nnhaul
+              NNHAUL_CHUNK_SIZE_MB=2 sh tools/run_chunked_suite.sh build-nnhaul
+            '
 
   torch-product:
     name: torch_nntile product
-    # One GPU per host: the suites and the product tests would otherwise
-    # contend for VRAM (the suite job holds an arena while pytest spawns
-    # subprocess contexts). Keep the GPU jobs serial.
+    # One GPU per host: serialize the two GPU jobs to avoid VRAM contention.
     needs: nnhaul-suite
     runs-on:
       group: cheems
@@ -85,54 +89,45 @@ jobs:
           ref: ${{ inputs.ref || github.ref }}
           persist-credentials: false
 
-      - name: Set up Python and PyTorch
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: build, install and test the product in the sandbox image
         run: |
-          python3 -m venv "${RUNNER_TEMP}/venv"
-          "${RUNNER_TEMP}/venv/bin/python" -m pip install --upgrade pip
-          WHEEL_PYTHON="${RUNNER_TEMP}/venv/bin/python" \
-            bash torch_nntile/tools/ensure_torch_cuda.sh
-          "${RUNNER_TEMP}/venv/bin/python" -m pip install "transformers==4.52.*"
-          echo "${RUNNER_TEMP}/venv/bin" >> "${GITHUB_PATH}"
-
-      - name: configure product
-        run: |
-          TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
-          cmake -S . -B build-torch -GNinja \
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            -DBUILD_TESTING=OFF \
-            -DCMAKE_PREFIX_PATH="$TORCH_PREFIX" \
-            -DPython3_EXECUTABLE="$(command -v python3)"
-
-      - name: build product
-        run: cmake --build build-torch -j"$(nproc)"
-
-      - name: install wheel
-        run: |
-          python3 -m pip install --force-reinstall --no-deps \
-            build-torch/wheelhouse/torch_nntile-*.whl
-
-      - name: wheel smoke
-        run: python3 torch_nntile/tools/smoke_test_wheel.py
-
-      - name: Python tests
-        env:
-          NNTILE_ENABLE_LOCAL_COMPILER: "1"
-        run: |
-          python3 -m pip install pytest
-          cd torch_nntile
-          python3 -m pytest -q tests
-
-      - name: GPT-2 training smoke
-        run: |
-          python3 torch_nntile/examples/train_gpt2.py train \
-            --config torch_nntile/examples/gpt2_hf_tiny_config.json \
-            --seed 0 --seq-len 32 --batch-size 2 --max-sequences 4 \
-            --epochs 1 --no-save-checkpoint \
-            --output-dir "${RUNNER_TEMP}/gpt2-smoke" --ncuda 1 \
-            --pipelined-issue > "${RUNNER_TEMP}/gpt2-smoke.log" 2>&1
-          cat "${RUNNER_TEMP}/gpt2-smoke.log"
-          grep -q "final loss=" "${RUNNER_TEMP}/gpt2-smoke.log"
-          if grep -qiE "final loss=(nan|inf)" "${RUNNER_TEMP}/gpt2-smoke.log"; then
-            echo "GPT-2 smoke produced a non-finite loss" >&2
-            exit 1
-          fi
+          mkdir -p "${RUNNER_TEMP}/ccache"
+          docker run --rm --gpus all \
+            --user "$(id -u):$(id -g)" -e HOME=/tmp \
+            --security-opt=no-new-privileges \
+            -v "$PWD:/src" -v "${RUNNER_TEMP}/ccache:/ccache" -w /src \
+            "$IMAGE" '
+              set -eu
+              TORCH_PREFIX=$(python3 -c "import torch; print(torch.utils.cmake_prefix_path)")
+              cmake -S . -B build-torch -GNinja \
+                -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+                -DBUILD_TESTING=OFF \
+                -DCMAKE_PREFIX_PATH="$TORCH_PREFIX" \
+                -DPython3_EXECUTABLE="$(command -v python3)"
+              cmake --build build-torch -j"$(nproc)"
+              python3 -m venv --system-site-packages /tmp/testenv
+              /tmp/testenv/bin/pip install --no-deps --force-reinstall \
+                build-torch/wheelhouse/torch_nntile-*.whl
+              /tmp/testenv/bin/python torch_nntile/tools/smoke_test_wheel.py
+              (cd torch_nntile && NNTILE_ENABLE_LOCAL_COMPILER=1 \
+                /tmp/testenv/bin/python -m pytest -q tests)
+              cd /tmp
+              NNTILE_ENABLE_LOCAL_COMPILER=1 /tmp/testenv/bin/python \
+                /src/torch_nntile/examples/train_gpt2.py train \
+                --config /src/torch_nntile/examples/gpt2_hf_tiny_config.json \
+                --seed 0 --seq-len 32 --batch-size 2 --max-sequences 4 \
+                --epochs 1 --no-save-checkpoint --output-dir /tmp/gpt2-smoke \
+                --ncuda 1 --pipelined-issue > /tmp/gpt2-smoke.log 2>&1
+              cat /tmp/gpt2-smoke.log
+              grep -q "final loss=" /tmp/gpt2-smoke.log
+              if grep -qiE "final loss=(nan|inf)" /tmp/gpt2-smoke.log; then
+                echo "GPT-2 smoke produced a non-finite loss" >&2
+                exit 1
+              fi
+            '
