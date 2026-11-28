@@ -147,7 +147,7 @@ rather than marked:
   `TensorAxisLayout::tile_nelems_at`,
   `RemoteExecutionDriver::gather_int64/gather_bool`.
 - Removed compile switches and backend selection earlier in the 2.0 series:
-  StarPU/CPU/macOS backends, `USE_CUDA`, `USE_CUDA_FP8`,
+  the 1.x distributed/CPU/macOS backends, `USE_CUDA`, `USE_CUDA_FP8`,
   `TORCH_NNTILE_USE_CUDA`, `NNTILE_FORCE_CHUNKED_KERNELS`, flash-SDPA,
   ATen-on-nntile dispatch.
 
@@ -160,7 +160,7 @@ Useful checks:
 python3 tools/chunked_coverage.py
 
 # Admits no removed runtime identifier
-git grep -inE 'starpu|access_redux'
+git grep -inE 'star[-_]?pu|access[_-]?redux'
 
 # Disabled families: every file has the banner
 grep -RL 'INTENTIONALLY DISABLED' nntile/include/nntile/kernel/{conv2d_inplace,conv2d_bwd_input_inplace,conv2d_bwd_weight_inplace,isfinite,pow,sqrt,sqrt_inplace} nntile/src/kernel/{conv2d_inplace,conv2d_bwd_input_inplace,conv2d_bwd_weight_inplace,isfinite,pow,sqrt,sqrt_inplace}
